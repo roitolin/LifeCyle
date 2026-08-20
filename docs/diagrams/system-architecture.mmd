@@ -1,0 +1,156 @@
+flowchart LR
+    %% =======================
+    %% BLOODLINK SYSTEM ARCHITECTURE
+    %% =======================
+
+    subgraph ACT[Actors]
+        U[User / Donor / Requester]
+        F[Funeral Customer]
+        S[Funeral Shop Staff]
+        A[Super Admin / Admin / Blood Admin / Funeral Admin]
+    end
+
+    subgraph CLIENT[Client Applications]
+        direction TB
+        M[Mobile App\nExpo + React Native]
+        W[Web App\nVite + React]
+    end
+
+    subgraph MOBILE[Mobile App Modules]
+        direction TB
+        M1[Auth + Role Gate]
+        M2[User Screens]
+        M3[Admin Screens]
+        M4[Funeral Screens]
+        M5[Shared Chat / Notifications]
+        M6[User Request Actions\ncancel before shop accepts]
+        M7[Shop Product Management\nadd / edit / delete products]
+    end
+
+    subgraph WEB[Web App Modules]
+        direction TB
+        W1[Auth + Protected Routes]
+        W2[User Portal]
+        W3[Admin Panel]
+        W4[Support / Feedback]
+        W5[User Service Request Actions\ncancel before shop accepts]
+        W6[Shop Product Management\nadd / edit / delete products]
+    end
+
+    subgraph FB[Supabase Backend]
+        direction TB
+        FA[Supabase Authentication]
+        FS[(Cloud SupabaseDB)]
+        FR[SupabaseDB Security Rules]
+    end
+
+    subgraph DATA[Core SupabaseDB Collections]
+        direction TB
+        D1[(users)]
+        D2[(requests)]
+        D3[(funeral_service_requests)]
+        D11[(funeral_products)]
+        D4[(notifications)]
+        D5[(conversations / messages)]
+        D6[(announcements)]
+        D7[(abuse_reports)]
+        D8[(admin_audit_logs)]
+        D9[(settings/admin)]
+        D10[(app_feedback / ratings)]
+    end
+
+    subgraph EXT[External Services]
+        direction TB
+        C[Supabase Storage\nimage uploads]
+        O[OpenStreetMap / Geocoding]
+    end
+
+    U --> M
+    F --> M
+    S --> M
+    A --> M
+
+    U --> W
+    F --> W
+    A --> W
+
+    M --> M1
+    M --> M2
+    M --> M3
+    M --> M4
+    M --> M5
+    M4 --> M6
+    M4 --> M7
+
+    W --> W1
+    W --> W2
+    W --> W3
+    W --> W4
+    W2 --> W5
+    W2 --> W6
+
+    M1 --> FA
+    W1 --> FA
+
+    M2 --> FS
+    M3 --> FS
+    M4 --> FS
+    M5 --> FS
+    M6 --> FS
+    M7 --> FS
+
+    W2 --> FS
+    W3 --> FS
+    W4 --> FS
+    W5 --> FS
+    W6 --> FS
+
+    FR --> FS
+
+    FS --> D1
+    FS --> D2
+    FS --> D3
+    FS --> D11
+    FS --> D4
+    FS --> D5
+    FS --> D6
+    FS --> D7
+    FS --> D8
+    FS --> D9
+    FS --> D10
+
+    M4 --> C
+    W2 --> O
+    M2 --> O
+    M4 --> O
+
+    D1 --> M1
+    D1 --> W1
+    D4 --> M5
+    D5 --> M5
+    D6 --> M2
+    D6 --> W2
+    D8 --> W3
+    D9 --> M5
+    D9 --> W4
+    D3 --> M6
+    D3 --> W5
+    D11 --> M7
+    D11 --> W6
+
+    %% =======================
+    %% STYLES
+    %% =======================
+    classDef actor fill:#fff4c2,stroke:#b7791f,stroke-width:2px,color:#1a1a1a;
+    classDef app fill:#f6f1e8,stroke:#8b5e3c,stroke-width:1.5px,color:#1a1a1a;
+    classDef module fill:#e8f0e8,stroke:#2f855a,stroke-width:1.5px,color:#1a1a1a;
+    classDef backend fill:#ffe0b2,stroke:#c05621,stroke-width:1.5px,color:#1a1a1a;
+    classDef store fill:#e5eef8,stroke:#2b6cb0,stroke-width:1.5px,color:#1a1a1a;
+    classDef external fill:#f4e8ff,stroke:#6b46c1,stroke-width:1.5px,color:#1a1a1a;
+
+    class U,F,S,A actor;
+    class M,W app;
+    class M1,M2,M3,M4,M5,M6,M7,W1,W2,W3,W4,W5,W6 module;
+    class FA,FR backend;
+    class FS,D1,D2,D3,D4,D5,D6,D7,D8,D9,D10,D11 store;
+    class C,O external;

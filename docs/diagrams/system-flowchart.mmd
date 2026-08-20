@@ -1,0 +1,275 @@
+flowchart TD
+    %% =======================
+    %% BLOODLINK UPDATED SYSTEM FLOW
+    %% =======================
+
+    A([Start]) --> B[Service Choice Page]
+    B -->|Blood Service| C[Blood Landing Page]
+    B -->|Funeral Service| D[Funeral Landing Page]
+
+    C --> E{Logged In?}
+    D --> E
+
+    E -->|No| F[Login / Register / Verify Email]
+    F --> E
+    E -->|Yes| G{Role}
+
+    %% =======================
+    %% USER FLOW
+    %% =======================
+    G -->|User| U1
+
+    subgraph U[User System]
+        direction TB
+        U1[User Dashboard]
+        U2[Search Donors]
+        U3[Create Blood Request]
+        U4[My Blood Requests]
+        U5[Notifications]
+        U6[Profile / Settings]
+        U7[Contact Support / Feedback]
+
+        U1 --> U2
+        U1 --> U3
+        U1 --> U4
+        U1 --> U5
+        U1 --> U6
+        U6 --> U7
+
+        U2 --> U2A[Filter by blood type / city]
+        U2A --> U2B[View donor list]
+        U2B --> U2C[Open donor details]
+        U2C --> U2D[Call / SMS / Chat donor]
+
+        U3 --> U3A[Fill patient and location details]
+        U3A --> U3B[Save request to SupabaseDB]
+        U3B --> U4
+
+        U4 --> U4A[Track pending / accepted / completed]
+        U4A --> U4B[Open request details]
+        U4B --> U4C[Call / SMS / Chat accepted donor]
+    end
+
+    %% =======================
+    %% DONOR / BLOOD ACCEPT FLOW
+    %% =======================
+    subgraph BD[Blood Donation Response Flow]
+        direction TB
+        BD1[Donor opens blood request]
+        BD2[Accept request]
+        BD3[System updates request status]
+        BD4[Requester receives notification]
+        BD5[Both coordinate in chat]
+        BD1 --> BD2 --> BD3 --> BD4 --> BD5
+    end
+    U4B --> BD1
+
+    %% =======================
+    %% FUNERAL USER FLOW
+    %% =======================
+    G -->|Funeral User| FU1
+
+    subgraph FU[Funeral User Flow]
+        direction TB
+        FU1[Funeral Home / Featured Shops]
+        FU2[Funeral Shops List]
+        FU3[Shop Products Page]
+        FU4[Product View]
+        FU5[Cart]
+        FU6[Service Request Form]
+        FU7[My Service Requests]
+        FU8[Profile]
+
+        FU1 --> FU2
+        FU2 --> FU3
+        FU3 --> FU4
+        FU4 -->|Add to Cart| FU5
+        FU5 -->|Select Item| FU6
+        FU6 --> FU7
+        FU1 --> FU8
+        FU8 --> FU7
+    end
+
+    subgraph FC[Funeral Checkout Flow]
+        direction TB
+        FC1[Select cart item]
+        FC2[Fill service request details]
+        FC3[Upload photo of deceased]
+        FC4[Enter deceased details and coordinator details]
+        FC5[Confirm request]
+        FC6[Create funeral_service_requests record]
+        FC7[Notify target funeral shop]
+        FC8[Remove checked out cart item]
+        FC9[Show waiting / condolence message]
+        FC1 --> FC2 --> FC3 --> FC4 --> FC5 --> FC6 --> FC7 --> FC8 --> FC9
+    end
+    FU6 --> FC1
+
+    subgraph FCC[Custom Casket Request Flow]
+        direction TB
+        FCC1[Open shop products page]
+        FCC2[Choose Request Custom Casket Design]
+        FCC3[Upload deceased display photo]
+        FCC4[Upload design reference photo]
+        FCC5[Enter custom design notes]
+        FCC6[Submit custom request]
+        FCC7[Save as pending shop acceptance]
+        FCC1 --> FCC2 --> FCC3 --> FCC4 --> FCC5 --> FCC6 --> FCC7
+    end
+    FU3 --> FCC1
+
+    subgraph FUM[Funeral User Monitoring]
+        direction TB
+        FUM1[Open My Service Requests]
+        FUM2[View request details]
+        FUM3[See requested item / custom design]
+        FUM4[Call shop]
+        FUM5[SMS shop]
+        FUM6[Track waiting / accepted / declined status]
+        FUM1 --> FUM2 --> FUM3
+        FUM3 --> FUM4
+        FUM3 --> FUM5
+        FUM3 --> FUM6
+    end
+    FU7 --> FUM1
+
+    %% =======================
+    %% FUNERAL SHOP FLOW
+    %% =======================
+    G -->|Funeral Shop| FS1
+
+    subgraph FS[Funeral Shop Flow]
+        direction TB
+        FS1[Funeral Profile]
+        FS2[Shop Registration]
+        FS3[Business Information]
+        FS4[Shop Center]
+        FS5[Manage Shop Details]
+        FS6[Manage Products / Caskets]
+        FS7[Service Requests Inbox]
+
+        FS1 --> FS2
+        FS2 --> FS3
+        FS3 --> FS4
+        FS4 --> FS5
+        FS4 --> FS6
+        FS4 --> FS7
+    end
+
+    subgraph FSR[Funeral Shop Request Handling]
+        direction TB
+        FSR1[View incoming service request]
+        FSR2[See purchased item or custom request]
+        FSR3[View deceased and family details]
+        FSR4[Call family]
+        FSR5[SMS family]
+        FSR6{Accept or Decline}
+        FSR7[Accept request]
+        FSR8[Decline request]
+        FSR9[Update request status]
+        FSR10[Reduce stock by 1 for accepted catalog item]
+        FSR11[Notify user of shop response]
+
+        FSR1 --> FSR2 --> FSR3
+        FSR3 --> FSR4
+        FSR3 --> FSR5
+        FSR3 --> FSR6
+        FSR6 -->|Accept| FSR7
+        FSR6 -->|Decline| FSR8
+        FSR7 --> FSR9
+        FSR7 --> FSR10
+        FSR8 --> FSR9
+        FSR9 --> FSR11
+    end
+    FS7 --> FSR1
+
+    %% =======================
+    %% ADMIN FLOW
+    %% =======================
+    G -->|Super Admin / Admin / Blood Admin / Funeral Admin| A1
+
+    subgraph AD[Admin Web Panel]
+        direction TB
+        A1[Admin Dashboard]
+        A1A[Super Admin Oversight]
+        A2[Manage Users]
+        A3[User Details]
+        A4[Manage Blood Requests]
+        A5[Manage Donors]
+        A6[Manage Funeral Shops]
+        A7[Review Funeral Shop Verification]
+        A8[Moderation]
+        A9[Audit Logs]
+        A10[Analytics]
+        A11[Announcements]
+        A12[Feedback]
+        A13[Support Inbox]
+
+        A1 --> A1A
+        A1 --> A2 --> A3
+        A1 --> A4
+        A1 --> A5
+        A1 --> A6 --> A7
+        A1 --> A8
+        A1 --> A9
+        A1 --> A10
+        A1 --> A11
+        A1 --> A12
+        A1 --> A13
+    end
+
+    %% =======================
+    %% DATA + NOTIFICATION LAYER
+    %% =======================
+    subgraph DS[System Data Layer]
+        direction TB
+        DS1[(Supabase Auth)]
+        DS2[(SupabaseDB Users)]
+        DS3[(SupabaseDB Requests)]
+        DS4[(SupabaseDB Funeral Service Requests)]
+        DS5[(SupabaseDB Notifications)]
+        DS6[(Supabase Storage Images)]
+    end
+
+    F --> DS1
+    U3B --> DS3
+    BD3 --> DS3
+    FC6 --> DS4
+    FCC7 --> DS4
+    FSR9 --> DS4
+    FC7 --> DS5
+    FSR11 --> DS5
+    U5 --> DS5
+    FU7 --> DS4
+    FS7 --> DS4
+    FS6 --> DS2
+    FS5 --> DS2
+    U6 --> DS2
+    FS1 --> DS2
+    FC3 --> DS6
+    FCC3 --> DS6
+    FCC4 --> DS6
+
+    %% =======================
+    %% LOGOUT
+    %% =======================
+    U1 --> Z[Logout]
+    FU1 --> Z
+    FS1 --> Z
+    A1 --> Z
+    Z --> E
+
+    %% =======================
+    %% STYLES
+    %% =======================
+    classDef start fill:#fff4c2,stroke:#b7791f,stroke-width:2px,color:#1a1a1a;
+    classDef decision fill:#ffe0b2,stroke:#c05621,stroke-width:2px,color:#1a1a1a;
+    classDef screen fill:#f6f1e8,stroke:#8b5e3c,stroke-width:1.5px,color:#1a1a1a;
+    classDef action fill:#e8f0e8,stroke:#2f855a,stroke-width:1.5px,color:#1a1a1a;
+    classDef store fill:#e5eef8,stroke:#2b6cb0,stroke-width:1.5px,color:#1a1a1a;
+
+    class A start;
+    class E,G,FSR6 decision;
+    class B,C,D,F,U1,U2,U3,U4,U5,U6,U7,U2A,U2B,U2C,U2D,U3A,U4A,U4B,U4C,FU1,FU2,FU3,FU4,FU5,FU6,FU7,FU8,FS1,FS2,FS3,FS4,FS5,FS6,FS7,A1,A1A,A2,A3,A4,A5,A6,A7,A8,A9,A10,A11,A12,A13 screen;
+    class BD1,BD2,BD3,BD4,BD5,FC1,FC2,FC3,FC4,FC5,FC6,FC7,FC8,FC9,FCC1,FCC2,FCC3,FCC4,FCC5,FCC6,FCC7,FUM1,FUM2,FUM3,FUM4,FUM5,FUM6,FSR1,FSR2,FSR3,FSR4,FSR5,FSR7,FSR8,FSR9,FSR10,FSR11,Z action;
+    class DS1,DS2,DS3,DS4,DS5,DS6 store;

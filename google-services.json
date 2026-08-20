@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "755112679546",
+    "project_id": "lifecycle-2a991",
+    "storage_bucket": "lifecycle-2a991.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:755112679546:android:b2aa03ab24017bce7883c3",
+        "android_client_info": {
+          "package_name": "com.Roi.lifecycle"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "755112679546-urbh10nmefnr7jqgv8t6mi19j5vrprc6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDlyszqjzecQVoQZg1bjmtjbZV513bX-RM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "755112679546-urbh10nmefnr7jqgv8t6mi19j5vrprc6.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

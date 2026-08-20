@@ -1,0 +1,2 @@
+-- Paste new Supabase migration queries here before moving them into allqueries.txt.
+-- Current required setup is in allqueries.txt and docs/supabase-users-schema.sql.

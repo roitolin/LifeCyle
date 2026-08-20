@@ -1,0 +1,445 @@
+.admin-console-shell {
+  --admin-brand: #334155;
+  --admin-brand-light: #f8fafc;
+  --admin-bg: #f8fafc;
+  --admin-text: #1e293b;
+  --admin-muted: #64748b;
+  --admin-border: #e2e8f0;
+  height: 100vh;
+  grid-template-columns: 240px minmax(0, 1fr);
+  overflow: hidden;
+  background: var(--admin-bg);
+  color: var(--admin-text);
+  transition: grid-template-columns 180ms ease;
+}
+
+.admin-console-shell.sidebar-collapsed {
+  grid-template-columns: 76px minmax(0, 1fr);
+}
+
+.admin-console-shell .user-sidebar {
+  position: relative;
+  top: auto;
+  height: 100vh;
+  padding: 76px 0 16px;
+  gap: 0;
+  overflow: hidden;
+  border-right: 1px solid var(--admin-border);
+  background: #fff;
+}
+
+.admin-console-shell .user-brand {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 31;
+  width: 240px;
+  height: 60px;
+  margin: 0;
+  padding: 0 20px;
+  border-right: 1px solid var(--admin-border);
+  border-bottom: 1px solid var(--admin-border);
+  background: #fff;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  color: var(--admin-brand);
+  text-decoration: none;
+  transition: width 180ms ease, padding 180ms ease;
+}
+
+.admin-console-shell .user-brand .brand-logo {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+}
+
+.admin-console-shell .user-brand .sidebar-label {
+  color: var(--admin-brand);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.admin-console-shell.sidebar-collapsed .user-brand {
+  width: 76px;
+  padding: 0;
+  justify-content: center;
+}
+
+.admin-console-shell .user-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-console-shell .user-nav-link {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.admin-console-shell .user-nav-link:hover,
+.admin-console-shell .user-nav-link.active {
+  background: var(--admin-brand-light);
+  color: var(--admin-brand);
+}
+
+.admin-console-shell .user-nav-link.active {
+  box-shadow: inset 3px 0 0 var(--admin-brand);
+  font-weight: 700;
+}
+
+.admin-console-shell .sidebar-toggle-row {
+  margin-bottom: 4px;
+  border-bottom: 1px solid #f1f3f5;
+}
+
+.admin-console-shell .nav-icon {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+.admin-console-shell .utility-actions {
+  margin-top: auto;
+  padding: 14px 20px 0;
+  border-top: 1px solid var(--admin-border);
+}
+
+.admin-console-shell .utility-actions .panel-sub {
+  margin: 0;
+  color: var(--admin-muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.admin-console-shell .user-main {
+  height: 100vh;
+  padding: 60px 0 0;
+  overflow-y: auto;
+  background: var(--admin-bg);
+}
+
+.admin-console-shell .user-header {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 240px;
+  z-index: 30;
+  height: 60px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--admin-border);
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, .03);
+  transition: left 180ms ease;
+}
+
+.admin-console-shell.sidebar-collapsed .user-header {
+  left: 76px;
+}
+
+.admin-console-shell .layout-refresh-btn {
+  min-height: 34px;
+  padding: 0 13px;
+  border: 1px solid var(--admin-border);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--admin-brand);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.admin-console-shell .layout-refresh-btn:hover {
+  border-color: #94a3b8;
+  background: var(--admin-brand-light);
+}
+
+.admin-console-shell .admin-notification-btn {
+  width: 36px;
+  height: 36px;
+  border-color: var(--admin-border);
+  border-radius: 4px;
+}
+
+.admin-console-shell .user-profile-trigger {
+  min-height: 38px;
+  padding: 0 10px 0 4px;
+  border-color: var(--admin-border);
+  border-radius: 4px;
+}
+
+.admin-console-shell .user-avatar {
+  width: 30px;
+  height: 30px;
+}
+
+.admin-console-shell .admin-header {
+  width: min(100%, 1248px);
+  margin: 0 auto;
+  padding: 24px 24px 0;
+  border: 0;
+  background: transparent;
+}
+
+.admin-console-shell .admin-header h1 {
+  color: var(--admin-text);
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.admin-console-shell .user-content {
+  width: min(100%, 1248px);
+  margin: 0 auto;
+  padding: 16px 24px 40px;
+}
+
+.admin-console-shell .user-content.admin-content-full-bleed {
+  width: 100%;
+  max-width: none;
+  min-height: calc(100vh - 60px);
+  margin: 0;
+  padding: 0;
+  background: #fff;
+}
+
+.admin-console-shell .admin-content-full-bleed > .panel {
+  min-height: calc(100vh - 60px);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.admin-console-shell .admin-content-full-bleed > .sc-page,
+.admin-console-shell .admin-content-full-bleed > .feedback-board {
+  width: 100%;
+  min-height: calc(100vh - 60px);
+  margin: 0;
+}
+
+.admin-console-shell .panel {
+  padding: 24px;
+  border: 1px solid var(--admin-border);
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .02);
+}
+
+.admin-console-shell .panel h2 {
+  color: var(--admin-text);
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.admin-console-shell .panel h3 {
+  color: #334155;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.admin-console-shell .panel-sub {
+  color: var(--admin-muted);
+  font-size: 12px;
+}
+
+.admin-console-shell .stats-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-console-shell .stat-card {
+  min-height: 94px;
+  padding: 16px;
+  border: 1px solid var(--admin-border);
+  border-radius: 4px;
+  background: #fff;
+}
+
+.admin-console-shell .stat-card strong {
+  color: #0f3d78;
+  font-size: 22px;
+}
+
+.admin-console-shell .stat-card span {
+  color: var(--admin-muted);
+  font-size: 11px;
+}
+
+.admin-console-shell .quick-actions {
+  gap: 8px;
+}
+
+.admin-console-shell .ghost-btn,
+.admin-console-shell .solid-btn,
+.admin-console-shell .table-action,
+.admin-console-shell .admin-export-btn {
+  min-height: 34px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.admin-console-shell .table-wrap {
+  border: 1px solid var(--admin-border);
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.admin-console-shell .request-table {
+  font-size: 13px;
+}
+
+.admin-console-shell .request-table th {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--admin-border);
+  background: #fbfbfb;
+  color: #555d66;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.admin-console-shell .request-table td {
+  padding: 15px 16px;
+  border-bottom-color: #f0f1f2;
+}
+
+.admin-console-shell .admin-filters,
+.admin-console-shell .admin-filters-advanced {
+  padding: 14px;
+  border: 1px solid var(--admin-border);
+  border-radius: 4px;
+  background: #fbfbfb;
+}
+
+.admin-console-shell .admin-filters input:not([type='checkbox']),
+.admin-console-shell .admin-filters select,
+.admin-console-shell textarea,
+.admin-console-shell input,
+.admin-console-shell select {
+  border-radius: 4px;
+}
+
+.admin-console-shell .user-dropdown,
+.admin-console-shell .admin-notification-dropdown {
+  border-color: var(--admin-border);
+  border-radius: 4px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, .14);
+}
+
+@media (max-width: 1020px) {
+  .admin-console-shell,
+  .admin-console-shell.sidebar-collapsed {
+    display: block;
+    height: auto;
+    min-height: 100vh;
+    padding-top: 54px;
+    overflow: visible;
+  }
+
+  .admin-console-shell .user-brand,
+  .admin-console-shell.sidebar-collapsed .user-brand {
+    width: 210px;
+    height: 54px;
+    padding: 0 14px;
+    border-right: 0;
+    justify-content: flex-start;
+  }
+
+  .admin-console-shell.sidebar-collapsed .user-brand .sidebar-label {
+    display: inline;
+  }
+
+  .admin-console-shell .user-header,
+  .admin-console-shell.sidebar-collapsed .user-header {
+    left: 0;
+    height: 54px;
+    padding: 0 14px 0 220px;
+  }
+
+  .admin-console-shell .user-sidebar {
+    position: static;
+    height: auto;
+    padding: 10px 0;
+    overflow: visible;
+    border-right: 0;
+    border-bottom: 1px solid var(--admin-border);
+  }
+
+  .admin-console-shell .user-nav {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    padding: 0 12px;
+    overflow-x: auto;
+  }
+
+  .admin-console-shell .user-nav-link {
+    width: auto;
+    flex: none;
+    padding: 0 14px;
+    border-radius: 6px;
+    white-space: nowrap;
+  }
+
+  .admin-console-shell .user-nav-link.active {
+    box-shadow: none;
+  }
+
+  .admin-console-shell .sidebar-toggle-row,
+  .admin-console-shell .utility-actions {
+    display: none;
+  }
+
+  .admin-console-shell .user-main {
+    height: auto;
+    padding-top: 0;
+    overflow: visible;
+  }
+}
+
+@media (max-width: 700px) {
+  .admin-console-shell .user-brand,
+  .admin-console-shell.sidebar-collapsed .user-brand {
+    width: 58px;
+    padding: 0 11px;
+  }
+
+  .admin-console-shell .user-brand .sidebar-label {
+    display: none;
+  }
+
+  .admin-console-shell .user-header,
+  .admin-console-shell.sidebar-collapsed .user-header {
+    padding-left: 66px;
+  }
+
+  .admin-console-shell .layout-refresh-btn,
+  .admin-console-shell .user-profile-name,
+  .admin-console-shell .user-arrow {
+    display: none;
+  }
+
+  .admin-console-shell .admin-header {
+    padding: 18px 12px 0;
+  }
+
+  .admin-console-shell .user-content {
+    padding: 12px 12px 30px;
+  }
+
+  .admin-console-shell .panel {
+    padding: 16px;
+  }
+
+  .admin-console-shell .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -1,0 +1,418 @@
+.reg-page {
+  min-height: 100vh;
+  background-color: #f5f5f5;
+  display: flex;
+  flex-direction: column;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.reg-header {
+  background: #fff;
+  padding: 16px 24px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  display: flex;
+  align-items: center;
+}
+
+.reg-logo-area {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  gap: 12px;
+}
+
+.reg-logo-box {
+  width: 32px;
+  height: 32px;
+  background: #334155;
+  color: #fff;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.reg-logo-text {
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+}
+
+.reg-logo-sub {
+  color: #888;
+  font-weight: 400;
+  font-size: 18px;
+  margin-left: 8px;
+}
+
+.reg-content {
+  flex: 1;
+  padding: 40px 20px;
+  display: flex;
+  justify-content: center;
+}
+
+.reg-card {
+  background: #fff;
+  width: 100%;
+  max-width: 800px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.reg-steps {
+  display: flex;
+  background: #fafafa;
+  border-bottom: 1px solid #eee;
+}
+
+.reg-step-item {
+  flex: 1;
+  text-align: center;
+  padding: 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #999;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.reg-step-item.active {
+  color: #334155;
+}
+
+.reg-step-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #334155;
+}
+
+.reg-step-item.completed {
+  color: #333;
+}
+
+.reg-form-body {
+  padding: 32px 40px;
+  flex: 1;
+}
+
+.reg-section-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 24px;
+}
+
+.reg-form-group {
+  margin-bottom: 20px;
+}
+
+.reg-form-group label {
+  display: block;
+  font-size: 13px;
+  color: #555;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.reg-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  color: #333;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.reg-input:focus {
+  border-color: #334155;
+  outline: none;
+}
+
+.reg-checkbox-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #333;
+  cursor: pointer;
+}
+
+.reg-image-upload {
+  border: 2px dashed #ddd;
+  border-radius: 8px;
+  padding: 32px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #fafafa;
+}
+
+.reg-image-upload:hover {
+  border-color: #334155;
+  background: #f1f5f9;
+}
+
+.reg-upload-icon {
+  color: #999;
+  margin-bottom: 8px;
+}
+
+.reg-upload-text {
+  font-size: 14px;
+  color: #666;
+}
+
+.reg-preview-box {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #eee;
+}
+
+.reg-preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.reg-preview-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.reg-footer {
+  padding: 20px 40px;
+  border-top: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  background: #fafafa;
+}
+
+.reg-btn {
+  padding: 10px 24px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+
+.reg-btn-back {
+  background: #fff;
+  border: 1px solid #ddd;
+  color: #555;
+}
+
+.reg-btn-back:hover {
+  background: #f0f0f0;
+}
+
+.reg-btn-primary {
+  background: #334155;
+  color: #fff;
+}
+
+.reg-btn-primary:hover {
+  background: #0f172a;
+}
+
+.reg-btn-primary:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+
+/* Review Step */
+.reg-review-item {
+  display: flex;
+  padding: 12px 0;
+  border-bottom: 1px solid #eee;
+}
+.reg-review-item:last-child {
+  border-bottom: none;
+}
+.reg-review-label {
+  width: 200px;
+  color: #777;
+  font-size: 14px;
+}
+.reg-review-val {
+  flex: 1;
+  color: #222;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* ── Access Denied Card ─────────────── */
+.reg-access-denied {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 70vh;
+  padding: 40px 20px;
+}
+.reg-access-denied-icon {
+  width: 100px;
+  height: 100px;
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 28px;
+  box-shadow: 0 8px 32px rgba(231, 76, 60, 0.15);
+}
+.reg-access-denied-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 12px;
+}
+.reg-access-denied-desc {
+  font-size: 15px;
+  color: #64748b;
+  margin: 0 0 32px;
+  max-width: 400px;
+  text-align: center;
+  line-height: 1.6;
+}
+.reg-access-denied-actions {
+  display: flex;
+  gap: 12px;
+}
+.reg-access-denied-back {
+  padding: 12px 28px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+.reg-access-denied-back:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+.reg-access-denied-login {
+  padding: 12px 28px;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s;
+  box-shadow: 0 4px 14px rgba(30, 41, 59, 0.3);
+}
+.reg-access-denied-login:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(30, 41, 59, 0.4);
+}
+
+/* ── Responsive ──────────────────────────────── */
+@media (max-width: 768px) {
+  .reg-header {
+    padding: 12px 16px;
+  }
+  .reg-content {
+    padding: 20px 12px;
+  }
+  .reg-card {
+    border-radius: 6px;
+  }
+  .reg-form-body {
+    padding: 24px 20px;
+  }
+  .reg-footer {
+    padding: 16px 20px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .reg-step-item {
+    padding: 12px 6px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .reg-review-label {
+    width: 140px;
+  }
+  .reg-access-denied-actions {
+    flex-direction: column;
+    align-items: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .reg-logo-text {
+    font-size: 18px;
+  }
+  .reg-logo-sub {
+    font-size: 15px;
+    margin-left: 0;
+    display: block;
+  }
+  .reg-logo-area {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .reg-steps {
+    flex-direction: column;
+  }
+  .reg-step-item {
+    text-align: left;
+    padding: 10px 16px;
+  }
+  .reg-step-item.active::after {
+    top: 0;
+    bottom: 0;
+    left: auto;
+    right: 0;
+    width: 3px;
+    height: auto;
+  }
+  .reg-review-item {
+    flex-direction: column;
+    gap: 4px;
+  }
+  .reg-review-label {
+    width: auto;
+  }
+  .reg-footer {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+  .reg-btn {
+    width: 100%;
+  }
+}

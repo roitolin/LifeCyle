@@ -1,0 +1,72 @@
+.brand-loader {
+  width: 100%;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  overflow: hidden;
+  background: #f8f6f2;
+}
+
+.brand-loader.full-screen { min-height: 100vh; }
+.brand-loader.compact { min-height: 96px; gap: 0; }
+.brand-loader-stage { position: relative; width: 92px; height: 92px; display: grid; place-items: center; }
+.brand-loader.compact .brand-loader-stage { width: 66px; height: 66px; }
+.brand-loader-halo {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #d32f2f;
+  animation: brand-loader-pulse 1.1s ease-out infinite;
+}
+.brand-loader-orbit {
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(34, 49, 45, .14);
+  border-radius: 50%;
+  animation: brand-loader-orbit 2.2s linear infinite;
+}
+.brand-loader-orbit i {
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  width: 9px;
+  height: 9px;
+  margin-left: -4.5px;
+  border: 2px solid #f8f6f2;
+  border-radius: 50%;
+  background: #d32f2f;
+}
+.brand-loader-mark {
+  position: relative;
+  width: 66px;
+  height: 66px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #e6e3da;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(34, 49, 45, .14);
+  animation: brand-loader-float 1.8s ease-in-out infinite;
+}
+.brand-loader.compact .brand-loader-mark { width: 48px; height: 48px; }
+.brand-loader-mark img { width: calc(100% - 8px); height: calc(100% - 8px); object-fit: contain; }
+.brand-loader-copy { display: grid; place-items: center; gap: 3px; }
+.brand-loader-copy strong { color: #22312d; font-size: 13px; letter-spacing: 2.2px; }
+.brand-loader-copy span { color: #77827d; font-size: 12px; font-weight: 500; }
+
+@keyframes brand-loader-orbit { to { transform: rotate(360deg); } }
+@keyframes brand-loader-pulse {
+  0% { opacity: 0; transform: scale(.82); }
+  65% { opacity: .28; }
+  100% { opacity: 0; transform: scale(1.24); }
+}
+@keyframes brand-loader-float {
+  0%, 100% { transform: translateY(2px) scale(.98); }
+  50% { transform: translateY(-4px) scale(1.03); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .brand-loader-halo, .brand-loader-orbit, .brand-loader-mark { animation-duration: 4s; }
+}

@@ -1,0 +1,159 @@
+rules_version = '2';
+service cloud.supabase {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isResourceOwner(ownerId) {
+      return isSignedIn() && request.auth.uid == ownerId;
+    }
+
+    function isReactionOnlyUpdate() {
+      return request.resource.data.diff(resource.data).changedKeys().hasOnly(['reactions']);
+    }
+
+    // Users
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+    }
+
+    // Requests
+    match /requests/{requestId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        request.auth.uid == resource.data.requesterId ||
+        resource.data.acceptedBy == request.auth.uid ||
+        isAdmin()
+      );
+      allow delete: if isSignedIn() && (
+        request.auth.uid == resource.data.requesterId ||
+        isAdmin()
+      );
+    }
+
+    // Notifications
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && request.auth.uid == resource.data.userId;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin());
+      allow delete: if isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin());
+    }
+
+    // Conversations
+    match /conversations/{conversationId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn() && request.auth.uid in resource.data.participants;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && request.auth.uid in resource.data.participants;
+      allow delete: if isSignedIn() && (request.auth.uid in resource.data.participants || isAdmin());
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
+        allow create: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
+        allow update: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
+        allow delete: if isSignedIn() && (request.auth.uid == resource.data.senderId || isAdmin());
+      }
+    }
+
+    // Support messages (legacy)
+    match /supportMessages/{messageId} {
+      allow create: if isSignedIn();
+      allow read: if isSignedIn() && isAdmin();
+      allow update: if isSignedIn() && isAdmin();
+    }
+
+    // App feedback and ratings
+    match /app_ratings/{ratingUserId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn() && request.auth.uid == ratingUserId;
+    }
+
+    // Emergency broadcasts
+    match /emergency_broadcasts/{broadcastId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn() && isAdmin();
+    }
+
+    // Donation history timeline + certificates
+    match /donation_history/{historyId} {
+      allow read: if isSignedIn() && (
+        resource.data.donorId == request.auth.uid ||
+        resource.data.requesterId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isSignedIn() && (
+        request.resource.data.donorId == request.auth.uid ||
+        request.resource.data.requesterId == request.auth.uid ||
+        isAdmin()
+      );
+      allow update, delete: if isSignedIn() && isAdmin();
+    }
+
+    // User blocks
+    match /user_blocks/{blockId} {
+      allow read: if isSignedIn() && (
+        resource.data.blockerId == request.auth.uid ||
+        resource.data.blockedId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isSignedIn() && request.resource.data.blockerId == request.auth.uid;
+      allow update, delete: if isSignedIn() && (
+        resource.data.blockerId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+
+    // Abuse reports / moderation queue
+    match /abuse_reports/{reportId} {
+      allow create: if isSignedIn() && request.resource.data.reporterId == request.auth.uid;
+      allow read: if isSignedIn() && (
+        resource.data.reporterId == request.auth.uid ||
+        isAdmin()
+      );
+      allow update, delete: if isSignedIn() && isAdmin();
+    }
+
+    // Admin audit logs
+    match /admin_audit_logs/{logId} {
+      allow create: if isSignedIn() && isAdmin();
+      allow read: if isSignedIn() && isAdmin();
+      allow update, delete: if false;
+    }
+
+    // Admin announcements
+    match /announcements/{announcementId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn() && isAdmin();
+    }
+
+    match /app_feedback/{feedbackId} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn();
+      allow update: if isSignedIn() && (
+        isResourceOwner(resource.data.userId) ||
+        isAdmin() ||
+        isReactionOnlyUpdate()
+      );
+      allow delete: if isSignedIn() && (isResourceOwner(resource.data.userId) || isAdmin());
+
+      match /replies/{replyId} {
+        allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+        allow read: if isSignedIn();
+        allow update: if isSignedIn() && (
+          isResourceOwner(resource.data.userId) ||
+          isAdmin() ||
+          isReactionOnlyUpdate()
+        );
+        allow delete: if isSignedIn() && (isResourceOwner(resource.data.userId) || isAdmin());
+      }
+    }
+  }
+}
