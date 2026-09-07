@@ -191,7 +191,7 @@ export default function AdminProductsScreen() {
   return (
     <View style={[styles.container, isDesktop && styles.containerDesktop]}>
       <Text style={styles.title}>All Shop Products</Text>
-      <Text style={styles.subtitle}>Browse every product across all funeral shops, including hidden and sold-out items.</Text>
+      <Text style={styles.subtitle}>Includes hidden and sold-out listings.</Text>
 
       <Searchbar
         placeholder="Search by product, shop, or owner"

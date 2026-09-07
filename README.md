@@ -81,7 +81,6 @@ npm run dev
 - Copy `.env.example` to `.env` and fill all supabase values before running.
 - Supabase configuration is loaded from environment variables.
 - All uploaded media is stored in Supabase Storage.
-- OpenStreetMap endpoints used in the app do not require a private API key.
 
 ## Security Notes
 

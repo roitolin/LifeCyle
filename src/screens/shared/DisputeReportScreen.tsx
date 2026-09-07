@@ -106,7 +106,7 @@ export default function ReportCenterScreen({ route, navigation }: any) {
 
   return (
     <KeyboardAwareScrollView style={styles.screen} contentContainerStyle={[styles.container, isDesktop && styles.containerDesktop]}>
-      <Card style={styles.card} mode="elevated">
+      <Card style={styles.card} mode="outlined">
         <Card.Content>
           <Text style={styles.title}>Report Center</Text>
           <Text style={styles.subtitle}>
@@ -122,7 +122,6 @@ export default function ReportCenterScreen({ route, navigation }: any) {
           <TextInput
             value={targetUserId}
             onChangeText={setTargetUserId}
-            placeholder="Required user id"
             style={styles.input}
             autoCapitalize="none"
           />

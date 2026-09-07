@@ -1,0 +1,92 @@
+.lc-brand {
+  --lc-brand-ink: #172033;
+  --lc-brand-soft: #64748b;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 12px;
+  color: var(--lc-brand-ink);
+  text-decoration: none;
+  border-radius: 14px;
+  outline: none;
+}
+
+.lc-brand__mark {
+  display: block;
+  flex: 0 0 auto;
+  width: 50px;
+  height: 50px;
+  border-radius: 14px;
+  object-fit: contain;
+  box-shadow: 0 8px 20px rgba(23, 32, 51, 0.16);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.lc-brand__wordmark {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
+.lc-brand__name {
+  display: block;
+  font-family: "Sora", "Manrope", sans-serif;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.045em;
+  white-space: nowrap;
+}
+
+.lc-brand__name strong {
+  font-weight: 800;
+}
+
+.lc-brand__tagline {
+  display: block;
+  margin-top: 4px;
+  color: var(--lc-brand-soft);
+  font-family: "Manrope", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.19em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.lc-brand:hover .lc-brand__mark {
+  transform: translateY(-1px);
+  box-shadow: 0 11px 24px rgba(23, 32, 51, 0.2);
+}
+
+.lc-brand:focus-visible {
+  outline: 3px solid rgba(51, 65, 85, 0.24);
+  outline-offset: 5px;
+}
+
+.lc-brand--compact {
+  gap: 10px;
+}
+
+.lc-brand--compact .lc-brand__mark {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+}
+
+.lc-brand--compact .lc-brand__name {
+  font-size: 22px;
+}
+
+.lc-brand--compact .lc-brand__tagline {
+  margin-top: 3px;
+  font-size: 11px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lc-brand__mark {
+    transition: none;
+  }
+}

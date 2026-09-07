@@ -26,7 +26,13 @@ module.exports = {
       },
       permissions: [],
     },
+    androidNavigationBar: {
+      backgroundColor: '#f8f6f2',
+      barStyle: 'dark-content',
+      enforceContrast: false,
+    },
     plugins: [
+      'expo-secure-store',
       "@react-native-community/datetimepicker",
       "expo-audio",
       "expo-font",

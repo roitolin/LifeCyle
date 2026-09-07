@@ -93,7 +93,7 @@ export function computeSalesOverview(requests: SalesRequest[]) {
   const breakdown: SalesBreakdown[] = [
     { label: "Completed", value: paidRequests.length, color: "#16a34a" },
     { label: "Payment Submitted", value: requests.filter((r) => String(r.status || "").toLowerCase() === "payment_submitted").length, color: "#2563eb" },
-    { label: "Awaiting Payment", value: requests.filter((r) => String(r.status || "").toLowerCase() === "awaiting_payment").length, color: "#7c3aed" },
+    { label: "Awaiting Payment", value: requests.filter((r) => String(r.status || "").toLowerCase() === "awaiting_payment").length, color: "#a66b1f" },
     { label: "Pending Acceptance", value: requests.filter((r) => String(r.status || "").toLowerCase() === "pending_shop_acceptance").length, color: "#f59e0b" },
     { label: "Declined", value: requests.filter((r) => String(r.status || "").toLowerCase() === "declined_by_shop").length, color: "#ef4444" },
     { label: "Cancelled", value: requests.filter((r) => String(r.status || "").toLowerCase() === "cancelled_by_requester").length, color: "#64748b" },

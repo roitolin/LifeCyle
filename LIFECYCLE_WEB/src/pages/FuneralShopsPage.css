@@ -3,10 +3,11 @@
    ========================================================== */
 
 .fsp-hero {
-  background: linear-gradient(135deg, #22312d 0%, #3b2e24 100%);
-  color: #ffffff;
-  border-radius: 8px;
-  padding: 32px 28px;
+  background: #f1f4f7;
+  color: #172033;
+  border: 1px solid #d8e0e8;
+  border-radius: 6px;
+  padding: 28px;
   margin-bottom: 24px;
 }
 
@@ -20,7 +21,7 @@
   margin: 0 0 16px;
   font-size: 14px;
   line-height: 1.6;
-  color: rgba(255, 255, 255, 0.85);
+  color: #617087;
   max-width: 640px;
 }
 
@@ -28,13 +29,30 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(255, 255, 255, 0.14);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid #d8e0e8;
+  border-radius: 4px;
   padding: 6px 14px;
   font-size: 13px;
   font-weight: 700;
 }
+
+.fsp-back-btn {
+  margin: 0 0 16px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #617087;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fsp-back-btn:hover { color: #172033; }
 
 .fsp-state {
   background: #ffffff;
@@ -153,6 +171,8 @@
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
+  text-decoration: none;
+  text-align: center;
 }
 
 .fsp-card-btn:hover {

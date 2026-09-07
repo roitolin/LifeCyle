@@ -1,0 +1,24 @@
+flowchart LR
+    E1["E1<br/>Family Customer"]
+    E2["E2<br/>Funeral Shop Owner/Staff"]
+    SYS(["0.0<br/>LifeCycle Funeral Service<br/>Coordination System"])
+    E3["E3<br/>Administrator"]
+    E4["E4<br/>Expo Push Service"]
+
+    E1 -->|"Account, search, request,<br/>payment, message, and feedback data"| SYS
+    SYS -->|"Access results, marketplace data,<br/>case status, messages, and notifications"| E1
+
+    E2 -->|"Registration documents, catalog,<br/>request, payment, and completion updates"| SYS
+    SYS -->|"Verification, subscription, visibility,<br/>case data, reports, and notifications"| E2
+
+    E3 -->|"Verification, moderation, role,<br/>content, security, and refund commands"| SYS
+    SYS -->|"Dashboards, review queues, analytics,<br/>audit data, and action results"| E3
+
+    SYS -->|"Notification payload and device token"| E4
+    E4 -->|"Delivery ticket and receipt"| SYS
+
+    classDef system fill:#4E9F13,stroke:#8AC926,stroke-width:3px,color:#FFFFFF,font-weight:bold;
+    classDef external fill:#8A42E0,stroke:#D8B4FE,stroke-width:2px,color:#FFFFFF;
+
+    class SYS system;
+    class E1,E2,E3,E4 external;

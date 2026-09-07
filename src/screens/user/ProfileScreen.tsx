@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { ActivityIndicator, Alert, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
+import AccountSwitcher from '@/components/AccountSwitcher';
 import { KeyboardAwareScrollView } from "@/components";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/services/supabaseClient";
@@ -22,7 +23,7 @@ type ActionRowProps = {
 
 export default function ProfileScreen({ navigation }: any) {
   const { isDesktop } = useResponsive();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [photoURL, setPhotoURL] = useState<string | null>(null);
@@ -139,6 +140,12 @@ export default function ProfileScreen({ navigation }: any) {
 
       <SettingsSection label='Preferences'>
         <ActionRow
+          icon='megaphone-outline'
+          label='Announcements'
+          description='Read news and important LifeCycle updates'
+          onPress={() => navigation.navigate('Announcements')}
+        />
+        <ActionRow
           icon='notifications-outline'
           label='Notification Preferences'
           description='Choose the updates and sounds you receive'
@@ -156,6 +163,16 @@ export default function ProfileScreen({ navigation }: any) {
       </SettingsSection>
 
       <SettingsSection label='Session'>
+        <AccountSwitcher
+          currentAccount={{
+            id: user?.id || auth.currentUser?.uid || '',
+            email: email || user?.email || '',
+            fullName: fullName || user?.displayName || '',
+            photoURL,
+          }}
+          onAddAccount={() => navigation.navigate('Login', { addAccount: true })}
+          onManageAccounts={() => navigation.navigate('ManageDeviceAccounts')}
+        />
         <ActionRow icon='log-out-outline' label='Log Out' onPress={confirmLogout} danger showChevron={false} last />
       </SettingsSection>
     </KeyboardAwareScrollView>

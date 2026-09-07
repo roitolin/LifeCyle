@@ -349,7 +349,7 @@ function AdminSupportPage() {
                   </div>
                 </button>
 
-                <div className="request-actions" style={{ marginTop: '6px' }}>
+                <div className="request-actions section-actions">
                   <Link to={`/admin/users/${item.otherId}`} className="ghost-btn btn-link table-action">View Profile</Link>
                   <button type="button" className="ghost-btn table-action" onClick={() => void setConversationReadState(item.id, item.otherId, true)}>Read</button>
                   <button type="button" className="ghost-btn table-action" onClick={() => void setConversationReadState(item.id, item.otherId, false)}>Unread</button>

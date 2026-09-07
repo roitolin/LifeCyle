@@ -137,21 +137,13 @@ export default function AdminShopDetailsPage() {
   }
 
   return (
-    <div className="sc-page">
-      <header className="sc-header-bar">
-        <div className="sc-header-left">
-          <Link to="/admin/funeral-shops" className="sc-logo-area">
-            <div className="sc-logo-box">LC</div>
-            <span className="sc-logo-text">
-              LifeCycle <span className="sc-logo-sub">Shop Details</span>
-            </span>
-          </Link>
+    <section className="panel sc-page admin-shop-detail-page">
+      <header className="admin-detail-page-head">
+        <div>
+          <h2>Registration details</h2>
+          <p className="panel-sub">Verify the submitted shop, owner, and business information before making a decision.</p>
         </div>
-        <div className="sc-header-right">
-          <Link to="/admin/funeral-shops" className="sc-btn sc-btn-secondary" style={{ textDecoration: 'none' }}>
-            Back to Funeral Shops
-          </Link>
-        </div>
+        <Link to="/admin/funeral-shops" className="ghost-btn btn-link">Back to funeral shops</Link>
       </header>
 
       <div className="sc-workspace">
@@ -310,6 +302,6 @@ export default function AdminShopDetailsPage() {
       </div>
 
       {confirmDialog}
-    </div>
+    </section>
   )
 }

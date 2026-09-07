@@ -304,7 +304,7 @@ export default function AdminSupportMessages({ navigation }: any) {
           const subtitlePrefix = item.lastMessage?.senderId === currentUserId ? "You: " : "";
 
           return (
-            <Card style={[styles.card, isUnread && styles.unreadCard]} mode="elevated">
+            <Card style={[styles.card, isUnread && styles.unreadCard]} mode="outlined">
               <TouchableOpacity
                 onPress={() =>
                   navigation.navigate("Chat", {
@@ -407,8 +407,9 @@ const styles = StyleSheet.create({
   },
   card: { marginBottom: 10 },
   unreadCard: {
-    borderLeftWidth: 4,
-    borderLeftColor: "#d32f2f",
+    borderWidth: 1,
+    borderColor: "#d8e0e8",
+    backgroundColor: "#f5f8fb",
   },
   time: {
     fontSize: 12,

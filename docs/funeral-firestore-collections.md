@@ -98,7 +98,7 @@ The supabase rules now include:
 - admin access for both collections
 - signed-in read access for both collections
 
-Reference: [supabase.rules](/C:/GROUP2_PROJECT/bloodlink/config/supabase/supabase.rules)
+Reference: [supabase relational schema](../supabase/sql/supabase_relational_schema.sql)
 
 ## Migration Note
 

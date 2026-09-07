@@ -13,7 +13,6 @@ export type LegalDocumentSection = {
 
 type LegalDocumentScreenProps = {
   title: string;
-  eyebrow: string;
   description: string;
   dateLabel: string;
   date: string;
@@ -24,7 +23,6 @@ type LegalDocumentScreenProps = {
 
 export default function LegalDocumentScreen({
   title,
-  eyebrow,
   description,
   dateLabel,
   date,
@@ -45,12 +43,10 @@ export default function LegalDocumentScreen({
             <View style={styles.heroIcon}>
               <Ionicons name={icon} size={27} color="#ffffff" />
             </View>
-            <Text style={styles.eyebrow}>{eyebrow}</Text>
+            <Text accessibilityRole="header" style={styles.title}>
+              {title}
+            </Text>
           </View>
-
-          <Text accessibilityRole="header" style={styles.title}>
-            {title}
-          </Text>
           <Text selectable style={styles.description}>
             {description}
           </Text>
@@ -154,15 +150,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.12)',
   },
-  eyebrow: {
-    flex: 1,
-    color: '#b9c8c0',
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1.1,
-    textTransform: 'uppercase',
-  },
   title: {
+    flex: 1,
     color: '#ffffff',
     fontSize: 30,
     lineHeight: 36,

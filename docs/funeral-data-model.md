@@ -1,6 +1,6 @@
 # Funeral Data Model
 
-This document defines the supabase shape used for funeral registration data in BloodLink.
+This document defines the Supabase shape used for LifeCycle funeral registration data.
 
 ## Storage Location
 
@@ -11,7 +11,7 @@ This document defines the supabase shape used for funeral registration data in B
   - `funeral_shops`
   - `funeral_items`
 
-See: [funeral-supabase-collections.md](/C:/GROUP2_PROJECT/bloodlink/docs/funeral-supabase-collections.md)
+See: [funeral-firestore-collections.md](./funeral-firestore-collections.md)
 
 ## Required Role
 
@@ -58,7 +58,7 @@ The rules enforce:
 - Required `funeralShopRejectionReason` when status is `rejected`.
 - Basic safe text and length checks on funeral strings.
 
-Reference: [supabase.rules](/C:/GROUP2_PROJECT/bloodlink/config/supabase/supabase.rules)
+Reference: [supabase relational schema](../supabase/sql/supabase_relational_schema.sql)
 
 ## Example Payload
 

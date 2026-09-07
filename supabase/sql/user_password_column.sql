@@ -1,3 +1,7 @@
+-- RETIRED SECURITY SCRIPT - DO NOT EXECUTE.
+-- Password credentials must remain exclusively in Supabase Auth (auth.users).
+-- The former script is retained inside a block comment for historical reference.
+/*
 -- ═══════════════════════════════════════════════════════
 -- LifeCycle — PASSWORD COLUMN ON public.users (hashed + salted)
 -- Run this in the Supabase SQL editor AFTER password_hashing.sql
@@ -121,3 +125,4 @@ where auth_user.id = profile.id
 -- select id, email, password from public.users limit 5;
 -- select public.verify_password('your-plain-password', password) as matches
 -- from public.users limit 5;
+*/

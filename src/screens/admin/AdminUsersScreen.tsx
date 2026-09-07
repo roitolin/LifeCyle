@@ -272,7 +272,7 @@ export default function AdminUsersScreen({ navigation }: any) {
       : "Active";
 
     return (
-      <Card style={styles.card} mode="elevated">
+      <Card style={styles.card} mode="outlined">
         <Card.Content>
           <View style={styles.topRow}>
             <View style={styles.avatarContainer}>

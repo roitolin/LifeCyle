@@ -1,3 +1,4 @@
+// eslint-disable-next-line import/no-unresolved
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 type NotificationRecord = {
@@ -49,7 +50,7 @@ function jsonResponse(body: unknown, status = 200) {
 
 function preferenceCategory(type: string) {
   const normalized = type.trim().toLowerCase();
-  if (normalized.includes('payment')) return 'payments';
+  if (normalized.includes('payment') || normalized.includes('refund')) return 'payments';
   if (
     normalized === 'support_message' ||
     normalized === 'message' ||

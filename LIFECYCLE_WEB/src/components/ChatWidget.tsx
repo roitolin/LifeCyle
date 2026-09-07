@@ -847,11 +847,6 @@ export default function ChatWidget() {
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#eab308" strokeWidth="2" style={{flexShrink: 0, marginTop: 2}}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
                     <div className="cw-safety-text">
                       Safety tip: Always chat and complete transactions inside LifeCycle to protect yourself from scams. Do not share your personal information or contact unless it is necessary.
-                      <div className="cw-safety-links">
-                        <span className="cw-safety-link cw-link-blue">Learn More</span>
-                        <span className="cw-safety-separator">|</span>
-                        <span className="cw-safety-link cw-link-red">Report User</span>
-                      </div>
                     </div>
                   </div>
 

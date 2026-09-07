@@ -21,7 +21,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   sound: true,
 };
 
-const STORAGE_KEY_PREFIX = "@bloodlink/notification-preferences/";
+const STORAGE_KEY_PREFIX = "@lifecycle/notification-preferences/";
 const listeners = new Map<
   string,
   Set<(preferences: NotificationPreferences) => void>
@@ -155,7 +155,7 @@ export function getNotificationPreferenceCategory(
 ): NotificationPreferenceCategory | null {
   const type = notificationType.trim().toLowerCase();
 
-  if (type.includes("payment")) return "payments";
+  if (type.includes("payment") || type.includes("refund")) return "payments";
 
   if (
     type === "support_message" ||

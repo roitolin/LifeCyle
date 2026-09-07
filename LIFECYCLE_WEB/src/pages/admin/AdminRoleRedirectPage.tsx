@@ -4,7 +4,7 @@ import { doc, getDoc } from '@/lib/supabaseDbCompat'
 import { auth, db } from '@/lib/supabaseAuth'
 
 function getAdminTarget(role: string) {
-  if (role === 'super_admin') return '/admin/dashboard'
+  if (role === 'super_admin' || role === 'admin') return '/admin/dashboard'
   if (role === 'funeral_admin') return '/admin/funeral-shops'
   return '/admin/dashboard'
 }

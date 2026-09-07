@@ -1,7 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  type ComponentProps,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
+  type DimensionValue,
   Image,
   Linking,
   Modal,
@@ -16,21 +24,31 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import { useFocusEffect } from "@react-navigation/native";
 import { AppBackButton } from "@/components";
-import ServiceRequestScheduleFields from "@/components/ServiceRequestScheduleFields";
+import DeathCertificateRequestCard from "@/components/DeathCertificateRequestCard";
 import { supabase } from "@/services/supabaseClient";
 import { auth, uploadCertificate } from "@/services";
 import { acceptFuneralServiceRequest } from '@/utils/serviceRequestFlow';
 import { hapticMedium, hapticSuccess } from "@/utils/haptics";
 import {
-  formatServiceDate,
-  formatServiceTime,
-  parseDateOnly,
-  parseTimeOnly,
-  serializeDateOnly,
-  serializeTimeOnly,
-  validateServiceSchedule,
-} from "@/utils/serviceRequestSchedule";
+  paymentSubmissionErrorMessage,
+  validatePaymentSubmission,
+} from '@/utils/paymentValidation';
+import {
+  createServiceRefund,
+  getLatestServiceRefund,
+  refundStatusCopy,
+  updateServiceRefund,
+  type ServiceRefundRequest,
+} from '@/utils/serviceRefunds';
+import {
+  EMPTY_SERVICE_PREPARATION_CHECKLIST,
+  getServicePreparationChecklist,
+  saveServicePreparationChecklist,
+  type ServicePreparationChecklist,
+} from '@/utils/servicePreparationChecklist';
+import { formatServiceDate, formatServiceTime } from "@/utils/serviceRequestSchedule";
 
 type FuneralServiceRequest = {
   id: string;
@@ -89,18 +107,6 @@ type PaymentSubmissionForm = {
   proofImageUrl: string | null;
 };
 
-type RequestEditForm = {
-  deceasedFullName: string;
-  tributeMessage: string;
-  familyCoordinatorName: string;
-  wakeAddress: string;
-  wakeStartDate: Date | null;
-  wakeEndDate: Date | null;
-  burialTime: Date | null;
-  pickupAddress: string;
-  contactNumber: string;
-};
-
 const EMPTY_PAYMENT_FORM: PaymentSubmissionForm = {
   senderName: "",
   gcashName: "",
@@ -120,30 +126,93 @@ const hasPaymentSetup = (request: FuneralServiceRequest) =>
 const getStatusMeta = (status: string) => {
   const normalized = String(status || "").toLowerCase();
   if (normalized === "accepted_by_shop") {
-    return { label: "Accepted", background: "#e7f5ec", text: "#166534", message: "The shop accepted this request and is preparing its payment details." };
+    return {
+      label: "Accepted",
+      background: "#e7f5ec",
+      text: "#166534",
+      icon: "checkmark-circle-outline" as IoniconName,
+      message: "The shop accepted this request and is preparing its payment details.",
+      shopMessage: "You accepted this request. Confirm that your payment QR and amount are ready for the family.",
+    };
   }
   if (normalized === "awaiting_payment") {
-    return { label: "Awaiting Payment", background: "#e0eefa", text: "#1c4f7e", message: "Pay the shop using the QR code below, then submit your payment proof." };
+    return {
+      label: "Awaiting Payment",
+      background: "#e0eefa",
+      text: "#1c4f7e",
+      icon: "wallet-outline" as IoniconName,
+      message: "Pay the shop using the QR code below, then submit your payment proof.",
+      shopMessage: "The payment instructions are ready. Waiting for the family to submit payment proof.",
+    };
   }
   if (normalized === "payment_submitted") {
-    return { label: "Payment Submitted", background: "#e0eefa", text: "#1c4f7e", message: "Your payment proof is being reviewed by the shop." };
+    return {
+      label: "Payment Submitted",
+      background: "#e0eefa",
+      text: "#1c4f7e",
+      icon: "receipt-outline" as IoniconName,
+      message: "Your payment proof is being reviewed by the shop.",
+      shopMessage: "Payment proof is ready for review. Verify its details before accepting it.",
+    };
   }
   if (normalized === "payment_verified") {
-    return { label: "Payment Confirmed", background: "#e7f5ec", text: "#166534", message: "The shop confirmed your payment and is preparing the service." };
+    return {
+      label: "Payment Confirmed",
+      background: "#e7f5ec",
+      text: "#166534",
+      icon: "shield-checkmark-outline" as IoniconName,
+      message: "The shop confirmed your payment and is preparing the service.",
+      shopMessage: "Payment is verified. Complete the service and attach delivery proof when it is ready.",
+    };
   }
   if (normalized === "awaiting_customer_confirmation") {
-    return { label: "Awaiting Your Confirmation", background: "#fef3c7", text: "#86654a", message: "The shop has delivered and attached a completion proof. Review the photo and mark the request as done." };
+    return {
+      label: "Awaiting Confirmation",
+      background: "#fef3c7",
+      text: "#86654a",
+      icon: "hourglass-outline" as IoniconName,
+      message: "The shop has delivered and attached a completion proof. Review the photo and mark the request as done.",
+      shopMessage: "Delivery proof was submitted. Waiting for the family to confirm completion.",
+    };
   }
   if (normalized === "completed") {
-    return { label: "Completed", background: "#14532d", text: "#ffffff", message: "This service request has been completed." };
+    return {
+      label: "Completed",
+      background: "#14532d",
+      text: "#ffffff",
+      icon: "checkmark-done-circle-outline" as IoniconName,
+      message: "This service request has been completed.",
+      shopMessage: "The family confirmed that this service request is complete.",
+    };
   }
   if (normalized === "declined_by_shop") {
-    return { label: "Declined", background: "#fde8e8", text: "#991b1b", message: "The shop declined this service request." };
+    return {
+      label: "Declined",
+      background: "#fde8e8",
+      text: "#991b1b",
+      icon: "close-circle-outline" as IoniconName,
+      message: "The shop declined this service request.",
+      shopMessage: "This request was declined and no further action is needed.",
+    };
   }
   if (normalized === "cancelled_by_requester") {
-    return { label: "Cancelled", background: "#eef1ec", text: "#4c5b57", message: "You cancelled this service request." };
+    return {
+      label: "Cancelled",
+      background: "#eef1ec",
+      text: "#4c5b57",
+      icon: "ban-outline" as IoniconName,
+      message: "You cancelled this service request.",
+      shopMessage: "The family cancelled this service request.",
+    };
   }
-  return { label: "Waiting", background: "#fef3c7", text: "#86654a", message: "The request is waiting for the shop to accept or decline it." };
+  return {
+    label: "Waiting for Shop",
+    background: "#fef3c7",
+    text: "#86654a",
+    icon: "time-outline" as IoniconName,
+    message: "The request is waiting for the shop to accept or decline it.",
+    shopMessage: "This new request is waiting for your review.",
+  };
 };
 
 const formatTimestamp = (value: any) => {
@@ -151,6 +220,232 @@ const formatTimestamp = (value: any) => {
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "Just now";
   return date.toLocaleString(undefined, { hour12: true });
 };
+
+type IoniconName = ComponentProps<typeof Ionicons>["name"];
+
+const formatCurrency = (value: number | string | null | undefined) => {
+  const amount = Number(value);
+  return Number.isFinite(amount) && amount > 0
+    ? "\u20B1" + amount.toLocaleString("en-PH")
+    : "Not set";
+};
+
+function DetailCard({
+  icon,
+  title,
+  subtitle,
+  children,
+  defaultOpen = false,
+}: {
+  icon: IoniconName;
+  title: string;
+  subtitle?: string;
+  children: ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <View style={styles.detailCard}>
+      <TouchableOpacity
+        style={[styles.detailCardHeader, open ? styles.detailCardHeaderOpen : null]}
+        onPress={() => setOpen((current) => !current)}
+        accessibilityRole="button"
+        accessibilityLabel={`${open ? "Hide" : "Show"} ${title}`}
+        accessibilityState={{ expanded: open }}
+      >
+        <View style={styles.detailCardIcon}>
+          <Ionicons name={icon} size={19} color="#846a4f" />
+        </View>
+        <View style={styles.detailCardHeading}>
+          <Text style={styles.detailCardTitle}>{title}</Text>
+          {subtitle ? <Text style={styles.detailCardSubtitle}>{subtitle}</Text> : null}
+        </View>
+        <Ionicons name={open ? "chevron-up" : "chevron-down"} size={19} color="#6f7b76" />
+      </TouchableOpacity>
+      {open ? <View style={styles.detailCardBody}>{children}</View> : null}
+    </View>
+  );
+}
+
+function InfoRow({
+  icon,
+  label,
+  value,
+  emphasize = false,
+}: {
+  icon: IoniconName;
+  label: string;
+  value: ReactNode;
+  emphasize?: boolean;
+}) {
+  return (
+    <View style={styles.infoRow}>
+      <Ionicons name={icon} size={18} color="#7c8a84" style={styles.infoRowIcon} />
+      <View style={styles.infoRowCopy}>
+        <Text style={styles.infoRowLabel}>{label}</Text>
+        <Text style={[styles.infoRowValue, emphasize ? styles.infoRowValueStrong : null]}>{value}</Text>
+      </View>
+    </View>
+  );
+}
+
+function TimelineItem({
+  label,
+  value,
+  active,
+  last,
+}: {
+  label: string;
+  value: string;
+  active?: boolean;
+  last?: boolean;
+}) {
+  return (
+    <View style={styles.timelineItem}>
+      <View style={styles.timelineRail}>
+        <View style={[styles.timelineDot, active ? styles.timelineDotActive : null]}>
+          <Ionicons name={active ? "checkmark" : "ellipse"} size={active ? 12 : 6} color="#ffffff" />
+        </View>
+        {!last ? <View style={styles.timelineLine} /> : null}
+      </View>
+      <View style={styles.timelineCopy}>
+        <Text style={styles.timelineLabel}>{label}</Text>
+        <Text style={styles.timelineValue}>{value}</Text>
+      </View>
+    </View>
+  );
+}
+
+const REQUEST_PROGRESS_STAGES: { label: string; icon: IoniconName }[] = [
+  { label: "Request", icon: "document-text-outline" },
+  { label: "Accepted", icon: "hand-left-outline" },
+  { label: "Payment", icon: "wallet-outline" },
+  { label: "Delivery", icon: "car-outline" },
+  { label: "Complete", icon: "checkmark-done-outline" },
+];
+
+const getRequestProgressIndex = (status: string) => {
+  switch (String(status || "").toLowerCase()) {
+    case "accepted_by_shop":
+      return 1;
+    case "awaiting_payment":
+    case "payment_submitted":
+      return 2;
+    case "payment_verified":
+    case "awaiting_customer_confirmation":
+      return 3;
+    case "completed":
+      return 4;
+    default:
+      return 0;
+  }
+};
+
+function RequestProgressStepper({ status }: { status: string }) {
+  const normalized = String(status || "").toLowerCase();
+  const stopped = ["declined_by_shop", "cancelled_by_requester"].includes(normalized);
+  const activeIndex = getRequestProgressIndex(normalized);
+
+  return (
+    <View style={styles.progressCard}>
+      <View style={styles.progressHeader}>
+        <View>
+          <Text style={styles.progressTitle}>Current stage</Text>
+        </View>
+        <View style={styles.progressCountBadge}>
+          <Text style={styles.progressCountText}>
+            {stopped ? "Closed" : "Step " + (activeIndex + 1) + " of " + REQUEST_PROGRESS_STAGES.length}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.progressStages}>
+        {REQUEST_PROGRESS_STAGES.map((stage, index) => {
+          const completed = !stopped && (index < activeIndex || normalized === "completed");
+          const current = !stopped && index === activeIndex && normalized !== "completed";
+          return (
+            <View style={styles.progressStage} key={stage.label}>
+              {index < REQUEST_PROGRESS_STAGES.length - 1 ? (
+                <View style={[styles.progressConnector, completed ? styles.progressConnectorActive : null]} />
+              ) : null}
+              <View
+                style={[
+                  styles.progressNode,
+                  completed ? styles.progressNodeComplete : null,
+                  current ? styles.progressNodeCurrent : null,
+                  stopped && index === 0 ? styles.progressNodeStopped : null,
+                ]}
+              >
+                <Ionicons
+                  name={completed ? "checkmark" : stopped && index === 0 ? "close" : stage.icon}
+                  size={completed ? 15 : 14}
+                  color={completed || current || (stopped && index === 0) ? "#ffffff" : "#929c98"}
+                />
+              </View>
+              <Text
+                numberOfLines={1}
+                style={[
+                  styles.progressStageLabel,
+                  completed || current ? styles.progressStageLabelActive : null,
+                ]}
+              >
+                {stage.label}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+      {stopped ? (
+        <View style={styles.progressStoppedNotice}>
+          <Ionicons name="information-circle-outline" size={17} color="#9b403b" />
+          <Text style={styles.progressStoppedText}>
+            This request journey ended before completion.
+          </Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+type PreparationChecklistKey = keyof ServicePreparationChecklist;
+
+const SHOP_PREPARATION_ITEMS: {
+  key: PreparationChecklistKey;
+  label: string;
+  description: string;
+  icon: IoniconName;
+}[] = [
+  {
+    key: "details_confirmed",
+    label: "Confirm service details",
+    description: "Review the selected item, variation, and memorial information.",
+    icon: "reader-outline",
+  },
+  {
+    key: "family_contacted",
+    label: "Contact the family",
+    description: "Confirm the coordinator's contact number and availability.",
+    icon: "call-outline",
+  },
+  {
+    key: "item_prepared",
+    label: "Prepare requested item",
+    description: "Prepare the casket or custom design requested by the family.",
+    icon: "construct-outline",
+  },
+  {
+    key: "schedule_confirmed",
+    label: "Confirm the schedule",
+    description: "Double-check wake dates, burial time, and pickup address.",
+    icon: "calendar-outline",
+  },
+  {
+    key: "delivery_scheduled",
+    label: "Schedule delivery",
+    description: "Assign the final delivery or service fulfilment schedule.",
+    icon: "car-outline",
+  },
+];
 
 function PhotoFrame({
   uri,
@@ -191,33 +486,223 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
   const insets = useSafeAreaInsets();
   const initialRequest = route.params?.request as FuneralServiceRequest;
   const requesterView = Boolean(route.params?.requesterView);
+  const focusPaymentOnOpen = Boolean(route.params?.focusPayment);
   const [request, setRequest] = useState<FuneralServiceRequest>(initialRequest);
+  const isRequestOwner = requesterView && request.requesterId === auth.currentUser?.uid;
   const [updatingRequestId, setUpdatingRequestId] = useState<string | null>(null);
 
   const [paymentForm, setPaymentForm] = useState<PaymentSubmissionForm>(EMPTY_PAYMENT_FORM);
   const [uploadingProof, setUploadingProof] = useState(false);
   const [submittingPayment, setSubmittingPayment] = useState(false);
+  const [paymentExpanded, setPaymentExpanded] = useState(
+    focusPaymentOnOpen ||
+      ["awaiting_payment", "payment_submitted"].includes(String(initialRequest.status || "").toLowerCase())
+  );
   const [paymentSuccessRequest, setPaymentSuccessRequest] = useState<FuneralServiceRequest | null>(null);
   const [completionProofUrl, setCompletionProofUrl] = useState<string | null>(initialRequest.completionProofImageUrl || null);
   const [uploadingCompletionProof, setUploadingCompletionProof] = useState(false);
-  const [editingRequest, setEditingRequest] = useState(false);
-  const [savingEdit, setSavingEdit] = useState(false);
-  const [editForm, setEditForm] = useState<RequestEditForm>({
-    deceasedFullName: String(initialRequest.deceasedFullName || ""),
-    tributeMessage: String(initialRequest.tributeMessage || ""),
-    familyCoordinatorName: String(initialRequest.familyCoordinatorName || ""),
-    wakeAddress: String(initialRequest.wakeAddress || ""),
-    wakeStartDate: parseDateOnly(initialRequest.wakeStartDate),
-    wakeEndDate: parseDateOnly(initialRequest.wakeEndDate),
-    burialTime: parseTimeOnly(initialRequest.burialTime),
-    pickupAddress: String(initialRequest.pickupAddress || ""),
-    contactNumber: String(initialRequest.contactNumber || ""),
-  });
-
   const [rejectReasonVisible, setRejectReasonVisible] = useState(false);
   const [rejectReasonRequest, setRejectReasonRequest] = useState<FuneralServiceRequest | null>(null);
   const [rejectReasonText, setRejectReasonText] = useState("");
   const [rejectingPayment, setRejectingPayment] = useState(false);
+  const [refundRequest, setRefundRequest] = useState<ServiceRefundRequest | null>(null);
+  const [refundLoading, setRefundLoading] = useState(true);
+  const [refundDialog, setRefundDialog] = useState<'request' | 'reject' | 'refunded' | null>(null);
+  const [refundDialogText, setRefundDialogText] = useState('');
+  const [refundUpdating, setRefundUpdating] = useState(false);
+  const [shopChecklist, setShopChecklist] = useState<ServicePreparationChecklist>({
+    ...EMPTY_SERVICE_PREPARATION_CHECKLIST,
+  });
+  const [checklistLoading, setChecklistLoading] = useState(!requesterView);
+  const [checklistSavingKey, setChecklistSavingKey] = useState<PreparationChecklistKey | null>(null);
+  const [checklistError, setChecklistError] = useState<string | null>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const paymentSectionY = useRef(0);
+  const paymentFocusHandledRef = useRef(false);
+  const refundSectionY = useRef(0);
+  const actionSectionY = useRef(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      void (async () => {
+        const { data, error } = await supabase
+          .from("funeral_service_requests")
+          .select("*")
+          .eq("id", request.id)
+          .maybeSingle();
+        if (!active || error || !data) return;
+        const latest = data as FuneralServiceRequest;
+        setRequest(latest);
+        setCompletionProofUrl(latest.completionProofImageUrl || null);
+      })();
+      return () => {
+        active = false;
+      };
+    }, [request.id])
+  );
+
+  const scrollToSection = useCallback((position: number) => {
+    scrollViewRef.current?.scrollTo({ y: Math.max(0, position - 12), animated: true });
+  }, []);
+
+  const loadRefundRequest = useCallback(async () => {
+    try {
+      setRefundRequest(await getLatestServiceRefund(request.id));
+    } catch (error) {
+      console.warn('Unable to load the refund request:', error);
+    } finally {
+      setRefundLoading(false);
+    }
+  }, [request.id]);
+
+  useEffect(() => {
+    void loadRefundRequest();
+  }, [loadRefundRequest]);
+
+  const loadShopChecklist = useCallback(async () => {
+    if (requesterView) {
+      setChecklistLoading(false);
+      return;
+    }
+    setChecklistLoading(true);
+    setChecklistError(null);
+    try {
+      setShopChecklist(await getServicePreparationChecklist(request.id));
+    } catch (error: any) {
+      console.warn('Unable to load the shop preparation checklist:', error);
+      setChecklistError(error?.message || 'Unable to load the preparation checklist.');
+    } finally {
+      setChecklistLoading(false);
+    }
+  }, [request.id, requesterView]);
+
+  useEffect(() => {
+    void loadShopChecklist();
+  }, [loadShopChecklist]);
+
+  const toggleShopChecklistItem = useCallback(
+    async (key: PreparationChecklistKey) => {
+      if (requesterView || checklistSavingKey) return;
+      const previous = shopChecklist;
+      const next = { ...previous, [key]: !previous[key] };
+      setShopChecklist(next);
+      setChecklistSavingKey(key);
+      setChecklistError(null);
+      hapticMedium();
+      try {
+        setShopChecklist(await saveServicePreparationChecklist(request.id, request.shopId, next));
+      } catch (error: any) {
+        setShopChecklist(previous);
+        setChecklistError(error?.message || 'Unable to save the preparation checklist.');
+        Alert.alert(
+          'Checklist Not Saved',
+          error?.message || 'Unable to save this checklist item. Please try again.'
+        );
+      } finally {
+        setChecklistSavingKey(null);
+      }
+    },
+    [checklistSavingKey, request.id, request.shopId, requesterView, shopChecklist]
+  );
+
+  const openRefundDialog = useCallback((mode: 'request' | 'reject' | 'refunded') => {
+    setRefundDialogText('');
+    setRefundDialog(mode);
+  }, []);
+
+  const closeRefundDialog = useCallback(() => {
+    if (refundUpdating) return;
+    setRefundDialog(null);
+    setRefundDialogText('');
+  }, [refundUpdating]);
+
+  const submitRefundDialog = useCallback(async () => {
+    const user = auth.currentUser;
+    const text = refundDialogText.trim();
+    if (!user || !refundDialog || refundUpdating) return;
+
+    if ((refundDialog === 'request' || refundDialog === 'reject') && text.length < 10) {
+      Alert.alert('More Detail Needed', 'Please enter at least 10 characters.');
+      return;
+    }
+    if (refundDialog === 'refunded' && text.replace(/[^A-Za-z0-9]/g, '').length < 6) {
+      Alert.alert('Reference Required', 'Enter the transaction reference for the refund you sent.');
+      return;
+    }
+
+    setRefundUpdating(true);
+    try {
+      const updated = refundDialog === 'request'
+        ? await createServiceRefund(request.id, user.uid, request.shopId, text)
+        : refundDialog === 'reject' && refundRequest
+          ? await updateServiceRefund(refundRequest.id, 'rejected', { responseNote: text })
+          : refundRequest
+            ? await updateServiceRefund(refundRequest.id, 'refunded', { refundReference: text })
+            : null;
+      if (!updated) throw new Error('The refund request is no longer available.');
+      setRefundRequest(updated);
+      setRefundDialog(null);
+      setRefundDialogText('');
+      hapticSuccess();
+      Alert.alert(
+        refundDialog === 'request' ? 'Refund Requested' : refundDialog === 'reject' ? 'Request Rejected' : 'Refund Recorded',
+        refundDialog === 'request'
+          ? 'The shop has been notified. You can track the decision on this screen.'
+          : refundDialog === 'reject'
+            ? 'The family can now review your explanation.'
+            : 'The family can now see that the refund was sent.'
+      );
+    } catch (error: any) {
+      Alert.alert('Refund Update Failed', error?.message || 'Unable to update this refund request.');
+    } finally {
+      setRefundUpdating(false);
+    }
+  }, [refundDialog, refundDialogText, refundRequest, refundUpdating, request.id, request.shopId]);
+
+  const approveRefund = useCallback(() => {
+    if (!refundRequest || refundUpdating) return;
+    Alert.alert('Approve Refund', 'Approve this request? Record the refund reference after you send the money.', [
+      { text: 'Not Yet', style: 'cancel' },
+      {
+        text: 'Approve',
+        onPress: async () => {
+          setRefundUpdating(true);
+          try {
+            const updated = await updateServiceRefund(refundRequest.id, 'approved');
+            setRefundRequest(updated);
+            hapticSuccess();
+          } catch (error: any) {
+            Alert.alert('Refund Update Failed', error?.message || 'Unable to approve this request.');
+          } finally {
+            setRefundUpdating(false);
+          }
+        },
+      },
+    ]);
+  }, [refundRequest, refundUpdating]);
+
+  const cancelRefund = useCallback(() => {
+    if (!refundRequest || refundUpdating) return;
+    Alert.alert('Cancel Refund Request', 'Withdraw this pending refund request?', [
+      { text: 'Keep Request', style: 'cancel' },
+      {
+        text: 'Withdraw',
+        style: 'destructive',
+        onPress: async () => {
+          setRefundUpdating(true);
+          try {
+            const updated = await updateServiceRefund(refundRequest.id, 'cancelled');
+            setRefundRequest(updated);
+          } catch (error: any) {
+            Alert.alert('Refund Update Failed', error?.message || 'Unable to withdraw this request.');
+          } finally {
+            setRefundUpdating(false);
+          }
+        },
+      },
+    ]);
+  }, [refundRequest, refundUpdating]);
 
   const [photoViewerUrl, setPhotoViewerUrl] = useState<string | null>(null);
   const [photoRatios, setPhotoRatios] = useState<Record<string, number>>({});
@@ -252,7 +737,7 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
   useEffect(() => {
     const isAwaitingConfirmation =
       String(request.status || "").toLowerCase() === "awaiting_customer_confirmation";
-    if (!requesterView || !isAwaitingConfirmation || !request.completionProofImageUrl) return;
+    if (!isRequestOwner || !isAwaitingConfirmation || !request.completionProofImageUrl) return;
     if (markedSeenRef.current) return;
     if (request.completionProofSeenAt) return;
     markedSeenRef.current = true;
@@ -275,7 +760,7 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
         .eq("data->>requestId", requestIdRef.current);
       if (notifyError) console.warn("Failed to mark notification read:", notifyError);
     })();
-  }, [requesterView, request.status, request.completionProofImageUrl, request.completionProofSeenAt]);
+  }, [isRequestOwner, request.status, request.completionProofImageUrl, request.completionProofSeenAt]);
 
   const openPhoneLink = useCallback(async (mode: "call" | "sms", rawPhone: string | null | undefined) => {
     const phone = String(rawPhone || "").trim();
@@ -333,18 +818,12 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
     const user = auth.currentUser;
     if (!user || submittingPayment) return;
 
-    const senderName = paymentForm.senderName.trim();
-    const gcashName = paymentForm.gcashName.trim();
-    const gcashNumber = paymentForm.gcashNumber.trim();
-    const referenceNumber = paymentForm.referenceNumber.trim();
-    if (!senderName || !gcashName || !gcashNumber) {
-      Alert.alert("Incomplete", "Enter the sender name, GCash name, and GCash number.");
+    const validation = validatePaymentSubmission(paymentForm);
+    if (!validation.value) {
+      Alert.alert('Check Payment Details', validation.message || 'Complete all required payment fields.');
       return;
     }
-    if (!paymentForm.proofImageUrl) {
-      Alert.alert("Proof Required", "Attach a screenshot or photo showing that you paid the shop.");
-      return;
-    }
+    const { senderName, gcashName, gcashNumber, referenceNumber, proofImageUrl } = validation.value;
 
     setSubmittingPayment(true);
     try {
@@ -356,8 +835,8 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
           paymentPayerName: senderName,
           paymentGcashName: gcashName,
           paymentGcashNumber: gcashNumber,
-          paymentReferenceNumber: referenceNumber || null,
-          paymentProofImageUrl: paymentForm.proofImageUrl,
+          paymentReferenceNumber: referenceNumber,
+          paymentProofImageUrl: proofImageUrl,
           paymentSubmittedAt: submittedAt,
           paymentRejectionReason: null,
           updatedAt: submittedAt,
@@ -390,87 +869,11 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
 
       setPaymentSuccessRequest(submittedRequest);
     } catch (error: any) {
-      Alert.alert("Error", error?.message || "Failed to submit your payment.");
+      Alert.alert('Payment Not Submitted', paymentSubmissionErrorMessage(error));
     } finally {
       setSubmittingPayment(false);
     }
   }, [paymentForm, request, submittingPayment]);
-
-  const beginRequesterEdit = useCallback(() => {
-    setEditForm({
-      deceasedFullName: String(request.deceasedFullName || ""),
-      tributeMessage: String(request.tributeMessage || ""),
-      familyCoordinatorName: String(request.familyCoordinatorName || ""),
-      wakeAddress: String(request.wakeAddress || ""),
-      wakeStartDate: parseDateOnly(request.wakeStartDate),
-      wakeEndDate: parseDateOnly(request.wakeEndDate),
-      burialTime: parseTimeOnly(request.burialTime),
-      pickupAddress: String(request.pickupAddress || ""),
-      contactNumber: String(request.contactNumber || ""),
-    });
-    setEditingRequest(true);
-  }, [request]);
-
-  const saveRequesterEdits = useCallback(async () => {
-    const user = auth.currentUser;
-    if (!user || savingEdit) return;
-
-    const values = {
-      deceasedFullName: editForm.deceasedFullName.trim(),
-      tributeMessage: editForm.tributeMessage.trim(),
-      familyCoordinatorName: editForm.familyCoordinatorName.trim(),
-      wakeAddress: editForm.wakeAddress.trim(),
-      wakeStartDate: serializeDateOnly(editForm.wakeStartDate),
-      wakeEndDate: serializeDateOnly(editForm.wakeEndDate),
-      burialTime: serializeTimeOnly(editForm.burialTime),
-      pickupAddress: editForm.pickupAddress.trim(),
-      contactNumber: editForm.contactNumber.trim(),
-    };
-    const scheduleIssue = validateServiceSchedule({
-      wakeStartDate: editForm.wakeStartDate,
-      wakeEndDate: editForm.wakeEndDate,
-      burialTime: editForm.burialTime,
-      dateOfPassing: request.deceasedDateOfPassing ? new Date(request.deceasedDateOfPassing) : null,
-    });
-    if (scheduleIssue === "incomplete") {
-      Alert.alert("Incomplete", "Choose the wake From and To dates and the burial time before saving.");
-      return;
-    }
-    if (scheduleIssue === "before_passing") {
-      Alert.alert("Invalid Wake Schedule", "The wake cannot start before the date of passing.");
-      return;
-    }
-    if (scheduleIssue === "invalid_range") {
-      Alert.alert("Invalid Wake Schedule", "The wake end date must be the same as or after the start date.");
-      return;
-    }
-    if (Object.values(values).some((value) => !value)) {
-      Alert.alert("Incomplete", "Complete all request fields before saving.");
-      return;
-    }
-
-    setSavingEdit(true);
-    try {
-      const { data, error } = await supabase
-        .from("funeral_service_requests")
-        .update({ ...values, updatedAt: new Date().toISOString() })
-        .eq("id", request.id)
-        .eq("requesterId", user.uid)
-        .eq("status", "pending_shop_acceptance")
-        .select("*")
-        .maybeSingle();
-      if (error) throw error;
-      if (!data) throw new Error("This request can no longer be edited because the shop already responded.");
-
-      setRequest(data as FuneralServiceRequest);
-      setEditingRequest(false);
-      Alert.alert("Saved", "Your request details were updated.");
-    } catch (error: any) {
-      Alert.alert("Error", error?.message || "Failed to update your request.");
-    } finally {
-      setSavingEdit(false);
-    }
-  }, [editForm, request.deceasedDateOfPassing, request.id, savingEdit]);
 
   const cancelRequesterRequest = useCallback(() => {
     const user = auth.currentUser;
@@ -500,7 +903,6 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
             if (error) throw error;
             if (!data) throw new Error("This request can no longer be cancelled.");
             setRequest(data as FuneralServiceRequest);
-            setEditingRequest(false);
             Alert.alert("Cancelled", "Your service request has been cancelled.");
           } catch (error: any) {
             Alert.alert("Error", error?.message || "Failed to cancel your request.");
@@ -812,163 +1214,625 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
   );
 
   const statusMeta = getStatusMeta(request.status);
+  const normalizedRequestStatus = String(request.status || '').toLowerCase();
+  const shopHasFamilyPayment =
+    !requesterView &&
+    Boolean(request.paymentSubmittedAt || request.paymentPayerName || request.paymentProofImageUrl) &&
+    ["payment_submitted", "payment_verified", "awaiting_customer_confirmation", "completed"].includes(
+      normalizedRequestStatus
+    );
+  const paymentSectionVisible =
+    ["awaiting_payment", "payment_submitted", "payment_verified", "awaiting_customer_confirmation", "completed"].includes(
+      normalizedRequestStatus
+    ) && hasPaymentSetup(request);
+  const refundEligible = [
+    'payment_submitted',
+    'payment_verified',
+    'awaiting_customer_confirmation',
+    'completed',
+  ].includes(normalizedRequestStatus);
+  const refundMeta = refundRequest ? refundStatusCopy(refundRequest.status) : null;
+  const canCreateRefund =
+    isRequestOwner &&
+    refundEligible &&
+    (!refundRequest || ['rejected', 'cancelled'].includes(refundRequest.status));
+  const currentStatusMessage = requesterView ? statusMeta.message : statusMeta.shopMessage;
+  const timelineEvents: { label: string; value: string }[] = [
+    { label: "Request submitted", value: formatTimestamp(request.createdAt) },
+  ];
+  if (request.acceptedAt) timelineEvents.push({ label: "Accepted by shop", value: formatTimestamp(request.acceptedAt) });
+  if (request.paymentSubmittedAt) timelineEvents.push({ label: "Payment submitted", value: formatTimestamp(request.paymentSubmittedAt) });
+  if (request.paymentVerifiedAt) timelineEvents.push({ label: "Payment verified", value: formatTimestamp(request.paymentVerifiedAt) });
+  if (request.shopMarkedCompletedAt) timelineEvents.push({ label: "Marked delivered", value: formatTimestamp(request.shopMarkedCompletedAt) });
+  if (request.completedAt) timelineEvents.push({ label: "Request completed", value: formatTimestamp(request.completedAt) });
+  if (request.declinedAt) timelineEvents.push({ label: "Request declined", value: formatTimestamp(request.declinedAt) });
+  if (request.cancelledAt) timelineEvents.push({ label: "Request cancelled", value: formatTimestamp(request.cancelledAt) });
+  const checklistCompletedCount = SHOP_PREPARATION_ITEMS.filter(
+    (item) => shopChecklist[item.key]
+  ).length;
+  const checklistLocked = ["completed", "declined_by_shop", "cancelled_by_requester"].includes(
+    normalizedRequestStatus
+  );
+  const requestClosed = ["completed", "declined_by_shop", "cancelled_by_requester"].includes(
+    normalizedRequestStatus
+  );
+  const shopFamilyContactReady = Boolean(request.familyCoordinatorName && request.contactNumber);
+  const shopScheduleReady = Boolean(request.wakeStartDate && request.wakeEndDate && request.burialTime);
+  let stickyAction: {
+    context: string;
+    label: string;
+    helper: string;
+    icon: IoniconName;
+    disabled?: boolean;
+    onPress: () => void;
+  } | null = null;
+
+  if (requesterView && !isRequestOwner) {
+    stickyAction = null;
+  } else if (isRequestOwner) {
+    if (refundRequest?.status === "pending") {
+      stickyAction = {
+        context: "Refund status",
+        label: "Waiting for shop review",
+        helper: "No action is needed while the shop reviews your request.",
+        icon: "hourglass-outline",
+        disabled: true,
+        onPress: () => undefined,
+      };
+    } else if (normalizedRequestStatus === "pending_shop_acceptance") {
+      stickyAction = null;
+    } else if (normalizedRequestStatus === "accepted_by_shop") {
+      stickyAction = {
+        context: "Next update",
+        label: "Payment setup in progress",
+        helper: "The shop is preparing its payment instructions.",
+        icon: "hourglass-outline",
+        disabled: true,
+        onPress: () => undefined,
+      };
+    } else if (normalizedRequestStatus === "awaiting_payment") {
+      stickyAction = {
+        context: "Next action",
+        label: "Complete payment",
+        helper: "Use the shop QR and submit your receipt.",
+        icon: "wallet-outline",
+        onPress: () => scrollToSection(paymentSectionY.current),
+      };
+    } else if (normalizedRequestStatus === "payment_submitted") {
+      stickyAction = {
+        context: "Payment status",
+        label: "Waiting for verification",
+        helper: "The shop is reviewing your submitted receipt.",
+        icon: "receipt-outline",
+        disabled: true,
+        onPress: () => undefined,
+      };
+    } else if (normalizedRequestStatus === "payment_verified") {
+      stickyAction = {
+        context: "Next update",
+        label: "Service is being prepared",
+        helper: "The shop will upload delivery proof when ready.",
+        icon: "construct-outline",
+        disabled: true,
+        onPress: () => undefined,
+      };
+    } else if (normalizedRequestStatus === "awaiting_customer_confirmation") {
+      stickyAction = {
+        context: "Next action",
+        label: "Confirm service completion",
+        helper: "Review the delivery proof before confirming.",
+        icon: "checkmark-done-outline",
+        onPress: () => void confirmRequestDone(request),
+      };
+    }
+  } else if (refundRequest?.status === "pending") {
+    stickyAction = {
+      context: "Next action",
+      label: "Review refund request",
+      helper: "Approve it or respond with a clear reason.",
+      icon: "return-down-back-outline",
+      onPress: () => scrollToSection(refundSectionY.current),
+    };
+  } else if (refundRequest?.status === "approved") {
+    stickyAction = {
+      context: "Next action",
+      label: "Record refund as sent",
+      helper: "Add the transaction reference after sending it.",
+      icon: "receipt-outline",
+      onPress: () => openRefundDialog("refunded"),
+    };
+  } else if (normalizedRequestStatus === "pending_shop_acceptance") {
+    stickyAction = {
+      context: "Next action",
+      label: "Accept this request",
+      helper: "Confirm availability before accepting.",
+      icon: "checkmark-circle-outline",
+      onPress: () => void updateRequestStatus(request, "accepted_by_shop"),
+    };
+  } else if (normalizedRequestStatus === "awaiting_payment") {
+    stickyAction = {
+      context: "Next update",
+      label: "Waiting for family payment",
+      helper: "You will be notified when proof is submitted.",
+      icon: "hourglass-outline",
+      disabled: true,
+      onPress: () => undefined,
+    };
+  } else if (normalizedRequestStatus === "payment_submitted") {
+    stickyAction = {
+      context: "Next action",
+      label: "Review payment proof",
+      helper: "Check the account and reference before verifying.",
+      icon: "shield-checkmark-outline",
+      onPress: () => scrollToSection(paymentSectionY.current),
+    };
+  } else if (normalizedRequestStatus === "payment_verified") {
+    stickyAction = {
+      context: "Next action",
+      label: "Add delivery proof",
+      helper: "Attach a clear photo before marking delivered.",
+      icon: "camera-outline",
+      onPress: () => scrollToSection(actionSectionY.current),
+    };
+  } else if (normalizedRequestStatus === "awaiting_customer_confirmation") {
+    stickyAction = {
+      context: "Next update",
+      label: "Waiting for family confirmation",
+      helper: "The family has your delivery proof.",
+      icon: "hourglass-outline",
+      disabled: true,
+      onPress: () => undefined,
+    };
+  }
+  const stickyActionBusy =
+    updatingRequestId === request.id || refundUpdating || submittingPayment || uploadingCompletionProof;
+
+  const handleRequestBack = () => {
+    if (navigation.canGoBack?.()) {
+      navigation.goBack();
+      return;
+    }
+
+    navigation.navigate(
+      requesterView
+        ? "MyServiceRequests"
+        : route.params?.origin === "ShopPayments"
+          ? "ShopPayments"
+          : "ServiceRequestsInbox"
+    );
+  };
 
   return (
     <View style={styles.screen}>
       <SafeAreaView edges={["top", "left", "right"]} style={styles.requestHeaderSafeArea}>
         <View style={styles.requestHeaderBar}>
-          <AppBackButton onPress={() => navigation.goBack()} />
+          <AppBackButton onPress={handleRequestBack} />
           <View style={styles.requestHeaderHeading}>
-            <Text style={styles.requestHeaderEyebrow}>SERVICE REQUEST</Text>
             <Text style={styles.requestHeaderTitle} numberOfLines={1}>Request Details</Text>
           </View>
         </View>
       </SafeAreaView>
 
       <SafeAreaView edges={["bottom"]} style={styles.screenBody}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.headerCard}>
-          <View style={styles.headerTextBlock}>
-            <Text style={styles.headerEyebrow}>{requesterView ? "My Service Request" : "Service Request"}</Text>
-            <Text style={styles.headerTitle}>{request.deceasedFullName}</Text>
-            <Text style={styles.headerSubtitle}>{request.requestType === "custom_casket" ? "Custom Casket Request" : request.productName}</Text>
-          </View>
-          <View style={[styles.statusBadge, { backgroundColor: statusMeta.background }]}>
-            <Text style={[styles.statusBadgeText, { color: statusMeta.text }]}>{statusMeta.label}</Text>
-          </View>
-        </View>
-
-        {request.productImageUrl ? (
-          <PhotoFrame
-            uri={request.productImageUrl}
-            ratio={photoRatios[request.productImageUrl]}
-            fallbackHeight={170}
-            onPress={() => setPhotoViewerUrl(request.productImageUrl!)}
-          />
-        ) : null}
-        {request.memorialPhotoUrl ? (
-          <PhotoFrame
-            uri={request.memorialPhotoUrl}
-            ratio={photoRatios[request.memorialPhotoUrl]}
-            fallbackHeight={220}
-            onPress={() => setPhotoViewerUrl(request.memorialPhotoUrl!)}
-          />
-        ) : null}
-
-        <Text style={styles.detailLabel}>Requested Item</Text>
-        <Text style={styles.detailValue}>
-          {request.productName}
-          {request.variationName ? ` (${request.variationName})` : ""}
-        </Text>
-
-        {requesterView ? (
-          <>
-            <Text style={styles.detailSectionTitle}>Shop Information</Text>
-            <Text style={styles.detailLabel}>Shop</Text>
-            <Text style={styles.detailValue}>{request.shopName || "—"}</Text>
-            <Text style={styles.detailLabel}>Shop Contact</Text>
-            <Text style={styles.detailValue}>{request.shopContactNumber || "Not available"}</Text>
-            {request.shopAddress ? (
-              <>
-                <Text style={styles.detailLabel}>Shop Address</Text>
-                <Text style={styles.detailValue}>{request.shopAddress}</Text>
-              </>
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.requestScroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.heroCard}>
+          <View style={styles.heroTopRow}>
+            <Text style={styles.requestIdText}>Request #{request.id.slice(0, 8).toUpperCase()}</Text>
+            {isRequestOwner && normalizedRequestStatus === "pending_shop_acceptance" ? (
+              <TouchableOpacity
+                style={styles.heroEditButton}
+                onPress={() => navigation.navigate("EditServiceRequest", { request })}
+                accessibilityRole="button"
+                accessibilityLabel="Edit service request"
+              >
+                <Ionicons name="create-outline" size={16} color="#315f50" />
+                <Text style={styles.heroEditButtonText}>Edit request</Text>
+              </TouchableOpacity>
             ) : null}
-          </>
-        ) : null}
+          </View>
 
-        {request.customDesignNotes ? (
-          <>
-            <Text style={styles.detailLabel}>Custom Design Specifications</Text>
-            <Text style={styles.detailValue}>{request.customDesignNotes}</Text>
-          </>
-        ) : null}
-
-        <Text style={styles.detailSectionTitle}>Deceased Information</Text>
-
-        <Text style={styles.detailLabel}>Full Name of the Deceased</Text>
-        <Text style={styles.detailValue}>{request.deceasedFullName}</Text>
-
-        {request.deceasedDateOfBirth ? (
-          <>
-            <Text style={styles.detailLabel}>Date of Birth</Text>
-            <Text style={styles.detailValue}>{formatTimestamp(request.deceasedDateOfBirth)}</Text>
-          </>
-        ) : null}
-
-        {request.deceasedDateOfPassing ? (
-          <>
-            <Text style={styles.detailLabel}>Date of Passing</Text>
-            <Text style={styles.detailValue}>{formatTimestamp(request.deceasedDateOfPassing)}</Text>
-          </>
-        ) : null}
-
-        <Text style={styles.detailLabel}>Age at Time of Passing</Text>
-        <Text style={styles.detailValue}>{request.deceasedAge ?? "Not provided"}</Text>
-
-        {request.tributeMessage ? (
-          <>
-            <Text style={styles.detailLabel}>Tribute Message</Text>
-            <Text style={styles.detailValue}>{request.tributeMessage}</Text>
-          </>
-        ) : null}
-
-        <Text style={styles.detailSectionTitle}>Family & Contact Information</Text>
-
-        <Text style={styles.detailLabel}>Family Coordinator</Text>
-        <Text style={styles.detailValue}>{request.familyCoordinatorName}</Text>
-
-        <Text style={styles.detailLabel}>Contact Number</Text>
-        <Text style={styles.detailValue}>{request.contactNumber}</Text>
-
-        <Text style={styles.detailLabel}>Wake Venue</Text>
-        <Text style={styles.detailValue}>{request.wakeAddress || "—"}</Text>
-
-        <Text style={styles.detailSectionTitle}>Wake & Burial Schedule</Text>
-        <Text style={styles.detailLabel}>From</Text>
-        <Text style={styles.detailValue}>{formatServiceDate(request.wakeStartDate)}</Text>
-        <Text style={styles.detailLabel}>To</Text>
-        <Text style={styles.detailValue}>{formatServiceDate(request.wakeEndDate)}</Text>
-        <Text style={styles.detailLabel}>Burial</Text>
-        <Text style={styles.detailValue}>
-          {request.wakeEndDate && request.burialTime
-            ? `${formatServiceDate(request.wakeEndDate)} at ${formatServiceTime(request.burialTime)}`
-            : "Not provided"}
-        </Text>
-
-        <Text style={styles.detailLabel}>Pickup Address</Text>
-        <Text style={styles.detailValue}>{request.pickupAddress || "—"}</Text>
-
-        <View style={styles.contactActionRow}>
-          <TouchableOpacity
-            style={[styles.contactActionButton, requesterView && !request.shopContactNumber ? styles.buttonDisabled : null]}
-            onPress={() => void openPhoneLink("call", requesterView ? request.shopContactNumber : request.contactNumber)}
-            disabled={requesterView && !request.shopContactNumber}
-          >
-            <Ionicons name="call-outline" size={16} color="#22312d" />
-            <Text style={styles.contactActionButtonText}>{requesterView ? "Call Shop" : "Call"}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.contactActionButton, requesterView && !request.shopContactNumber ? styles.buttonDisabled : null]}
-            onPress={() => void openPhoneLink("sms", requesterView ? request.shopContactNumber : request.contactNumber)}
-            disabled={requesterView && !request.shopContactNumber}
-          >
-            <Ionicons name="chatbubble-ellipses-outline" size={16} color="#22312d" />
-            <Text style={styles.contactActionButtonText}>{requesterView ? "SMS Shop" : "SMS"}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {["awaiting_payment", "payment_submitted", "payment_verified", "awaiting_customer_confirmation", "completed"].includes(String(request.status || "").toLowerCase()) &&
-        hasPaymentSetup(request) ? (
-          <View style={styles.paymentSection}>
-            <Text style={styles.paymentTitle}>{requesterView ? "Pay the Shop" : "Family Payment"}</Text>
-            {Number(request.paymentAmount) > 0 ? (
-              <Text style={styles.paymentAmountText}>
-                {requesterView ? "Amount to send" : "Amount to receive"}: <Text style={styles.paymentAmountStrong}>₱{Number(request.paymentAmount).toLocaleString("en-PH")}</Text>
+          <View style={styles.heroMainRow}>
+            {request.productImageUrl ? (
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={() => setPhotoViewerUrl(request.productImageUrl!)}
+              >
+                <Image source={{ uri: request.productImageUrl }} style={styles.heroImage} resizeMode="cover" />
+              </TouchableOpacity>
+            ) : (
+              <View style={[styles.heroImage, styles.heroImageFallback]}>
+                <Ionicons name="cube-outline" size={28} color="#c7d3ce" />
+              </View>
+            )}
+            <View style={styles.heroCopy}>
+              <Text style={styles.heroTitle}>
+                {request.requestType === "custom_casket" ? "Custom Casket Request" : request.productName}
               </Text>
+              <Text style={styles.heroSubtitle}>
+                Service request
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.heroDivider} />
+          <View style={styles.heroStatusRow}>
+            <View style={[styles.statusBadge, { backgroundColor: statusMeta.background }]}>
+              <Ionicons name={statusMeta.icon} size={14} color={statusMeta.text} />
+              <Text style={[styles.statusBadgeText, { color: statusMeta.text }]}>{statusMeta.label}</Text>
+            </View>
+            <Text style={styles.heroStatusMessage}>{currentStatusMessage}</Text>
+          </View>
+        </View>
+
+        <RequestProgressStepper status={request.status} />
+
+        <View>
+          <DeathCertificateRequestCard
+            serviceRequestId={request.id}
+            requesterView={requesterView}
+            ownerView={isRequestOwner}
+          />
+        </View>
+
+        {!requesterView ? (
+          <View style={styles.shopOwnerBrief}>
+            <View style={styles.shopOwnerBriefHeader}>
+              <View style={styles.shopOwnerBriefIcon}>
+                <Ionicons name="compass-outline" size={22} color="#ffffff" />
+              </View>
+              <View style={styles.shopOwnerBriefHeading}>
+                <Text style={styles.shopOwnerBriefTitle}>Next shop action</Text>
+              </View>
+            </View>
+
+            <View style={styles.shopOwnerPriority}>
+              <View style={styles.shopOwnerPriorityIcon}>
+                <Ionicons name={stickyAction?.icon || "eye-outline"} size={19} color="#2f6b55" />
+              </View>
+              <View style={styles.shopOwnerPriorityCopy}>
+                <Text style={styles.shopOwnerPriorityLabel}>Next step</Text>
+                <Text style={styles.shopOwnerPriorityTitle}>{stickyAction?.label || "Monitor this request"}</Text>
+                <Text style={styles.shopOwnerPriorityText}>{stickyAction?.helper || currentStatusMessage}</Text>
+              </View>
+            </View>
+
+            <View style={styles.shopOwnerReadinessRow}>
+              {([
+                {
+                  key: "contact",
+                  icon: "call-outline" as IoniconName,
+                  label: "Family contact",
+                  value: shopFamilyContactReady ? "Ready" : "Missing",
+                  ready: shopFamilyContactReady,
+                },
+                {
+                  key: "schedule",
+                  icon: "calendar-outline" as IoniconName,
+                  label: "Schedule",
+                  value: shopScheduleReady ? "Complete" : "Review",
+                  ready: shopScheduleReady,
+                },
+                {
+                  key: "checklist",
+                  icon: "checkmark-done-outline" as IoniconName,
+                  label: "Preparation",
+                  value: `${checklistCompletedCount}/${SHOP_PREPARATION_ITEMS.length}`,
+                  ready: checklistCompletedCount === SHOP_PREPARATION_ITEMS.length,
+                },
+              ]).map((item) => (
+                <View key={item.key} style={styles.shopOwnerReadinessItem}>
+                  <View style={[styles.shopOwnerReadinessIcon, item.ready ? styles.shopOwnerReadinessIconReady : null]}>
+                    <Ionicons name={item.icon} size={15} color={item.ready ? "#256047" : "#8a6d4e"} />
+                  </View>
+                  <Text style={styles.shopOwnerReadinessLabel}>{item.label}</Text>
+                  <Text style={[styles.shopOwnerReadinessValue, item.ready ? styles.shopOwnerReadinessValueReady : null]}>{item.value}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
+        <DetailCard
+          icon="cube-outline"
+          title="Service options"
+          subtitle="Variation, amount, and design information"
+        >
+          {request.variationName ? (
+            <InfoRow icon="options-outline" label="Selected variation" value={request.variationName} />
+          ) : null}
+          <InfoRow
+            icon="cash-outline"
+            label="Service amount"
+            value={Number(request.paymentAmount) > 0 ? formatCurrency(request.paymentAmount) : request.productPrice || "Not set"}
+          />
+          {request.customDesignNotes ? (
+            <InfoRow icon="create-outline" label="Custom design specifications" value={request.customDesignNotes} />
+          ) : null}
+          {request.referencePhotoUrl ? (
+            <View style={styles.attachmentSection}>
+              <View style={styles.attachmentLabelRow}>
+                <Ionicons name="image-outline" size={17} color="#7c8a84" />
+                <Text style={styles.attachmentLabel}>Design reference photo</Text>
+              </View>
+              <PhotoFrame
+                uri={request.referencePhotoUrl}
+                ratio={photoRatios[request.referencePhotoUrl]}
+                fallbackHeight={190}
+                wrapperStyle={styles.embeddedPhoto}
+                onPress={() => setPhotoViewerUrl(request.referencePhotoUrl!)}
+              />
+              <Text style={styles.attachmentHint}>Tap the photo to view it full screen.</Text>
+            </View>
+          ) : null}
+        </DetailCard>
+
+        <DetailCard
+          icon={requesterView ? "storefront-outline" : "people-outline"}
+          title={requesterView ? "Shop contact" : "Family contact"}
+          subtitle={requesterView ? "Contact the provider handling this request" : "Contact the family coordinator"}
+        >
+          <InfoRow
+            icon={requesterView ? "business-outline" : "person-outline"}
+            label={requesterView ? "Shop" : "Family coordinator"}
+            value={requesterView ? request.shopName || "Not available" : request.familyCoordinatorName || "Not provided"}
+            emphasize
+          />
+          <InfoRow
+            icon="call-outline"
+            label="Contact number"
+            value={(requesterView ? request.shopContactNumber : request.contactNumber) || "Not available"}
+          />
+          <InfoRow
+            icon="location-outline"
+            label={requesterView ? "Shop address" : "Wake venue"}
+            value={(requesterView ? request.shopAddress : request.wakeAddress) || "Not available"}
+          />
+          <View style={styles.contactActionRow}>
+            <TouchableOpacity
+              style={[styles.contactActionButton, requesterView && !request.shopContactNumber ? styles.buttonDisabled : null]}
+              onPress={() => void openPhoneLink("call", requesterView ? request.shopContactNumber : request.contactNumber)}
+              disabled={requesterView && !request.shopContactNumber}
+            >
+              <Ionicons name="call-outline" size={17} color="#22312d" />
+              <Text style={styles.contactActionButtonText}>{requesterView ? "Call shop" : "Call family"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.contactActionButton, requesterView && !request.shopContactNumber ? styles.buttonDisabled : null]}
+              onPress={() => void openPhoneLink("sms", requesterView ? request.shopContactNumber : request.contactNumber)}
+              disabled={requesterView && !request.shopContactNumber}
+            >
+              <Ionicons name="chatbubble-ellipses-outline" size={17} color="#22312d" />
+              <Text style={styles.contactActionButtonText}>Send SMS</Text>
+            </TouchableOpacity>
+          </View>
+        </DetailCard>
+
+        <DetailCard
+          icon="heart-outline"
+          title="Deceased information"
+          subtitle="Personal and memorial details provided by the family"
+        >
+          {request.memorialPhotoUrl ? (
+            <PhotoFrame
+              uri={request.memorialPhotoUrl}
+              ratio={photoRatios[request.memorialPhotoUrl]}
+              fallbackHeight={220}
+              wrapperStyle={styles.embeddedPhoto}
+              onPress={() => setPhotoViewerUrl(request.memorialPhotoUrl!)}
+            />
+          ) : null}
+          <InfoRow icon="person-outline" label="Full name" value={request.deceasedFullName || "Not provided"} emphasize />
+          {request.deceasedDateOfBirth ? (
+            <InfoRow icon="calendar-outline" label="Date of birth" value={formatTimestamp(request.deceasedDateOfBirth)} />
+          ) : null}
+          {request.deceasedDateOfPassing ? (
+            <InfoRow icon="flower-outline" label="Date of passing" value={formatTimestamp(request.deceasedDateOfPassing)} />
+          ) : null}
+          <InfoRow icon="hourglass-outline" label="Age at time of passing" value={request.deceasedAge ?? "Not provided"} />
+          {request.tributeMessage ? (
+            <View style={styles.tributeBox}>
+              <Ionicons name="chatbox-ellipses-outline" size={18} color="#846a4f" />
+              <View style={styles.tributeCopy}>
+                <Text style={styles.infoRowLabel}>Tribute message</Text>
+                <Text style={styles.tributeText}>{request.tributeMessage}</Text>
+              </View>
+            </View>
+          ) : null}
+        </DetailCard>
+
+        <DetailCard
+          icon="calendar-outline"
+          title="Wake & burial schedule"
+          subtitle="Review the dates and service locations carefully"
+        >
+          <InfoRow icon="location-outline" label="Wake venue" value={request.wakeAddress || "Not provided"} />
+          <View style={styles.datePairRow}>
+            <View style={styles.datePairItem}>
+              <Text style={styles.datePairLabel}>WAKE START</Text>
+              <Text style={styles.datePairValue}>{formatServiceDate(request.wakeStartDate)}</Text>
+            </View>
+            <View style={styles.datePairDivider} />
+            <View style={styles.datePairItem}>
+              <Text style={styles.datePairLabel}>WAKE END</Text>
+              <Text style={styles.datePairValue}>{formatServiceDate(request.wakeEndDate)}</Text>
+            </View>
+          </View>
+          <InfoRow
+            icon="time-outline"
+            label="Burial"
+            value={
+              request.wakeEndDate && request.burialTime
+                ? formatServiceDate(request.wakeEndDate) + " at " + formatServiceTime(request.burialTime)
+                : "Not provided"
+            }
+          />
+          <InfoRow icon="navigate-outline" label="Pickup address" value={request.pickupAddress || "Not provided"} />
+        </DetailCard>
+
+        {!requesterView ? (
+          <>
+          <View style={styles.requestSectionIntro}>
+            <Text style={styles.requestSectionTitle}>Shop preparation</Text>
+            <Text style={styles.requestSectionText}>This checklist is visible only to the shop.</Text>
+          </View>
+          <DetailCard
+            icon="checkmark-done-circle-outline"
+            title="Preparation checklist"
+            subtitle="Private to your shop and synced across devices"
+          >
+            <View style={styles.checklistProgressRow}>
+              <Text style={styles.checklistProgressText}>
+                {checklistCompletedCount} of {SHOP_PREPARATION_ITEMS.length} completed
+              </Text>
+              <Text style={styles.checklistProgressPercent}>
+                {Math.round((checklistCompletedCount / SHOP_PREPARATION_ITEMS.length) * 100)}%
+              </Text>
+            </View>
+            <View style={styles.checklistProgressTrack}>
+              <View
+                style={[
+                  styles.checklistProgressFill,
+                  {
+                    width:
+                      ((checklistCompletedCount / SHOP_PREPARATION_ITEMS.length) * 100 +
+                        "%") as DimensionValue,
+                  },
+                ]}
+              />
+            </View>
+
+            {checklistLoading ? (
+              <View style={styles.checklistLoadingRow}>
+                <ActivityIndicator size="small" color="#2f6b55" />
+                <Text style={styles.checklistLoadingText}>Loading preparation progress...</Text>
+              </View>
+            ) : (
+              <View style={styles.checklistItems}>
+                {SHOP_PREPARATION_ITEMS.map((item) => {
+                  const checked = shopChecklist[item.key];
+                  const saving = checklistSavingKey === item.key;
+                  return (
+                    <TouchableOpacity
+                      key={item.key}
+                      activeOpacity={0.78}
+                      style={[
+                        styles.checklistItem,
+                        checked ? styles.checklistItemChecked : null,
+                        checklistLocked ? styles.checklistItemLocked : null,
+                      ]}
+                      onPress={() => void toggleShopChecklistItem(item.key)}
+                      disabled={Boolean(checklistSavingKey) || checklistLocked}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{
+                        checked,
+                        disabled: Boolean(checklistSavingKey) || checklistLocked,
+                      }}
+                      accessibilityLabel={item.label}
+                    >
+                      <View
+                        style={[
+                          styles.checklistCheckbox,
+                          checked ? styles.checklistCheckboxChecked : null,
+                        ]}
+                      >
+                        {saving ? (
+                          <ActivityIndicator size={14} color={checked ? "#ffffff" : "#2f6b55"} />
+                        ) : (
+                          <Ionicons
+                            name={checked ? "checkmark" : item.icon}
+                            size={checked ? 17 : 16}
+                            color={checked ? "#ffffff" : "#71807a"}
+                          />
+                        )}
+                      </View>
+                      <View style={styles.checklistItemCopy}>
+                        <Text
+                          style={[
+                            styles.checklistItemLabel,
+                            checked ? styles.checklistItemLabelChecked : null,
+                          ]}
+                        >
+                          {item.label}
+                        </Text>
+                        <Text style={styles.checklistItemDescription}>{item.description}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+
+            {checklistError ? (
+              <View style={styles.checklistErrorCard}>
+                <Ionicons name="cloud-offline-outline" size={18} color="#9b403b" />
+                <View style={styles.checklistErrorCopy}>
+                  <Text style={styles.checklistErrorTitle}>Checklist could not sync</Text>
+                  <Text style={styles.checklistErrorText}>{checklistError}</Text>
+                </View>
+                <TouchableOpacity onPress={() => void loadShopChecklist()} style={styles.checklistRetryButton}>
+                  <Text style={styles.checklistRetryText}>Retry</Text>
+                </TouchableOpacity>
+              </View>
             ) : null}
 
-            {request.paymentQrUrl ? (
+            <View style={styles.checklistPrivacyNote}>
+              <Ionicons name="lock-closed-outline" size={14} color="#6f7d78" />
+              <Text style={styles.checklistPrivacyText}>
+                Customers cannot see this operational checklist.
+              </Text>
+            </View>
+          </DetailCard>
+          </>
+        ) : null}
+
+        {paymentSectionVisible ? (
+          <View
+            style={styles.paymentSection}
+            onLayout={(event) => {
+              paymentSectionY.current = event.nativeEvent.layout.y;
+              if (focusPaymentOnOpen && !paymentFocusHandledRef.current) {
+                paymentFocusHandledRef.current = true;
+                requestAnimationFrame(() => scrollToSection(paymentSectionY.current));
+              }
+            }}
+          >
+            <TouchableOpacity
+              style={styles.paymentHeader}
+              onPress={() => setPaymentExpanded((current) => !current)}
+              accessibilityRole="button"
+              accessibilityLabel={paymentExpanded ? "Hide payment details" : "Show payment details"}
+              accessibilityState={{ expanded: paymentExpanded }}
+            >
+              <View style={styles.paymentHeaderIcon}>
+                <Ionicons name="wallet-outline" size={20} color="#2d6752" />
+              </View>
+              <View style={styles.paymentHeaderCopy}>
+                <Text style={styles.paymentTitle}>{requesterView ? "Payment details" : "Family payment"}</Text>
+                <Text style={styles.paymentSubtitle} numberOfLines={2}>
+                  {requesterView
+                    ? "Send the exact amount and keep your receipt."
+                    : shopHasFamilyPayment
+                      ? `${request.paymentPayerName || request.familyCoordinatorName || "Family sender"}${request.paymentSubmittedAt ? ` · ${formatTimestamp(request.paymentSubmittedAt)}` : ""}`
+                      : "Waiting for the family to send a receipt."}
+                </Text>
+              </View>
+              {Number(request.paymentAmount) > 0 ? (
+                <View style={styles.paymentAmountBadge}>
+                  <Text style={styles.paymentAmountCaption}>{requesterView ? "SEND" : shopHasFamilyPayment ? "RECEIVED" : "RECEIVE"}</Text>
+                  <Text style={styles.paymentAmountStrong}>{formatCurrency(request.paymentAmount)}</Text>
+                </View>
+              ) : null}
+              <Ionicons name={paymentExpanded ? "chevron-up" : "chevron-down"} size={19} color="#6f7b76" />
+            </TouchableOpacity>
+
+            {paymentExpanded ? (
+              <>
+            {isRequestOwner && request.paymentQrUrl ? (
               <PhotoFrame
                 uri={request.paymentQrUrl}
                 ratio={photoRatios[request.paymentQrUrl]}
@@ -978,7 +1842,7 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
               />
             ) : null}
 
-            {requesterView && String(request.status || "").toLowerCase() === "awaiting_payment" ? (
+            {isRequestOwner && String(request.status || "").toLowerCase() === "awaiting_payment" ? (
               <>
                 {request.paymentRejectionReason ? (
                   <View style={styles.rejectReasonCard}>
@@ -1014,13 +1878,15 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
                   keyboardType="phone-pad"
                 />
 
-                <Text style={styles.detailLabel}>Reference Number (Optional)</Text>
+                <Text style={styles.detailLabel}>Transaction Reference *</Text>
                 <TextInput
                   style={styles.paymentSetupInput}
                   value={paymentForm.referenceNumber}
                   onChangeText={(value) => setPaymentForm((current) => ({ ...current, referenceNumber: value }))}
-                  placeholder="Enter it if shown on your receipt"
+                  placeholder="Reference shown on the receipt"
                   placeholderTextColor="#9aa39d"
+                  autoCapitalize="characters"
+                  maxLength={40}
                 />
 
                 <Text style={styles.detailLabel}>Proof of Payment *</Text>
@@ -1096,48 +1962,49 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
               </>
             ) : null}
 
-            {!requesterView && String(request.status || "").toLowerCase() === "payment_submitted" ? (
-              <>
-                <Text style={styles.detailLabel}>Sender Name</Text>
-                <Text style={styles.detailValue}>{request.paymentPayerName || "—"}</Text>
-
-                <Text style={styles.detailLabel}>GCash Name</Text>
-                <Text style={styles.detailValue}>{request.paymentGcashName || "—"}</Text>
-                <Text style={styles.detailLabel}>GCash Number</Text>
-                <Text style={styles.detailValue}>{request.paymentGcashNumber || "—"}</Text>
-
-                <Text style={styles.detailLabel}>Reference Number</Text>
-                <Text style={styles.detailValue}>{request.paymentReferenceNumber || "—"}</Text>
-
-                <Text style={styles.detailLabel}>Proof of Payment</Text>
-                {request.paymentProofImageUrl ? (
-                  <PhotoFrame
-                    uri={request.paymentProofImageUrl}
-                    ratio={photoRatios[request.paymentProofImageUrl]}
-                    fallbackHeight={190}
-                    onPress={() => setPhotoViewerUrl(request.paymentProofImageUrl!)}
-                  />
-                ) : (
-                  <Text style={styles.detailValue}>No proof attached.</Text>
-                )}
-
-                <View style={styles.actionStack}>
-                  <TouchableOpacity
-                    style={[styles.acceptButton, updatingRequestId === request.id ? styles.buttonDisabled : null]}
-                    onPress={() => void verifyPayment(request)}
-                    disabled={updatingRequestId === request.id}
-                  >
-                    <Text style={styles.acceptButtonText}>{updatingRequestId === request.id ? "Updating..." : "Verify Payment"}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.declineButton, updatingRequestId === request.id ? styles.buttonDisabled : null]}
-                    onPress={() => void openRejectReason(request)}
-                    disabled={updatingRequestId === request.id}
-                  >
-                    <Text style={styles.declineButtonText}>Reject Payment</Text>
-                  </TouchableOpacity>
+            {shopHasFamilyPayment ? (
+              <View style={styles.familyPaymentDetails}>
+                <View style={styles.familyPaymentSafetyNote}>
+                  <Ionicons name="shield-checkmark-outline" size={17} color="#2d6752" />
+                  <Text style={styles.familyPaymentSafetyText}>
+                    Open the receipt and check its sender, reference, amount, and proof before verifying.
+                  </Text>
                 </View>
-              </>
+
+                <TouchableOpacity
+                  activeOpacity={0.88}
+                  style={[styles.viewFamilyReceiptButton, !request.paymentProofImageUrl ? styles.viewFamilyReceiptButtonDisabled : null]}
+                  onPress={() => navigation.navigate("ShopPaymentReceipt", { request })}
+                  disabled={!request.paymentProofImageUrl}
+                  accessibilityRole="button"
+                  accessibilityLabel="View family payment receipt"
+                >
+                  <Ionicons name="receipt-outline" size={19} color="#ffffff" />
+                  <Text style={styles.viewFamilyReceiptButtonText}>
+                    {request.paymentProofImageUrl ? "View receipt" : "Receipt unavailable"}
+                  </Text>
+                  <Ionicons name="arrow-forward" size={17} color="#ffffff" />
+                </TouchableOpacity>
+
+                {normalizedRequestStatus === "payment_submitted" ? (
+                  <View style={styles.actionStack}>
+                    <TouchableOpacity
+                      style={[styles.acceptButton, updatingRequestId === request.id ? styles.buttonDisabled : null]}
+                      onPress={() => void verifyPayment(request)}
+                      disabled={updatingRequestId === request.id}
+                    >
+                      <Text style={styles.acceptButtonText}>{updatingRequestId === request.id ? "Updating..." : "Verify Payment"}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.declineButton, updatingRequestId === request.id ? styles.buttonDisabled : null]}
+                      onPress={() => void openRejectReason(request)}
+                      disabled={updatingRequestId === request.id}
+                    >
+                      <Text style={styles.declineButtonText}>Reject Payment</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+              </View>
             ) : null}
 
             {!requesterView && String(request.status || "").toLowerCase() === "payment_verified" ? (
@@ -1154,63 +2021,115 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
                 ) : null}
               </>
             ) : null}
+              </>
+            ) : null}
           </View>
         ) : null}
 
-        {requesterView ? (
-          <>
-            <Text style={styles.detailSectionTitle}>Timeline</Text>
-            <Text style={styles.detailLabel}>Submitted</Text>
-            <Text style={styles.detailValue}>{formatTimestamp(request.createdAt)}</Text>
-            {request.acceptedAt ? (
-              <>
-                <Text style={styles.detailLabel}>Accepted</Text>
-                <Text style={styles.detailValue}>{formatTimestamp(request.acceptedAt)}</Text>
-              </>
-            ) : null}
-            {request.paymentSubmittedAt ? (
-              <>
-                <Text style={styles.detailLabel}>Payment Submitted</Text>
-                <Text style={styles.detailValue}>{formatTimestamp(request.paymentSubmittedAt)}</Text>
-              </>
-            ) : null}
-            {request.paymentVerifiedAt ? (
-              <>
-                <Text style={styles.detailLabel}>Payment Verified</Text>
-                <Text style={styles.detailValue}>{formatTimestamp(request.paymentVerifiedAt)}</Text>
-              </>
-            ) : null}
-            {request.shopMarkedCompletedAt ? (
-              <>
-                <Text style={styles.detailLabel}>Shop Marked Completed</Text>
-                <Text style={styles.detailValue}>{formatTimestamp(request.shopMarkedCompletedAt)}</Text>
-              </>
-            ) : null}
-            {request.completedAt ? (
-              <>
-                <Text style={styles.detailLabel}>Completed</Text>
-                <Text style={styles.detailValue}>{formatTimestamp(request.completedAt)}</Text>
-              </>
-            ) : null}
-            {request.declinedAt ? (
-              <>
-                <Text style={styles.detailLabel}>Declined</Text>
-                <Text style={styles.detailValue}>{formatTimestamp(request.declinedAt)}</Text>
-              </>
-            ) : null}
-            {request.cancelledAt ? (
-              <>
-                <Text style={styles.detailLabel}>Cancelled</Text>
-                <Text style={styles.detailValue}>{formatTimestamp(request.cancelledAt)}</Text>
-              </>
-            ) : null}
-
-            <View style={styles.readonlyStatusCard}>
-              <Text style={styles.readonlyStatusTitle}>Current Update</Text>
-              <Text style={styles.readonlyStatusText}>{statusMeta.message}</Text>
+        {!refundLoading && (refundRequest || canCreateRefund) ? (
+          <View
+            style={styles.refundCard}
+            onLayout={(event) => {
+              refundSectionY.current = event.nativeEvent.layout.y;
+            }}
+          >
+            <View style={styles.refundHeaderRow}>
+              <View style={styles.refundHeaderIcon}>
+                <Ionicons name="return-down-back-outline" size={20} color="#9a4d45" />
+              </View>
+              <View style={styles.refundHeaderCopy}>
+                <Text style={styles.refundTitle}>Cancellation & Refund</Text>
+                <Text style={styles.refundSubtitle}>
+                  Paid requests use a tracked refund review instead of changing the payment record.
+                </Text>
+              </View>
+              {refundMeta ? (
+                <View style={[styles.refundBadge, { backgroundColor: refundMeta.background }]}>
+                  <Text style={[styles.refundBadgeText, { color: refundMeta.color }]}>{refundMeta.label}</Text>
+                </View>
+              ) : null}
             </View>
 
-            {requesterView && String(request.status || "").toLowerCase() === "awaiting_customer_confirmation" ? (
+            {refundRequest ? (
+              <View style={styles.refundDetails}>
+                <Text style={styles.detailLabel}>Reason</Text>
+                <Text style={styles.detailValue}>{refundRequest.reason}</Text>
+                {refundRequest.response_note ? (
+                  <>
+                    <Text style={styles.detailLabel}>Shop Response</Text>
+                    <Text style={styles.detailValue}>{refundRequest.response_note}</Text>
+                  </>
+                ) : null}
+                {refundRequest.refund_reference_number ? (
+                  <>
+                    <Text style={styles.detailLabel}>Refund Reference</Text>
+                    <Text style={styles.detailValue}>{refundRequest.refund_reference_number}</Text>
+                  </>
+                ) : null}
+                <Text style={styles.refundTimestamp}>Requested {formatTimestamp(refundRequest.requested_at)}</Text>
+              </View>
+            ) : null}
+
+            {canCreateRefund ? (
+              <TouchableOpacity style={styles.declineButton} onPress={() => openRefundDialog('request')}>
+                <Text style={styles.declineButtonText}>Request a Refund</Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {isRequestOwner && refundRequest?.status === 'pending' ? (
+              <TouchableOpacity style={styles.closeButton} onPress={cancelRefund} disabled={refundUpdating}>
+                <Text style={styles.closeButtonText}>{refundUpdating ? 'Updating...' : 'Withdraw Refund Request'}</Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {!requesterView && refundRequest?.status === 'pending' ? (
+              <View style={styles.actionStack}>
+                <TouchableOpacity style={styles.acceptButton} onPress={approveRefund} disabled={refundUpdating}>
+                  <Text style={styles.acceptButtonText}>{refundUpdating ? 'Updating...' : 'Approve Refund'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.declineButton} onPress={() => openRefundDialog('reject')} disabled={refundUpdating}>
+                  <Text style={styles.declineButtonText}>Reject With Reason</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
+            {!requesterView && refundRequest?.status === 'approved' ? (
+              <TouchableOpacity style={styles.acceptButton} onPress={() => openRefundDialog('refunded')} disabled={refundUpdating}>
+                <Text style={styles.acceptButtonText}>Record Refund as Sent</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ) : null}
+
+        <DetailCard
+          icon="time-outline"
+          title="Activity history"
+          subtitle="Past request updates with their recorded date and time"
+        >
+          <View style={styles.timelineList}>
+            {timelineEvents.map((event, index) => (
+              <TimelineItem
+                key={event.label}
+                label={event.label}
+                value={event.value}
+                active
+                last={index === timelineEvents.length - 1}
+              />
+            ))}
+          </View>
+        </DetailCard>
+
+        {requestClosed ? <Text style={styles.requestSectionTitle}>Request outcome</Text> : null}
+
+        <View
+          onLayout={(event) => {
+            actionSectionY.current = event.nativeEvent.layout.y;
+          }}
+        >
+        {requesterView ? (
+          <>
+
+            {isRequestOwner && String(request.status || "").toLowerCase() === "awaiting_customer_confirmation" ? (
               <View style={styles.actionStack}>
                 <TouchableOpacity
                   style={[styles.acceptButton, updatingRequestId === request.id ? styles.buttonDisabled : null]}
@@ -1222,48 +2141,7 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
               </View>
             ) : null}
 
-            {String(request.status || "").toLowerCase() === "pending_shop_acceptance" && !editingRequest ? (
-              <TouchableOpacity style={styles.editPaymentButton} onPress={beginRequesterEdit}>
-                <Text style={styles.editPaymentButtonText}>Edit Request</Text>
-              </TouchableOpacity>
-            ) : null}
-
-            {editingRequest ? (
-              <View style={styles.editRequestCard}>
-                <Text style={styles.paymentTitle}>Edit Request</Text>
-                <Text style={styles.detailLabel}>Full Name of the Deceased *</Text>
-                <TextInput style={styles.paymentSetupInput} value={editForm.deceasedFullName} onChangeText={(value) => setEditForm((current) => ({ ...current, deceasedFullName: value }))} />
-                <Text style={styles.detailLabel}>Family Coordinator *</Text>
-                <TextInput style={styles.paymentSetupInput} value={editForm.familyCoordinatorName} onChangeText={(value) => setEditForm((current) => ({ ...current, familyCoordinatorName: value }))} />
-                <Text style={styles.detailLabel}>Contact Number *</Text>
-                <TextInput style={styles.paymentSetupInput} value={editForm.contactNumber} onChangeText={(value) => setEditForm((current) => ({ ...current, contactNumber: value }))} keyboardType="phone-pad" />
-                <Text style={styles.detailLabel}>Wake Venue *</Text>
-                <TextInput style={[styles.paymentSetupInput, styles.multilineInput]} value={editForm.wakeAddress} onChangeText={(value) => setEditForm((current) => ({ ...current, wakeAddress: value }))} multiline />
-                <ServiceRequestScheduleFields
-                  wakeStartDate={editForm.wakeStartDate}
-                  wakeEndDate={editForm.wakeEndDate}
-                  burialTime={editForm.burialTime}
-                  onWakeStartDateChange={(value) => setEditForm((current) => ({ ...current, wakeStartDate: value }))}
-                  onWakeEndDateChange={(value) => setEditForm((current) => ({ ...current, wakeEndDate: value }))}
-                  onBurialTimeChange={(value) => setEditForm((current) => ({ ...current, burialTime: value }))}
-                  minimumWakeDate={request.deceasedDateOfPassing ? new Date(request.deceasedDateOfPassing) : null}
-                />
-                <Text style={styles.detailLabel}>Pickup Address *</Text>
-                <TextInput style={[styles.paymentSetupInput, styles.multilineInput]} value={editForm.pickupAddress} onChangeText={(value) => setEditForm((current) => ({ ...current, pickupAddress: value }))} multiline />
-                <Text style={styles.detailLabel}>Tribute Message *</Text>
-                <TextInput style={[styles.paymentSetupInput, styles.multilineInput]} value={editForm.tributeMessage} onChangeText={(value) => setEditForm((current) => ({ ...current, tributeMessage: value }))} multiline />
-                <View style={styles.actionStack}>
-                  <TouchableOpacity style={[styles.acceptButton, savingEdit ? styles.buttonDisabled : null]} onPress={() => void saveRequesterEdits()} disabled={savingEdit}>
-                    <Text style={styles.acceptButtonText}>{savingEdit ? "Saving..." : "Save Changes"}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.closeButton} onPress={() => setEditingRequest(false)} disabled={savingEdit}>
-                    <Text style={styles.closeButtonText}>Cancel Editing</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : null}
-
-            {isCancellable(request.status) ? (
+            {isRequestOwner && isCancellable(request.status) ? (
               <TouchableOpacity
                 style={[styles.declineButton, updatingRequestId === request.id ? styles.buttonDisabled : null]}
                 onPress={cancelRequesterRequest}
@@ -1376,7 +2254,45 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
             </Text>
           </View>
         )}
+        </View>
       </ScrollView>
+
+      {stickyAction ? (
+        <View style={styles.stickyActionContainer}>
+          <View style={styles.stickyActionSummary}>
+            <View style={styles.stickyActionIcon}>
+              <Ionicons name={stickyAction.icon} size={20} color="#2f6b55" />
+            </View>
+            <View style={styles.stickyActionCopy}>
+              <Text style={styles.stickyActionContext}>{stickyAction.context}</Text>
+              <Text style={styles.stickyActionHelper}>{stickyAction.helper}</Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            style={[
+              styles.stickyActionButton,
+              stickyAction.disabled || stickyActionBusy ? styles.stickyActionButtonDisabled : null,
+            ]}
+            onPress={() => {
+              hapticMedium();
+              stickyAction?.onPress();
+            }}
+            disabled={stickyAction.disabled || stickyActionBusy}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: Boolean(stickyAction.disabled || stickyActionBusy) }}
+            accessibilityLabel={stickyAction.label}
+          >
+            {stickyActionBusy ? <ActivityIndicator size="small" color="#ffffff" /> : null}
+            <Text style={styles.stickyActionButtonText}>
+              {stickyActionBusy ? "Updating..." : stickyAction.label}
+            </Text>
+            {!stickyAction.disabled && !stickyActionBusy ? (
+              <Ionicons name="arrow-forward" size={18} color="#ffffff" />
+            ) : null}
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       <Modal
         visible={Boolean(paymentSuccessRequest)}
@@ -1473,7 +2389,7 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
                   accessibilityRole="button"
                   accessibilityLabel="Track your order"
                 >
-                  <Ionicons name="location-outline" size={19} color="#8d4aac" />
+                  <Ionicons name="location-outline" size={19} color="#315f50" />
                   <Text style={styles.paymentSuccessTrackText}>Track your order</Text>
                 </TouchableOpacity>
               </View>
@@ -1520,6 +2436,51 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
         </TouchableOpacity>
       </Modal>
 
+      <Modal visible={Boolean(refundDialog)} transparent animationType="fade" onRequestClose={closeRefundDialog}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={closeRefundDialog}>
+          <TouchableOpacity activeOpacity={1} style={styles.modalCard}>
+            <Text style={styles.modalTitle}>
+              {refundDialog === 'request'
+                ? 'Request a Refund'
+                : refundDialog === 'reject'
+                  ? 'Reject Refund Request'
+                  : 'Record Refund as Sent'}
+            </Text>
+            <Text style={styles.modalSubtitle}>
+              {refundDialog === 'request'
+                ? 'Explain why you are requesting the cancellation and refund. The original payment record will remain available for review.'
+                : refundDialog === 'reject'
+                  ? 'Give the family a clear reason they can review.'
+                  : 'Enter the transaction reference from the refund receipt.'}
+            </Text>
+            <Text style={styles.detailLabel}>
+              {refundDialog === 'refunded' ? 'Refund Transaction Reference *' : 'Explanation *'}
+            </Text>
+            <TextInput
+              style={[
+                styles.paymentSetupInput,
+                refundDialog === 'refunded' ? null : styles.paymentSetupReasonInput,
+              ]}
+              value={refundDialogText}
+              onChangeText={setRefundDialogText}
+              placeholder={refundDialog === 'refunded' ? 'Reference shown on the refund receipt' : 'Enter at least 10 characters'}
+              placeholderTextColor="#9aa39d"
+              autoCapitalize={refundDialog === 'refunded' ? 'characters' : 'sentences'}
+              multiline={refundDialog !== 'refunded'}
+              maxLength={refundDialog === 'refunded' ? 40 : 500}
+            />
+            <View style={styles.actionStack}>
+              <TouchableOpacity style={[styles.acceptButton, refundUpdating ? styles.buttonDisabled : null]} onPress={() => void submitRefundDialog()} disabled={refundUpdating}>
+                <Text style={styles.acceptButtonText}>{refundUpdating ? 'Saving...' : 'Confirm'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.closeButton} onPress={closeRefundDialog} disabled={refundUpdating}>
+                <Text style={styles.closeButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
       <Modal visible={Boolean(photoViewerUrl)} transparent animationType="fade" onRequestClose={() => setPhotoViewerUrl(null)}>
         <View style={styles.photoViewerOverlay}>
           <TouchableOpacity style={styles.photoViewerClose} onPress={() => setPhotoViewerUrl(null)}>
@@ -1538,11 +2499,14 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#eef1ec",
+    backgroundColor: "#f3f5f7",
   },
   screenBody: {
     flex: 1,
-    backgroundColor: "#eef1ec",
+    backgroundColor: "#f3f5f7",
+  },
+  requestScroll: {
+    flex: 1,
   },
   requestHeaderSafeArea: {
     backgroundColor: "#f8f6f2",
@@ -1559,12 +2523,6 @@ const styles = StyleSheet.create({
   requestHeaderHeading: {
     flex: 1,
   },
-  requestHeaderEyebrow: {
-    color: "#8b7255",
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 0.4,
-  },
   requestHeaderTitle: {
     color: "#22312d",
     fontSize: 20,
@@ -1572,43 +2530,608 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   content: {
-    padding: 18,
-    paddingBottom: 40,
+    padding: 16,
+    paddingBottom: 44,
     gap: 14,
   },
-  headerCard: {
-    borderRadius: 24,
+  heroCard: {
+    overflow: "hidden",
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#d9d6cd",
-    backgroundColor: "#f8f6f2",
-    padding: 18,
+    borderColor: "#d8e0e8",
+    backgroundColor: "#ffffff",
+    padding: 16,
+  },
+  heroTopRow: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "flex-start",
     gap: 12,
   },
-  headerTextBlock: {
-    flex: 1,
+  requestIdText: {
+    color: "#69788b",
+    fontSize: 11,
+    fontWeight: "800",
   },
-  headerEyebrow: {
-    color: "#8b7255",
+  heroEditButton: {
+    minHeight: 36,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: "#bfcac5",
+    borderRadius: 5,
+    backgroundColor: "#ffffff",
+  },
+  heroEditButtonText: {
+    color: "#315f50",
     fontSize: 12,
     fontWeight: "800",
   },
-  headerTitle: {
+  heroMainRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    marginTop: 18,
+  },
+  heroImage: {
+    width: 76,
+    height: 82,
+    borderRadius: 10,
+    backgroundColor: "#eef1ec",
+  },
+  heroImageFallback: {
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#d8e0e8",
+  },
+  heroCopy: {
+    flex: 1,
+  },
+  heroTitle: {
     color: "#22312d",
-    fontSize: 22,
+    fontSize: 21,
+    lineHeight: 28,
     fontWeight: "900",
     marginTop: 4,
   },
-  headerSubtitle: {
-    color: "#8b7255",
+  heroSubtitle: {
+    color: "#69788b",
     fontSize: 13,
-    fontWeight: "800",
+    lineHeight: 18,
+    fontWeight: "700",
     marginTop: 4,
   },
-  statusBadge: {
+  heroDivider: {
+    height: 1,
+    backgroundColor: "#d8e0e8",
+    marginVertical: 17,
+  },
+  heroStatusRow: {
+    alignItems: "flex-start",
+    gap: 9,
+  },
+  heroStatusMessage: {
+    color: "#52615c",
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  progressCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#dedbd3",
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 14,
+    paddingTop: 15,
+    paddingBottom: 14,
+  },
+  progressHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  progressTitle: {
+    color: "#22312d",
+    fontSize: 16,
+    fontWeight: "900",
+    marginTop: 2,
+  },
+  progressCountBadge: {
+    borderRadius: 8,
+    backgroundColor: "#edf4f1",
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+  },
+  progressCountText: {
+    color: "#2f6b55",
+    fontSize: 9,
+    fontWeight: "900",
+  },
+  progressStages: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginTop: 17,
+  },
+  progressStage: {
+    flex: 1,
+    alignItems: "center",
+    position: "relative",
+  },
+  progressConnector: {
+    position: "absolute",
+    top: 14,
+    left: "50%",
+    width: "100%",
+    height: 2,
+    backgroundColor: "#e1e5e3",
+  },
+  progressConnectorActive: {
+    backgroundColor: "#4b806b",
+  },
+  progressNode: {
+    zIndex: 1,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 2,
+    borderColor: "#dde2df",
+    backgroundColor: "#f5f7f6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  progressNodeComplete: {
+    borderColor: "#2f6b55",
+    backgroundColor: "#2f6b55",
+  },
+  progressNodeCurrent: {
+    borderColor: "#8a6d4e",
+    backgroundColor: "#8a6d4e",
+  },
+  progressNodeStopped: {
+    borderColor: "#a84d48",
+    backgroundColor: "#a84d48",
+  },
+  progressStageLabel: {
+    color: "#949d99",
+    fontSize: 8,
+    fontWeight: "800",
+    textAlign: "center",
+    marginTop: 6,
+  },
+  progressStageLabelActive: {
+    color: "#35443f",
+  },
+  progressStoppedNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    borderRadius: 12,
+    backgroundColor: "#fff1f0",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginTop: 12,
+  },
+  progressStoppedText: {
+    flex: 1,
+    color: "#84423d",
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  shopOwnerBrief: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#cfd9d4",
+    backgroundColor: "#ffffff",
+    padding: 16,
+  },
+  shopOwnerBriefHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+  },
+  shopOwnerBriefIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: "#315f50",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shopOwnerBriefHeading: {
+    flex: 1,
+  },
+  shopOwnerBriefTitle: {
+    color: "#22312d",
+    fontSize: 17,
+    fontWeight: "900",
+    marginTop: 3,
+  },
+  shopOwnerPriority: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#d8e0e8",
+    paddingTop: 12,
+    marginTop: 14,
+  },
+  shopOwnerPriorityIcon: {
+    width: 24,
+    height: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shopOwnerPriorityCopy: {
+    flex: 1,
+  },
+  shopOwnerPriorityLabel: {
+    color: "#5d766c",
+    fontSize: 9,
+    fontWeight: "900",
+  },
+  shopOwnerPriorityTitle: {
+    color: "#224c3c",
+    fontSize: 14,
+    fontWeight: "900",
+    marginTop: 2,
+  },
+  shopOwnerPriorityText: {
+    color: "#63756e",
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 3,
+  },
+  shopOwnerReadinessRow: {
+    flexDirection: "row",
+    gap: 7,
+    marginTop: 12,
+  },
+  shopOwnerReadinessItem: {
+    flex: 1,
+    minWidth: 0,
+    borderTopWidth: 1,
+    borderColor: "#d8e0e8",
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+  },
+  shopOwnerReadinessIcon: {
+    width: 29,
+    height: 29,
+    borderRadius: 10,
+    backgroundColor: "#f5e9dd",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shopOwnerReadinessIconReady: {
+    backgroundColor: "#e1f1e7",
+  },
+  shopOwnerReadinessLabel: {
+    color: "#7a8580",
+    fontSize: 8,
+    fontWeight: "800",
+    marginTop: 8,
+  },
+  shopOwnerReadinessValue: {
+    color: "#8a6d4e",
+    fontSize: 11,
+    fontWeight: "900",
+    marginTop: 2,
+  },
+  shopOwnerReadinessValueReady: {
+    color: "#256047",
+  },
+  requestSectionIntro: {
+    paddingHorizontal: 4,
+    paddingTop: 2,
+  },
+  requestSectionTitle: {
+    color: "#22312d",
+    fontSize: 18,
+    fontWeight: "900",
+    marginTop: 3,
+  },
+  requestSectionText: {
+    color: "#6e7b76",
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 3,
+  },
+  detailCard: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#d8e0e8",
+    paddingVertical: 14,
+  },
+  detailCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    paddingVertical: 2,
+  },
+  detailCardHeaderOpen: {
+    paddingBottom: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: "#efede7",
+  },
+  detailCardIcon: {
+    width: 24,
+    height: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  detailCardHeading: {
+    flex: 1,
+  },
+  detailCardTitle: {
+    color: "#22312d",
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  detailCardSubtitle: {
+    color: "#7a8580",
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  detailCardBody: {
+    paddingTop: 6,
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    paddingVertical: 10,
+    gap: 10,
+  },
+  infoRowIcon: {
+    width: 22,
+    marginTop: 3,
+    textAlign: "center",
+  },
+  infoRowCopy: {
+    flex: 1,
+  },
+  infoRowLabel: {
+    color: "#7a8580",
+    fontSize: 10,
+    fontWeight: "900",
+  },
+  infoRowValue: {
+    color: "#33413d",
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 3,
+  },
+  infoRowValueStrong: {
+    color: "#1d2d28",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  attachmentSection: {
+    borderTopWidth: 1,
+    borderTopColor: "#efede7",
+    paddingTop: 13,
+    marginTop: 3,
+  },
+  attachmentLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 10,
+  },
+  attachmentLabel: {
+    color: "#52615c",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  attachmentHint: {
+    color: "#88918d",
+    fontSize: 11,
+    textAlign: "center",
+    marginTop: -7,
+  },
+  embeddedPhoto: {
+    marginBottom: 10,
+  },
+  tributeBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    borderRadius: 16,
+    backgroundColor: "#faf5ee",
+    padding: 13,
+    marginTop: 5,
+  },
+  tributeCopy: {
+    flex: 1,
+  },
+  tributeText: {
+    color: "#4d463d",
+    fontSize: 14,
+    lineHeight: 21,
+    fontStyle: "italic",
+    marginTop: 4,
+  },
+  datePairRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    borderRadius: 16,
+    backgroundColor: "#f4f7f5",
+    paddingVertical: 13,
+    paddingHorizontal: 10,
+    marginVertical: 5,
+  },
+  datePairItem: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 5,
+  },
+  datePairDivider: {
+    width: 1,
+    backgroundColor: "#d9e0dc",
+  },
+  datePairLabel: {
+    color: "#7b8782",
+    fontSize: 9,
+    fontWeight: "900",
+  },
+  datePairValue: {
+    color: "#24332f",
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "800",
+    textAlign: "center",
+    marginTop: 4,
+  },
+  checklistProgressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 12,
+    marginBottom: 7,
+  },
+  checklistProgressText: {
+    color: "#4c5c56",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  checklistProgressPercent: {
+    color: "#2f6b55",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  checklistProgressTrack: {
+    height: 7,
     borderRadius: 999,
+    backgroundColor: "#e6ece9",
+    overflow: "hidden",
+  },
+  checklistProgressFill: {
+    height: "100%",
+    borderRadius: 999,
+    backgroundColor: "#3c7b61",
+  },
+  checklistLoadingRow: {
+    minHeight: 84,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 9,
+  },
+  checklistLoadingText: {
+    color: "#71807a",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  checklistItems: {
+    gap: 8,
+    marginTop: 14,
+  },
+  checklistItem: {
+    minHeight: 68,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 11,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#e2e5e2",
+    backgroundColor: "#fbfcfb",
+    padding: 11,
+  },
+  checklistItemChecked: {
+    borderColor: "#cce0d6",
+    backgroundColor: "#f0f8f4",
+  },
+  checklistItemLocked: {
+    opacity: 0.66,
+  },
+  checklistCheckbox: {
+    width: 32,
+    height: 32,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: "#d4dbd7",
+    backgroundColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checklistCheckboxChecked: {
+    borderColor: "#2f6b55",
+    backgroundColor: "#2f6b55",
+  },
+  checklistItemCopy: {
+    flex: 1,
+  },
+  checklistItemLabel: {
+    color: "#33423d",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  checklistItemLabelChecked: {
+    color: "#245541",
+  },
+  checklistItemDescription: {
+    color: "#7b8782",
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 3,
+  },
+  checklistErrorCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#f0c9c5",
+    backgroundColor: "#fff3f1",
+    padding: 10,
+    marginTop: 12,
+  },
+  checklistErrorCopy: {
+    flex: 1,
+  },
+  checklistErrorTitle: {
+    color: "#873f3a",
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  checklistErrorText: {
+    color: "#9a5c56",
+    fontSize: 10,
+    lineHeight: 14,
+    marginTop: 2,
+  },
+  checklistRetryButton: {
+    borderRadius: 10,
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  checklistRetryText: {
+    color: "#873f3a",
+    fontSize: 10,
+    fontWeight: "900",
+  },
+  checklistPrivacyNote: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 12,
+  },
+  checklistPrivacyText: {
+    color: "#77847f",
+    fontSize: 10,
+  },
+  statusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 5,
+    borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
@@ -1792,16 +3315,61 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   paymentSection: {
-    marginTop: 18,
-    borderRadius: 20,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#d9d6cd",
+    borderColor: "#d6e2dc",
     backgroundColor: "#ffffff",
     padding: 16,
+  },
+  paymentHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    paddingBottom: 15,
+    marginBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#edf1ef",
+  },
+  paymentHeaderIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: "#e7f3ed",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  paymentHeaderCopy: {
+    flex: 1,
+  },
+  familyPaymentHeaderChevron: {
+    width: 30,
+    height: 30,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#edf3f0",
   },
   paymentTitle: {
     color: "#22312d",
     fontSize: 17,
+    fontWeight: "900",
+  },
+  paymentSubtitle: {
+    color: "#74817c",
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 3,
+  },
+  paymentAmountBadge: {
+    alignItems: "flex-end",
+    borderRadius: 12,
+    backgroundColor: "#eff7f3",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  paymentAmountCaption: {
+    color: "#668174",
+    fontSize: 8,
     fontWeight: "900",
   },
   paymentAmountText: {
@@ -1818,6 +3386,169 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     marginTop: 12,
+  },
+  familyPaymentCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#d8e4de",
+    backgroundColor: "#f8fbf9",
+    overflow: "hidden",
+    marginTop: 4,
+  },
+  familyPaymentToggle: {
+    minHeight: 72,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+  },
+  familyPaymentToggleIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#e3f1ea",
+  },
+  familyPaymentToggleCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  familyPaymentToggleTitle: {
+    color: "#244b3d",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  familyPaymentToggleText: {
+    color: "#728079",
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 3,
+  },
+  familyPaymentDetails: {
+    borderTopWidth: 1,
+    borderTopColor: "#dce7e1",
+    padding: 12,
+    backgroundColor: "#ffffff",
+  },
+  familyReceiptSection: {
+    borderTopWidth: 1,
+    borderTopColor: "#e1e8e4",
+    marginTop: 12,
+    paddingTop: 6,
+  },
+  familyReceiptHeader: {
+    minHeight: 64,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 9,
+  },
+  familyReceiptIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#e6f2ec",
+  },
+  familyReceiptIconMissing: {
+    backgroundColor: "#fff0ee",
+  },
+  familyReceiptCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  familyReceiptTitle: {
+    color: "#22312d",
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  familyReceiptSubtitle: {
+    color: "#74817c",
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  familyReceiptChevron: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f1f3f2",
+  },
+  familyReceiptBody: {
+    borderRadius: 15,
+    backgroundColor: "#f7f8f7",
+    padding: 10,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  familyReceiptHint: {
+    color: "#7d8580",
+    fontSize: 11,
+    textAlign: "center",
+    marginTop: 7,
+  },
+  familyPaymentSafetyNote: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    borderRadius: 14,
+    backgroundColor: "#eaf5ef",
+    padding: 11,
+    marginBottom: 5,
+  },
+  familyPaymentSafetyText: {
+    flex: 1,
+    color: "#3d6757",
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  viewFamilyReceiptButton: {
+    minHeight: 50,
+    borderRadius: 15,
+    backgroundColor: "#22312d",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 10,
+    paddingHorizontal: 14,
+  },
+  viewFamilyReceiptButtonDisabled: {
+    opacity: 0.48,
+  },
+  viewFamilyReceiptButtonText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  familyPaymentProofLabel: {
+    color: "#806b55",
+    fontSize: 10,
+    fontWeight: "900",
+    marginTop: 14,
+    marginBottom: 8,
+  },
+  familyPaymentMissingProof: {
+    minHeight: 60,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#efceca",
+    backgroundColor: "#fff7f6",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+  },
+  familyPaymentMissingProofText: {
+    color: "#91463f",
+    fontSize: 12,
+    fontWeight: "800",
   },
   rejectReasonCard: {
     marginTop: 12,
@@ -1838,20 +3569,103 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     marginTop: 4,
   },
-  editPaymentButton: {
-    minHeight: 46,
-    borderRadius: 16,
+  refundCard: {
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#22312d",
-    backgroundColor: "#fbfaf7",
+    borderColor: '#ead8d5',
+    backgroundColor: '#ffffff',
+    padding: 16,
+  },
+  refundHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  refundHeaderCopy: {
+    flex: 1,
+  },
+  refundHeaderIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: '#faece9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  refundTitle: {
+    color: '#22312d',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  refundSubtitle: {
+    color: '#62706b',
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 4,
+  },
+  refundBadge: {
+    borderRadius: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+  },
+  refundBadgeText: {
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  refundDetails: {
+    borderRadius: 14,
+    backgroundColor: '#f8f6f2',
+    padding: 12,
+    marginTop: 14,
+    marginBottom: 12,
+  },
+  refundTimestamp: {
+    color: '#7a847f',
+    fontSize: 11,
+    marginTop: 10,
+  },
+  timelineList: {
+    paddingTop: 10,
+  },
+  timelineItem: {
+    minHeight: 56,
+    flexDirection: "row",
+  },
+  timelineRail: {
+    width: 26,
+    alignItems: "center",
+  },
+  timelineDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#8c9994",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 12,
   },
-  editPaymentButtonText: {
-    color: "#22312d",
-    fontSize: 14,
+  timelineDotActive: {
+    backgroundColor: "#2f6b55",
+  },
+  timelineLine: {
+    flex: 1,
+    width: 2,
+    backgroundColor: "#dce5e1",
+  },
+  timelineCopy: {
+    flex: 1,
+    paddingLeft: 8,
+    paddingBottom: 14,
+  },
+  timelineLabel: {
+    color: "#263631",
+    fontSize: 13,
     fontWeight: "900",
+  },
+  timelineValue: {
+    color: "#7b8782",
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 3,
   },
   paymentSetupQrEmpty: {
     minHeight: 160,
@@ -1894,18 +3708,6 @@ const styles = StyleSheet.create({
   paymentSetupReasonInput: {
     minHeight: 96,
     textAlignVertical: "top",
-  },
-  multilineInput: {
-    minHeight: 88,
-    textAlignVertical: "top",
-  },
-  editRequestCard: {
-    marginTop: 14,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#d9d6cd",
-    backgroundColor: "#ffffff",
-    padding: 16,
   },
   uploadProofButton: {
     minHeight: 52,
@@ -1974,7 +3776,7 @@ const styles = StyleSheet.create({
   paymentSuccessBadge: {
     width: 58,
     height: 58,
-    borderRadius: 20,
+    borderRadius: 12,
     backgroundColor: "#48c978",
     alignItems: "center",
     justifyContent: "center",
@@ -2103,7 +3905,61 @@ const styles = StyleSheet.create({
     marginTop: "auto",
   },
   paymentSuccessTrackText: {
-    color: "#8d4aac",
+    color: "#315f50",
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  stickyActionContainer: {
+    borderTopWidth: 1,
+    borderTopColor: "#d9dfdc",
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 16,
+    paddingTop: 11,
+    paddingBottom: 10,
+  },
+  stickyActionSummary: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 9,
+  },
+  stickyActionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 13,
+    backgroundColor: "#eaf3ef",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stickyActionCopy: {
+    flex: 1,
+  },
+  stickyActionContext: {
+    color: "#466458",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  stickyActionHelper: {
+    color: "#717e79",
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 2,
+  },
+  stickyActionButton: {
+    minHeight: 48,
+    borderRadius: 15,
+    backgroundColor: "#223f36",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+  },
+  stickyActionButtonDisabled: {
+    backgroundColor: "#85918c",
+  },
+  stickyActionButtonText: {
+    color: "#ffffff",
     fontSize: 14,
     fontWeight: "900",
   },
@@ -2118,7 +3974,7 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 480,
     maxHeight: "86%",
-    borderRadius: 24,
+    borderRadius: 16,
     backgroundColor: "#f8f6f2",
     borderWidth: 1,
     borderColor: "#d9d6cd",

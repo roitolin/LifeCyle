@@ -1,0 +1,38 @@
+.home-content-page { display: grid; gap: 24px; }
+.home-content-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.home-content-header h2 { margin: 0; }
+.home-content-status { padding: 6px 10px; border: 1px solid #d8e0e8; border-radius: 999px; color: #69788b; background: #f3f5f7; font-size: 12px; font-weight: 700; }
+.home-content-status.active { border-color: #b8d1c6; color: #245b46; background: #eef6f1; }
+.home-content-layout { display: grid; grid-template-columns: minmax(320px, .9fr) minmax(360px, 1.1fr); gap: 28px; align-items: start; }
+.home-content-preview-column { min-width: 0; }
+.home-content-preview { position: relative; aspect-ratio: 1.55; overflow: hidden; border-radius: 22px; background: #22312d; }
+.home-content-preview > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.home-content-preview-overlay { position: relative; z-index: 1; width: 74%; height: 100%; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; padding: 24px; color: #fff; background: rgba(20, 28, 26, .72); }
+.home-content-preview-overlay h3 { max-width: 260px; margin: 0; color: #fff !important; font-size: 26px !important; line-height: 1.08; }
+.home-content-preview-overlay p { max-width: 270px; margin: 10px 0 0; color: #eef1ec; font-size: 13px; line-height: 1.45; }
+.home-content-preview-overlay > span { margin-top: 16px; padding: 10px 14px; border-radius: 8px; color: #22312d; background: #fff; font-size: 12px; font-weight: 800; }
+.home-content-placeholder { display: grid; gap: 8px; color: #fff; }
+.home-content-placeholder strong { font-size: 16px; }
+.home-content-placeholder small { color: #d9d6cd; line-height: 1.5; }
+.home-content-photo-actions { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+.home-content-upload-btn, .home-content-photo-actions button { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; padding: 0 14px; border: 1px solid #cbd5e1; border-radius: 8px; color: #334155; background: #fff; font-size: 12px; font-weight: 700; cursor: pointer; }
+.home-content-upload-btn input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.home-content-photo-actions button { border: 0; color: #991b1b; background: transparent; }
+.home-content-photo-help { margin: 9px 0 0; color: #69788b; font-size: 12px; line-height: 1.5; }
+.home-content-form { display: grid; gap: 16px; }
+.home-content-form > label:not(.home-content-visibility) { display: grid; gap: 7px; }
+.home-content-form label > span { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #334155; font-size: 12px; font-weight: 700; }
+.home-content-form label > span small { color: #94a3b8; font-weight: 600; }
+.home-content-form input:not([type='checkbox']), .home-content-form textarea, .home-content-form select { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; outline: 0; color: #17243d; background: #fff; font: inherit; }
+.home-content-form textarea { resize: vertical; }
+.home-content-form input:focus, .home-content-form textarea:focus, .home-content-form select:focus { border-color: #315f50; box-shadow: 0 0 0 3px rgba(49, 95, 80, .12); }
+.home-content-visibility { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 16px; border: 1px solid #d8e0e8; border-radius: 12px; background: #fff; }
+.home-content-visibility > span { display: grid !important; justify-items: start; gap: 4px !important; }
+.home-content-visibility > span small { color: #69788b; }
+.home-content-visibility input { width: 18px; height: 18px; accent-color: #315f50; }
+.home-content-updated { margin: 0; color: #69788b; font-size: 12px; }
+.home-content-save { min-height: 46px; border: 0; border-radius: 8px; color: #fff; background: #315f50; font-weight: 800; cursor: pointer; }
+.home-content-save:hover:not(:disabled) { background: #274c40; }
+.home-content-save:disabled, .home-content-upload-btn:has(input:disabled), .home-content-photo-actions button:disabled { opacity: .55; cursor: not-allowed; }
+@media (max-width: 920px) { .home-content-layout { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .home-content-preview-overlay { width: 82%; padding: 18px; } .home-content-preview-overlay h3 { font-size: 20px !important; } }

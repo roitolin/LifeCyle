@@ -34,7 +34,6 @@ export default function FuneralSectionScreen({
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.kicker}>Funeral Service</Text>
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.body}>{description}</Text>
 
@@ -80,11 +79,6 @@ const styles = StyleSheet.create({
     padding: 24,
     borderWidth: 1,
     borderColor: "#cad5cc",
-    shadowColor: "#5a6b64",
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 8,
   },
   topRow: {
     flexDirection: "row",
@@ -114,14 +108,6 @@ const styles = StyleSheet.create({
   hubButtonText: {
     color: "#5a6b64",
     fontWeight: "800",
-  },
-  kicker: {
-    color: "#66746f",
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-    marginBottom: 8,
   },
   title: {
     color: "#0f172a",

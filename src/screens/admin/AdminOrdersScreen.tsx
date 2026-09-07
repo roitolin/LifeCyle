@@ -237,7 +237,7 @@ export default function AdminOrdersScreen() {
   return (
     <View style={[styles.container, isDesktop && styles.containerDesktop]}>
       <Text style={styles.title}>All Service Requests</Text>
-      <Text style={styles.subtitle}>Review every funeral service request submitted to shops.</Text>
+      <Text style={styles.subtitle}>Across every funeral shop.</Text>
 
       <Searchbar
         placeholder="Search by deceased, item, shop, or coordinator"

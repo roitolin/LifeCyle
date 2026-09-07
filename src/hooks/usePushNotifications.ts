@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react';
-import * as Notifications from 'expo-notifications';
 import { AppState } from 'react-native';
 
 import { useAuth } from '@/context/AuthContext';
 import {
+  getNotificationsModule,
   registerCurrentDeviceForPush,
   updateCurrentPushPreferences,
 } from '@/services/pushNotifications';
@@ -16,8 +16,13 @@ import {
   type NotificationPreferences,
 } from '@/utils/notificationPreferences';
 import { queueNotificationSoundOnce } from '@/utils/notificationSound';
+import { queuePushNotificationNavigation } from '@/navigation/navigationRef';
 
-export function usePushNotifications() {
+type UsePushNotificationsOptions = {
+  canNavigate?: boolean;
+};
+
+export function usePushNotifications({ canNavigate = true }: UsePushNotificationsOptions = {}) {
   const { user } = useAuth();
   const userId = user?.id;
   const preferencesRef = useRef<NotificationPreferences>({
@@ -26,6 +31,8 @@ export function usePushNotifications() {
 
   useEffect(() => {
     if (!userId) return undefined;
+    const Notifications = getNotificationsModule();
+    if (!Notifications) return undefined;
 
     let active = true;
     let syncing = false;
@@ -83,6 +90,47 @@ export function usePushNotifications() {
       receivedSubscription.remove();
     };
   }, [userId]);
+
+  useEffect(() => {
+    if (!userId || !canNavigate) return undefined;
+    const Notifications = getNotificationsModule();
+    if (!Notifications) return undefined;
+
+    let active = true;
+    const handledResponseIds = new Set<string>();
+
+    const handleResponse = (
+      response: Awaited<ReturnType<typeof Notifications.getLastNotificationResponseAsync>>
+    ) => {
+      if (!active || !response) return;
+      const responseId = response.notification.request.identifier;
+      if (handledResponseIds.has(responseId)) return;
+      handledResponseIds.add(responseId);
+
+      const data = response.notification.request.content.data as
+        | Record<string, unknown>
+        | null
+        | undefined;
+      queuePushNotificationNavigation(data, userId);
+    };
+
+    const responseSubscription =
+      Notifications.addNotificationResponseReceivedListener(handleResponse);
+
+    void Notifications.getLastNotificationResponseAsync()
+      .then((response) => {
+        handleResponse(response);
+        return Notifications.clearLastNotificationResponseAsync();
+      })
+      .catch((error) => {
+        if (__DEV__) console.warn('Unable to read the notification that opened the app:', error);
+      });
+
+    return () => {
+      active = false;
+      responseSubscription.remove();
+    };
+  }, [canNavigate, userId]);
 
   return null;
 }

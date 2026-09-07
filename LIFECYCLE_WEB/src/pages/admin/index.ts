@@ -1,9 +1,13 @@
 export { default as AdminAuditLogsPage } from "./AdminAuditLogsPage";
+export { default as AdminAccountDeletionsPage } from "./AdminAccountDeletionsPage";
+export { default as AdminAnalyticsPage } from "./AdminAnalyticsPage";
+export { default as AdminAnnouncementsPage } from "./AdminAnnouncementsPage";
 export { default as AdminLoginSecurityPage } from "./AdminLoginSecurityPage";
 export { default as AdminDashboardPage } from "./AdminDashboardPage";
 export { default as AdminFeedbackPage } from "./AdminFeedbackPage";
 export { default as AdminFuneralItemsPage } from "./AdminFuneralItemsPage";
 export { default as AdminFuneralShopsPage } from "./AdminFuneralShopsPage";
+export { default as AdminHomeContentPage } from './AdminHomeContentPage';
 export { default as AdminLayout } from "./AdminLayout";
 export { default as AdminModerationPage } from "./AdminModerationPage";
 export { default as AdminOrdersPage } from "./AdminOrdersPage";

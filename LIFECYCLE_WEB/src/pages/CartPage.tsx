@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
-import { loadFuneralCart, removeFuneralCartItem, updateFuneralCartQuantity, type WebFuneralCartItem } from '@/utils/funeralCart'
+import { loadFuneralCart, removeFuneralCartItem, type WebFuneralCartItem } from '@/utils/funeralCart'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
+import BrandLogo from '@/components/BrandLogo'
 import './CartPage.css'
 
 type ViewerProfile = {
@@ -117,11 +118,6 @@ export default function CartPage() {
     })
   }
 
-  const handleUpdateQuantity = (cartId: string, quantity: number) => {
-    if (quantity < 1) return
-    setItems(updateFuneralCartQuantity(cartId, quantity))
-  }
-
   const checkout = () => {
     if (!isLoggedIn) {
       navigate('/login?next=/user/cart')
@@ -154,14 +150,21 @@ export default function CartPage() {
   }
 
   const selectedItems = items.filter(i => selectedIds.has(i.cartId))
-  const totalPrice = selectedItems.reduce((acc, curr) => acc + (curr.price * (curr.quantity || 1)), 0)
+  const totalPrice = selectedItems.reduce((acc, curr) => acc + curr.price, 0)
 
   return (
     <div className="cart-shop-page">
-      <TopBar profileName={profile?.fullName} />
+      <TopBar profile={profile} />
       <Header />
 
       <div className="cart-main">
+        <div className="cart-page-nav">
+          <button type="button" className="cart-back-btn" onClick={() => navigate(-1)}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5" /><polyline points="12 19 5 12 12 5" /></svg>
+            Back
+          </button>
+        </div>
+
         {items.length === 0 ? (
           <div className="cart-empty">
             <h2>Your Cart is Empty</h2>
@@ -181,9 +184,7 @@ export default function CartPage() {
                 />
                 Product
               </div>
-              <div>Unit Price</div>
-              <div>Quantity</div>
-              <div>Total Price</div>
+              <div>Price</div>
               <div>Actions</div>
             </div>
 
@@ -220,20 +221,6 @@ export default function CartPage() {
                         </div>
                       </div>
                       <div className="item-col-price">{formatPeso(item.price)}</div>
-                      <div className="item-col-qty">
-                        <div className="qty-controls">
-                          <button className="qty-btn" onClick={() => handleUpdateQuantity(item.cartId, (item.quantity || 1) - 1)}>-</button>
-                          <input 
-                            type="number" 
-                            className="qty-input" 
-                            value={item.quantity || 1} 
-                            onChange={(e) => handleUpdateQuantity(item.cartId, parseInt(e.target.value) || 1)} 
-                            min="1"
-                          />
-                          <button className="qty-btn" onClick={() => handleUpdateQuantity(item.cartId, (item.quantity || 1) + 1)}>+</button>
-                        </div>
-                      </div>
-                      <div className="item-col-total">{formatPeso(item.price * (item.quantity || 1))}</div>
                       <div className="item-col-actions">
                         <button className="item-delete-btn" onClick={() => handleDelete(item.cartId)}>Delete</button>
                       </div>
@@ -274,41 +261,33 @@ export default function CartPage() {
   )
 }
 
-function TopBar({ profileName }: { profileName?: string | null }) {
-  const navigate = useNavigate()
+function TopBar({ profile }: { profile: ViewerProfile | null }) {
   return (
     <div className="cart-topbar">
       <div className="cart-topbar-inner">
         <div className="cart-topbar-left">
-          <button type="button" className="cart-back-btn" onClick={() => navigate(-1)} aria-label="Go back">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-            Back
-          </button>
-          <span className="cart-divider">|</span>
           <Link to="/seller">Seller Centre</Link>
-          <span className="cart-divider">|</span>
-          <span>Follow us on</span>
-          <a href="#fb" aria-label="Facebook">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg>
-          </a>
-          <a href="#ig" aria-label="Instagram">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor"/></svg>
-          </a>
         </div>
         <div className="cart-topbar-right">
           <Link to="/user/notifications">Notifications</Link>
-          <a href="#help">Help</a>
-          <a href="#language">English</a>
+          <Link to="/user/help">Help Centre</Link>
           <span className="cart-divider">|</span>
           <div className="cart-user-menu">
             <div className="cart-user-menu-trigger">
-              <svg className="cart-user-avatar" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
-              <span className="cart-user-name">{profileName || 'User'}</span>
+              {profile?.photoURL ? (
+                <img src={profile.photoURL} alt="Avatar" className="cart-user-avatar" />
+              ) : (
+                <div className="cart-user-avatar-placeholder">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+                </div>
+              )}
+              <span className="cart-user-name">{profile?.fullName || 'User'}</span>
               <svg className="cart-user-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
             </div>
             <div className="cart-user-dropdown">
               <Link to="/user/profile">My Account</Link>
               <Link to="/user/purchase">Purchases</Link>
+              <Link to="/auth/switch-account" className="cart-dropdown-switch">Switch Account</Link>
               <Link to="/auth/logout">Log out</Link>
             </div>
           </div>
@@ -322,10 +301,7 @@ function Header() {
   return (
     <header className="cart-header">
       <div className="cart-header-inner">
-        <Link to="/funeral" className="cart-brand" aria-label="LifeCycle Home">
-          <div className="cart-logo-bag">LC</div>
-          <span className="cart-brand-name">LifeCycle</span>
-        </Link>
+        <BrandLogo to="/" />
         <div className="cart-header-divider" />
         <h1>Shopping Cart</h1>
       </div>

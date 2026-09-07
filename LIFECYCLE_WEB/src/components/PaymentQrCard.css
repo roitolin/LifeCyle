@@ -1,10 +1,12 @@
 .payment-qr-card {
   border: 1px solid #d8e3f0;
   border-radius: 12px;
-  background: linear-gradient(135deg, #f4f8fd 0%, #eaf1f9 100%);
+  background: #eef3f8;
   padding: 14px;
   margin-bottom: 14px;
 }
+
+.payment-qr-file-input { display: none; }
 
 .payment-qr-top {
   display: flex;
@@ -269,7 +271,7 @@
   padding: 0 18px;
   border: 0;
   border-radius: 9px;
-  background: linear-gradient(130deg, #dd2f35, #be1f25);
+  background: #c42b31;
   color: #fff;
   font-weight: 800;
   cursor: pointer;
@@ -668,7 +670,7 @@
   max-width: 560px; margin: 0; color: #6b7280; font-size: 12px; line-height: 1.55;
 }
 .payment-qr-eyebrow {
-  color: #be1f25; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+  color: #be1f25; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
 }
 .payment-qr-amount {
   width: fit-content; min-width: 210px; margin-top: 18px; padding: 11px 14px; border-left: 3px solid #dd2f35;

@@ -352,9 +352,6 @@ export default function FuneralCustomCasketRequestScreen({ navigation, route }: 
     return (
       <SafeAreaView style={styles.screen}>
         <View style={styles.successWrap}>
-          <View style={styles.successIcon}>
-            <Ionicons name="time-outline" size={34} color="#86654a" />
-          </View>
           <Text style={styles.successTitle}>Request Sent</Text>
           <Text style={styles.successText}>
             Your custom casket request has been forwarded to {successState.shopName}. Please wait while the shop reviews and accepts your request.
@@ -399,14 +396,13 @@ export default function FuneralCustomCasketRequestScreen({ navigation, route }: 
   return (
     <SafeAreaView edges={["left", "right", "bottom"]} style={styles.screen}>
       <KeyboardAwareScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryEyebrow}>Custom Design Request</Text>
+        <View style={styles.requestSummary}>
           <Text style={styles.summaryTitle}>{shopName}</Text>
-          <Text style={styles.summarySubtitle}>{shopAddress || "Verified funeral shop"}</Text>
+          <Text style={styles.summarySubtitle}>{shopAddress || "Location not provided"}</Text>
         </View>
 
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Memorial Portrait</Text>
+        <View style={styles.formSection}>
+          <Text style={styles.sectionTitle}>Memorial portrait</Text>
           <TouchableOpacity style={styles.photoPicker} onPress={() => void pickPhoto("memorial")} disabled={uploadingPhoto}>
             {uploadingPhoto ? (
               <ActivityIndicator size="small" color="#22312d" />
@@ -421,8 +417,8 @@ export default function FuneralCustomCasketRequestScreen({ navigation, route }: 
           </TouchableOpacity>
         </View>
 
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Reference Image for the Design</Text>
+        <View style={styles.formSection}>
+          <Text style={styles.sectionTitle}>Design reference</Text>
           <TouchableOpacity style={styles.photoPicker} onPress={() => void pickPhoto("reference")} disabled={uploadingPhoto}>
             {uploadingPhoto ? (
               <ActivityIndicator size="small" color="#22312d" />
@@ -437,9 +433,10 @@ export default function FuneralCustomCasketRequestScreen({ navigation, route }: 
           </TouchableOpacity>
         </View>
 
-        <View style={styles.sectionCard}>
+        <View style={styles.formSection}>
+          <Text style={styles.sectionTitle}>Arrangement details</Text>
           <Text style={styles.label}>Full Name of the Deceased</Text>
-          <TextInput style={styles.input} placeholder="Full name of the deceased" value={deceasedFullName} onChangeText={setDeceasedFullName} />
+          <TextInput style={styles.input} value={deceasedFullName} onChangeText={setDeceasedFullName} />
 
           <Text style={styles.label}>Date of Birth</Text>
           <TouchableOpacity style={styles.dateButton} onPress={() => setShowDatePicker(true)}>
@@ -514,7 +511,7 @@ export default function FuneralCustomCasketRequestScreen({ navigation, route }: 
             </Text>
           ) : null}
           {ageMismatch ? (
-            <View style={styles.ageMismatchCard}>
+            <View style={styles.ageWarning}>
               <Text style={styles.ageMismatchText}>
                 The entered age does not match the date of birth and date of passing. Calculated age: {computedAge}.
               </Text>
@@ -569,7 +566,6 @@ export default function FuneralCustomCasketRequestScreen({ navigation, route }: 
           <Text style={styles.label}>Contact Number</Text>
           <TextInput
             style={styles.input}
-            placeholder="Enter contact number"
             value={contactNumber}
             onChangeText={setContactNumber}
             keyboardType="phone-pad"
@@ -598,29 +594,24 @@ export default function FuneralCustomCasketRequestScreen({ navigation, route }: 
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#eef1ec" },
+  screen: { flex: 1, backgroundColor: "#f3f5f7" },
   content: { padding: 18, paddingBottom: 120, gap: 16 },
-  summaryCard: {
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "#d9d6cd",
-    backgroundColor: "#f8f6f2",
-    padding: 18,
+  requestSummary: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#d8e0e8",
+    paddingBottom: 16,
   },
-  summaryEyebrow: { color: "#8b7255", fontSize: 12, fontWeight: "800" },
-  summaryTitle: { color: "#22312d", fontSize: 24, fontWeight: "900", marginTop: 4 },
+  summaryTitle: { color: "#22312d", fontSize: 24, fontWeight: "900" },
   summarySubtitle: { color: "#62706b", fontSize: 13, lineHeight: 20, marginTop: 8 },
-  sectionCard: {
-    borderRadius: 22,
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#d9d6cd",
-    padding: 16,
+  formSection: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#d8e0e8",
+    paddingBottom: 20,
   },
   sectionTitle: { color: "#22312d", fontSize: 16, fontWeight: "900", marginBottom: 12 },
   photoPicker: {
     minHeight: 180,
-    borderRadius: 18,
+    borderRadius: 8,
     borderWidth: 1,
     borderStyle: "dashed",
     borderColor: "#d2d7d1",
@@ -635,10 +626,10 @@ const styles = StyleSheet.create({
   label: { color: "#53615d", fontSize: 13, fontWeight: "800", marginBottom: 8, marginTop: 12 },
   input: {
     minHeight: 48,
-    borderRadius: 14,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: "#d2d7d1",
-    backgroundColor: "#fcfcfb",
+    backgroundColor: "#ffffff",
     paddingHorizontal: 14,
     paddingVertical: 12,
     color: "#22312d",
@@ -647,10 +638,10 @@ const styles = StyleSheet.create({
   multilineInput: { minHeight: 100, textAlignVertical: "top" },
   dateButton: {
     minHeight: 48,
-    borderRadius: 14,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: "#d2d7d1",
-    backgroundColor: "#fcfcfb",
+    backgroundColor: "#ffffff",
     paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "center",
@@ -665,10 +656,10 @@ const styles = StyleSheet.create({
   ageModeButton: {
     flex: 1,
     minHeight: 42,
-    borderRadius: 12,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: "#d2d7d1",
-    backgroundColor: "#fcfcfb",
+    backgroundColor: "#ffffff",
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 10,
@@ -691,7 +682,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: 6,
   },
-  ageMismatchCard: {
+  ageWarning: {
     marginTop: 10,
     borderRadius: 12,
     backgroundColor: "#fef3c7",
@@ -717,7 +708,7 @@ const styles = StyleSheet.create({
   readonlyValue: { color: "#62706b", fontSize: 14, fontWeight: "700" },
   primaryButton: {
     minHeight: 52,
-    borderRadius: 16,
+    borderRadius: 10,
     backgroundColor: "#22312d",
     alignItems: "center",
     justifyContent: "center",
@@ -731,14 +722,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 24,
     gap: 14,
-  },
-  successIcon: {
-    width: 78,
-    height: 78,
-    borderRadius: 39,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#fef3c7",
   },
   successTitle: { color: "#22312d", fontSize: 24, fontWeight: "900" },
   successText: { color: "#62706b", fontSize: 14, lineHeight: 22, textAlign: "center" },

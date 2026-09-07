@@ -7,8 +7,10 @@ import LoadingBird from '@/components/LoadingBird'
 const FuneralLandingPage = lazy(() => import('./pages/FuneralLandingPage'))
 const FuneralShopsPage = lazy(() => import('./pages/FuneralShopsPage'))
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'))
+const CustomCasketRequestPage = lazy(() => import('./pages/CustomCasketRequestPage'))
 const SellerCentrePage = lazy(() => import('./pages/SellerCentrePage'))
 const SellerPaymentPage = lazy(() => import('./pages/SellerPaymentPage'))
+const SellerServiceRequestPage = lazy(() => import('./pages/SellerServiceRequestPage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const RegisterPage = lazy(() => import('./pages/RegisterPage'))
 const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage'))
@@ -23,9 +25,11 @@ const FeedbackPage = lazy(() => import('./pages/FeedbackPage'))
 const PurchasePage = lazy(() => import('./pages/PurchasePage'))
 const NotificationPage = lazy(() => import('./pages/NotificationPage'))
 const LogoutPage = lazy(() => import('./pages/LogoutPage'))
+const SwitchAccountPage = lazy(() => import('./pages/SwitchAccountPage'))
 const CartPage = lazy(() => import('./pages/CartPage'))
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage'))
 const MyServiceRequestsPage = lazy(() => import('./pages/MyServiceRequestsPage'))
+const UserServiceRequestPage = lazy(() => import('./pages/UserServiceRequestPage'))
 const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'))
 const PoliciesPage = lazy(() => import('./pages/PoliciesPage'))
 const ShopPage = lazy(() => import('./pages/ShopPage'))
@@ -33,14 +37,20 @@ const ShopRegistrationPage = lazy(() => import('./pages/ShopRegistrationPage'))
 const FavoritesPage = lazy(() => import('./pages/FavoritesPage'))
 
 const AdminAuditLogsPage = lazy(() => import('./pages/admin/AdminAuditLogsPage'))
+const AdminAccountDeletionsPage = lazy(() => import('./pages/admin/AdminAccountDeletionsPage'))
+const AdminAnalyticsPage = lazy(() => import('./pages/admin/AdminAnalyticsPage'))
+const AdminAnnouncementsPage = lazy(() => import('./pages/admin/AdminAnnouncementsPage'))
 const AdminLoginSecurityPage = lazy(() => import('./pages/admin/AdminLoginSecurityPage'))
 const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'))
 const AdminFeedbackPage = lazy(() => import('./pages/admin/AdminFeedbackPage'))
 const AdminFuneralItemsPage = lazy(() => import('./pages/admin/AdminFuneralItemsPage'))
 const AdminFuneralShopsPage = lazy(() => import('./pages/admin/AdminFuneralShopsPage'))
+const AdminHomeContentPage = lazy(() => import('./pages/admin/AdminHomeContentPage'))
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'))
 const AdminModerationPage = lazy(() => import('./pages/admin/AdminModerationPage'))
 const AdminOrdersPage = lazy(() => import('./pages/admin/AdminOrdersPage'))
+const AdminProductDetailPage = lazy(() => import('./pages/admin/AdminProductDetailPage'))
+const AdminServiceRequestDetailPage = lazy(() => import('./pages/admin/AdminServiceRequestDetailPage'))
 const AdminPaymentsPage = lazy(() => import('./pages/admin/AdminPaymentsPage'))
 const AdminRoleGuard = lazy(() => import('./pages/admin/AdminRoleGuard'))
 const AdminRoleRedirectPage = lazy(() => import('./pages/admin/AdminRoleRedirectPage'))
@@ -71,12 +81,14 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/auth/logout" element={<LogoutPage />} />
+          <Route path="/auth/switch-account" element={<SwitchAccountPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
 
           {/* User Profile & Protected Routes */}
           <Route element={<ProtectedRoute />}>
             <Route path="/seller/register" element={<ShopRegistrationPage />} />
             <Route path="/seller/payment" element={<SellerPaymentPage />} />
+            <Route path="/seller/requests/:requestId" element={<SellerServiceRequestPage />} />
             <Route path="/user/profile" element={<UserProfilePage />} />
             <Route path="/user/account-settings" element={<AccountSettingsPage />} />
             <Route path="/user/privacy-data" element={<PrivacyDataPage />} />
@@ -84,9 +96,11 @@ function App() {
             <Route path="/user/favorites" element={<FavoritesPage />} />
             <Route path="/user/purchase" element={<PurchasePage />} />
             <Route path="/user/requests" element={<MyServiceRequestsPage />} />
+            <Route path="/user/requests/:requestId" element={<UserServiceRequestPage />} />
             <Route path="/user/notifications" element={<NotificationPage />} />
             <Route path="/user/cart" element={<CartPage />} />
             <Route path="/user/checkout" element={<CheckoutPage />} />
+            <Route path="/funeral/custom-casket/:shopId" element={<CustomCasketRequestPage />} />
             <Route path="/user/contact" element={<ContactPage />} />
             <Route path="/user/help" element={<HelpCentrePage />} />
             <Route path="/user/about" element={<AboutPage />} />
@@ -102,8 +116,16 @@ function App() {
                 <Route path="funeral-shops/:id/details" element={<AdminShopDetailsPage />} />
                 <Route path="funeral-shops/:id" element={<AdminShopCentrePage />} />
                 <Route path="funeral-items" element={<AdminFuneralItemsPage />} />
+                <Route path="funeral-items/:productId" element={<AdminProductDetailPage />} />
                 <Route path="orders" element={<AdminOrdersPage />} />
+                <Route path="orders/:requestId" element={<AdminServiceRequestDetailPage />} />
                 <Route path="payments" element={<AdminPaymentsPage />} />
+              </Route>
+              <Route element={<AdminRoleGuard allowedRoles={['super_admin', 'admin']} />}>
+                <Route path="analytics" element={<AdminAnalyticsPage />} />
+                <Route path="announcements" element={<AdminAnnouncementsPage />} />
+                <Route path="home-content" element={<AdminHomeContentPage />} />
+                <Route path="account-deletions" element={<AdminAccountDeletionsPage />} />
               </Route>
               <Route path="users" element={<AdminUsersPage />} />
               <Route path="users/:id" element={<AdminUserDetailPage />} />

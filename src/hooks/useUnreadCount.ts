@@ -3,6 +3,7 @@ import { supabase } from "@/services/supabaseClient";
 import {
   fetchNotificationsForUser,
   getCurrentSupabaseUserId,
+  isChatNotificationType,
 } from "@/utils/supabaseNotifications";
 import {
   filterNotificationsByPreferences,
@@ -32,7 +33,7 @@ export function useUnreadCount() {
         ]);
         if (!active || version !== loadVersion) return;
         const enabledNotifications = filterNotificationsByPreferences(
-          notifications,
+          notifications.filter((notification) => !isChatNotificationType(notification.type)),
           preferences
         );
         setUnreadCount(

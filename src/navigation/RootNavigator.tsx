@@ -1,14 +1,19 @@
 import { NavigationContainer } from "@react-navigation/native";
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
 import { useAuth } from "../context/AuthContext";
 import { useAppNotificationSound, useChatDeliveryReceipts, useChatNotificationSound, usePushNotifications } from "@/hooks";
+import LoadingBird from '@/components/LoadingBird';
 import { navigationTheme } from "../theme";
 import AuthNavigator from "./AuthNavigator";
 import AdminStackNavigator from "./AdminStackNavigator";
 import VerificationStackNavigator from "./VerificationStackNavigator";
 import FuneralNavigator from "./FuneralNavigator";
 import TermsNavigator from "./TermsNavigator";
+import {
+  flushPendingPushNavigation,
+  rootNavigationRef,
+} from './navigationRef';
 
 function ChatRuntimeListener() {
   useChatDeliveryReceipts();
@@ -16,23 +21,21 @@ function ChatRuntimeListener() {
   return null;
 }
 
-function NotificationRuntimeListener() {
+function NotificationRuntimeListener({ canNavigate }: { canNavigate: boolean }) {
   useAppNotificationSound();
-  usePushNotifications();
+  usePushNotifications({ canNavigate });
   return null;
 }
 
 export default function RootNavigator() {
   const { user, role, termsAccepted, loading } = useAuth();
-  const [startupComplete, setStartupComplete] = useState(false);
   const hasHiddenNativeSplashRef = useRef(false);
-  const navigationKey = user?.id ? `auth-${user.id}-${role || "user"}` : "guest";
+  const navigationKey = user?.id
+    ? `auth-${user.id}-${role || "user"}-${termsAccepted ? "terms-ok" : "terms-required"}`
+    : "guest";
   const emailVerified = Boolean(user?.email_confirmed_at);
   const isAdminRole = role === "super_admin" || role === "admin" || role === "funeral_admin";
-
-  useEffect(() => {
-    if (!loading) setStartupComplete(true);
-  }, [loading]);
+  const canNavigateFromPush = Boolean(user && emailVerified && termsAccepted);
 
   const revealApp = useCallback(() => {
     if (hasHiddenNativeSplashRef.current) return;
@@ -42,11 +45,28 @@ export default function RootNavigator() {
     });
   }, []);
 
-  if (loading && !startupComplete) return null;
+  useEffect(() => {
+    if (loading) revealApp();
+  }, [loading, revealApp]);
+
+  // Never choose an authenticated navigator until the matching user profile
+  // (including saved agreement acceptance) has finished loading. Otherwise a
+  // previously accepted user briefly mounts TermsNavigator with the default
+  // `termsAccepted = false` value during sign-in or account switching.
+  if (loading) return <LoadingBird fullScreen />;
 
   return (
-    <NavigationContainer key={navigationKey} onReady={revealApp} theme={navigationTheme}>
-      {user && <NotificationRuntimeListener />}
+    <NavigationContainer
+      key={navigationKey}
+      ref={rootNavigationRef}
+      onReady={() => {
+        revealApp();
+        flushPendingPushNavigation();
+      }}
+      onStateChange={flushPendingPushNavigation}
+      theme={navigationTheme}
+    >
+      {user && <NotificationRuntimeListener canNavigate={canNavigateFromPush} />}
       {user && emailVerified && <ChatRuntimeListener />}
       {!user && <AuthNavigator />}
       {user && !emailVerified && <VerificationStackNavigator />}

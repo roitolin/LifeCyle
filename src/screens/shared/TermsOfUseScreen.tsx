@@ -1,6 +1,6 @@
 import LegalDocumentScreen, { type LegalDocumentSection } from './LegalDocumentScreen';
 
-const termsSections: readonly LegalDocumentSection[] = [
+export const termsSections: readonly LegalDocumentSection[] = [
   {
     title: 'Agreement and eligibility',
     paragraphs: [
@@ -87,7 +87,6 @@ export default function TermsOfUseScreen() {
   return (
     <LegalDocumentScreen
       title="Terms of Use"
-      eyebrow="LifeCycle • Legal"
       description="The rules and responsibilities that apply when you use LifeCycle to coordinate funeral services, communicate, order, or make payments."
       dateLabel="Effective date"
       date="April 2, 2026"

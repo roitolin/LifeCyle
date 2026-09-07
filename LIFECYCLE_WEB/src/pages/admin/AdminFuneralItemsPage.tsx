@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
+import './AdminFuneralItemsPage.css'
 
 type ProductRow = {
   id: string
@@ -13,12 +14,19 @@ type ProductRow = {
   description: string
   price: string
   stock: number
+  imageUrl: string | null
   active: boolean
   updatedAt: string
 }
 
 function normalize(value: string | undefined | null) {
   return String(value || '').trim().toLowerCase()
+}
+
+function formatPeso(value: string | number | null | undefined) {
+  const num = Number(String(value ?? '').replace(/[^\d.]/g, ''))
+  if (!Number.isFinite(num) || num <= 0) return value ? String(value) : '-'
+  return `PHP ${new Intl.NumberFormat('en-PH', { maximumFractionDigits: 0 }).format(num)}`
 }
 
 function AdminFuneralItemsPage() {
@@ -65,6 +73,7 @@ function AdminFuneralItemsPage() {
         description: row.description || '',
         price: row.price != null ? String(row.price) : '-',
         stock: Number(row.stock) || 0,
+        imageUrl: row.imageUrl ?? null,
         active: Boolean(row.active),
         updatedAt: row.updatedAt || '',
       }))
@@ -131,9 +140,9 @@ function AdminFuneralItemsPage() {
   return (
     <>
       <section className="panel">
-        <h2>Funeral Items</h2>
+        <h2>Products</h2>
         <p className="panel-sub">
-          Review published shop items from funeral accounts.
+          Review published shop products from funeral accounts.
           {activeShopName ? ` Showing items for ${activeShopName}.` : ''}
         </p>
 
@@ -189,13 +198,25 @@ function AdminFuneralItemsPage() {
                 const busy = savingKey === `${item.shopId}_${item.id}`
                 return (
                   <tr key={item.id}>
-                    <td>{item.name}</td>
+                    <td>
+                      <div className="admin-product-list-cell">
+                        {item.imageUrl ? (
+                          <img src={item.imageUrl} alt={item.name} />
+                        ) : (
+                          <span className="admin-product-list-placeholder">LC</span>
+                        )}
+                        <div>
+                          <strong>{item.name}</strong>
+                          <span>{item.description || 'No description provided'}</span>
+                        </div>
+                      </div>
+                    </td>
                     <td>{item.shopName}</td>
                     <td>
                       <strong>{item.ownerName}</strong>
                       <div>{item.ownerEmail}</div>
                     </td>
-                    <td>{item.price || '-'}</td>
+                    <td>{formatPeso(item.price)}</td>
                     <td>{item.stock}</td>
                     <td>
                       <span className={`status-pill ${item.active ? (item.stock > 0 ? 'verified' : 'pending') : 'rejected'}`}>
@@ -205,6 +226,9 @@ function AdminFuneralItemsPage() {
                     <td>{item.updatedAt ? new Date(item.updatedAt).toLocaleDateString() : '-'}</td>
                     <td>
                       <div className="request-actions">
+                        <Link to={`/admin/funeral-items/${item.id}`} className="ghost-btn btn-link table-action">
+                          View
+                        </Link>
                         <button type="button" className="ghost-btn table-action" disabled={busy} onClick={() => void deleteItem(item)}>
                           Delete Item
                         </button>

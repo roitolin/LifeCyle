@@ -1,5 +1,5 @@
 import { Alert, Linking, StyleSheet, View } from "react-native";
-import { Button, Card, Text } from "react-native-paper";
+import { Button, Text } from "react-native-paper";
 import { AppBackButton } from "@/components";
 
 export default function VerifyEmailScreen({ navigation, route }: any) {
@@ -15,32 +15,31 @@ export default function VerifyEmailScreen({ navigation, route }: any) {
 
   return (
     <View style={styles.container}>
-      <Card style={styles.card} mode="elevated">
-        <Card.Content>
+      <View style={styles.card}>
+        <View>
           {navigation.canGoBack() && (
             <AppBackButton style={styles.backLink} onPress={() => navigation.goBack()} />
           )}
-          <Text style={styles.kicker}>Almost Done</Text>
           <Text style={styles.title}>Verify Your Email</Text>
           <Text style={styles.message}>We sent a verification email to:</Text>
           <Text style={styles.email}>{email || "your email"}</Text>
 
-          <View style={styles.stepsCard}>
+          <View style={styles.steps}>
             <Text style={styles.stepText}>1. Open your inbox and find the verification email.</Text>
             <Text style={styles.stepText}>2. Click the verification link in that message.</Text>
             <Text style={styles.stepText}>3. Return here, sign in, and continue to LifeCycle from the account hub.</Text>
           </View>
-        </Card.Content>
+        </View>
 
-        <Card.Actions style={styles.actions}>
+        <View style={styles.actions}>
           <Button mode="contained" icon="email-open-outline" onPress={openEmailApp}>
             Open Email App
           </Button>
           <Button mode="outlined" onPress={() => navigation.navigate("Login")}>
             Back to Login
           </Button>
-        </Card.Actions>
-      </Card>
+        </View>
+      </View>
     </View>
   );
 }
@@ -57,20 +56,16 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 560,
     borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#d8e0e8",
+    backgroundColor: "#ffffff",
+    padding: 18,
   },
   backLink: {
     alignSelf: "flex-start",
     marginBottom: 6,
   },
 
-  kicker: {
-    color: "#9ca3af",
-    fontSize: 12,
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    marginBottom: 8,
-    fontWeight: "700",
-  },
   title: {
     fontSize: 30,
     fontWeight: "800",
@@ -88,12 +83,10 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 14,
   },
-  stepsCard: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    backgroundColor: "#fff7f7",
-    padding: 12,
+  steps: {
+    borderTopWidth: 1,
+    borderTopColor: "#e5e7eb",
+    paddingTop: 14,
     gap: 6,
   },
   stepText: {
@@ -102,9 +95,10 @@ const styles = StyleSheet.create({
     lineHeight: 21,
   },
   actions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
     justifyContent: "space-between",
-    paddingHorizontal: 10,
-    paddingBottom: 10,
+    paddingTop: 16,
   },
 });
-

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { buildCsv, csvDate, csvTimestamp, dateStamp, downloadCsv } from '@/utils/exportCsv'
 
-type ServiceRequest = {
+export type ServiceRequest = {
   id: string
   requesterId: string
   shopId: string
@@ -34,6 +35,7 @@ type ServiceRequest = {
   paymentQrUrl?: string | null
   paymentAmount?: number | string | null
   paymentPayerName?: string | null
+  paymentGcashName?: string | null
   paymentGcashNumber?: string | null
   paymentReferenceNumber?: string | null
   paymentProofImageUrl?: string | null
@@ -41,6 +43,9 @@ type ServiceRequest = {
   paymentVerifiedAt?: string | null
   paymentRejectionReason?: string | null
   completedAt?: string | null
+  completionProofImageUrl?: string | null
+  shopMarkedCompletedAt?: string | null
+  completionProofSeenAt?: string | null
   createdAt?: string | null
   acceptedAt?: string | null
   declinedAt?: string | null
@@ -60,32 +65,6 @@ function formatPeso(value: string | number | null | undefined): string {
   return `₱${new Intl.NumberFormat('en-PH', { maximumFractionDigits: 2 }).format(num)}`
 }
 
-function formatTimestamp(value: string | null | undefined): string {
-  if (!value) return '—'
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return '—'
-  return parsed.toLocaleString(undefined, { hour12: true })
-}
-
-function formatScheduleDate(value: string | null | undefined): string {
-  if (!value) return '—'
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value)
-  const parsed = match
-    ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
-    : new Date(value)
-  if (Number.isNaN(parsed.getTime())) return '—'
-  return parsed.toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
-}
-
-function formatScheduleTime(value: string | null | undefined): string {
-  if (!value) return '—'
-  const match = /^(\d{1,2}):(\d{2})/.exec(value)
-  if (!match) return value
-  const hour = Number(match[1])
-  const minute = Number(match[2])
-  if (hour > 23 || minute > 59) return value
-  return `${hour % 12 || 12}:${String(minute).padStart(2, '0')} ${hour >= 12 ? 'PM' : 'AM'}`
-}
 
 function statusPill(status: string) {
   const s = String(status || '').toLowerCase()
@@ -115,7 +94,6 @@ function AdminOrdersPage() {
   const [items, setItems] = useState<ServiceRequest[]>([])
   const [queryText, setQueryText] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [selectedOrder, setSelectedOrder] = useState<ServiceRequest | null>(null)
 
   const load = async () => {
     setLoading(true)
@@ -227,7 +205,7 @@ function AdminOrdersPage() {
       <section className="panel">
         <h2>All Service Requests</h2>
         <p className="panel-sub">
-          Review every funeral service request submitted to shops across the platform.
+          Review service requests submitted to funeral shops.
         </p>
 
         <div className="admin-filters admin-filters-advanced">
@@ -295,9 +273,9 @@ function AdminOrdersPage() {
                   <td>{item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '—'}</td>
                   <td>
                     <div className="request-actions">
-                      <button type="button" className="ghost-btn table-action" onClick={() => setSelectedOrder(item)}>
+                      <Link to={`/admin/orders/${item.id}`} className="ghost-btn btn-link table-action">
                         View Details
-                      </button>
+                      </Link>
                     </div>
                   </td>
                 </tr>
@@ -307,199 +285,6 @@ function AdminOrdersPage() {
         </div>
       </section>
 
-      {selectedOrder ? (
-        <section className="panel">
-          <div className="quick-actions">
-            <button type="button" className="ghost-btn table-action" onClick={() => setSelectedOrder(null)}>
-              Close Details
-            </button>
-          </div>
-
-          <h3 style={{ margin: '0 0 12px', fontSize: '16px', fontWeight: 600 }}>Request Details</h3>
-
-          <div className="request-detail-grid">
-            <div>
-              <span>Status</span>
-              <strong>
-                <span className={`status-pill ${statusPill(selectedOrder.status)}`}>{statusLabel(selectedOrder.status)}</span>
-              </strong>
-            </div>
-            <div>
-              <span>Request ID</span>
-              <strong>{selectedOrder.id}</strong>
-            </div>
-            <div>
-              <span>Request Type</span>
-              <strong>{selectedOrder.requestType ? selectedOrder.requestType.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()) : '—'}</strong>
-            </div>
-            <div>
-              <span>Requested Item</span>
-              <strong>
-                {selectedOrder.productName || 'Custom casket design'}
-                {selectedOrder.variationName ? ` (${selectedOrder.variationName})` : ''}
-              </strong>
-            </div>
-            <div>
-              <span>Price</span>
-              <strong>{selectedOrder.productPrice != null ? formatPeso(selectedOrder.productPrice) : 'Custom pricing'}</strong>
-            </div>
-            <div>
-              <span>Payment Amount</span>
-              <strong>{selectedOrder.paymentAmount != null ? formatPeso(selectedOrder.paymentAmount) : '—'}</strong>
-            </div>
-            <div>
-              <span>Payer Name</span>
-              <strong>{selectedOrder.paymentPayerName || '—'}</strong>
-            </div>
-            <div>
-              <span>GCash Number</span>
-              <strong>{selectedOrder.paymentGcashNumber || '—'}</strong>
-            </div>
-            <div>
-              <span>Payment Reference</span>
-              <strong>{selectedOrder.paymentReferenceNumber || '—'}</strong>
-            </div>
-            <div>
-              <span>Shop</span>
-              <strong>{selectedOrder.shopName || selectedOrder.shopId || '—'}</strong>
-            </div>
-            <div>
-              <span>Requester</span>
-              <strong>
-                {selectedOrder.requesterName || '—'}
-                {selectedOrder.requesterEmail ? <div style={{ fontWeight: 400, fontSize: '0.85rem', color: '#6b7280' }}>{selectedOrder.requesterEmail}</div> : null}
-              </strong>
-            </div>
-            <div>
-              <span>Family Coordinator</span>
-              <strong>{selectedOrder.familyCoordinatorName || '—'}</strong>
-            </div>
-            <div>
-              <span>Contact Number</span>
-              <strong>{selectedOrder.contactNumber || '—'}</strong>
-            </div>
-            <div>
-              <span>Deceased Full Name</span>
-              <strong>{selectedOrder.deceasedFullName || '—'}</strong>
-            </div>
-            <div>
-              <span>Deceased Date of Birth</span>
-              <strong>{selectedOrder.deceasedDateOfBirth || '—'}</strong>
-            </div>
-            <div>
-              <span>Date of Passing</span>
-              <strong>{selectedOrder.deceasedDateOfPassing ? new Date(selectedOrder.deceasedDateOfPassing).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}</strong>
-            </div>
-            <div>
-              <span>Deceased Age</span>
-              <strong>{selectedOrder.deceasedAge != null ? selectedOrder.deceasedAge : '—'}</strong>
-            </div>
-            <div>
-              <span>Wake Venue</span>
-              <strong>{selectedOrder.wakeAddress || '—'}</strong>
-            </div>
-            <div>
-              <span>Wake Start (From)</span>
-              <strong>{formatScheduleDate(selectedOrder.wakeStartDate)}</strong>
-            </div>
-            <div>
-              <span>Wake End (To)</span>
-              <strong>{formatScheduleDate(selectedOrder.wakeEndDate)}</strong>
-            </div>
-            <div>
-              <span>Burial Time</span>
-              <strong>{formatScheduleTime(selectedOrder.burialTime)}</strong>
-            </div>
-            <div>
-              <span>Pickup Address</span>
-              <strong>{selectedOrder.pickupAddress || '—'}</strong>
-            </div>
-            <div>
-              <span>Created</span>
-              <strong>{formatTimestamp(selectedOrder.createdAt)}</strong>
-            </div>
-            <div>
-              <span>Accepted At</span>
-              <strong>{formatTimestamp(selectedOrder.acceptedAt)}</strong>
-            </div>
-            <div>
-              <span>Declined At</span>
-              <strong>{formatTimestamp(selectedOrder.declinedAt)}</strong>
-            </div>
-            <div>
-              <span>Cancelled At</span>
-              <strong>{formatTimestamp(selectedOrder.cancelledAt)}</strong>
-            </div>
-            <div>
-              <span>Shop Responded At</span>
-              <strong>{formatTimestamp(selectedOrder.shopRespondedAt)}</strong>
-            </div>
-            <div>
-              <span>Payment Submitted At</span>
-              <strong>{formatTimestamp(selectedOrder.paymentSubmittedAt)}</strong>
-            </div>
-            <div>
-              <span>Payment Verified At</span>
-              <strong>{formatTimestamp(selectedOrder.paymentVerifiedAt)}</strong>
-            </div>
-            <div>
-              <span>Completed At</span>
-              <strong>{formatTimestamp(selectedOrder.completedAt)}</strong>
-            </div>
-          </div>
-
-          {selectedOrder.customDesignNotes ? (
-            <div style={{ marginTop: '14px' }}>
-              <span style={{ display: 'block', color: '#6b7280', fontSize: '0.78rem', marginBottom: '4px', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Custom Design Notes</span>
-              <p className="panel-sub" style={{ margin: '4px 0 0' }}>{selectedOrder.customDesignNotes}</p>
-            </div>
-          ) : null}
-
-          {selectedOrder.tributeMessage ? (
-            <div style={{ marginTop: '14px' }}>
-              <span style={{ display: 'block', color: '#6b7280', fontSize: '0.78rem', marginBottom: '4px', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Tribute Message</span>
-              <p className="panel-sub" style={{ margin: '4px 0 0' }}>{selectedOrder.tributeMessage}</p>
-            </div>
-          ) : null}
-
-          {selectedOrder.paymentRejectionReason ? (
-            <div style={{ marginTop: '14px' }}>
-              <span style={{ display: 'block', color: '#991b1b', fontSize: '0.78rem', marginBottom: '4px', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Payment Rejection Reason</span>
-              <p className="panel-sub" style={{ margin: '4px 0 0', color: '#991b1b' }}>{selectedOrder.paymentRejectionReason}</p>
-            </div>
-          ) : null}
-
-          {selectedOrder.productImageUrl || selectedOrder.memorialPhotoUrl || selectedOrder.referencePhotoUrl || selectedOrder.paymentQrUrl || selectedOrder.paymentProofImageUrl ? (
-            <div style={{ marginTop: '14px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              {selectedOrder.productImageUrl ? (
-                <a href={selectedOrder.productImageUrl} target="_blank" rel="noreferrer">
-                  <img src={selectedOrder.productImageUrl} alt="Product" style={{ width: '140px', height: '140px', objectFit: 'cover', borderRadius: '10px' }} />
-                </a>
-              ) : null}
-              {selectedOrder.memorialPhotoUrl ? (
-                <a href={selectedOrder.memorialPhotoUrl} target="_blank" rel="noreferrer">
-                  <img src={selectedOrder.memorialPhotoUrl} alt="Memorial" style={{ width: '140px', height: '140px', objectFit: 'cover', borderRadius: '10px' }} />
-                </a>
-              ) : null}
-              {selectedOrder.referencePhotoUrl ? (
-                <a href={selectedOrder.referencePhotoUrl} target="_blank" rel="noreferrer">
-                  <img src={selectedOrder.referencePhotoUrl} alt="Reference" style={{ width: '140px', height: '140px', objectFit: 'cover', borderRadius: '10px' }} />
-                </a>
-              ) : null}
-              {selectedOrder.paymentQrUrl ? (
-                <a href={selectedOrder.paymentQrUrl} target="_blank" rel="noreferrer" title="Shop payment QR">
-                  <img src={selectedOrder.paymentQrUrl} alt="Shop payment QR" style={{ width: '140px', height: '140px', objectFit: 'contain', borderRadius: '10px', background: '#ffffff' }} />
-                </a>
-              ) : null}
-              {selectedOrder.paymentProofImageUrl ? (
-                <a href={selectedOrder.paymentProofImageUrl} target="_blank" rel="noreferrer" title="Buyer payment proof">
-                  <img src={selectedOrder.paymentProofImageUrl} alt="Buyer payment proof" style={{ width: '140px', height: '140px', objectFit: 'contain', borderRadius: '10px', background: '#ffffff' }} />
-                </a>
-              ) : null}
-            </div>
-          ) : null}
-        </section>
-      ) : null}
     </>
   )
 }

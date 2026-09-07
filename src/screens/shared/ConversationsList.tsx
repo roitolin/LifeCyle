@@ -122,7 +122,7 @@ function ConversationActionRow({
   disabled: boolean;
   danger?: boolean;
 }) {
-  const color = danger ? "#ff5364" : "#f5f5f5";
+  const color = danger ? "#9a5148" : "#41564e";
   return (
     <TouchableOpacity
       accessibilityRole="button"
@@ -146,7 +146,7 @@ export default function ConversationsList({ navigation }: any) {
   const [dbError, setdbError] = useState<string | null>(null);
   const [userInfoMap, setUserInfoMap] = useState<UserInfoMap>({});
   const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
-  const [filterMode, setFilterMode] = useState<"all" | "active" | "archived">("all");
+  const [filterMode, setFilterMode] = useState<"all" | "unread" | "archived">("all");
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [actionBusy, setActionBusy] = useState<ConversationPreference | "delete" | null>(null);
   const userId = auth.currentUser?.uid;
@@ -610,7 +610,7 @@ export default function ConversationsList({ navigation }: any) {
         : fallbackSource;
 
     return (
-      <Card style={[styles.card, unread && styles.unreadCard]} mode="elevated">
+      <View style={[styles.card, unread && styles.unreadCard]}>
         <TouchableOpacity
           onPress={() => navigation.navigate("Chat", { conversationId: item.id, otherUserId })}
           onLongPress={() => {
@@ -687,7 +687,7 @@ export default function ConversationsList({ navigation }: any) {
           />
           <Text style={[styles.actionLabel, { color: "#d32f2f" }]}>Delete</Text>
         </Card.Actions> : null}
-      </Card>
+      </View>
     );
   };
 
@@ -699,7 +699,7 @@ export default function ConversationsList({ navigation }: any) {
     const archived = !!userId && !!conversation.archivedFor?.includes(userId);
     if (filterMode === "archived") return archived;
     if (archived) return false;
-    if (filterMode === "active") return conversation.lastMessage?.senderId !== userId;
+    if (filterMode === "unread") return isConversationUnread(conversation, userId);
     return true;
   });
 
@@ -713,11 +713,10 @@ export default function ConversationsList({ navigation }: any) {
       {!!dbError && <Text style={styles.error}>{dbError}</Text>}
       <View style={styles.filterRow}>
         <TouchableOpacity style={[styles.filterPill, filterMode === "all" && styles.filterPillActive]} onPress={() => setFilterMode("all")}>
-          <Text style={[styles.filterText, filterMode === "all" && styles.filterTextActive]}>All</Text>
-          {filterMode === "all" ? <View style={styles.filterDot} /> : null}
+          <Text style={[styles.filterText, filterMode === "all" && styles.filterTextActive]}>All chats</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.filterPill, filterMode === "active" && styles.filterPillActive]} onPress={() => setFilterMode("active")}>
-          <Text style={[styles.filterText, filterMode === "active" && styles.filterTextActive]}>Active</Text>
+        <TouchableOpacity style={[styles.filterPill, filterMode === "unread" && styles.filterPillActive]} onPress={() => setFilterMode("unread")}>
+          <Text style={[styles.filterText, filterMode === "unread" && styles.filterTextActive]}>Unread</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.filterPill, filterMode === "archived" && styles.filterPillActive]} onPress={() => setFilterMode("archived")}>
           <Text style={[styles.filterText, filterMode === "archived" && styles.filterTextActive]}>Archived</Text>
@@ -727,7 +726,15 @@ export default function ConversationsList({ navigation }: any) {
         data={filteredConversations}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
-        ListEmptyComponent={<Text style={styles.empty}>{filterMode === "archived" ? "No archived conversations." : "No conversations yet."}</Text>}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIcon}><Ionicons name="chatbubble-outline" size={24} color="#76847e" /></View>
+            <Text style={styles.emptyTitle}>{filterMode === "archived" ? "No archived conversations" : filterMode === "unread" ? "No unread conversations" : "No conversations yet"}</Text>
+            <Text style={styles.emptyText}>Messages will appear here when you start a conversation.</Text>
+          </View>
+        }
       />
       <Modal
         animationType="fade"
@@ -804,28 +811,27 @@ export default function ConversationsList({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 10, backgroundColor: "#ffffff" },
+  container: { flex: 1, paddingHorizontal: 14, backgroundColor: "#ffffff" },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  empty: { textAlign: "center", marginTop: 50, fontSize: 16, color: "#7b817e" },
   error: { color: "#d32f2f", textAlign: "center", marginBottom: 12 },
-  card: { marginBottom: 0, borderRadius: 0, backgroundColor: "#ffffff", borderBottomWidth: 1, borderBottomColor: "#edf0ee", elevation: 0, shadowOpacity: 0 },
+  listContent: { flexGrow: 1, paddingBottom: 26 },
+  card: { marginBottom: 0, backgroundColor: "#ffffff" },
   unreadCard: {
-    backgroundColor: "#f4f7ff",
-    borderBottomColor: "#dfe7fb",
+    backgroundColor: "#ffffff",
   },
   conversationRow: {
-    minHeight: 82,
+    minHeight: 72,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 11,
+    paddingHorizontal: 4,
+    paddingVertical: 9,
   },
-  conversationAvatar: { backgroundColor: "#edf0f4" },
-  conversationCopy: { flex: 1, minWidth: 0, marginLeft: 12, paddingRight: 10 },
-  conversationName: { color: "#303848", fontSize: 15, fontWeight: "600" },
-  unreadName: { color: "#202a43", fontWeight: "900" },
-  conversationPreview: { color: "#8a929e", fontSize: 12, lineHeight: 17, marginTop: 4 },
-  unreadPreview: { color: "#4d5870", fontWeight: "700" },
+  conversationAvatar: { width: 46, height: 46, backgroundColor: "#e8edea" },
+  conversationCopy: { flex: 1, minWidth: 0, marginLeft: 11, paddingRight: 10 },
+  conversationName: { flexShrink: 1, color: "#35423d", fontSize: 14, fontWeight: "700" },
+  unreadName: { color: "#20312b", fontWeight: "800" },
+  conversationPreview: { color: "#7e8984", fontSize: 11, lineHeight: 16, marginTop: 3 },
+  unreadPreview: { color: "#53635d", fontWeight: "700" },
   conversationMeta: {
     width: 58,
     minHeight: 54,
@@ -834,13 +840,13 @@ const styles = StyleSheet.create({
   },
   timeTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 4 },
   time: { fontSize: 11, color: "#9299a4" },
-  unreadTime: { color: "#4d6fd1", fontWeight: "700" },
+  unreadTime: { color: "#2f6b55", fontWeight: "800" },
   unreadBadge: {
     minWidth: 22,
     height: 22,
     borderRadius: 11,
     paddingHorizontal: 6,
-    backgroundColor: "#4f73e8",
+    backgroundColor: "#2f6b55",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -858,12 +864,18 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   containerDesktop: { maxWidth: 800, alignSelf: "center", width: "100%" },
-  filterRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingTop: 6, paddingBottom: 10 },
-  filterPill: { minWidth: 58, minHeight: 34, borderRadius: 18, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 4, paddingHorizontal: 12, backgroundColor: "#f4f5f4" },
-  filterPillActive: { backgroundColor: "#fff3f0" },
-  filterText: { color: "#777e7a", fontSize: 12, fontWeight: "700" },
-  filterTextActive: { color: "#ee4f38", fontWeight: "900" },
-  filterDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#ee4f38" },
+  filterRow: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingVertical: 12,
+  },
+  filterPill: { minHeight: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", paddingHorizontal: 15, backgroundColor: "transparent" },
+  filterPillActive: { backgroundColor: "#29483e" },
+  filterText: { color: "#66716c", fontSize: 11, fontWeight: "700" },
+  filterTextActive: { color: "#ffffff", fontWeight: "800" },
+  emptyState: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24, paddingVertical: 52 },
+  emptyIcon: { width: 54, height: 54, borderRadius: 19, backgroundColor: "#eef1ef", alignItems: "center", justifyContent: "center" },
+  emptyTitle: { color: "#35453f", fontSize: 14, fontWeight: "900", marginTop: 12 },
+  emptyText: { color: "#7d8783", fontSize: 10, textAlign: "center", marginTop: 5 },
   actionSheetOverlay: { flex: 1, justifyContent: "flex-end" },
   actionSheetBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0, 0, 0, 0.56)" },
   actionSheet: {
@@ -872,14 +884,14 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    backgroundColor: "#252525",
+    backgroundColor: "#fbfaf7",
     paddingHorizontal: 12,
     paddingTop: 9,
   },
   actionSheetDragArea: { minHeight: 24, alignItems: "center", justifyContent: "center" },
-  actionSheetGrabber: { width: 42, height: 4, borderRadius: 2, backgroundColor: "#8b8b8b" },
-  actionSheetRow: { minHeight: 56, paddingHorizontal: 8, flexDirection: "row", alignItems: "center", gap: 16 },
+  actionSheetGrabber: { width: 42, height: 4, borderRadius: 2, backgroundColor: "#cdd3cf" },
+  actionSheetRow: { minHeight: 56, paddingHorizontal: 8, flexDirection: "row", alignItems: "center", gap: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#e5e8e5" },
   actionSheetRowDisabled: { opacity: 0.58 },
-  actionSheetLabel: { flex: 1, color: "#f5f5f5", fontSize: 16, fontWeight: "600" },
-  actionSheetDanger: { color: "#ff5364" },
+  actionSheetLabel: { flex: 1, color: "#33443e", fontSize: 15, fontWeight: "700" },
+  actionSheetDanger: { color: "#9a5148" },
 });

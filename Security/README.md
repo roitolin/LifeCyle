@@ -1,6 +1,6 @@
 # Security
 
-This folder stores security-related documentation and operational notes for BloodLink.
+This folder stores security-related documentation and operational notes for LifeCycle.
 
 ## Contents
 

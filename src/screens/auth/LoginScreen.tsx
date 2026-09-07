@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  Animated,
   View,
   Text,
   Image,
@@ -12,12 +11,13 @@ import {
   Linking,
   Modal,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Button as PaperButton } from "react-native-paper";
 import { Ionicons } from "@expo/vector-icons";
-import { KeyboardAwareScrollView } from "@/components";
+import { AppBackButton, KeyboardAwareScrollView } from "@/components";
+import { colors, radii, spacing } from "@/theme";
 import { supabase } from "../../services/supabaseClient";
 import { ensureOwnUserProfile } from "../../services/userProfile";
-import { useResponsive } from "../../utils/responsive";
 import { useAuth } from "../../context/AuthContext";
 import { clearLoginAttempts, getLoginBlockState, recordFailedLoginAttempt } from "../../utils/authAttemptGuard";
 import { normalizeEmail } from "../../utils/inputSecurity";
@@ -34,21 +34,12 @@ export default function LoginScreen({ navigation, route }: any) {
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [banDialog, setBanDialog] = useState<{ reason: string; banEndsLabel: string } | null>(null);
   const { banNotice, clearBanNotice, refreshUserProfile } = useAuth();
-  const { isDesktop } = useResponsive();
   const scrollRef = useRef<any>(null);
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
   const supportPhone = "+639123456789";
   const supportEmail = "support@lifecycle.app";
-  const entrance = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.timing(entrance, {
-      toValue: 1,
-      duration: 420,
-      useNativeDriver: true,
-    }).start();
-  }, [entrance]);
+  const isAddingAccount = Boolean(route?.params?.addAccount);
 
   useEffect(() => {
     if (route?.params?.email) {
@@ -193,39 +184,31 @@ export default function LoginScreen({ navigation, route }: any) {
   };
 
   return (
-    <View style={styles.screen}>
-      <View style={styles.glowTop} pointerEvents="none" />
-      <View style={styles.glowBottom} pointerEvents="none" />
+    <SafeAreaView edges={["top", "bottom"]} style={styles.screen}>
       <Modal visible={!!banDialog} transparent animationType="fade" onRequestClose={() => setBanDialog(null)}>
         <View style={styles.banOverlay}>
-          <View style={styles.banCard}>
-            <View style={styles.banIconWrap}>
-              <Ionicons name="warning" size={20} color="#22312d" />
+          <View style={styles.banDialog}>
+            <View style={styles.banHeading}>
+              <Ionicons name="warning-outline" size={24} color={colors.danger} />
+              <Text style={styles.banTitle}>Account restricted</Text>
             </View>
-            <Text style={styles.banTitle}>Account Banned</Text>
-            <Text style={styles.banSubtitle}>This account is currently restricted by admin moderation.</Text>
+            <Text style={styles.banSubtitle}>An administrator has restricted access to this account.</Text>
 
-            <View style={styles.banSection}>
+            <View style={styles.banDetail}>
               <Text style={styles.banLabel}>Reason</Text>
               <Text style={styles.banValue}>{banDialog?.reason || "No reason provided."}</Text>
             </View>
-
-            <View style={styles.banSection}>
-              <Text style={styles.banLabel}>Ban Ends</Text>
+            <View style={[styles.banDetail, styles.banDetailLast]}>
+              <Text style={styles.banLabel}>Restriction ends</Text>
               <Text style={styles.banValue}>{banDialog?.banEndsLabel || "Not available"}</Text>
             </View>
 
             <View style={styles.banActions}>
-              <TouchableOpacity style={styles.banSecondaryBtn} onPress={() => setBanDialog(null)}>
-                <Text style={styles.banSecondaryText}>Back</Text>
+              <TouchableOpacity accessibilityRole="button" style={styles.secondaryButton} onPress={() => setBanDialog(null)}>
+                <Text style={styles.secondaryButtonText}>Close</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.banPrimaryBtn}
-                onPress={async () => {
-                  await openSupportChannel("sms");
-                }}
-              >
-                <Text style={styles.banPrimaryText}>Contact Support</Text>
+              <TouchableOpacity accessibilityRole="button" style={styles.banPrimaryButton} onPress={() => void openSupportChannel("sms")}>
+                <Text style={styles.banPrimaryButtonText}>Contact support</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -238,61 +221,32 @@ export default function LoginScreen({ navigation, route }: any) {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={[styles.authWrap, isDesktop && styles.authWrapDesktop]}>
-          {isDesktop && (
-            <Animated.View
-              style={[
-                styles.introCard,
-                {
-                  opacity: entrance,
-                  transform: [
-                    {
-                      translateY: entrance.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [18, 0],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            >
-              <Text style={styles.introKicker}>Account Access</Text>
-              <Text style={styles.introTitle}>Welcome Back</Text>
-              <Text style={styles.introBody}>Sign in to continue to your LifeCycle account.</Text>
-            </Animated.View>
-          )}
+        <View style={styles.formShell}>
+          {navigation.canGoBack?.() ? (
+            <AppBackButton style={styles.backButton} onPress={() => navigation.goBack()} />
+          ) : null}
 
-          <Animated.View
-            style={[
-              styles.container,
-              isDesktop && styles.containerDesktop,
-              {
-                opacity: entrance,
-                transform: [
-                  {
-                    translateY: entrance.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [28, 0],
-                    }),
-                  },
-                  {
-                    scale: entrance.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.98, 1],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
-            <Image source={require("../../../assets/Icon/AppICONTransparents.png")} style={styles.logo} resizeMode="contain" />
-            <Text style={styles.title}>Log In</Text>
-            <Text style={styles.subtitle}>Sign in to your account to continue to LifeCycle.</Text>
+          <View style={styles.brandRow}>
+            <Image source={require("../../../assets/Icon/AppICONTransparents.png")} style={styles.brandMark} resizeMode="contain" />
+            <Text style={styles.brandName}>LifeCycle</Text>
+          </View>
 
+          <View style={styles.headingBlock}>
+            <Text style={styles.title}>{isAddingAccount ? "Add another account" : "Welcome back"}</Text>
+            <Text style={styles.subtitle}>
+              {isAddingAccount
+                ? "Your current account will remain saved on this device."
+                : "Log in to continue to your account."}
+            </Text>
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Email address</Text>
             <TextInput
               ref={emailRef}
-              placeholder="Email"
-              placeholderTextColor="#9ca3af"
+              accessibilityLabel="Email address"
+              placeholder="name@example.com"
+              placeholderTextColor={colors.textMuted}
               value={email}
               onChangeText={setEmail}
               onFocus={() => {
@@ -309,11 +263,24 @@ export default function LoginScreen({ navigation, route }: any) {
               onSubmitEditing={() => passwordRef.current?.focus()}
               style={[styles.input, emailFocused && styles.inputFocused]}
             />
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <View style={styles.passwordLabelRow}>
+              <Text style={styles.fieldLabel}>Password</Text>
+              <TouchableOpacity
+                accessibilityRole="button"
+                onPress={() => navigation.navigate("ForgotPassword", { email: email.trim() })}
+              >
+                <Text style={styles.forgotLink}>Forgot password?</Text>
+              </TouchableOpacity>
+            </View>
             <View style={styles.passwordFieldWrap}>
               <TextInput
                 ref={passwordRef}
-                placeholder="Password"
-                placeholderTextColor="#9ca3af"
+                accessibilityLabel="Password"
+                placeholder="Enter your password"
+                placeholderTextColor={colors.textMuted}
                 value={password}
                 onChangeText={setPassword}
                 onFocus={() => {
@@ -329,320 +296,198 @@ export default function LoginScreen({ navigation, route }: any) {
                 onSubmitEditing={handleLogin}
                 style={[styles.input, styles.passwordInput, passwordFocused && styles.inputFocused]}
               />
-              <TouchableOpacity style={styles.eyeButton} onPress={() => setShowPassword((prev) => !prev)}>
-                <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={21} color="#22312d" />
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                style={styles.eyeButton}
+                onPress={() => setShowPassword((previous) => !previous)}
+              >
+                <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={colors.text} />
               </TouchableOpacity>
             </View>
+          </View>
 
-            <TouchableOpacity onPress={() => navigation.navigate("ForgotPassword", { email: email.trim() })} style={styles.forgotWrap}>
-              <Text style={styles.forgotLink}>Forgot Password?</Text>
+          <PaperButton
+            mode="contained"
+            loading={loading}
+            disabled={loading}
+            onPress={handleLogin}
+            style={styles.primaryButton}
+            contentStyle={styles.primaryButtonContent}
+            labelStyle={styles.primaryButtonLabel}
+            buttonColor={colors.primaryDark}
+          >
+            {loading ? "Logging in..." : "Log in"}
+          </PaperButton>
+
+          <View style={styles.accountPrompt}>
+            <Text style={styles.accountPromptText}>New to LifeCycle?</Text>
+            <TouchableOpacity accessibilityRole="button" onPress={() => navigation.navigate("Register")}>
+              <Text style={styles.accountPromptLink}>Create an account</Text>
             </TouchableOpacity>
+          </View>
 
-            <PaperButton
-              mode="contained"
-              loading={loading}
-              disabled={loading}
-              onPress={handleLogin}
-              style={styles.primaryButton}
-              contentStyle={styles.primaryButtonContent}
-              labelStyle={styles.primaryButtonLabel}
-              buttonColor="#22312d"
-            >
-              {loading ? "Logging in..." : "Log in"}
-            </PaperButton>
-
-            <TouchableOpacity onPress={() => navigation.navigate("Register")} style={styles.linkWrap}>
-              <Text style={styles.link}>Don&apos;t have an account? Sign up</Text>
-            </TouchableOpacity>
-
-            <View style={styles.supportWrap}>
-              <Text style={styles.supportLabel}>Trouble logging in?</Text>
-              <View style={styles.supportActions}>
-                <TouchableOpacity style={styles.supportButton} onPress={() => openSupportChannel("sms")}>
-                  <Ionicons name="chatbubble-ellipses-outline" size={17} color="#22312d" />
-                  <Text style={styles.supportButtonText}>Contact Support</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.supportButton} onPress={() => openSupportChannel("email")}>
-                  <Ionicons name="mail-outline" size={17} color="#22312d" />
-                  <Text style={styles.supportButtonText}>Report Login Issue</Text>
-                </TouchableOpacity>
-              </View>
+          <View style={styles.supportArea}>
+            <Text style={styles.supportLabel}>Need help signing in?</Text>
+            <View style={styles.supportLinks}>
+              <TouchableOpacity accessibilityRole="button" onPress={() => void openSupportChannel("sms")}>
+                <Text style={styles.supportLink}>Contact support</Text>
+              </TouchableOpacity>
+              <Text style={styles.supportSeparator}>·</Text>
+              <TouchableOpacity accessibilityRole="button" onPress={() => void openSupportChannel("email")}>
+                <Text style={styles.supportLink}>Report an issue</Text>
+              </TouchableOpacity>
             </View>
-          </Animated.View>
+          </View>
         </View>
       </KeyboardAwareScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#f8f6f2" },
-  glowTop: {
-    position: "absolute",
-    top: -140,
-    left: -90,
-    width: 300,
-    height: 300,
-    borderRadius: 999,
-    backgroundColor: "#ebf1e8",
-  },
-  glowBottom: {
-    position: "absolute",
-    right: -110,
-    bottom: 30,
-    width: 320,
-    height: 320,
-    borderRadius: 999,
-    backgroundColor: "#dce6d7",
-  },
-  scrollContent: { flexGrow: 1, justifyContent: "center", padding: 20 },
-  authWrap: { width: "100%" },
-  authWrapDesktop: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    gap: 18,
-    maxWidth: 1080,
-    width: "100%",
-    alignSelf: "center",
-  },
-  container: {
-    width: "100%",
-    backgroundColor: "#ffffff",
-    borderRadius: 28,
-    padding: 22,
-    borderWidth: 1,
-    borderColor: "#d9d6cd",
-    shadowColor: "#22312d",
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 7,
-  },
-  logo: {
-    width: 104,
-    height: 104,
-    alignSelf: "center",
-    marginBottom: 8,
-  },
-  title: { fontSize: 42, fontWeight: "800", textAlign: "center", marginBottom: 6, color: "#22312d" },
+  screen: { flex: 1, backgroundColor: colors.surfaceWarm },
+  scrollContent: { flexGrow: 1, justifyContent: "center", paddingHorizontal: spacing.xl, paddingVertical: spacing.xxl },
+  formShell: { width: "100%", maxWidth: 440, alignSelf: "center" },
+  backButton: { alignSelf: "flex-start", marginBottom: spacing.xl, backgroundColor: "transparent", borderWidth: 0 },
+  brandRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.xxl },
+  brandMark: { width: 44, height: 44 },
+  brandName: { color: colors.text, fontSize: 20, fontWeight: "800" },
+  headingBlock: { marginBottom: spacing.xl },
+  title: { color: colors.text, fontSize: 32, lineHeight: 40, fontWeight: "800" },
   subtitle: {
+    color: colors.textMuted,
     fontSize: 15,
-    textAlign: "center",
-    color: "#62706b",
-    marginBottom: 20,
+    lineHeight: 24,
+    marginTop: spacing.sm,
   },
+  fieldGroup: { marginBottom: spacing.lg },
+  fieldLabel: { color: colors.text, fontSize: 13, fontWeight: "700", marginBottom: spacing.sm },
+  passwordLabelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   input: {
+    minHeight: 52,
     borderWidth: 1,
-    borderColor: "#d9d6cd",
-    borderRadius: 18,
-    paddingVertical: 13,
-    paddingHorizontal: 14,
-    marginBottom: 13,
-    backgroundColor: "#ffffff",
-    color: "#1f2937",
-    fontSize: 16,
+    borderColor: colors.borderWarm,
+    borderRadius: radii.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    backgroundColor: colors.surface,
+    color: colors.text,
+    fontSize: 15,
   },
   inputFocused: {
-    borderColor: "#22312d",
-    backgroundColor: "#ffffff",
-    shadowColor: "#22312d",
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
+    borderColor: colors.primaryDark,
   },
-  passwordFieldWrap: {
-    position: "relative",
-  },
-  passwordInput: {
-    paddingRight: 46,
-  },
+  passwordFieldWrap: { position: "relative" },
+  passwordInput: { paddingRight: 52 },
   eyeButton: {
     position: "absolute",
-    right: 10,
-    top: 8,
-    width: 34,
-    height: 34,
+    right: 2,
+    top: 2,
+    width: 48,
+    height: 48,
     alignItems: "center",
     justifyContent: "center",
   },
   primaryButton: {
-    borderRadius: 999,
-    marginTop: 8,
-    shadowColor: "#22312d",
-    shadowOpacity: 0.22,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 8,
+    borderRadius: radii.md,
+    marginTop: spacing.sm,
+    elevation: 0,
   },
-  primaryButtonContent: {
-    paddingVertical: 10,
-  },
+  primaryButtonContent: { minHeight: 52 },
   primaryButtonLabel: {
     fontWeight: "800",
-    fontSize: 20,
-    lineHeight: 24,
+    fontSize: 15,
+    lineHeight: 20,
     includeFontPadding: false,
   },
-  linkWrap: {
-    marginTop: 14,
-  },
-  forgotWrap: {
-    alignSelf: "flex-end",
-    marginTop: -2,
-    marginBottom: 6,
-  },
   forgotLink: {
-    color: "#22312d",
-    fontWeight: "700",
-    fontSize: 14,
+    color: colors.primary,
+    fontWeight: "800",
+    fontSize: 13,
   },
-  link: { color: "#41514d", textAlign: "center", fontWeight: "700", fontSize: 15 },
-  supportWrap: {
-    marginTop: 16,
+  accountPrompt: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs, marginTop: spacing.lg },
+  accountPromptText: { color: colors.textMuted, fontSize: 13 },
+  accountPromptLink: { color: colors.primary, fontSize: 13, fontWeight: "800" },
+  supportArea: {
+    marginTop: spacing.xxl,
     borderTopWidth: 1,
-    borderTopColor: "#d9d6cd",
-    paddingTop: 12,
+    borderTopColor: colors.borderWarm,
+    paddingTop: spacing.lg,
   },
   supportLabel: {
     textAlign: "center",
-    color: "#62706b",
-    fontWeight: "700",
-    marginBottom: 10,
+    color: colors.textMuted,
+    fontSize: 13,
+    marginBottom: spacing.sm,
   },
-  supportActions: {
-    gap: 8,
-  },
-  supportButton: {
-    borderWidth: 1,
-    borderColor: "#d9d6cd",
-    backgroundColor: "#ffffff",
-    borderRadius: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  supportButtonText: {
-    color: "#22312d",
-    fontWeight: "700",
-    fontSize: 14,
-  },
+  supportLinks: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: spacing.sm },
+  supportLink: { color: colors.primary, fontSize: 13, fontWeight: "700" },
+  supportSeparator: { color: colors.textMuted, fontSize: 13 },
   banOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: spacing.xl,
   },
-  banCard: {
+  banDialog: {
     width: "100%",
     maxWidth: 420,
-    backgroundColor: "#ffffff",
-    borderRadius: 18,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: "#d9d6cd",
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    padding: spacing.xl,
   },
-  banIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "#ebf1e8",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 8,
-  },
-  banTitle: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: "#22312d",
-  },
+  banHeading: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  banTitle: { color: colors.text, fontSize: 20, fontWeight: "800" },
   banSubtitle: {
-    marginTop: 3,
-    color: "#62706b",
-    marginBottom: 10,
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 20,
+    marginTop: spacing.sm,
+    marginBottom: spacing.lg,
   },
-  banSection: {
-    borderWidth: 1,
-    borderColor: "#d9d6cd",
-    backgroundColor: "#f8f6f2",
-    borderRadius: 12,
-    padding: 10,
-    marginBottom: 8,
+  banDetail: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderWarm,
+    paddingVertical: spacing.md,
   },
+  banDetailLast: { borderBottomWidth: 0 },
   banLabel: {
-    color: "#41514d",
+    color: colors.textMuted,
     fontWeight: "800",
-    fontSize: 12,
-    marginBottom: 3,
+    fontSize: 11,
+    marginBottom: spacing.xs,
   },
   banValue: {
-    color: "#1f2937",
+    color: colors.text,
+    fontSize: 13,
+    lineHeight: 20,
     fontWeight: "600",
   },
   banActions: {
-    marginTop: 6,
+    marginTop: spacing.lg,
     flexDirection: "row",
-    gap: 8,
+    gap: spacing.sm,
   },
-  banSecondaryBtn: {
+  secondaryButton: {
     flex: 1,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
-    borderRadius: 12,
-    paddingVertical: 11,
+    borderColor: colors.borderWarm,
+    borderRadius: radii.md,
+    minHeight: 48,
     alignItems: "center",
-    backgroundColor: "#f9fafb",
+    justifyContent: "center",
+    backgroundColor: colors.surface,
   },
-  banSecondaryText: {
-    color: "#374151",
-    fontWeight: "700",
-  },
-  banPrimaryBtn: {
+  secondaryButtonText: { color: colors.text, fontSize: 13, fontWeight: "800" },
+  banPrimaryButton: {
     flex: 1,
-    backgroundColor: "#22312d",
-    borderRadius: 12,
-    paddingVertical: 11,
+    minHeight: 48,
+    backgroundColor: colors.primaryDark,
+    borderRadius: radii.md,
     alignItems: "center",
-  },
-  banPrimaryText: {
-    color: "#fff",
-    fontWeight: "800",
-  },
-  containerDesktop: {
-    maxWidth: 440,
-    width: "100%",
-    alignSelf: "center",
-  },
-  introCard: {
-    flex: 1,
-    backgroundColor: "#f8f6f2",
-    borderRadius: 28,
-    padding: 28,
-    borderWidth: 1,
-    borderColor: "#d9d6cd",
     justifyContent: "center",
   },
-  introKicker: {
-    color: "#5a6b64",
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    marginBottom: 12,
-  },
-  introTitle: {
-    color: "#22312d",
-    fontSize: 34,
-    fontWeight: "800",
-    marginBottom: 10,
-  },
-  introBody: {
-    color: "#41514d",
-    fontSize: 17,
-    lineHeight: 25,
-    maxWidth: 420,
-  },
+  banPrimaryButtonText: { color: colors.surface, fontSize: 13, fontWeight: "800" },
 });

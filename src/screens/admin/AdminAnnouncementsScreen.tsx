@@ -98,7 +98,7 @@ export default function AdminAnnouncementsScreen() {
   };
 
   const renderItem = ({ item }: { item: Announcement }) => (
-    <Card style={styles.announcementCard} mode="elevated">
+    <Card style={styles.announcementCard} mode="outlined">
       <Card.Content>
         <View style={styles.rowBetween}>
           <Text style={styles.announcementTitle}>{item.title}</Text>
@@ -125,7 +125,7 @@ export default function AdminAnnouncementsScreen() {
 
   return (
     <View style={[styles.container, isDesktop && styles.containerDesktop]}>
-      <Card style={styles.headerCard} mode="elevated">
+      <Card style={styles.headerCard} mode="outlined">
         <Card.Title title="Announcements" subtitle="Post updates for all users with notifications." />
         <Card.Content>
           <TextInput

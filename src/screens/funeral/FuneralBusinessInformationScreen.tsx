@@ -174,9 +174,8 @@ export default function FuneralBusinessInformationScreen({ navigation, route }: 
       <KeyboardAwareScrollView style={styles.screen} contentContainerStyle={styles.content}>
         <Card style={styles.card}>
           <Card.Content>
-            <Text style={styles.kicker}>Step 2 of 2</Text>
+            <Text style={styles.stepLabel}>Step 2 of 2</Text>
             <Text style={styles.title}>Business Information</Text>
-            <Text style={styles.subtitle}>Complete the registered business details before submitting your shop registration.</Text>
 
             <Text style={styles.label}>Individual Registered Name *</Text>
             <TextInput style={styles.input} value={individualRegisteredName} onChangeText={setIndividualRegisteredName} />
@@ -240,12 +239,10 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 14,
   },
-  kicker: {
+  stepLabel: {
     color: "#75807b",
     fontSize: 12,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 1,
+    fontWeight: "700",
     marginBottom: 8,
   },
   title: {
@@ -253,12 +250,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "900",
     marginBottom: 8,
-  },
-  subtitle: {
-    color: "#66746f",
-    fontSize: 14,
-    lineHeight: 21,
-    marginBottom: 18,
   },
   label: {
     color: "#4c5b57",

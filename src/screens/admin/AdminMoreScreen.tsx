@@ -19,7 +19,7 @@ export default function AdminMoreScreen({ navigation }: any) {
           More Tools
         </Text>
         <Text style={styles.subtitle}>
-          Use this area for secondary admin actions to keep the main navbar cleaner.
+          Review account, support, and security tools.
         </Text>
         <View style={styles.headerMetaRow}>
           <View style={styles.headerMetaItem}>
@@ -33,7 +33,7 @@ export default function AdminMoreScreen({ navigation }: any) {
         </View>
       </View>
 
-      <Card style={styles.card} mode="elevated">
+      <Card style={styles.card} mode="outlined">
         <Card.Title title="Admin Tools" />
         <Card.Content>
           <Text style={styles.cardText}>
@@ -70,6 +70,16 @@ export default function AdminMoreScreen({ navigation }: any) {
           <Button mode="outlined" icon="shield-account" onPress={() => navigation.navigate("LoginSecurity")}>
             Login &amp; Security
           </Button>
+          {isRootAdmin ? (
+            <Button mode="outlined" icon="image-outline" onPress={() => navigation.navigate("HomeContent")}>
+              Mobile Home Feature
+            </Button>
+          ) : null}
+          {isRootAdmin ? (
+            <Button mode="outlined" icon="trash-can-outline" onPress={() => navigation.navigate("Deletions")}>
+              Account Deletions
+            </Button>
+          ) : null}
           <Button mode="text" onPress={() => navigation.navigate("Notifications")}>
             Notifications
           </Button>

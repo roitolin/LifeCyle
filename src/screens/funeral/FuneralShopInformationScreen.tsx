@@ -40,18 +40,18 @@ export default function FuneralShopInformationScreen({ navigation, route }: any)
       <KeyboardAwareScrollView style={styles.screen} contentContainerStyle={styles.content}>
         <Card style={styles.card}>
           <Card.Content>
-            <Text style={styles.kicker}>Step 1 of 2</Text>
+            <Text style={styles.stepLabel}>Step 1 of 2</Text>
             <Text style={styles.title}>Shop Information</Text>
-            <Text style={styles.subtitle}>Enter the basic details customers will use to identify your funeral shop.</Text>
+            <Text style={styles.subtitle}>Customers will see these details.</Text>
 
             <Text style={styles.label}>Shop Name *</Text>
-            <TextInput style={styles.input} value={shopName} onChangeText={setShopName} placeholder="Enter shop name" />
+            <TextInput style={styles.input} value={shopName} onChangeText={setShopName} />
 
             <Text style={styles.label}>Shop Address *</Text>
-            <TextInput style={[styles.input, styles.multilineInput]} value={shopAddress} onChangeText={setShopAddress} placeholder="Enter shop address" multiline />
+            <TextInput style={[styles.input, styles.multilineInput]} value={shopAddress} onChangeText={setShopAddress} multiline />
 
             <Text style={styles.label}>Phone Number *</Text>
-            <TextInput style={styles.input} value={shopPhoneNumber} onChangeText={setShopPhoneNumber} placeholder="Enter phone number" keyboardType="phone-pad" />
+            <TextInput style={styles.input} value={shopPhoneNumber} onChangeText={setShopPhoneNumber} keyboardType="phone-pad" />
 
             <PaperButton mode="contained" buttonColor="#5a6b64" onPress={handleNext} style={styles.primaryButton}>
               Next
@@ -75,12 +75,10 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 14,
   },
-  kicker: {
+  stepLabel: {
     color: "#75807b",
     fontSize: 12,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 1,
+    fontWeight: "700",
     marginBottom: 8,
   },
   title: {

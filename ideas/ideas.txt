@@ -1,0 +1,33 @@
+Here are feature ideas for the LifeCycle funeral platform, grouped by priority:
+High impact (core service flow)
+1. Service request milestones timeline — show the whole journey (submitted → accepted → paid → delivered → confirmed) as a visual timeline for both parties, with timestamps for each step.
+2. Reschedule / date-of-service field — add a requested "service/wake date" so shops can confirm availability and the family can pick a slot.
+3. Review & rating after completion — auto-prompt the customer to rate the shop/service once they "Mark as Done" (a natural trigger you already have).
+4. Overshoot dispute flow — let the customer dispute a completed request with a photo, and let the shop reopen it (your DB trigger already supports the reopen transition).
+5. A follow-up notification if the customer never confirms — e.g., reminder after 24h in awaiting_customer_confirmation.
+Trust & verification
+6. Shop verification badges — distinguish verified shops, plus ratings shown on the shop card and product page.
+7. Service completion certificate — generate a printable/frameable completion certificate for the family (you already have receipt printing).
+8. Obituary / memorial tribute wall — let families post a memorial for the deceased, with photos, on the product/shop page.
+Operations & money
+ 9. Service fee breakdown + receipts in web — show shop service fees, delivery charges, and print/download receipts on the web customer page too (mobile already has it).
+10. Seller earnings dashboard — total revenue, per-service breakdown, payout history on the Seller Centre.
+11. Remittance/payout tracking for shops — record how shops get paid out for completed requests.
+12. Promo codes / discounts — shop-level promo codes applied at checkout.
+Communication
+13. In-app video/call handoff — a "request a call" button that creates a scheduled call notification.
+14. Read receipts on notifications — show "seen" state so the shop knows the family saw the completion proof.
+15. Live status push notifications — real push (APNs/FCM) instead of only in-app, so customers get notified even when the app is closed.
+Retention & discovery
+16. Shop follower notifications — notify followers when a shop adds a new product or runs a promo.
+17. Wishlist / save products — save caskets/urns and get stock alerts.
+18. Bundle deals — "memorial package" combos (casket + flowers + wake essentials).
+Admin / platform
+19. Revenue analytics & top-shop leaderboards — platform-wide dashboards (you have the tables).
+20. Export CSV — export orders, shops, and payments from the admin panel.
+Nice-to-have / polish
+21. Dark mode — theme support across mobile + web.
+22. Accessibility pass — larger text, contrast, screen-reader labels for the funeral flow.
+23. Multi-language (Filipino + English) — toggle in the app.
+24. Haptic feedback on key actions (confirm, payment submitted).
+Which of these do you want to dive into? I'd suggest starting with #5 (confirmation reminder) and #3 (rating after completion) since they extend the flow we just built.

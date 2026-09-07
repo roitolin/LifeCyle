@@ -320,7 +320,7 @@ function AdminModerationPage() {
 
       {mode === 'reports' ? (
         <>
-          <h3 style={{ marginTop: '14px' }}>Abuse Reports</h3>
+          <h3 className="moderation-section-heading">Abuse Reports</h3>
           {reports.length === 0 ? <p className="panel-sub">No abuse reports found.</p> : null}
           <div className="notification-list">
             {reports.map((item) => (
@@ -333,7 +333,7 @@ function AdminModerationPage() {
                 <span>
                   Source: {item.source || 'app'} | Request: {item.requestId || '-'} | Conversation: {item.conversationId || '-'} | {toDateText(item.createdAt)}
                 </span>
-                <div className="request-actions" style={{ marginTop: '8px' }}>
+                <div className="request-actions section-actions">
                   {item.reporterId ? <Link to={`/admin/users/${item.reporterId}`} className="ghost-btn btn-link table-action">Reporter</Link> : null}
                   {item.targetUserId ? <Link to={`/admin/users/${item.targetUserId}`} className="ghost-btn btn-link table-action">Target</Link> : null}
                   {item.evidenceURL ? (
@@ -363,7 +363,7 @@ function AdminModerationPage() {
 
       {mode === 'blocks' ? (
         <>
-          <h3 style={{ marginTop: '14px' }}>User Block Records</h3>
+          <h3 className="moderation-section-heading">User Block Records</h3>
           {blocks.length === 0 ? <p className="panel-sub">No block records found.</p> : null}
           <div className="table-wrap">
             <table className="request-table">
@@ -409,7 +409,7 @@ function AdminModerationPage() {
 
       {mode === 'risk' ? (
         <>
-          <h3 style={{ marginTop: '14px' }}>Risk Scoring</h3>
+          <h3 className="moderation-section-heading">Risk Scoring</h3>
           {riskProfiles.length === 0 ? <p className="panel-sub">No risk signals found.</p> : null}
           <div className="notification-list">
             {riskProfiles.map((item) => (
@@ -422,7 +422,7 @@ function AdminModerationPage() {
                 </p>
                 <p>Suspicious Service Records: {item.suspiciousRequests}</p>
                 <p>Signals: {item.reasons.length > 0 ? item.reasons.join(' | ') : 'none'}</p>
-                <div className="request-actions" style={{ marginTop: '8px' }}>
+                <div className="request-actions section-actions">
                   <Link to={`/admin/users/${item.userId}`} className="ghost-btn btn-link table-action">User Details</Link>
                 </div>
               </article>

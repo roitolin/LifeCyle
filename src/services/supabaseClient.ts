@@ -1,5 +1,5 @@
 import "react-native-url-polyfill/auto";
-import { createClient, processLock } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import ReactNativeAsyncStorage from "@react-native-async-storage/async-storage";
 
 const requireEnv = (name: string, value: string | undefined): string => {
@@ -21,7 +21,6 @@ export const supabase = createClient(
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: false,
-      lock: processLock,
     },
   },
 );

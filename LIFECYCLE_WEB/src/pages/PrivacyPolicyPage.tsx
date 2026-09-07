@@ -1,18 +1,19 @@
 import { Link } from 'react-router-dom'
+import BrandLogo from '@/components/BrandLogo'
 import './FuneralLandingPage.css'
 
 const sections = [
   {
     title: '1. Information We Collect',
-    body: 'LifeCycle collects the information you provide when you create an account, such as your name, email address, phone number, delivery address, and payment information. We also collect information about your shop, products, and orders if you use the seller tools, as well as usage data such as the pages you visit and the device you use.',
+    body: 'LifeCycle collects the information you provide when you create and use an account, including profile details, contact information, service-request details, payment receipts, messages, and support submissions. Seller accounts may also provide shop, listing, schedule, and payment-instruction information.',
   },
   {
     title: '2. How We Use Your Information',
-    body: 'We use your information to operate the platform: to verify your identity, process your orders and service requests, enable communication between families and funeral shops, send you updates about your transactions, provide customer support, and improve our services.',
+    body: 'We use this information to authenticate accounts, operate service requests, enable communication with funeral shops, review submitted payment receipts, send relevant notifications, provide support, and maintain platform security.',
   },
   {
     title: '3. How We Share Your Information',
-    body: 'We share your information only as needed to provide the services, for example with funeral shops when you place an order, with logistics partners to deliver purchases, and with payment providers to process payments. We do not sell your personal information.',
+    body: 'Information from a service request is shared with the selected funeral shop so it can review and coordinate the arrangement. We may also use service providers that host or operate parts of LifeCycle. We do not sell personal information.',
   },
   {
     title: '4. Data Security',
@@ -20,7 +21,7 @@ const sections = [
   },
   {
     title: '5. Your Choices',
-    body: 'You can review and update your account details at any time from the My Account page. You may request deletion of your account or a copy of your data by contacting our support team.',
+    body: 'You can review and update account details from your profile. Privacy & data provides the available account-data and deletion controls. You can also contact support if an available control does not cover your request.',
   },
   {
     title: '6. Cookies and Analytics',
@@ -32,7 +33,7 @@ const sections = [
   },
   {
     title: '8. Contact Us',
-    body: 'If you have any questions about this Privacy Policy or how your data is handled, please reach out through the Contact Support page or email us at support@lifecycle.ph.',
+    body: 'If you have a question about this policy or how your data is handled, use the Contact support page while signed in.',
   },
 ]
 
@@ -40,11 +41,8 @@ export default function PrivacyPolicyPage() {
   return (
     <div className="sp-page">
       <header className="sp-header">
-        <div className="sp-header-inner" style={{ alignItems: 'center', justifyContent: 'space-between' }}>
-          <Link to="/funeral" className="sp-logo">
-            <div className="sp-logo-box">LC</div>
-            <span>LifeCycle</span>
-          </Link>
+        <div className="sp-header-inner policy-header-inner">
+          <BrandLogo />
           <Link to="/funeral" className="policy-back-link">Back to Home</Link>
         </div>
       </header>
@@ -70,7 +68,7 @@ export default function PrivacyPolicyPage() {
 
       <footer className="sp-footer">
         <div className="sp-footer-bottom">
-          <span>(c) {new Date().getFullYear()} LifeCycle Funeral Services Philippines. All Rights Reserved.</span>
+          <span>© {new Date().getFullYear()} LifeCycle Funeral Services Philippines.</span>
         </div>
       </footer>
     </div>

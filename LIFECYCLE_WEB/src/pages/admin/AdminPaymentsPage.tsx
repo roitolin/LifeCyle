@@ -3,9 +3,11 @@ import { supabase } from '@/lib/supabase'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import { getPaymentQrSetting, savePaymentQrDetails } from '@/utils/paymentQrSettings'
-import { addMonths, formatSubscriptionDate, SUBSCRIPTION_MONTHS } from '@/utils/subscription'
+import { addMonths, SUBSCRIPTION_MONTHS } from '@/utils/subscription'
 import { buildCsv, csvTimestamp, dateStamp, downloadCsv } from '@/utils/exportCsv'
 import { createNotification } from '@/utils/supabaseNotifications'
+import AdminShopPaymentReceipt from './AdminShopPaymentReceipt'
+import AdminRefundsPanel from './AdminRefundsPanel'
 import './AdminPaymentsPage.css'
 
 function formatUpdatedAt(value: string | null): string {
@@ -28,7 +30,7 @@ function formatPeso(value: string): string {
   return `₱${parsed.toLocaleString('en-PH', { maximumFractionDigits: 2 })}`
 }
 
-type PaymentSubmission = {
+export type PaymentSubmission = {
   id: string
   shopId: string
   payerName: string
@@ -68,7 +70,9 @@ export default function AdminPaymentsPage() {
   const [selectedPayment, setSelectedPayment] = useState<PaymentSubmission | null>(null)
   const [rejectingPayment, setRejectingPayment] = useState<PaymentSubmission | null>(null)
   const [rejectionReason, setRejectionReason] = useState('')
-  const [activeTab, setActiveTab] = useState<'submissions' | 'setup'>('submissions')
+  const [activeTab, setActiveTab] = useState<'submissions' | 'refunds' | 'setup'>(() => (
+    new URLSearchParams(window.location.search).get('tab') === 'refunds' ? 'refunds' : 'submissions'
+  ))
 
   const load = async () => {
     setLoading(true)
@@ -377,22 +381,17 @@ export default function AdminPaymentsPage() {
 
   const shownQrUrl = previewUrl || qrUrl
   const isPublishing = Boolean(file)
+  const pendingPaymentCount = payments.filter((entry) => entry.status === 'pending').length
+  const verifiedPayments = payments.filter((entry) => entry.status === 'verified')
+  const verifiedPaymentTotal = verifiedPayments.reduce((total, entry) => total + Number(entry.amount || 0), 0)
 
   return (
     <section className="panel payments-panel">
       <header className="payments-header">
-        <div className="payments-header-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" width="24" height="24">
-            <rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1.8" />
-            <rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1.8" />
-            <rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1.8" />
-            <path d="M14 14H21V21H14V14Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-          </svg>
-        </div>
         <div className="payments-header-text">
           <h2>Payments</h2>
           <p className="panel-sub">
-            Set the registration fee and the payment QR code that verified funeral shops use to pay.
+            Review shop registration payments and manage the payment instructions shown to sellers.
           </p>
         </div>
         <span className={`payments-status-pill${qrUrl ? ' is-live' : ' is-empty'}`}>
@@ -409,18 +408,29 @@ export default function AdminPaymentsPage() {
           className={`payments-tab${activeTab === 'submissions' ? ' is-active' : ''}`}
           onClick={() => setActiveTab('submissions')}
         >
-          Payment Submissions
+          Submissions
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'refunds'}
+          className={activeTab === 'refunds' ? 'payments-tab is-active' : 'payments-tab'}
+          onClick={() => setActiveTab('refunds')}
+        >
+          Refunds
         </button>
         <button
           type="button"
           role="tab"
           aria-selected={activeTab === 'setup'}
-          className={`payments-tab${activeTab === 'setup' ? ' is-active' : ''}`}
+          className={activeTab === 'setup' ? 'payments-tab is-active' : 'payments-tab'}
           onClick={() => setActiveTab('setup')}
         >
-          Fee & QR Setup
+          Payment Setup
         </button>
       </div>
+
+      {activeTab === 'refunds' ? <AdminRefundsPanel /> : null}
 
       {activeTab === 'setup' ? (
         <>
@@ -502,7 +512,7 @@ export default function AdminPaymentsPage() {
                     id="payments-qr-file-input"
                     type="file"
                     accept="image/jpeg,image/png,image/webp"
-                    style={{ display: 'none' }}
+                    className="payments-file-input"
                     onChange={handleFileChange}
                   />
                   <label htmlFor="payments-qr-file-input" className="ghost-btn payments-choose-btn">
@@ -560,6 +570,21 @@ export default function AdminPaymentsPage() {
             </button>
           </header>
 
+          <div className="payments-submission-summary" aria-label="Payment submission summary">
+            <article>
+              <span>Needs review</span>
+              <strong>{pendingPaymentCount}</strong>
+            </article>
+            <article>
+              <span>Verified</span>
+              <strong>{verifiedPayments.length}</strong>
+            </article>
+            <article>
+              <span>Verified total</span>
+              <strong>{verifiedPaymentTotal > 0 ? formatPeso(String(verifiedPaymentTotal)) : '—'}</strong>
+            </article>
+          </div>
+
           {paymentsLoading ? <p className="panel-sub payments-loading">Loading payment submissions...</p> : null}
           {paymentsError ? <p className="auth-message auth-message-error payments-error">{paymentsError}</p> : null}
           {!paymentsLoading && payments.length === 0 ? <p className="panel-sub">No payment submissions yet.</p> : null}
@@ -601,7 +626,7 @@ export default function AdminPaymentsPage() {
                               disabled={busy}
                               onClick={() => setSelectedPayment(entry)}
                             >
-                              View
+                              View receipt
                             </button>
                             {entry.status === 'pending' ? (
                               <>
@@ -636,138 +661,13 @@ export default function AdminPaymentsPage() {
       ) : null}
 
       {selectedPayment ? (
-        <div
-          className="payments-modal-overlay"
-          role="presentation"
-          onClick={() => setSelectedPayment(null)}
-        >
-          <div
-            className="payments-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="payments-modal-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="payments-modal-header">
-              <div className="payments-modal-heading">
-                <h3 id="payments-modal-title">Payment Details</h3>
-                <p>
-                  Submitted by {selectedPayment.payerName || selectedPayment.ownerFullName || selectedPayment.ownerEmail || 'a seller'}
-                </p>
-              </div>
-              <button
-                type="button"
-                className="payments-modal-close"
-                aria-label="Close"
-                onClick={() => setSelectedPayment(null)}
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="payments-modal-body">
-              <div className="payments-modal-status-row">
-                <span className={`status-pill ${selectedPayment.status}`}>{selectedPayment.status}</span>
-              </div>
-
-              <div className="payments-modal-grid">
-                <div className="payments-modal-item">
-                  <span>Payer Name</span>
-                  <strong>{selectedPayment.payerName || '—'}</strong>
-                </div>
-                <div className="payments-modal-item">
-                  <span>GCash Account Name</span>
-                  <strong>{selectedPayment.gcashName || '—'}</strong>
-                </div>
-                <div className="payments-modal-item">
-                  <span>GCash Number</span>
-                  <strong>{selectedPayment.gcashNumber || '—'}</strong>
-                </div>
-                <div className="payments-modal-item">
-                  <span>Reference Number</span>
-                  <strong>{selectedPayment.referenceNumber || '—'}</strong>
-                </div>
-                <div className="payments-modal-item">
-                  <span>Amount</span>
-                  <strong>
-                    {selectedPayment.amount > 0 ? `₱${Number(selectedPayment.amount).toLocaleString('en-PH')}` : '—'}
-                  </strong>
-                </div>
-                <div className="payments-modal-item">
-                  <span>Shop</span>
-                  <strong>{selectedPayment.shopName || '—'}</strong>
-                </div>
-                <div className="payments-modal-item">
-                  <span>Submitted</span>
-                  <strong>{formatUpdatedAt(selectedPayment.createdAt)}</strong>
-                </div>
-                <div className="payments-modal-item">
-                  <span>Account Email</span>
-                  <strong>{selectedPayment.ownerEmail || '—'}</strong>
-                </div>
-                <div className="payments-modal-item">
-                  <span>Full Name</span>
-                  <strong>{selectedPayment.ownerFullName || '—'}</strong>
-                </div>
-                {selectedPayment.status === 'verified' ? (
-                  <div className="payments-modal-item payments-modal-item-accent">
-                    <span>Live Access Valid Until</span>
-                    <strong>{formatSubscriptionDate(selectedPayment.expiresAt)}</strong>
-                  </div>
-                ) : null}
-                {selectedPayment.rejectionReason ? (
-                  <div className="payments-modal-item payments-modal-item-rejected">
-                    <span>Rejection Reason</span>
-                    <strong>{selectedPayment.rejectionReason}</strong>
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="payments-modal-proof">
-                <h4>Proof of Payment</h4>
-                {selectedPayment.proofImageUrl ? (
-                  <a
-                    href={selectedPayment.proofImageUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="payments-modal-proof-image"
-                  >
-                    <img src={selectedPayment.proofImageUrl} alt="Payment proof" />
-                    <span>Open full size in a new tab</span>
-                  </a>
-                ) : (
-                  <p className="payments-modal-no-proof">No proof image was uploaded.</p>
-                )}
-              </div>
-            </div>
-
-            <div className="payments-modal-footer">
-              <button type="button" className="ghost-btn" onClick={() => setSelectedPayment(null)}>
-                Close
-              </button>
-              {selectedPayment.status === 'pending' ? (
-                <>
-                  <button
-                    type="button"
-                    className="ghost-btn"
-                    disabled={payingId === selectedPayment.id}
-                    onClick={() => void setPaymentStatus(selectedPayment.id, 'rejected')}
-                  >
-                    Reject
-                  </button>
-                  <button
-                    type="button"
-                    className="solid-btn"
-                    disabled={payingId === selectedPayment.id}
-                    onClick={() => void setPaymentStatus(selectedPayment.id, 'verified')}
-                  >
-                    Verify Payment
-                  </button>
-                </>
-              ) : null}
-            </div>
-          </div>
-        </div>
+        <AdminShopPaymentReceipt
+          payment={selectedPayment}
+          busy={payingId === selectedPayment.id}
+          onClose={() => setSelectedPayment(null)}
+          onReject={() => void setPaymentStatus(selectedPayment.id, 'rejected')}
+          onVerify={() => void setPaymentStatus(selectedPayment.id, 'verified')}
+        />
       ) : null}
 
       {rejectingPayment ? (

@@ -362,9 +362,6 @@ export default function FuneralCheckoutScreen({ navigation, route }: any) {
     return (
       <SafeAreaView style={styles.screen}>
         <View style={styles.successWrap}>
-          <View style={styles.successIcon}>
-            <Ionicons name="time-outline" size={34} color="#86654a" />
-          </View>
           <Text style={styles.successTitle}>Request Sent</Text>
           <Text style={styles.successText}>
             Your service request has been forwarded to {successState.shopName}. Please wait while the shop reviews and accepts your request.
@@ -416,7 +413,7 @@ export default function FuneralCheckoutScreen({ navigation, route }: any) {
   return (
     <SafeAreaView edges={["left", "right", "bottom"]} style={styles.screen}>
       <KeyboardAwareScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.summaryCard}>
+        <View style={styles.requestSummary}>
           {cartItem.imageUrl ? (
             <Image source={{ uri: cartItem.imageUrl }} style={styles.summaryImage} resizeMode="cover" />
           ) : (
@@ -429,12 +426,11 @@ export default function FuneralCheckoutScreen({ navigation, route }: any) {
             <Text style={styles.summaryName}>{cartItem.name}</Text>
             <Text style={styles.summaryShop}>{cartItem.shopName}</Text>
             {cartItem.variationName ? <Text style={styles.summaryVariation}>Option: {cartItem.variationName}</Text> : null}
-            <Text style={styles.summaryNote}>Fill out the request details below so the shop can review the arrangement.</Text>
           </View>
         </View>
 
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Memorial Portrait</Text>
+        <View style={styles.formSection}>
+          <Text style={styles.sectionTitle}>Memorial portrait</Text>
           <TouchableOpacity style={styles.photoPicker} onPress={() => void pickMemorialPhoto()} disabled={uploadingPhoto}>
             {uploadingPhoto ? (
               <ActivityIndicator size="small" color="#22312d" />
@@ -449,11 +445,11 @@ export default function FuneralCheckoutScreen({ navigation, route }: any) {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.sectionCard}>
+        <View style={styles.formSection}>
+          <Text style={styles.sectionTitle}>Arrangement details</Text>
           <Text style={styles.label}>Full Name of the Deceased</Text>
           <TextInput
             style={styles.input}
-            placeholder="Full name of the deceased"
             value={deceasedFullName}
             onChangeText={setDeceasedFullName}
           />
@@ -531,7 +527,7 @@ export default function FuneralCheckoutScreen({ navigation, route }: any) {
             </Text>
           ) : null}
           {ageMismatch ? (
-            <View style={styles.ageMismatchCard}>
+            <View style={styles.ageWarning}>
               <Text style={styles.ageMismatchText}>
                 The entered age does not match the date of birth and date of passing. Calculated age: {computedAge}.
               </Text>
@@ -586,7 +582,6 @@ export default function FuneralCheckoutScreen({ navigation, route }: any) {
           <Text style={styles.label}>Contact Number</Text>
           <TextInput
             style={styles.input}
-            placeholder="Enter contact number"
             value={contactNumber}
             onChangeText={setContactNumber}
             keyboardType="phone-pad"
@@ -610,31 +605,29 @@ export default function FuneralCheckoutScreen({ navigation, route }: any) {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#eef1ec",
+    backgroundColor: "#f3f5f7",
   },
   content: {
     padding: 18,
     paddingBottom: 120,
     gap: 16,
   },
-  summaryCard: {
+  requestSummary: {
     flexDirection: "row",
     gap: 12,
-    borderRadius: 22,
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#d9d6cd",
-    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#d8e0e8",
+    paddingBottom: 16,
   },
   summaryImage: {
     width: 92,
     height: 92,
-    borderRadius: 16,
+    borderRadius: 8,
   },
   summaryFallback: {
     width: 92,
     height: 92,
-    borderRadius: 16,
+    borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#ebf1e8",
@@ -658,18 +651,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
   },
-  summaryNote: {
-    color: "#62706b",
-    fontSize: 13,
-    lineHeight: 19,
-    marginTop: 8,
-  },
-  sectionCard: {
-    borderRadius: 22,
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#d9d6cd",
-    padding: 16,
+  formSection: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#d8e0e8",
+    paddingBottom: 20,
   },
   sectionTitle: {
     color: "#22312d",
@@ -679,7 +664,7 @@ const styles = StyleSheet.create({
   },
   photoPicker: {
     minHeight: 180,
-    borderRadius: 18,
+    borderRadius: 8,
     borderWidth: 1,
     borderStyle: "dashed",
     borderColor: "#d2d7d1",
@@ -711,10 +696,10 @@ const styles = StyleSheet.create({
   },
   input: {
     minHeight: 48,
-    borderRadius: 14,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: "#d2d7d1",
-    backgroundColor: "#fcfcfb",
+    backgroundColor: "#ffffff",
     paddingHorizontal: 14,
     paddingVertical: 12,
     color: "#22312d",
@@ -726,10 +711,10 @@ const styles = StyleSheet.create({
   },
   dateButton: {
     minHeight: 48,
-    borderRadius: 14,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: "#d2d7d1",
-    backgroundColor: "#fcfcfb",
+    backgroundColor: "#ffffff",
     paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "center",
@@ -747,10 +732,10 @@ const styles = StyleSheet.create({
   ageModeButton: {
     flex: 1,
     minHeight: 42,
-    borderRadius: 12,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: "#d2d7d1",
-    backgroundColor: "#fcfcfb",
+    backgroundColor: "#ffffff",
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 10,
@@ -773,7 +758,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: 6,
   },
-  ageMismatchCard: {
+  ageWarning: {
     marginTop: 10,
     borderRadius: 12,
     backgroundColor: "#fef3c7",
@@ -803,7 +788,7 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     minHeight: 52,
-    borderRadius: 16,
+    borderRadius: 10,
     backgroundColor: "#22312d",
     alignItems: "center",
     justifyContent: "center",
@@ -819,7 +804,7 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     minHeight: 50,
-    borderRadius: 16,
+    borderRadius: 10,
     backgroundColor: "#ece9e3",
     alignItems: "center",
     justifyContent: "center",
@@ -843,14 +828,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 24,
     gap: 14,
-  },
-  successIcon: {
-    width: 78,
-    height: 78,
-    borderRadius: 39,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#fef3c7",
   },
   successTitle: {
     color: "#22312d",

@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import LoadingBird from '@/components/LoadingBird';
 import {
   Alert,
+  ActivityIndicator,
+  Animated,
+  Easing,
   Image,
   Modal,
   NativeScrollEvent,
@@ -24,6 +27,7 @@ import { supabase } from "@/services/supabaseClient";
 import { createAdminNotification } from "@/utils/createAdminNotification";
 import { addFuneralCartItem } from "@/utils/funeralCart";
 import { hapticMedium } from "@/utils/haptics";
+import { colors, radii, spacing } from "@/theme";
 
 type ProductVariation = {
   name: string;
@@ -98,6 +102,28 @@ function getGallery(item: ProductViewItem) {
   return variationImages;
 }
 
+function mapCatalogProduct(row: any, fallbackShopName = "Funeral shop"): ProductViewItem {
+  return {
+    id: String(row.id),
+    name: String(row.name || "Untitled Product"),
+    description: String(row.description || ""),
+    price: String(row.price || 0),
+    stock: Number(row.stock) || 0,
+    imageUrl: row.imageUrl || null,
+    galleryImageUrls: (row.funeral_product_images || [])
+      .sort((a: any, b: any) => (a.displayOrder || 0) - (b.displayOrder || 0))
+      .map((image: any) => image.imageUrl)
+      .filter(Boolean),
+    shopId: String(row.shopId || ""),
+    shopName: String(row.funeral_shops?.shopName || fallbackShopName),
+    hasVariations: Boolean(row.hasVariations) || (row.funeral_product_variations || []).length > 0,
+    variations: (row.funeral_product_variations || []).map((variation: any) => ({
+      name: String(variation.name || "Standard"),
+      imageUrl: variation.imageUrl || null,
+    })),
+  };
+}
+
 function getNumericPrice(value: string | number | null | undefined) {
   const raw = typeof value === "number" ? String(value) : String(value || "");
   const cleaned = raw.replace(/[^\d.]/g, "");
@@ -118,6 +144,7 @@ function formatTimestamp(timestamp: any) {
 }
 
 const RATING_VALUES = [1, 2, 3, 4, 5];
+const REVIEW_ELIGIBLE_ORDER_STATUSES = ["payment_verified", "awaiting_customer_confirmation", "completed"];
 type VariationSheetMode = "browse" | "cart" | "buy";
 type VariationPreviewState = {
   name: string;
@@ -126,7 +153,8 @@ type VariationPreviewState = {
 
 export default function FuneralProductViewScreen({ navigation, route }: any) {
   const insets = useSafeAreaInsets();
-  const sheetBottomPadding = Math.max(insets.bottom + 16, 24);
+  const sheetBottomPadding = Math.max(insets.bottom + 20, 28);
+  const bottomBarPadding = Math.max(insets.bottom + 8, 16);
   const { width } = useWindowDimensions();
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
@@ -147,16 +175,22 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
   const [loadingReviews, setLoadingReviews] = useState(true);
   const [hasPurchased, setHasPurchased] = useState(false);
   const [purchaseChecked, setPurchaseChecked] = useState(false);
-  const [specsExpanded, setSpecsExpanded] = useState(true);
+  const [isFavorite, setIsFavorite] = useState(false);
   const [shopDetails, setShopDetails] = useState<ShopSummary | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<ProductViewItem[]>([]);
+  const [relatedFavoriteIds, setRelatedFavoriteIds] = useState<Set<string>>(() => new Set());
+  const [recommendedProducts, setRecommendedProducts] = useState<ProductViewItem[]>([]);
   const [shopProductCount, setShopProductCount] = useState(1);
+  const variationBackdropOpacity = useRef(new Animated.Value(0)).current;
+  const variationSheetProgress = useRef(new Animated.Value(0)).current;
+  const cartConfirmBackdropOpacity = useRef(new Animated.Value(0)).current;
+  const cartConfirmSheetProgress = useRef(new Animated.Value(0)).current;
 
   const product = (route?.params?.product || null) as ProductViewItem | null;
   const gallery = product ? getGallery(product) : [];
 
-  const imageWidth = width;
-  const imageHeight = Math.min(width * 0.92, 440);
+  const imageWidth = Math.max(width, 1);
+  const imageHeight = Math.min(imageWidth, 420);
 
   const priceValue = useMemo(() => getNumericPrice(product?.price), [product?.price]);
   const stockCount = product?.stock ?? 0;
@@ -182,24 +216,26 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
     };
   }, []);
 
-  const isVerifiedBuyer = useCallback(async () => {
+  const hasVerifiedCasketOrder = useCallback(async () => {
     const currentUser = auth.currentUser;
     if (!currentUser || !product?.id) return false;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("funeral_service_requests")
       .select("id")
       .eq("requesterId", currentUser.uid)
       .eq("productId", product.id)
-      .in("status", ["accepted_by_shop", "awaiting_payment", "payment_submitted", "payment_verified", "awaiting_customer_confirmation", "completed"])
+      .eq("requestType", "catalog_product")
+      .in("status", REVIEW_ELIGIBLE_ORDER_STATUSES)
       .limit(1);
+    if (error) return false;
     return Boolean(data && data.length > 0);
   }, [product?.id]);
 
   const checkPurchaseEligibility = useCallback(async () => {
-    const bought = await isVerifiedBuyer();
+    const bought = await hasVerifiedCasketOrder();
     setHasPurchased(bought);
     setPurchaseChecked(true);
-  }, [isVerifiedBuyer]);
+  }, [hasVerifiedCasketOrder]);
 
   const loadReviews = useCallback(async () => {
     if (!productKey) {
@@ -255,10 +291,11 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
       if (!product?.shopId) {
         setShopDetails(null);
         setRelatedProducts([]);
+        setRecommendedProducts([]);
         return;
       }
 
-      const [shopResult, relatedResult] = await Promise.all([
+      const [shopResult, relatedResult, recommendationsResult] = await Promise.all([
         supabase
           .from("funeral_shops")
           .select("shopName, shopAddress, generalLocation, shopImageUrl, status")
@@ -276,32 +313,34 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
           .neq("id", product.id)
           .order("createdAt", { ascending: false })
           .limit(8),
+        supabase
+          .from("funeral_products")
+          .select(`
+            *,
+            funeral_product_variations ( name, imageUrl ),
+            funeral_product_images ( imageUrl, displayOrder ),
+            funeral_shops!inner ( shopName, status )
+          `)
+          .eq("active", true)
+          .gt("stock", 0)
+          .eq("funeral_shops.status", "live")
+          .neq("id", product.id)
+          .neq("shopId", product.shopId)
+          .order("createdAt", { ascending: false })
+          .limit(8),
       ]);
 
       if (cancelled) return;
       if (!shopResult.error) setShopDetails((shopResult.data as ShopSummary | null) ?? null);
       if (!relatedResult.error) {
-        const nextRelated = (relatedResult.data || []).map((row: any) => ({
-          id: String(row.id),
-          name: String(row.name || "Untitled Product"),
-          description: String(row.description || ""),
-          price: String(row.price || 0),
-          stock: Number(row.stock) || 0,
-          imageUrl: row.imageUrl || null,
-          galleryImageUrls: (row.funeral_product_images || [])
-            .sort((a: any, b: any) => (a.displayOrder || 0) - (b.displayOrder || 0))
-            .map((image: any) => image.imageUrl)
-            .filter(Boolean),
-          shopId: product.shopId,
-          shopName: shopResult.data?.shopName || product.shopName || "Verified Shop",
-          hasVariations: Boolean(row.hasVariations) || (row.funeral_product_variations || []).length > 0,
-          variations: (row.funeral_product_variations || []).map((variation: any) => ({
-            name: String(variation.name || "Standard"),
-            imageUrl: variation.imageUrl || null,
-          })),
-        })) as ProductViewItem[];
+        const nextRelated = (relatedResult.data || []).map((row: any) =>
+          mapCatalogProduct(row, shopResult.data?.shopName || product.shopName || "Funeral shop")
+        );
         setRelatedProducts(nextRelated);
         setShopProductCount((relatedResult.count ?? nextRelated.length) + 1);
+      }
+      if (!recommendationsResult.error) {
+        setRecommendedProducts((recommendationsResult.data || []).map((row: any) => mapCatalogProduct(row)));
       }
     };
 
@@ -340,6 +379,12 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
     setActiveImageIndex(Math.min(Math.max(nextIndex, 0), gallery.length - 1));
   };
 
+  const handleHeroGalleryScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (!gallery.length) return;
+    const nextIndex = Math.round(event.nativeEvent.contentOffset.x / imageWidth);
+    setActiveImageIndex(Math.min(Math.max(nextIndex, 0), gallery.length - 1));
+  };
+
   if (!product) {
     return (
       <SafeAreaView style={styles.screen}>
@@ -360,9 +405,9 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
       return;
     }
 
-    const bought = await isVerifiedBuyer();
+    const bought = await hasVerifiedCasketOrder();
     if (!bought) {
-      Alert.alert("Purchase Required", "Only families who purchased this product can rate and comment.");
+      Alert.alert("Verified Order Required", "Only the customer who placed and paid for this exact casket order can rate it.");
       return;
     }
 
@@ -410,9 +455,9 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
       return;
     }
 
-    const bought = await isVerifiedBuyer();
+    const bought = await hasVerifiedCasketOrder();
     if (!bought) {
-      Alert.alert("Purchase Required", "Only families who purchased this product can rate and comment.");
+      Alert.alert("Verified Order Required", "Only the customer who placed and paid for this exact casket order can post feedback.");
       return;
     }
 
@@ -450,7 +495,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
     if (product.shopId) {
       navigation.navigate("ShopProducts", {
         shopId: product.shopId,
-        shopName: product.shopName || "Verified Shop",
+        shopName: product.shopName || "Funeral shop",
       });
       return;
     }
@@ -484,20 +529,190 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
     });
   };
 
-  const showProductMenu = () => {
-    Alert.alert(product.name, "Choose an action", [
-      { text: "Visit shop", onPress: handleOpenShop },
-      { text: "Share product", onPress: () => void shareProduct() },
-      { text: "Cancel", style: "cancel" },
-    ]);
-  };
-
   const openRelatedProduct = (item: ProductViewItem) => {
     navigation.push("ProductView", { product: item });
   };
 
+  const renderProductTile = (item: ProductViewItem, showShopName = false) => {
+    const imageUrl = getGallery(item)[0] || item.imageUrl;
+    return (
+      <TouchableOpacity
+        key={`suggested_${item.shopId || "shop"}_${item.id}`}
+        accessibilityLabel={`${item.name}, ${formatPhilippinePeso(item.price)}`}
+        accessibilityRole="button"
+        activeOpacity={0.82}
+        style={styles.productRailItem}
+        onPress={() => openRelatedProduct(item)}
+      >
+        <View style={styles.productRailImageFrame}>
+          {imageUrl ? (
+            <Image source={{ uri: imageUrl }} style={styles.productRailImage} resizeMode="cover" />
+          ) : (
+            <View style={styles.productRailImageFallback}>
+              <Ionicons name="cube-outline" size={24} color={colors.textMuted} />
+            </View>
+          )}
+        </View>
+        <Text style={styles.productRailName} numberOfLines={2}>{item.name}</Text>
+        <Text style={styles.productRailPrice}>{formatPhilippinePeso(item.price)}</Text>
+        {showShopName ? (
+          <View style={styles.productRailShopRow}>
+            <Ionicons name="storefront-outline" size={14} color={colors.warning} />
+            <Text style={styles.productRailShopName} numberOfLines={1}>{item.shopName || "Funeral shop"}</Text>
+          </View>
+        ) : null}
+      </TouchableOpacity>
+    );
+  };
+
+  const renderHomeProductCard = (item: ProductViewItem) => {
+    const imageUrl = getGallery(item)[0] || item.imageUrl;
+    const itemIsFavorite = relatedFavoriteIds.has(item.id);
+    return (
+      <TouchableOpacity
+        key={`same_shop_${item.shopId}_${item.id}`}
+        accessibilityLabel={`${item.name}, ${formatPhilippinePeso(item.price)}, from ${item.shopName}`}
+        accessibilityRole="button"
+        activeOpacity={0.78}
+        style={styles.homeProductCard}
+        onPress={() => openRelatedProduct(item)}
+      >
+        <View style={styles.homeProductImageFrame}>
+          {imageUrl ? (
+            <Image source={{ uri: imageUrl }} style={styles.homeProductImage} resizeMode="cover" />
+          ) : (
+            <View style={styles.homeProductImageFallback}>
+              <Ionicons name="cube-outline" size={27} color={colors.textMuted} />
+            </View>
+          )}
+          <TouchableOpacity
+            accessibilityLabel={itemIsFavorite ? `Remove ${item.name} from favorites` : `Add ${item.name} to favorites`}
+            accessibilityRole="button"
+            activeOpacity={0.72}
+            style={styles.homeProductFavoriteButton}
+            onPress={(event) => {
+              event.stopPropagation();
+              setRelatedFavoriteIds((current) => {
+                const next = new Set(current);
+                if (next.has(item.id)) next.delete(item.id);
+                else next.add(item.id);
+                return next;
+              });
+            }}
+          >
+            <Ionicons
+              name={itemIsFavorite ? "heart" : "heart-outline"}
+              size={17}
+              color={itemIsFavorite ? colors.accent : colors.text}
+            />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.homeProductDetails}>
+          <Text style={styles.homeProductShopName} numberOfLines={1}>{item.shopName}</Text>
+          <Text style={styles.homeProductName} numberOfLines={2}>{item.name}</Text>
+          <Text style={styles.homeProductPrice}>{formatPhilippinePeso(item.price)}</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const openVariationSheet = (mode: VariationSheetMode) => {
+    setVariationSheetMode(mode);
+    variationBackdropOpacity.stopAnimation();
+    variationSheetProgress.stopAnimation();
+    variationBackdropOpacity.setValue(0);
+    variationSheetProgress.setValue(0);
+    setVariationsVisible(true);
+
+    requestAnimationFrame(() => {
+      Animated.parallel([
+        Animated.timing(variationBackdropOpacity, {
+          toValue: 1,
+          duration: 240,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.spring(variationSheetProgress, {
+          toValue: 1,
+          damping: 19,
+          stiffness: 210,
+          mass: 0.85,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    });
+  };
+
+  const closeVariationSheet = (onClosed?: () => void) => {
+    variationBackdropOpacity.stopAnimation();
+    variationSheetProgress.stopAnimation();
+    Animated.parallel([
+      Animated.timing(variationBackdropOpacity, {
+        toValue: 0,
+        duration: 180,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(variationSheetProgress, {
+        toValue: 0,
+        duration: 210,
+        easing: Easing.inOut(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
+      if (!finished) return;
+      setVariationsVisible(false);
+      onClosed?.();
+    });
+  };
+
   const confirmAddToCart = () => {
+    cartConfirmBackdropOpacity.stopAnimation();
+    cartConfirmSheetProgress.stopAnimation();
+    cartConfirmBackdropOpacity.setValue(0);
+    cartConfirmSheetProgress.setValue(0);
     setCartConfirmVisible(true);
+
+    requestAnimationFrame(() => {
+      Animated.parallel([
+        Animated.timing(cartConfirmBackdropOpacity, {
+          toValue: 1,
+          duration: 240,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.spring(cartConfirmSheetProgress, {
+          toValue: 1,
+          damping: 19,
+          stiffness: 210,
+          mass: 0.85,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    });
+  };
+
+  const closeCartConfirm = (onClosed?: () => void) => {
+    cartConfirmBackdropOpacity.stopAnimation();
+    cartConfirmSheetProgress.stopAnimation();
+    Animated.parallel([
+      Animated.timing(cartConfirmBackdropOpacity, {
+        toValue: 0,
+        duration: 180,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(cartConfirmSheetProgress, {
+        toValue: 0,
+        duration: 210,
+        easing: Easing.inOut(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
+      if (!finished) return;
+      setCartConfirmVisible(false);
+      onClosed?.();
+    });
   };
 
   const proceedToCheckout = () => {
@@ -521,7 +736,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
         cartId: `buy_now_${product.shopId}_${product.id}_${selectedVariationName || "standard"}_${Date.now()}`,
         productId: product.id,
         shopId: product.shopId,
-        shopName: product.shopName || "Verified Shop",
+        shopName: product.shopName || "Funeral shop",
         name: product.name,
         price: String(product.price || ""),
         imageUrl: selectedVariation?.imageUrl || gallery[0] || product.imageUrl || null,
@@ -551,7 +766,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
       await addFuneralCartItem({
         productId: product.id,
         shopId: product.shopId,
-        shopName: product.shopName || "Verified Shop",
+        shopName: product.shopName || "Funeral shop",
         name: product.name,
         price: String(product.price || ""),
         imageUrl: selectedVariation?.imageUrl || gallery[0] || product.imageUrl || null,
@@ -570,8 +785,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
 
   const handleAddToCart = () => {
     if (variationCount > 0) {
-      setVariationSheetMode("cart");
-      setVariationsVisible(true);
+      openVariationSheet("cart");
       return;
     }
 
@@ -580,8 +794,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
 
   const handleBuyNow = () => {
     if (variationCount > 0) {
-      setVariationSheetMode("buy");
-      setVariationsVisible(true);
+      openVariationSheet("buy");
       return;
     }
 
@@ -599,93 +812,76 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
   };
 
   return (
-    <SafeAreaView edges={["top", "left", "right"]} style={styles.screen}>
-      <View style={styles.topBar}>
-        <AppBackButton onPress={() => navigation.goBack()} />
-
-        <TouchableOpacity activeOpacity={0.9} style={styles.searchPill} onPress={handleOpenShop}>
-          <Ionicons name="search-outline" size={17} color="#8a928d" />
-          <Text numberOfLines={1} style={styles.searchPillText}>Search more in shop</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.topIconButton} onPress={() => void shareProduct()}>
-          <Ionicons name="share-social-outline" size={22} color="#22312d" />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.topIconButton} onPress={() => navigation.navigate("FuneralTabs", { screen: "Carts" })}>
-          <Ionicons name="cart-outline" size={23} color="#22312d" />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.compactMoreButton} onPress={showProductMenu}>
-          <Ionicons name="ellipsis-vertical" size={20} color="#22312d" />
-        </TouchableOpacity>
+    <SafeAreaView edges={["left", "right"]} style={styles.screen}>
+      <View style={[styles.topBar, { paddingTop: insets.top + spacing.sm }]}>
+        <AppBackButton style={styles.topBackButton} onPress={() => navigation.goBack()} />
+        <View style={styles.topActions}>
+          <TouchableOpacity
+            accessibilityLabel="Share product"
+            accessibilityRole="button"
+            style={styles.topIconButton}
+            onPress={() => void shareProduct()}
+          >
+            <Ionicons name="share-social-outline" size={19} color={colors.surface} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            accessibilityLabel={isFavorite ? "Remove from favorites" : "Add to favorites"}
+            accessibilityRole="button"
+            style={styles.topIconButton}
+            onPress={() => setIsFavorite((favorite) => !favorite)}
+          >
+            <Ionicons name={isFavorite ? "heart" : "heart-outline"} size={20} color={isFavorite ? colors.accent : colors.surface} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <KeyboardAwareScrollView
         style={styles.screen}
-        contentContainerStyle={[styles.content, { paddingBottom: 92 + Math.max(insets.bottom, 8) }]}
+        contentContainerStyle={[styles.content, { paddingBottom: 64 + bottomBarPadding }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.heroSection}>
-          {gallery.length ? (
-            <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={handleGalleryScroll}>
-              {gallery.map((imageUrl, index) => (
-                <View key={`${product.id}_${index}`} style={[styles.imagePage, { width }]}>
-                  <TouchableOpacity activeOpacity={0.94} onPress={() => setImageViewerVisible(true)}>
-                    <Image source={{ uri: imageUrl }} style={[styles.heroImage, { width: imageWidth, height: imageHeight }]} resizeMode="contain" />
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </ScrollView>
-          ) : (
-            <View style={[styles.heroFallback, { width: imageWidth, height: imageHeight }]}>
-              <Ionicons name="image-outline" size={44} color="#86908a" />
-            </View>
-          )}
-          <View style={styles.heroCounter}>
-            <Text style={styles.heroStatusBadgeText}>{gallery.length ? `${activeImageIndex + 1}/${gallery.length}` : "1/1"}</Text>
-          </View>
-          {gallery.length > 1 ? (
-            <View pointerEvents="none" style={styles.heroDots}>
-              {gallery.slice(0, 7).map((_, index) => {
-                const selectedDot = Math.min(activeImageIndex, 6) === index;
-                return <View key={`gallery_dot_${index}`} style={[styles.heroDot, selectedDot && styles.heroDotActive]} />;
-              })}
-            </View>
-          ) : null}
+            {gallery.length ? (
+              <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={handleHeroGalleryScroll}>
+                {gallery.map((imageUrl, index) => (
+                  <View key={`${product.id}_${index}`} style={[styles.imagePage, { width: imageWidth }]}>
+                    <TouchableOpacity activeOpacity={0.94} onPress={() => setImageViewerVisible(true)}>
+                      <Image source={{ uri: imageUrl }} style={[styles.heroImage, { width: imageWidth, height: imageHeight }]} resizeMode="cover" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
+            ) : (
+              <View style={[styles.heroFallback, { width: imageWidth, height: imageHeight }]}>
+                <Ionicons name="image-outline" size={44} color="#86908a" />
+              </View>
+            )}
+            {gallery.length > 1 ? (
+              <View pointerEvents="none" style={styles.heroCounter}>
+                <Text style={styles.heroCounterText}>{activeImageIndex + 1}/{gallery.length}</Text>
+              </View>
+            ) : null}
         </View>
 
+        <View style={styles.detailsSurface}>
         <View style={styles.priceSection}>
-          <View style={styles.priceRow}>
-            <Text style={styles.priceText}>{formatPhilippinePeso(priceValue || product.price)}</Text>
-            <View style={[styles.stockBadge, isSoldOut ? styles.stockBadgeSoldOut : null]}>
-              <Text style={[styles.stockBadgeText, isSoldOut ? styles.stockBadgeTextSoldOut : null]}>
-                {isSoldOut ? "Sold out" : `${stockCount} in stock`}
-              </Text>
+          <Text style={styles.productTitle}>{priceLabel}</Text>
+          <Text style={styles.priceText}>{formatPhilippinePeso(priceValue || product.price)}</Text>
+          <View style={styles.ratingStockRow}>
+            <View style={styles.ratingRow}>
+              <View style={styles.ratingBadge}>
+                <Ionicons name="star" size={11} color="#ffffff" />
+                <Text style={styles.ratingBadgeText}>{averageRating > 0 ? averageRating.toFixed(1) : "New"}</Text>
+              </View>
+              <Text style={styles.soldText}>{soldCount > 0 ? `${soldCount} sold` : `${reviewCount} reviews`}</Text>
             </View>
-          </View>
-          {isSoldOut ? (
-            <View style={styles.soldOutNotice}>
-              <Ionicons name="alert-circle-outline" size={18} color="#9b2c2c" />
-              <Text style={styles.soldOutNoticeText}>
-                This product is sold out. You can still view the details, but ordering and checkout are not available.
-              </Text>
-            </View>
-          ) : null}
-          <Text style={styles.priceSubtext}>{priceLabel}</Text>
-          <View style={styles.ratingRow}>
-            <Text style={styles.preferredBadge}>Preferred</Text>
-            <Ionicons name="star" size={15} color={averageRating > 0 ? "#f3ad24" : "#a3a3a3"} />
-            <Text style={styles.ratingText}>{averageRating > 0 ? averageRating.toFixed(1) : "New"}</Text>
-            <Text style={styles.ratingDivider}>|</Text>
-            <Text style={styles.soldText}>{soldCount > 0 ? `${soldCount} sold` : `${reviewCount} reviews`}</Text>
           </View>
 
           {variationCount > 0 ? (
             <View style={styles.marketVariationSection}>
               <View style={styles.marketSectionHeadingRow}>
                 <Text style={styles.marketSectionLabel}>Variations</Text>
-                <TouchableOpacity onPress={() => { setVariationSheetMode("browse"); setVariationsVisible(true); }}>
+                <TouchableOpacity onPress={() => openVariationSheet("browse")}>
                   <Text style={styles.marketSectionAction}>View all ›</Text>
                 </TouchableOpacity>
               </View>
@@ -695,16 +891,19 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
                   return (
                     <TouchableOpacity
                       key={`${product.id}_${variation.name}_${index}`}
-                      style={[styles.marketVariationCard, selected && styles.marketVariationCardSelected]}
+                      accessibilityRole="button"
+                      accessibilityLabel={`View ${variation.name || `option ${index + 1}`} full screen`}
+                      style={styles.marketVariationCard}
                       activeOpacity={0.88}
-                      onPress={() => setSelectedVariationName(variation.name || `Option ${index + 1}`)}
-                      onLongPress={() => openVariationPreview(variation, index)}
+                      onPress={() => openVariationPreview(variation, index)}
                     >
-                      {variation.imageUrl ? (
-                        <Image source={{ uri: variation.imageUrl }} style={styles.marketVariationImage} resizeMode="cover" />
-                      ) : (
-                        <View style={styles.marketVariationFallback}><Ionicons name="cube-outline" size={22} color="#718079" /></View>
-                      )}
+                      <View style={[styles.variationThumbRing, selected && styles.variationThumbRingSelected]}>
+                        {variation.imageUrl ? (
+                          <Image source={{ uri: variation.imageUrl }} style={styles.marketVariationImage} resizeMode="cover" />
+                        ) : (
+                          <View style={styles.marketVariationFallback}><Ionicons name="cube-outline" size={19} color="#718079" /></View>
+                        )}
+                      </View>
                       <Text style={styles.marketVariationName} numberOfLines={1}>{variation.name || `Option ${index + 1}`}</Text>
                     </TouchableOpacity>
                   );
@@ -714,52 +913,32 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
           ) : null}
         </View>
 
-        <View style={styles.guaranteePanel}>
-          <View style={styles.guaranteeRow}>
-            <Ionicons name="car-outline" size={19} color="#5a6b64" />
-            <Text style={styles.guaranteeText}>Delivery schedule coordinated with the funeral shop</Text>
-            <Ionicons name="chevron-forward" size={18} color="#a4aba7" />
+        <View style={styles.detailSection}>
+          <Text style={styles.detailSectionTitle}>Product description</Text>
+          <View style={styles.productFactRow}>
+            <Text style={styles.productFactLabel}>Availability</Text>
+            <Text style={styles.productFactValue}>{isSoldOut ? "Sold out" : "In stock"}</Text>
           </View>
-          <View style={styles.guaranteeDivider} />
-          <View style={styles.guaranteeRow}>
-            <Ionicons name="shield-checkmark-outline" size={19} color="#5a6b64" />
-            <Text style={styles.guaranteeText}>LifeCycle secure service coordination</Text>
-            <Ionicons name="chevron-forward" size={18} color="#a4aba7" />
+          <View style={styles.productFactRow}>
+            <Text style={styles.productFactLabel}>Variations</Text>
+            <Text style={styles.productFactValue}>{variationCount > 0 ? `${variationCount} options` : "Standard"}</Text>
           </View>
+          <View style={styles.sectionDivider} />
+          <Text style={styles.descriptionText}>{product.description || "No description provided by the seller."}</Text>
         </View>
 
-        <View style={styles.marketPanel}>
-          <TouchableOpacity style={styles.marketPanelHeader} onPress={() => setSpecsExpanded((expanded) => !expanded)}>
-            <Text style={styles.marketPanelTitle}>Product Description</Text>
-            <Ionicons name={specsExpanded ? "chevron-up" : "chevron-down"} size={18} color="#8a928d" />
-          </TouchableOpacity>
-          {specsExpanded ? (
-            <View style={styles.specsBody}>
-              <View style={styles.specRow}><Text style={styles.specLabel}>Availability</Text><Text style={styles.specValue}>{stockCount > 0 ? "In Stock" : "Ask Shop"}</Text></View>
-              <View style={styles.specRow}><Text style={styles.specLabel}>Variations</Text><Text style={styles.specValue}>{variationCount > 0 ? `${variationCount} options` : "Standard"}</Text></View>
-              <View style={styles.specDivider} />
-              <Text style={styles.descriptionText}>{product.description || "No description provided by the seller."}</Text>
-            </View>
-          ) : null}
-        </View>
-
-        <View style={styles.marketPanel}>
+        <View style={styles.reviewsSection}>
           <TouchableOpacity style={styles.productRatingHeader} onPress={() => setReviewsVisible(true)}>
             <View style={styles.productRatingTitleRow}>
               <Text style={styles.productRatingScore}>{averageRating > 0 ? averageRating.toFixed(1) : "New"}</Text>
-              <Ionicons name="star" size={18} color="#f3ad24" />
-              <Text style={styles.marketPanelTitle}>Product Ratings ({reviewCount})</Text>
+              <Ionicons name="star" size={18} color={colors.warning} />
+              <Text style={styles.marketPanelTitle}>Product ratings ({reviewCount})</Text>
             </View>
-            <Ionicons name="chevron-forward" size={19} color="#9ca5a0" />
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </TouchableOpacity>
-
           {averageRating > 0 ? (
-            <View style={styles.reviewInsightPill}>
-              <Ionicons name="chatbubble-ellipses" size={14} color="#86654a" />
-              <Text style={styles.reviewInsightText}>Customers rated this product {averageRating.toFixed(1)} out of 5</Text>
-            </View>
+            <Text style={styles.reviewSummaryText}>Rated {averageRating.toFixed(1)} out of 5 by verified customers.</Text>
           ) : null}
-
           {loadingReviews ? (
             <LoadingBird compact />
           ) : visibleReviews.length === 0 ? (
@@ -768,7 +947,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
             visibleReviews.map((review, index) => (
               <View key={review.id || `preview_review_${index}`} style={styles.marketReviewCard}>
                 <View style={styles.marketReviewerRow}>
-                  <View style={styles.marketReviewerAvatar}><Ionicons name="person" size={16} color="#53615d" /></View>
+                  <View style={styles.marketReviewerAvatar}><Ionicons name="person" size={16} color={colors.textMuted} /></View>
                   <Text style={styles.reviewAuthor}>{review.reviewerName || `Buyer ${index + 1}`}</Text>
                 </View>
                 <Text style={styles.reviewStars}>{renderStars(Number(review.rating) || 0)}</Text>
@@ -778,18 +957,26 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
               </View>
             ))
           )}
-          {reviewCount > 0 ? (
+          {reviewCount > visibleReviews.length ? (
             <TouchableOpacity style={styles.viewAllReviewsButton} onPress={() => setReviewsVisible(true)}>
-              <Text style={styles.viewAllReviewsText}>View All Reviews ›</Text>
+              <Text style={styles.viewAllReviewsText}>View all reviews</Text>
             </TouchableOpacity>
           ) : null}
         </View>
 
         <View style={styles.marketPanel}>
-          <Text style={styles.marketPanelTitle}>Rate This Product</Text>
+          <View style={styles.reviewComposerHeader}>
+            <View style={styles.reviewComposerTitleWrap}>
+              <Text style={styles.marketPanelTitle}>Rate this product</Text>
+              <Text style={styles.reviewComposerSubtitle}>Tap a star and share your experience with other families.</Text>
+            </View>
+          </View>
 
           {!purchaseChecked ? (
-            <Text style={styles.reviewEmptyText}>Checking your purchase eligibility...</Text>
+            <View style={styles.reviewCheckingRow}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={styles.reviewCheckingText}>Checking your order eligibility...</Text>
+            </View>
           ) : !auth.currentUser ? (
             <View style={styles.reviewGateBox}>
               <Ionicons name="lock-closed" size={18} color="#62706b" />
@@ -798,11 +985,14 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
           ) : !hasPurchased ? (
             <View style={styles.reviewGateBox}>
               <Ionicons name="lock-closed" size={18} color="#62706b" />
-              <Text style={styles.reviewGateText}>Only families who purchased this product can rate and comment. Complete your order to share your experience.</Text>
+              <Text style={styles.reviewGateText}>Only the customer with a verified payment for this exact casket can rate and comment.</Text>
             </View>
           ) : (
             <>
-              <Text style={styles.reviewComposerHint}>Tap a star and share your experience with other families.</Text>
+              <View style={styles.verifiedBuyerRow}>
+                <Ionicons name="checkmark-circle" size={17} color={colors.primary} />
+                <Text style={styles.verifiedBuyerText}>Verified casket order confirmed</Text>
+              </View>
               <View style={styles.ratingPickerRow}>
                 {RATING_VALUES.map((value) => (
                   <TouchableOpacity key={value} style={styles.ratingButton} activeOpacity={0.85} onPress={() => setRating((current) => (current === value ? 0 : value))}>
@@ -824,87 +1014,87 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
         <View style={styles.shopMarketPanel}>
           <View style={styles.shopTrustHeader}>
             <View style={styles.shopTrustBrandLeft}>
-              <Ionicons name="bag-check" size={16} color="#ffffff" />
+              <Ionicons name="bag-check-outline" size={16} color={colors.surface} />
               <Text style={styles.shopTrustBrand}>LifeCycle Shop</Text>
             </View>
-            <Text style={styles.shopTrustPromise}>Accredited · Secure</Text>
+            <Text style={styles.shopTrustPromise}>
+              {shopDetails?.status === "live" ? "Accredited · Secure" : "Secure listing"}
+            </Text>
           </View>
-
           <View style={styles.shopMarketBody}>
             <View style={styles.shopMarketHeader}>
               {shopDetails?.shopImageUrl ? (
                 <Image source={{ uri: shopDetails.shopImageUrl }} style={styles.shopMarketAvatar} />
               ) : (
-                <View style={styles.shopMarketAvatarFallback}><Ionicons name="storefront" size={25} color="#22312d" /></View>
+                <View style={styles.shopMarketAvatarFallback}><Ionicons name="storefront-outline" size={24} color={colors.text} /></View>
               )}
               <View style={styles.shopMarketIdentity}>
-                <Text style={styles.shopMarketName}>{shopDetails?.shopName || product.shopName || "Verified Shop"}</Text>
-                <View style={styles.shopMarketRatingRow}>
-                  <Ionicons name="star" size={13} color="#f3ad24" />
-                  <Text style={styles.shopMarketRatingScore}>{averageRating > 0 ? averageRating.toFixed(1) : "New"}</Text>
-                  <Text style={styles.shopMarketSold}>{reviewCount > 0 ? `${reviewCount} reviews` : "New shop"}</Text>
+                <Text style={styles.shopMarketName}>{shopDetails?.shopName || product.shopName || "Funeral shop"}</Text>
+                <View style={styles.shopStatusRow}>
+                  <Ionicons name="star" size={14} color={colors.warning} />
+                  <Text style={styles.shopStatusText}>{shopDetails?.status === "live" ? "Verified shop" : "Shop listing"}</Text>
                 </View>
-                <View style={styles.shopOnlineRow}><View style={styles.shopOnlineDot} /><Text style={styles.shopOnlineText}>{shopDetails?.status === "live" ? "Online" : "Verified shop"}</Text></View>
-                <Text style={styles.shopMarketLocation} numberOfLines={1}>{shopDetails?.generalLocation || shopDetails?.shopAddress || "Philippines"}</Text>
+                <View style={styles.shopOnlineRow}><View style={styles.shopOnlineDot} /><Text style={styles.shopOnlineText}>{shopDetails?.status === "live" ? "Online" : "Listing unavailable"}</Text></View>
+                <Text style={styles.shopMarketLocation} numberOfLines={1}>{shopDetails?.generalLocation || shopDetails?.shopAddress || "Location not provided"}</Text>
               </View>
-              <TouchableOpacity style={styles.visitShopButton} onPress={handleOpenShop}><Text style={styles.visitShopText}>Visit</Text></TouchableOpacity>
+              <TouchableOpacity accessibilityRole="button" style={styles.visitShopButton} onPress={handleOpenShop}>
+                <Text style={styles.visitShopText}>Visit</Text>
+              </TouchableOpacity>
             </View>
 
             <View style={styles.shopStatsGrid}>
-              <View style={styles.shopStat}><Text style={styles.shopStatValue}>100%</Text><Text style={styles.shopStatLabel}>verified provider</Text></View>
+              <View style={styles.shopStat}>
+                <Text style={styles.shopStatValue}>{shopDetails?.status === "live" ? "100%" : "Listed"}</Text>
+                <Text style={styles.shopStatLabel}>{shopDetails?.status === "live" ? "verified provider" : "provider"}</Text>
+              </View>
               <View style={styles.shopStatDivider} />
-              <View style={styles.shopStat}><Text style={styles.shopStatValue}>{shopProductCount}</Text><Text style={styles.shopStatLabel}>products available</Text></View>
+              <View style={styles.shopStat}>
+                <Text style={styles.shopStatValue}>{shopProductCount}</Text>
+                <Text style={styles.shopStatLabel}>products available</Text>
+              </View>
               <View style={styles.shopStatDivider} />
-              <TouchableOpacity style={styles.shopStat} onPress={handleOpenChat}><Text style={styles.shopStatValue}>Open</Text><Text style={styles.shopStatLabel}>shop chat</Text></TouchableOpacity>
+              <TouchableOpacity accessibilityRole="button" style={styles.shopStat} onPress={handleOpenChat}>
+                <Text style={styles.shopStatValue}>Open</Text>
+                <Text style={styles.shopStatLabel}>shop chat</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
 
         {relatedProducts.length > 0 ? (
           <View style={styles.relatedSection}>
-            <View style={styles.relatedHeader}><Text style={styles.relatedTitle}>From The Same Shop</Text><TouchableOpacity onPress={handleOpenShop}><Text style={styles.marketSectionAction}>See all ›</Text></TouchableOpacity></View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.relatedStrip}>
-              {relatedProducts.map((item) => {
-                const imageUrl = getGallery(item)[0] || item.imageUrl;
-                return (
-                  <TouchableOpacity key={`same_${item.id}`} style={styles.relatedCard} activeOpacity={0.9} onPress={() => openRelatedProduct(item)}>
-                    {imageUrl ? <Image source={{ uri: imageUrl }} style={styles.relatedImage} resizeMode="contain" /> : <View style={styles.relatedImageFallback}><Ionicons name="cube-outline" size={27} color="#718079" /></View>}
-                    <Text style={styles.relatedName} numberOfLines={2}>{item.name}</Text>
-                    <Text style={styles.relatedPrice}>{formatPhilippinePeso(item.price)}</Text>
-                    <View style={styles.relatedRating}><Ionicons name="star" size={11} color="#f3ad24" /><Text style={styles.relatedRatingText}>Shop item</Text></View>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </View>
-        ) : null}
-
-        {relatedProducts.length > 1 ? (
-          <View style={styles.recommendationSection}>
-            <View style={styles.recommendationHeading}><View style={styles.headingLine} /><Text style={styles.relatedTitle}>You May Also Like</Text><View style={styles.headingLine} /></View>
-            <View style={styles.recommendationGrid}>
-              {relatedProducts.slice(0, 4).reverse().map((item) => {
-                const imageUrl = getGallery(item)[0] || item.imageUrl;
-                return (
-                  <TouchableOpacity key={`also_${item.id}`} style={styles.recommendationCard} activeOpacity={0.9} onPress={() => openRelatedProduct(item)}>
-                    {imageUrl ? <Image source={{ uri: imageUrl }} style={styles.recommendationImage} resizeMode="contain" /> : <View style={styles.recommendationImageFallback}><Ionicons name="cube-outline" size={30} color="#718079" /></View>}
-                    <Text style={styles.recommendationName} numberOfLines={2}>{item.name}</Text>
-                    <Text style={styles.relatedPrice}>{formatPhilippinePeso(item.price)}</Text>
-                  </TouchableOpacity>
-                );
-              })}
+            <View style={styles.relatedHeader}>
+              <Text style={styles.relatedTitle}>From the same shop</Text>
+              <TouchableOpacity accessibilityRole="button" style={styles.relatedAction} onPress={handleOpenShop}>
+                <Text style={styles.relatedActionText}>See all</Text>
+                <Ionicons name="chevron-forward" size={15} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.homeProductGrid}>
+              {relatedProducts.slice(0, 4).map((item) => renderHomeProductCard(item))}
             </View>
           </View>
         ) : null}
+
+        {recommendedProducts.length > 0 ? (
+          <View style={styles.recommendationSection}>
+            <View style={styles.recommendationHeading}>
+              <View style={styles.headingLine} />
+              <Text style={styles.recommendationTitle}>You may also like</Text>
+              <View style={styles.headingLine} />
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.productRail}>
+              {recommendedProducts.slice(0, 6).map((item) => renderProductTile(item, true))}
+            </ScrollView>
+          </View>
+        ) : null}
+        </View>
+
       </KeyboardAwareScrollView>
 
-      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
-        <TouchableOpacity style={styles.bottomNavButton} onPress={handleOpenShop}>
-          <Ionicons name="storefront-outline" size={21} color="#22312d" />
-          <Text style={styles.bottomNavText}>Shop</Text>
-        </TouchableOpacity>
+      <View style={[styles.bottomBar, { paddingBottom: bottomBarPadding }]}>
         <TouchableOpacity style={styles.bottomNavButton} onPress={handleOpenChat}>
-          <Ionicons name="chatbubble-ellipses-outline" size={21} color="#22312d" />
+          <Ionicons name="chatbubble-ellipses-outline" size={20} color={colors.text} />
           <Text style={styles.bottomNavText}>Chat</Text>
         </TouchableOpacity>
         {isSoldOut ? (
@@ -962,18 +1152,53 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
       <Modal
         visible={variationsVisible}
         transparent
-        animationType="slide"
-        onRequestClose={() => setVariationsVisible(false)}
+        animationType="none"
+        statusBarTranslucent
+        onRequestClose={() => closeVariationSheet()}
       >
-        <View style={styles.sheetOverlay}>
-          <TouchableOpacity style={styles.sheetBackdrop} activeOpacity={1} onPress={() => setVariationsVisible(false)} />
+        <View style={styles.variationOverlay}>
+          <Animated.View style={[styles.variationBackdrop, { opacity: variationBackdropOpacity }]}>
+            <TouchableOpacity
+              accessibilityLabel="Close variations"
+              accessibilityRole="button"
+              activeOpacity={1}
+              style={styles.variationBackdropPressable}
+              onPress={() => closeVariationSheet()}
+            />
+          </Animated.View>
 
-          <View style={[styles.sheetCard, { paddingBottom: sheetBottomPadding }]}>
+          <Animated.View
+            style={[
+              styles.sheetCard,
+              { paddingBottom: sheetBottomPadding },
+              {
+                opacity: variationSheetProgress.interpolate({
+                  inputRange: [0, 0.12, 1],
+                  outputRange: [0, 1, 1],
+                  extrapolate: "clamp",
+                }),
+                transform: [
+                  {
+                    translateY: variationSheetProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [120, 0],
+                    }),
+                  },
+                  {
+                    scale: variationSheetProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.985, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
             <View style={styles.sheetHandle} />
 
               <View style={styles.sheetHeader}>
                 <Text style={styles.sheetTitle}>{variationSheetMode === "cart" ? "Choose Variation" : "Variations"}</Text>
-                <TouchableOpacity style={styles.sheetCloseButton} onPress={() => setVariationsVisible(false)}>
+                <TouchableOpacity style={styles.sheetCloseButton} onPress={() => closeVariationSheet()}>
                   <Ionicons name="close" size={20} color="#22312d" />
                 </TouchableOpacity>
               </View>
@@ -988,6 +1213,10 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
                     ]}
                     activeOpacity={0.88}
                     onPress={() => {
+                      if (variationSheetMode === "browse") {
+                        openVariationPreview(variation, index);
+                        return;
+                      }
                       setSelectedVariationName(variation.name || `Option ${index + 1}`);
                     }}
                   >
@@ -1038,19 +1267,18 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
                       );
                       return;
                     }
-                    setVariationsVisible(false);
                     if (variationSheetMode === "buy") {
-                      proceedToCheckout();
+                      closeVariationSheet(proceedToCheckout);
                       return;
                     }
-                    confirmAddToCart();
+                    closeVariationSheet(confirmAddToCart);
                   }}
                 >
                   <Ionicons name={variationSheetMode === "buy" ? "flash-outline" : "cart-outline"} size={18} color="#ffffff" />
                   <Text style={styles.sheetAddToCartButtonText}>{variationSheetMode === "buy" ? "Continue to Checkout" : "Add to Cart"}</Text>
                 </TouchableOpacity>
               ) : null}
-            </View>
+            </Animated.View>
           </View>
       </Modal>
 
@@ -1105,11 +1333,48 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
       <Modal
         visible={cartConfirmVisible}
         transparent
-        animationType="fade"
-        onRequestClose={() => setCartConfirmVisible(false)}
+        animationType="none"
+        statusBarTranslucent
+        onRequestClose={() => closeCartConfirm()}
       >
         <View style={styles.confirmOverlay}>
-          <View style={styles.confirmCard}>
+          <Animated.View style={[styles.confirmBackdrop, { opacity: cartConfirmBackdropOpacity }]}>
+            <TouchableOpacity
+              accessibilityLabel="Close add to cart"
+              accessibilityRole="button"
+              activeOpacity={1}
+              style={styles.confirmBackdropPressable}
+              onPress={() => closeCartConfirm()}
+            />
+          </Animated.View>
+
+          <Animated.View
+            style={[
+              styles.confirmCard,
+              { paddingBottom: sheetBottomPadding },
+              {
+                opacity: cartConfirmSheetProgress.interpolate({
+                  inputRange: [0, 0.12, 1],
+                  outputRange: [0, 1, 1],
+                  extrapolate: "clamp",
+                }),
+                transform: [
+                  {
+                    translateY: cartConfirmSheetProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [120, 0],
+                    }),
+                  },
+                  {
+                    scale: cartConfirmSheetProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.985, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
             <View style={styles.confirmIconWrap}>
               <Ionicons name="cart-outline" size={22} color="#22312d" />
             </View>
@@ -1138,21 +1403,20 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
             </View>
 
             <View style={styles.confirmActions}>
-              <TouchableOpacity style={styles.confirmSecondaryButton} onPress={() => setCartConfirmVisible(false)}>
+              <TouchableOpacity style={styles.confirmSecondaryButton} onPress={() => closeCartConfirm()}>
                 <Text style={styles.confirmSecondaryText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.confirmPrimaryButton}
                 onPress={() => {
                   hapticMedium();
-                  setCartConfirmVisible(false);
-                  void addToCart();
+                  closeCartConfirm(() => void addToCart());
                 }}
               >
                 <Text style={styles.confirmPrimaryText}>Confirm</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
 
@@ -1203,32 +1467,40 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#f1f2ef",
+    backgroundColor: colors.surfaceWarm,
   },
   content: {
-    backgroundColor: "#f1f2ef",
+    backgroundColor: colors.surfaceWarm,
   },
   topBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    minHeight: 56,
-    paddingHorizontal: 7,
-    paddingVertical: 8,
-    backgroundColor: "#ffffff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e7e9e6",
-    shadowColor: "#26322d",
-    shadowOpacity: 0.06,
-    shadowRadius: 5,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-    zIndex: 4,
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.sm,
+    zIndex: 10,
+  },
+  topBackButton: {
+    width: 40,
+    height: 40,
+    borderRadius: radii.pill,
+    borderWidth: 0,
+    backgroundColor: "rgba(255, 255, 255, 0.86)",
+  },
+  topActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
   },
   topIconButton: {
-    width: 36,
-    height: 38,
-    borderRadius: 8,
+    width: 40,
+    height: 40,
+    borderRadius: radii.pill,
+    backgroundColor: "rgba(34, 49, 45, 0.52)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1249,22 +1521,31 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   heroSection: {
-    backgroundColor: "#f8f7f4",
     position: "relative",
     overflow: "hidden",
+    backgroundColor: colors.surfaceMuted,
   },
   imagePage: {
     alignItems: "center",
     justifyContent: "center",
   },
   heroImage: {
-    backgroundColor: "#f8f7f4",
+    backgroundColor: colors.surfaceMuted,
   },
   heroFallback: {
     alignSelf: "center",
-    backgroundColor: "#d8ddd7",
+    backgroundColor: colors.surfaceMuted,
     alignItems: "center",
     justifyContent: "center",
+  },
+  detailsSurface: {
+    marginTop: -22,
+    paddingTop: spacing.xl,
+    overflow: "hidden",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    backgroundColor: colors.surfaceWarm,
+    zIndex: 2,
   },
   heroFooterRow: {
     flexDirection: "row",
@@ -1285,45 +1566,46 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   priceSection: {
-    marginTop: 8,
-    marginHorizontal: 8,
-    backgroundColor: "#ffffff",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#e3e7e3",
-    paddingHorizontal: 12,
-    paddingVertical: 15,
-    shadowColor: "#26322d",
-    shadowOpacity: 0.04,
-    shadowRadius: 5,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
+    marginHorizontal: spacing.lg,
+    paddingBottom: 20,
   },
-  priceRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: 10,
+  productTitle: {
+    color: colors.text,
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: "800",
   },
   priceText: {
-    color: "#6d7f72",
-    fontSize: 25,
-    lineHeight: 30,
-    fontWeight: "900",
-    letterSpacing: -1.1,
+    color: colors.primary,
+    fontSize: 18,
+    lineHeight: 22,
+    fontWeight: "800",
+    marginTop: spacing.xs,
   },
-  priceSubtext: {
-    color: "#22312d",
-    fontSize: 17,
-    lineHeight: 23,
-    fontWeight: "700",
-    marginTop: 9,
+  ratingStockRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: spacing.md,
   },
   ratingRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    marginTop: 10,
+  },
+  ratingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    borderRadius: radii.pill,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  ratingBadgeText: {
+    color: "#ffffff",
+    fontSize: 10,
+    fontWeight: "900",
   },
   ratingText: {
     color: "#22312d",
@@ -1337,9 +1619,9 @@ const styles = StyleSheet.create({
     marginHorizontal: 2,
   },
   soldText: {
-    color: "#66746f",
-    fontSize: 14,
-    fontWeight: "700",
+    color: colors.textMuted,
+    fontSize: 10,
+    fontWeight: "600",
   },
   offerRow: {
     flexDirection: "row",
@@ -1392,11 +1674,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    borderRadius: 14,
-    backgroundColor: "#f8f6f2",
-    borderWidth: 1,
-    borderColor: "#d9d6cd",
-    paddingHorizontal: 14,
+    borderLeftWidth: 3,
+    borderLeftColor: "#d9d6cd",
+    paddingHorizontal: 11,
     paddingVertical: 12,
     marginTop: 6,
   },
@@ -1462,11 +1742,39 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: "#d8ddd7",
   },
-  reviewComposerHint: {
-    color: "#75807b",
+  reviewComposerHeader: {
+    marginBottom: 14,
+  },
+  reviewComposerTitleWrap: {
+    flex: 1,
+  },
+  reviewComposerSubtitle: {
+    color: colors.textMuted,
     fontSize: 13,
     lineHeight: 19,
+    marginTop: spacing.xs,
+  },
+  reviewCheckingRow: {
+    minHeight: 54,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  reviewCheckingText: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  verifiedBuyerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
     marginBottom: 10,
+  },
+  verifiedBuyerText: {
+    color: colors.primary,
+    fontSize: 11,
+    fontWeight: "800",
   },
   ratingPickerRow: {
     flexDirection: "row",
@@ -1587,11 +1895,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontWeight: "800",
   },
-  descriptionText: {
-    color: "#66746f",
-    fontSize: 14,
-    lineHeight: 22,
-  },
   bottomBar: {
     position: "absolute",
     left: 0,
@@ -1599,17 +1902,12 @@ const styles = StyleSheet.create({
     bottom: 0,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#ffffff",
+    backgroundColor: colors.surface,
     borderTopWidth: 1,
-    borderTopColor: "#dfe3df",
-    gap: 5,
-    paddingHorizontal: 8,
-    paddingTop: 7,
-    shadowColor: "#1f2925",
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: -3 },
-    elevation: 10,
+    borderTopColor: colors.borderWarm,
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
   },
   iconAction: {
     width: 50,
@@ -1631,23 +1929,23 @@ const styles = StyleSheet.create({
   },
   buyButton: {
     flex: 1,
-    minHeight: 54,
-    borderRadius: 999,
-    backgroundColor: "#22312d",
+    minHeight: 52,
+    borderRadius: radii.lg,
+    backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "column",
   },
   buyButtonText: {
-    color: "#ffffff",
+    color: colors.surface,
     fontSize: 13,
     fontWeight: "900",
   },
   soldOutBuyButton: {
     flex: 1,
-    minHeight: 54,
-    borderRadius: 999,
-    backgroundColor: "#c9cfcb",
+    minHeight: 52,
+    borderRadius: radii.lg,
+    backgroundColor: colors.borderWarm,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -1676,6 +1974,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   viewerPage: {
+    flex: 1,
+    width: "100%",
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 16,
@@ -1713,7 +2013,18 @@ const styles = StyleSheet.create({
   sheetOverlay: {
     flex: 1,
     justifyContent: "flex-end",
-    backgroundColor: "rgba(15,23,42,0.34)",
+    backgroundColor: "rgba(20, 29, 43, 0.38)",
+  },
+  variationOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  variationBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(20, 29, 43, 0.38)",
+  },
+  variationBackdropPressable: {
+    ...StyleSheet.absoluteFillObject,
   },
   sheetBackdrop: {
     flex: 1,
@@ -1824,10 +2135,15 @@ const styles = StyleSheet.create({
   },
   confirmOverlay: {
     flex: 1,
-    backgroundColor: "rgba(15,23,42,0.42)",
-    justifyContent: "center",
+    justifyContent: "flex-end",
     alignItems: "center",
-    paddingHorizontal: 20,
+  },
+  confirmBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(20, 29, 43, 0.38)",
+  },
+  confirmBackdropPressable: {
+    ...StyleSheet.absoluteFillObject,
   },
   addedOverlay: {
     flex: 1,
@@ -1868,12 +2184,20 @@ const styles = StyleSheet.create({
   },
   confirmCard: {
     width: "100%",
-    maxWidth: 360,
+    maxWidth: 560,
+    maxHeight: "86%",
+    alignSelf: "center",
     backgroundColor: "#ffffff",
-    borderRadius: 28,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: "#d8ddd7",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 20,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
+    elevation: 20,
   },
   confirmIconWrap: {
     width: 48,
@@ -1995,174 +2319,131 @@ const styles = StyleSheet.create({
   },
   heroCounter: {
     position: "absolute",
-    right: 10,
-    bottom: 10,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.9)",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    right: spacing.md,
+    bottom: spacing.xl,
+    borderRadius: radii.pill,
+    backgroundColor: colors.primaryDark,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
   },
-  heroDots: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
-  },
-  heroDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: "rgba(34,49,45,0.28)",
-  },
-  heroDotActive: {
-    width: 16,
-    backgroundColor: "#5a6b64",
-  },
-  stockBadge: {
-    marginLeft: "auto",
-    borderRadius: 4,
-    backgroundColor: "#eef1ec",
-    borderWidth: 1,
-    borderColor: "#d8ddd7",
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-  },
-  stockBadgeSoldOut: {
-    backgroundColor: "#fdecec",
-    borderColor: "#f3c2c2",
-  },
-  stockBadgeText: {
-    color: "#53615d",
-    fontSize: 10,
+  heroCounterText: {
+    color: colors.surface,
+    fontSize: 11,
     fontWeight: "800",
   },
-  stockBadgeTextSoldOut: {
-    color: "#9b2c2c",
-  },
-  soldOutNotice: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
-    borderRadius: 12,
-    backgroundColor: "#fdecec",
-    borderWidth: 1,
-    borderColor: "#f3c2c2",
-    padding: 11,
-    marginTop: 10,
-  },
-  soldOutNoticeText: {
-    flex: 1,
-    color: "#8f2525",
-    fontSize: 12,
-    lineHeight: 18,
-    fontWeight: "700",
-  },
-  preferredBadge: {
-    color: "#ffffff",
-    backgroundColor: "#86654a",
-    borderRadius: 3,
-    overflow: "hidden",
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    fontSize: 9,
-    fontWeight: "900",
-  },
   marketVariationSection: {
-    marginTop: 16,
+    marginTop: spacing.lg,
   },
   marketSectionHeadingRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 9,
+    marginBottom: spacing.md,
   },
   marketSectionLabel: {
-    color: "#303a36",
+    color: colors.text,
     fontSize: 14,
     fontWeight: "800",
   },
   marketSectionAction: {
-    color: "#5a6b64",
+    color: colors.primary,
     fontSize: 11,
     fontWeight: "800",
   },
   marketVariationStrip: {
-    gap: 7,
+    gap: spacing.md,
     paddingRight: 6,
   },
   marketVariationCard: {
-    width: 74,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "#e1e5e1",
-    backgroundColor: "#ffffff",
-    padding: 4,
+    width: 48,
+    alignItems: "center",
   },
-  marketVariationCardSelected: {
-    borderColor: "#5a6b64",
+  variationThumbRing: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     borderWidth: 2,
+    borderColor: "transparent",
     padding: 3,
+  },
+  variationThumbRingSelected: {
+    borderColor: colors.primary,
   },
   marketVariationImage: {
     width: "100%",
-    height: 61,
-    borderRadius: 4,
+    height: "100%",
+    borderRadius: 16,
     backgroundColor: "#edf0ed",
   },
   marketVariationFallback: {
-    height: 61,
-    borderRadius: 4,
+    flex: 1,
+    borderRadius: 16,
     backgroundColor: "#edf0ed",
     alignItems: "center",
     justifyContent: "center",
   },
   marketVariationName: {
-    color: "#59635f",
+    color: colors.textMuted,
     fontSize: 9,
     fontWeight: "700",
     textAlign: "center",
     marginTop: 4,
   },
-  guaranteePanel: {
-    marginTop: 8,
-    marginHorizontal: 8,
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e3e7e3",
-    overflow: "hidden",
+  marketPanel: {
+    marginHorizontal: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderWarm,
+    paddingVertical: spacing.xl,
   },
-  guaranteeRow: {
-    minHeight: 51,
-    paddingHorizontal: 10,
+  detailSection: {
+    marginHorizontal: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderWarm,
+    paddingVertical: spacing.xl,
+  },
+  detailSectionTitle: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: "800",
+    marginBottom: spacing.md,
+  },
+  productFactRow: {
+    minHeight: 38,
     flexDirection: "row",
     alignItems: "center",
-    gap: 9,
   },
-  guaranteeText: {
+  productFactLabel: {
+    width: 104,
+    color: colors.textMuted,
+    fontSize: 13,
+  },
+  productFactValue: {
     flex: 1,
-    color: "#4f5a55",
-    fontSize: 12,
-    lineHeight: 17,
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "700",
   },
-  guaranteeDivider: {
+  sectionDivider: {
     height: 1,
-    marginLeft: 38,
-    backgroundColor: "#edf0ed",
+    backgroundColor: colors.borderWarm,
+    marginVertical: spacing.md,
   },
-  marketPanel: {
-    marginTop: 8,
-    marginHorizontal: 8,
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e3e7e3",
-    paddingHorizontal: 12,
-    paddingVertical: 14,
+  descriptionText: {
+    color: colors.text,
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  reviewsSection: {
+    marginHorizontal: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderWarm,
+    paddingVertical: spacing.xl,
+  },
+  reviewSummaryText: {
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 20,
+    marginTop: spacing.sm,
   },
   marketPanelHeader: {
     minHeight: 30,
@@ -2171,35 +2452,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   marketPanelTitle: {
-    color: "#303a36",
-    fontSize: 14,
-    fontWeight: "900",
-  },
-  specsBody: {
-    paddingTop: 10,
-  },
-  specRow: {
-    minHeight: 38,
-    flexDirection: "row",
-    alignItems: "flex-start",
-    paddingVertical: 7,
-  },
-  specLabel: {
-    width: 112,
-    color: "#7d8682",
-    fontSize: 12,
-  },
-  specValue: {
-    flex: 1,
-    color: "#39443f",
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: "600",
-  },
-  specDivider: {
-    height: 1,
-    backgroundColor: "#edf0ed",
-    marginVertical: 10,
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: "800",
   },
   productRatingHeader: {
     minHeight: 35,
@@ -2216,22 +2471,6 @@ const styles = StyleSheet.create({
     color: "#2f3935",
     fontSize: 21,
     fontWeight: "900",
-  },
-  reviewInsightPill: {
-    marginTop: 8,
-    marginBottom: 7,
-    borderRadius: 6,
-    backgroundColor: "#f2ede5",
-    paddingHorizontal: 9,
-    paddingVertical: 7,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  reviewInsightText: {
-    color: "#86654a",
-    fontSize: 10,
-    fontWeight: "700",
   },
   marketReviewCard: {
     paddingVertical: 13,
@@ -2264,26 +2503,22 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   shopMarketPanel: {
-    marginTop: 8,
-    marginHorizontal: 8,
-    backgroundColor: "#ffffff",
-    borderRadius: 14,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.xl,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "#dedfdc",
-    shadowColor: "#26322d",
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
+    borderTopColor: colors.borderWarm,
+    borderColor: colors.borderWarm,
+    borderRadius: radii.md,
+    backgroundColor: colors.surface,
   },
   shopTrustHeader: {
-    minHeight: 34,
-    paddingHorizontal: 12,
-    backgroundColor: "#3b2e24",
+    minHeight: 36,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    backgroundColor: colors.primaryDark,
+    paddingHorizontal: spacing.md,
   },
   shopTrustBrandLeft: {
     flexDirection: "row",
@@ -2291,67 +2526,61 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   shopTrustBrand: {
-    color: "#ffffff",
+    color: colors.surface,
     fontSize: 11,
-    fontWeight: "900",
+    fontWeight: "800",
   },
   shopTrustPromise: {
-    color: "#e9ded3",
+    color: "#e8eee9",
     fontSize: 9,
     fontWeight: "700",
   },
   shopMarketBody: {
-    paddingHorizontal: 10,
-    paddingVertical: 12,
+    padding: spacing.lg,
   },
   shopMarketHeader: {
     flexDirection: "row",
     alignItems: "center",
   },
   shopMarketAvatar: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: "#edf0ed",
+    width: 56,
+    height: 56,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surfaceMuted,
   },
   shopMarketAvatarFallback: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: "#e8ede9",
+    width: 56,
+    height: 56,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surfaceMuted,
     alignItems: "center",
     justifyContent: "center",
   },
   shopMarketIdentity: {
     flex: 1,
-    marginLeft: 10,
+    marginLeft: spacing.md,
   },
   shopMarketName: {
-    color: "#28332f",
-    fontSize: 14,
-    fontWeight: "900",
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: "800",
   },
-  shopMarketRatingRow: {
+  shopStatusRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
-  shopMarketRatingScore: {
-    color: "#3f5d50",
+  shopStatusText: {
+    color: colors.warning,
     fontSize: 11,
-    fontWeight: "900",
-  },
-  shopMarketSold: {
-    color: "#8a928d",
-    fontSize: 10,
-    marginLeft: 3,
+    fontWeight: "800",
   },
   shopOnlineRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    marginTop: 3,
+    gap: spacing.xs,
+    marginTop: spacing.xs,
   },
   shopOnlineDot: {
     width: 7,
@@ -2360,196 +2589,237 @@ const styles = StyleSheet.create({
     backgroundColor: "#36b96d",
   },
   shopOnlineText: {
-    color: "#6f7974",
-    fontSize: 10,
+    color: colors.textMuted,
+    fontSize: 11,
   },
   shopMarketLocation: {
-    color: "#818a86",
-    fontSize: 10,
-    marginTop: 3,
+    color: colors.textMuted,
+    fontSize: 11,
+    marginTop: spacing.xs,
   },
   visitShopButton: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#22312d",
-    backgroundColor: "#22312d",
-    paddingHorizontal: 20,
-    paddingVertical: 9,
+    minHeight: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radii.pill,
+    backgroundColor: colors.primaryDark,
+    paddingHorizontal: spacing.lg,
   },
   visitShopText: {
-    color: "#ffffff",
+    color: colors.surface,
     fontSize: 11,
-    fontWeight: "900",
+    fontWeight: "800",
   },
   shopStatsGrid: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 14,
+    marginTop: spacing.lg,
+    paddingTop: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderWarm,
   },
   shopStat: {
     flex: 1,
+    minHeight: 38,
     alignItems: "center",
+    justifyContent: "center",
   },
   shopStatValue: {
-    color: "#303a36",
+    color: colors.text,
     fontSize: 13,
-    fontWeight: "900",
+    fontWeight: "800",
   },
   shopStatLabel: {
-    color: "#8b938f",
+    color: colors.textMuted,
     fontSize: 9,
-    marginTop: 3,
+    marginTop: spacing.xs,
   },
   shopStatDivider: {
     width: 1,
-    height: 30,
-    backgroundColor: "#edf0ed",
+    height: 32,
+    backgroundColor: colors.borderWarm,
   },
   relatedSection: {
-    marginTop: 8,
-    marginHorizontal: 8,
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e3e7e3",
-    overflow: "hidden",
-    paddingVertical: 13,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xl,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderWarm,
   },
   relatedHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 9,
-    marginBottom: 10,
+    marginBottom: spacing.md,
   },
   relatedTitle: {
-    color: "#303a36",
-    fontSize: 14,
-    fontWeight: "900",
+    color: colors.text,
+    fontSize: 17,
+    fontWeight: "800",
   },
-  relatedStrip: {
-    paddingHorizontal: 8,
-    gap: 7,
+  relatedAction: {
+    minHeight: 36,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
   },
-  relatedCard: {
-    width: 132,
-    borderRadius: 9,
-    borderWidth: 1,
-    borderColor: "#e6e9e6",
-    padding: 6,
-    backgroundColor: "#ffffff",
+  relatedActionText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: "800",
   },
-  relatedImage: {
+  homeProductGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    rowGap: spacing.xl,
+  },
+  homeProductCard: {
+    width: "48%",
+  },
+  homeProductImageFrame: {
+    position: "relative",
     width: "100%",
-    height: 112,
-    borderRadius: 7,
-    backgroundColor: "#f6f7f4",
+    aspectRatio: 0.82,
+    overflow: "hidden",
+    borderRadius: 18,
+    backgroundColor: colors.surfaceMuted,
   },
-  relatedImageFallback: {
-    height: 112,
-    borderRadius: 5,
-    backgroundColor: "#edf0ed",
+  homeProductImage: {
+    width: "100%",
+    height: "100%",
+  },
+  homeProductImageFallback: {
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surfaceMuted,
+  },
+  homeProductFavoriteButton: {
+    position: "absolute",
+    top: spacing.sm,
+    right: spacing.sm,
+    width: 30,
+    height: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radii.pill,
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+  },
+  homeProductDetails: {
+    paddingTop: 6,
+  },
+  homeProductShopName: {
+    color: colors.textMuted,
+    fontSize: 10,
+    lineHeight: 14,
+  },
+  homeProductName: {
+    color: colors.text,
+    fontSize: 13,
+    lineHeight: 17,
+    fontWeight: "800",
+    marginTop: 1,
+  },
+  homeProductPrice: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "800",
+    marginTop: 2,
+  },
+  productRail: {
+    gap: spacing.md,
+    paddingRight: spacing.lg,
+  },
+  productRailItem: {
+    width: 156,
+  },
+  productRailImageFrame: {
+    width: "100%",
+    aspectRatio: 0.9,
+    overflow: "hidden",
+    borderRadius: radii.md,
+    backgroundColor: colors.surfaceMuted,
+  },
+  productRailImage: {
+    width: "100%",
+    height: "100%",
+  },
+  productRailImageFallback: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: colors.surfaceMuted,
     alignItems: "center",
     justifyContent: "center",
   },
-  relatedName: {
-    minHeight: 34,
-    color: "#3b4641",
-    fontSize: 11,
-    lineHeight: 16,
-    marginTop: 6,
+  productRailName: {
+    minHeight: 36,
+    color: colors.text,
+    fontSize: 13,
+    lineHeight: 17,
+    fontWeight: "800",
+    marginTop: spacing.sm,
   },
-  relatedPrice: {
-    color: "#6d7f72",
-    fontSize: 14,
-    fontWeight: "900",
-    marginTop: 4,
+  productRailPrice: {
+    color: colors.primary,
+    fontSize: 15,
+    fontWeight: "800",
+    marginTop: spacing.xs,
   },
-  relatedRating: {
+  productRailShopRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
-    marginTop: 5,
+    gap: spacing.xs,
+    marginTop: spacing.xs,
   },
-  relatedRatingText: {
-    color: "#7d8682",
-    fontSize: 9,
+  productRailShopName: {
+    flex: 1,
+    color: colors.textMuted,
+    fontSize: 11,
   },
   recommendationSection: {
-    marginTop: 8,
-    marginHorizontal: 8,
-    backgroundColor: "#f7f8f6",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e3e7e3",
-    overflow: "hidden",
-    paddingVertical: 14,
-    paddingHorizontal: 8,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderWarm,
   },
   recommendationHeading: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 22,
-    marginBottom: 12,
+    gap: spacing.md,
+    marginBottom: spacing.lg,
   },
   headingLine: {
     flex: 1,
     height: 1,
-    backgroundColor: "#cfd5d1",
+    backgroundColor: colors.borderWarm,
   },
-  recommendationGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  recommendationCard: {
-    width: "48.8%",
-    backgroundColor: "#ffffff",
-    paddingBottom: 8,
-    borderWidth: 1,
-    borderColor: "#e6e9e6",
-    borderRadius: 9,
-    overflow: "hidden",
-  },
-  recommendationImage: {
-    width: "100%",
-    height: 170,
-    backgroundColor: "#f6f7f4",
-  },
-  recommendationImageFallback: {
-    height: 170,
-    backgroundColor: "#edf0ed",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  recommendationName: {
-    minHeight: 36,
-    color: "#3b4641",
-    fontSize: 11,
-    lineHeight: 16,
-    paddingHorizontal: 6,
-    marginTop: 5,
+  recommendationTitle: {
+    color: colors.text,
+    fontSize: 17,
+    fontWeight: "800",
   },
   bottomNavButton: {
     width: 48,
-    minHeight: 52,
+    minHeight: 48,
     alignItems: "center",
     justifyContent: "center",
   },
   bottomNavText: {
-    color: "#22312d",
+    color: colors.text,
     fontSize: 9,
     fontWeight: "800",
     marginTop: 2,
   },
   bottomCartButton: {
-    width: 52,
-    minHeight: 52,
-    borderRadius: 17,
-    backgroundColor: "#eef1ec",
+    width: 48,
+    minHeight: 48,
+    borderRadius: radii.md,
+    backgroundColor: colors.surfaceMuted,
     borderWidth: 1,
-    borderColor: "#d8ddd7",
+    borderColor: colors.borderWarm,
     alignItems: "center",
     justifyContent: "center",
     position: "relative",

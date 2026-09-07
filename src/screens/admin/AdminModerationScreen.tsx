@@ -167,7 +167,7 @@ export default function AdminModerationScreen() {
   };
 
   const renderReport = ({ item }: { item: AbuseReport }) => (
-    <Card style={styles.card} mode="elevated">
+    <Card style={styles.card} mode="outlined">
       <Card.Content>
         <View style={styles.rowBetween}>
           <Text style={styles.title}>Reason: {item.reason}</Text>
@@ -208,7 +208,7 @@ export default function AdminModerationScreen() {
   );
 
   const renderBlock = ({ item }: { item: BlockRecord }) => (
-    <Card style={styles.card} mode="elevated">
+    <Card style={styles.card} mode="outlined">
       <Card.Content>
         <View style={styles.rowBetween}>
           <Text style={styles.title}>Block Record</Text>
@@ -236,7 +236,7 @@ export default function AdminModerationScreen() {
   const highRiskCount = riskProfiles.filter((item: any) => item.level === "high").length;
 
   const renderRiskItem = ({ item }: { item: RiskProfile }) => (
-    <Card style={styles.card} mode="elevated">
+    <Card style={styles.card} mode="outlined">
       <Card.Content>
         <View style={styles.rowBetween}>
           <Text style={styles.title}>User: {item.userId}</Text>
@@ -272,7 +272,7 @@ export default function AdminModerationScreen() {
 
   return (
     <View style={[styles.container, isDesktop && styles.containerDesktop]}>
-      <Card style={styles.headerCard} mode="elevated">
+      <Card style={styles.headerCard} mode="outlined">
         <Card.Content>
           <Text style={styles.headerTitle}>Moderation Queue</Text>
           <Text style={styles.headerSubtitle}>

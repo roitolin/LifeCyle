@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
+import BrandLogo from '@/components/BrandLogo'
 import { loadFuneralCart } from '@/utils/funeralCart'
 import './FuneralLandingPage.css'
 
@@ -319,10 +320,7 @@ export default function FuneralLandingPage() {
       {/* â”€â”€ Header â”€â”€ */}
       <header className="sp-header">
         <div className="sp-header-inner">
-          <Link to="/" className="sp-logo" aria-label="LifeCycle Home">
-            <div className="sp-logo-box">LC</div>
-            <span>LifeCycle</span>
-          </Link>
+          <BrandLogo to="/funeral" compact className="sp-brand-logo" />
 
           <div className="sp-search-wrap">
             <div className="sp-search-box">

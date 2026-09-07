@@ -6,8 +6,10 @@ import { useAuth } from '@/context/AuthContext';
 import { AppHeaderBackButton } from '@/components';
 import {
   AdminAuditLogsScreen,
+  AdminDeletionRequestsScreen,
   AdminDashboard,
   AdminFuneralShopVerificationsScreen,
+  AdminHomeContentScreen,
   AdminLoginSecurityScreen,
   AdminModerationScreen,
   AdminMoreScreen,
@@ -28,6 +30,8 @@ const routeLabels: Record<string, string> = {
   Users: 'Users', More: 'More Tools', Payments: 'Shop Payments', Moderation: 'Moderation',
   Feedback: 'Rate & Feedback', Support: 'Support Inbox', ActivityLogs: 'Activity Logs',
   LoginSecurity: 'Login & Security',
+  Deletions: 'Account Deletion Requests',
+  HomeContent: 'Mobile Home Feature',
 };
 
 function NotificationBell() {
@@ -120,6 +124,8 @@ export default function AdminTabsNavigator() {
       <Tab.Screen name='Support' component={AdminSupportMessages} options={({ navigation }) => hiddenWithBack(navigation, 'Support Inbox')} />
       <Tab.Screen name='ActivityLogs' component={AdminAuditLogsScreen} options={({ navigation }) => hiddenWithBack(navigation, 'Activity Logs')} />
       <Tab.Screen name='LoginSecurity' component={AdminLoginSecurityScreen} options={({ navigation }) => hiddenWithBack(navigation, 'Login & Security')} />
+      {isRootAdmin ? <Tab.Screen name='Deletions' component={AdminDeletionRequestsScreen} options={({ navigation }) => hiddenWithBack(navigation, 'Account Deletion Requests')} /> : null}
+      {isRootAdmin ? <Tab.Screen name='HomeContent' component={AdminHomeContentScreen} options={({ navigation }) => hiddenWithBack(navigation, 'Mobile Home Feature')} /> : null}
     </Tab.Navigator>
   );
 }

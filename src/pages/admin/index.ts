@@ -2,7 +2,9 @@ export { default as AdminAnnouncementsScreen } from "@/screens/admin/AdminAnnoun
 export { default as AdminAuditLogsScreen } from "@/screens/admin/AdminAuditLogsScreen";
 export { default as AdminLoginSecurityScreen } from "@/screens/admin/AdminLoginSecurityScreen";
 export { default as AdminDashboard } from "@/screens/admin/AdminDashboard";
+export { default as AdminDeletionRequestsScreen } from '@/screens/admin/AdminDeletionRequestsScreen';
 export { default as AdminFuneralShopVerificationsScreen } from "@/screens/admin/AdminFuneralShopVerificationsScreen";
+export { default as AdminHomeContentScreen } from '@/screens/admin/AdminHomeContentScreen';
 export { default as AdminModerationScreen } from "@/screens/admin/AdminModerationScreen";
 export { default as AdminMoreScreen } from "@/screens/admin/AdminMoreScreen";
 export { default as AdminOrdersScreen } from "@/screens/admin/AdminOrdersScreen";

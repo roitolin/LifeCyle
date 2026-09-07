@@ -5,7 +5,7 @@ import { supabase } from './supabaseClient';
 const STORAGE_BUCKET = 'avatars';
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
-type UploadFolder = 'profiles' | 'service-media' | 'report-evidence';
+type UploadFolder = 'profiles' | 'service-media' | 'report-evidence' | 'home-content';
 
 function decodeBase64(value: string) {
   const binary = globalThis.atob(value);
@@ -63,3 +63,6 @@ export const uploadCertificate = (uri: string) =>
 
 export const uploadReportEvidence = (uri: string) =>
   uploadImageToSupabase(uri, 'report-evidence');
+
+export const uploadHomeHeroImage = (uri: string) =>
+  uploadImageToSupabase(uri, 'home-content');

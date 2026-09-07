@@ -1,3 +1,7 @@
+-- RETIRED SECURITY SCRIPT - DO NOT EXECUTE.
+-- Password credentials must remain exclusively in Supabase Auth (auth.users).
+-- The former script is retained inside a block comment for historical reference.
+/*
 -- ═══════════════════════════════════════════════════════
 -- LifeCycle — REORDER users.password AFTER email, BEFORE fullName
 -- Run this in the Supabase SQL editor.
@@ -342,3 +346,4 @@ notify pgrst, 'reload schema';
 -- where table_schema = 'public' and table_name = 'users' order by ordinal_position;
 -- Expected order: id, email, password, fullName, gender, dateOfBirth,
 -- photoURL, role, ..., createdAt, updatedAt
+*/

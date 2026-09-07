@@ -16,6 +16,7 @@ import {
   type SalesOverview,
   type SalesRequest,
 } from "@/utils/salesAnalytics";
+import { colors, radii, spacing } from "@/theme";
 
 type DashboardMetrics = {
   totalUsers: number;
@@ -30,6 +31,15 @@ const EMPTY_METRICS: DashboardMetrics = {
   totalProducts: 0,
   totalOrders: 0,
 };
+
+function MetricTile({ value, label }: { value: string | number; label: string }) {
+  return (
+    <View style={styles.metricTile}>
+      <Text style={styles.metricValue}>{value}</Text>
+      <Text style={styles.metricDesc}>{label}</Text>
+    </View>
+  );
+}
 
 export default function AdminDashboard({ navigation }: any) {
   const { logout, role } = useAuth();
@@ -161,35 +171,15 @@ export default function AdminDashboard({ navigation }: any) {
         <LoadingBird compact />
       ) : (
         <View style={styles.metricsGrid}>
-          <Card style={styles.metricCard} mode="elevated">
-            <Card.Content>
-              <Text style={styles.metricValue}>{metrics.totalUsers}</Text>
-              <Text style={styles.metricDesc}>Total Users</Text>
-            </Card.Content>
-          </Card>
+          <MetricTile value={metrics.totalUsers} label="Total users" />
           {isFuneralAdmin ? (
-            <Card style={styles.metricCard} mode="elevated">
-              <Card.Content>
-                <Text style={styles.metricValue}>{metrics.pendingFuneralShops}</Text>
-                <Text style={styles.metricDesc}>Pending Shop Verifications</Text>
-              </Card.Content>
-            </Card>
+            <MetricTile value={metrics.pendingFuneralShops} label="Pending shop verifications" />
           ) : null}
           {isFuneralAdmin ? (
-            <Card style={styles.metricCard} mode="elevated">
-              <Card.Content>
-                <Text style={styles.metricValue}>{metrics.totalProducts}</Text>
-                <Text style={styles.metricDesc}>Total Products</Text>
-              </Card.Content>
-            </Card>
+            <MetricTile value={metrics.totalProducts} label="Total products" />
           ) : null}
           {isFuneralAdmin ? (
-            <Card style={styles.metricCard} mode="elevated">
-              <Card.Content>
-                <Text style={styles.metricValue}>{metrics.totalOrders}</Text>
-                <Text style={styles.metricDesc}>Service Requests</Text>
-              </Card.Content>
-            </Card>
+            <MetricTile value={metrics.totalOrders} label="Service requests" />
           ) : null}
         </View>
       )}
@@ -206,33 +196,13 @@ export default function AdminDashboard({ navigation }: any) {
           </View>
 
             <View style={styles.metricsGrid}>
-              <Card style={styles.metricCard} mode="elevated">
-                <Card.Content>
-                  <Text style={styles.metricValue}>{formatPhilippinePeso(sales.totalRevenue)}</Text>
-                  <Text style={styles.metricDesc}>Total Revenue</Text>
-                </Card.Content>
-              </Card>
-              <Card style={styles.metricCard} mode="elevated">
-                <Card.Content>
-                  <Text style={styles.metricValue}>{formatPhilippinePeso(sales.revenueThisMonth)}</Text>
-                  <Text style={styles.metricDesc}>This Month ({sales.salesThisMonth} sale{sales.salesThisMonth === 1 ? "" : "s"})</Text>
-                </Card.Content>
-              </Card>
-              <Card style={styles.metricCard} mode="elevated">
-                <Card.Content>
-                  <Text style={styles.metricValue}>{sales.totalSales}</Text>
-                  <Text style={styles.metricDesc}>Confirmed Sales</Text>
-                </Card.Content>
-              </Card>
-              <Card style={styles.metricCard} mode="elevated">
-                <Card.Content>
-                  <Text style={styles.metricValue}>{formatPhilippinePeso(sales.avgOrderValue)}</Text>
-                  <Text style={styles.metricDesc}>Avg. Order Value</Text>
-                </Card.Content>
-              </Card>
+              <MetricTile value={formatPhilippinePeso(sales.totalRevenue)} label="Total revenue" />
+              <MetricTile value={formatPhilippinePeso(sales.revenueThisMonth)} label={`This month (${sales.salesThisMonth} sale${sales.salesThisMonth === 1 ? "" : "s"})`} />
+              <MetricTile value={sales.totalSales} label="Confirmed sales" />
+              <MetricTile value={formatPhilippinePeso(sales.avgOrderValue)} label="Average order value" />
             </View>
 
-            <Card style={styles.actionCard} mode="elevated">
+            <Card style={styles.actionCard} mode="outlined">
               <Card.Title title="Revenue — Last 6 Months" />
               <Card.Content>
                 <SimpleBarChart
@@ -244,7 +214,7 @@ export default function AdminDashboard({ navigation }: any) {
               </Card.Content>
             </Card>
 
-            <Card style={styles.actionCard} mode="elevated">
+            <Card style={styles.actionCard} mode="outlined">
               <Card.Title title="Confirmed Sales — Last 6 Months" />
               <Card.Content>
                 <SimpleBarChart
@@ -256,7 +226,7 @@ export default function AdminDashboard({ navigation }: any) {
             </Card>
 
             {sales.breakdown.length > 0 ? (
-              <Card style={styles.actionCard} mode="elevated">
+              <Card style={styles.actionCard} mode="outlined">
                 <Card.Title title="Service Request Status" />
                 <Card.Content>
                   {sales.breakdown.map((item) => {
@@ -287,7 +257,7 @@ export default function AdminDashboard({ navigation }: any) {
         ) : null}
 
       {isFuneralAdmin ? (
-        <Card style={styles.actionCard} mode="elevated">
+        <Card style={styles.actionCard} mode="outlined">
           <Card.Title title="Admin Funeral Shop Verification Queue" />
           <Card.Content>
             <Text style={styles.cardText}>
@@ -303,7 +273,7 @@ export default function AdminDashboard({ navigation }: any) {
       ) : null}
 
       {isFuneralAdmin ? (
-        <Card style={styles.actionCard} mode="elevated">
+        <Card style={styles.actionCard} mode="outlined">
           <Card.Title title="Shop Products & Service Requests" />
           <Card.Content>
             <Text style={styles.cardText}>
@@ -321,7 +291,7 @@ export default function AdminDashboard({ navigation }: any) {
         </Card>
       ) : null}
 
-      <Card style={styles.actionCard} mode="elevated">
+      <Card style={styles.actionCard} mode="outlined">
         <Card.Title title="User Management" />
         <Card.Content>
           <Text style={styles.cardText}>
@@ -336,7 +306,7 @@ export default function AdminDashboard({ navigation }: any) {
       </Card>
 
       {canSeeCommsAndInsights ? (
-        <Card style={styles.actionCard} mode="elevated">
+        <Card style={styles.actionCard} mode="outlined">
           <Card.Title title="Ratings & Feedback" />
           <Card.Content>
             <Text style={styles.cardText}>
@@ -363,15 +333,15 @@ export default function AdminDashboard({ navigation }: any) {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 20,
-    backgroundColor: "#f5f5f5",
-    gap: 12,
+    padding: spacing.xl,
+    backgroundColor: colors.background,
+    gap: spacing.md,
   },
   headerRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    gap: 10,
+    gap: spacing.sm,
   },
   headerTextWrap: {
     flex: 1,
@@ -379,14 +349,14 @@ const styles = StyleSheet.create({
   title: { fontSize: 30, fontWeight: "800", marginTop: 4, color: "#d32f2f" },
   subtitle: { fontSize: 14, color: "#666", marginBottom: 6 },
   loadingWrap: {
-    borderRadius: 12,
-    backgroundColor: "#fff",
+    borderRadius: radii.md,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: "#e5e7eb",
-    padding: 14,
+    padding: spacing.md,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: spacing.sm,
   },
   loadingText: {
     color: "#4b5563",
@@ -395,12 +365,17 @@ const styles = StyleSheet.create({
   metricsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    gap: spacing.sm,
   },
-  metricCard: {
+  metricTile: {
     width: "48%",
-    borderRadius: 12,
-    backgroundColor: "#fff",
+    minHeight: 92,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: spacing.lg,
+    justifyContent: "center",
   },
   metricValue: { fontSize: 24, fontWeight: "800", color: "#b71c1c" },
   metricDesc: { fontSize: 12, color: "#666", marginTop: 4 },

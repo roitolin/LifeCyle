@@ -3,19 +3,23 @@ import LoadingBird from '@/components/LoadingBird';
 import {
   Alert,
   Image,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import { AppBackButton, KeyboardAwareScrollView } from "@/components";
+import { AppBackButton } from "@/components";
 import { supabase } from "@/services/supabaseClient";
 import { auth } from "@/services";
 import { formatPhilippinePeso } from "@/utils/funeralCatalog";
+import { colors, radii, spacing } from "@/theme";
 
 const PHOTO_SLOT_COUNT = 5;
 
@@ -39,33 +43,31 @@ type ShopProduct = {
   updatedAt: string;
 };
 
-function normalizeProductImages(item?: ShopProduct | null) {
-  if (!item) return Array<string | null>(PHOTO_SLOT_COUNT).fill(null);
+function getProductImages(item?: ShopProduct | null) {
+  if (!item) return [];
   const source = item.galleryImageUrls?.length ? item.galleryImageUrls : item.imageUrl ? [item.imageUrl] : [];
-  const next = Array<string | null>(PHOTO_SLOT_COUNT).fill(null);
-  source.slice(0, PHOTO_SLOT_COUNT).forEach((url, index) => {
-    next[index] = url || null;
-  });
-  return next;
+  return source.filter((url): url is string => Boolean(url)).slice(0, PHOTO_SLOT_COUNT);
 }
 
 function formatDate(value: string) {
   if (!value) return "Unknown";
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "Unknown";
-  return parsed.toLocaleString(undefined, { hour12: true });
+  return parsed.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
 function getAvailabilityLabel(item?: ShopProduct | null) {
   if (!item) return "Unknown";
-  if (!item.active) return "Paused (hidden from buyers)";
-  return (item.stock ?? 0) > 0 ? "Available" : "Sold Out";
+  if (!item.active) return "Paused";
+  return (item.stock ?? 0) > 0 ? "Available" : "Sold out";
 }
 
 export default function FuneralProductDetailsScreen({ navigation, route }: any) {
+  const { width } = useWindowDimensions();
   const productId = typeof route?.params?.productId === "string" ? route.params.productId : null;
   const [loading, setLoading] = useState(true);
   const [product, setProduct] = useState<ShopProduct | null>(null);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
 
   const load = useCallback(async () => {
     const user = auth.currentUser;
@@ -117,6 +119,7 @@ export default function FuneralProductDetailsScreen({ navigation, route }: any) 
       }
 
       setProduct(current);
+      setActiveImageIndex(0);
     } catch (error) {
       console.error(error);
       Alert.alert("Error", "Failed to load product details.");
@@ -131,8 +134,8 @@ export default function FuneralProductDetailsScreen({ navigation, route }: any) 
     }, [load])
   );
 
-  const productImages = useMemo(() => normalizeProductImages(product), [product]);
-  const uploadedCount = useMemo(() => productImages.filter(Boolean).length, [productImages]);
+  const productImages = useMemo(() => getProductImages(product), [product]);
+  const uploadedCount = productImages.length;
   const variations = useMemo(
     () => (product?.hasVariations && Array.isArray(product.variations) ? product.variations : []),
     [product]
@@ -150,7 +153,7 @@ export default function FuneralProductDetailsScreen({ navigation, route }: any) 
     return (
       <SafeAreaView style={styles.screen}>
         <View style={styles.emptyWrap}>
-          <Ionicons name="cube-outline" size={38} color="#8a928d" />
+          <Ionicons name="cube-outline" size={24} color={colors.textMuted} />
           <Text style={styles.emptyTitle}>Product not found</Text>
           <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.goBack()}>
             <Text style={styles.primaryButtonText}>Go Back</Text>
@@ -164,172 +167,197 @@ export default function FuneralProductDetailsScreen({ navigation, route }: any) 
     navigation.navigate("ProductEditor", { productId: product.id });
   };
 
+  const mediaWidth = Math.max(width - spacing.xxl, 1);
+  const mediaHeight = Math.min(mediaWidth * 0.76, 320);
+  const availabilityLabel = getAvailabilityLabel(product);
+  const isSoldOut = product.active && (product.stock ?? 0) <= 0;
+
+  const handleGalleryScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (productImages.length <= 1) return;
+    const nextIndex = Math.round(event.nativeEvent.contentOffset.x / mediaWidth);
+    setActiveImageIndex(Math.min(Math.max(nextIndex, 0), productImages.length - 1));
+  };
+
   return (
     <SafeAreaView style={styles.screen}>
-      <KeyboardAwareScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.heroCard}>
-          <AppBackButton style={styles.backButtonSpacing} onPress={() => navigation.goBack()} />
+      <View style={styles.header}>
+        <AppBackButton onPress={() => navigation.goBack()} />
+        <Text style={styles.headerTitle} numberOfLines={1}>Product details</Text>
+        <View style={styles.headerSpacer} />
+      </View>
 
-          <Text style={styles.heroEyebrow}>Product Overview</Text>
-          <Text style={styles.heroTitle}>Product Details</Text>
-          <Text style={styles.heroSubtitle}>
-            Review the full listing at a glance, including every uploaded photo and all of the product information.
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.mediaFrame, { height: mediaHeight }]}>
+          {productImages.length > 0 ? (
+            <ScrollView
+              horizontal
+              pagingEnabled
+              bounces={false}
+              decelerationRate="fast"
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={handleGalleryScroll}
+            >
+              {productImages.map((imageUrl, index) => (
+                <Image
+                  key={`${product.id}_photo_${index}`}
+                  accessibilityLabel={`${product.name} photo ${index + 1} of ${uploadedCount}`}
+                  source={{ uri: imageUrl }}
+                  style={[styles.productImage, { width: mediaWidth, height: mediaHeight }]}
+                  resizeMode="cover"
+                />
+              ))}
+            </ScrollView>
+          ) : (
+            <View style={styles.mediaFallback}>
+              <Ionicons name="image-outline" size={24} color={colors.textMuted} />
+              <Text style={styles.mediaFallbackText}>No product photo</Text>
+            </View>
+          )}
+
+          {productImages.length > 1 ? (
+            <View style={styles.galleryCounter}>
+              <Text style={styles.galleryCounterText}>
+                {activeImageIndex + 1} / {uploadedCount}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.productSummary}>
+          <Text style={styles.productName}>{product.name || "Untitled product"}</Text>
+          <View style={styles.priceStatusRow}>
+            <Text style={styles.productPrice}>{formatPhilippinePeso(product.price)}</Text>
+            <View style={styles.statusBadge}>
+              <View
+                style={[
+                  styles.statusDot,
+                  !product.active ? styles.statusDotPaused : null,
+                  isSoldOut ? styles.statusDotSoldOut : null,
+                ]}
+              />
+              <Text
+                style={[
+                  styles.statusText,
+                  !product.active ? styles.statusTextPaused : null,
+                  isSoldOut ? styles.statusTextSoldOut : null,
+                ]}
+              >
+                {availabilityLabel}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.quickFacts}>
+          <View style={styles.quickFact}>
+            <Text style={styles.quickFactLabel}>Type</Text>
+            <Text style={styles.quickFactValue}>Casket</Text>
+          </View>
+          <View style={styles.quickFactDivider} />
+          <View style={styles.quickFact}>
+            <Text style={styles.quickFactLabel}>Stock</Text>
+            <Text style={styles.quickFactValue}>{String(product.stock ?? 0)}</Text>
+          </View>
+          <View style={styles.quickFactDivider} />
+          <View style={styles.quickFact}>
+            <Text style={styles.quickFactLabel}>Variations</Text>
+            <Text style={styles.quickFactValue}>
+              {product.hasVariations ? String(variations.length) : "None"}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Description</Text>
+          <Text style={styles.descriptionText}>
+            {product.description || "No description has been added for this product."}
           </Text>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Product Photos</Text>
-          <Text style={styles.sectionSubtitle}>Swipe through every uploaded photo. Slot 1 is the main display image.</Text>
+        {product.hasVariations ? (
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeadingRow}>
+              <Text style={styles.sectionTitle}>Variations</Text>
+              <Text style={styles.sectionCount}>{variations.length}</Text>
+            </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoRow}>
-            {productImages.map((imageUrl, index) => {
-              const slotLabel = index === 0 ? "Main Photo" : `Angle ${index + 1}`;
-              return (
-                <View key={`${product.id}_photo_${index}`} style={styles.photoCard}>
-                  <View style={styles.photoBadge}>
-                    <Text style={styles.photoBadgeText}>{slotLabel}</Text>
-                  </View>
-
-                  {imageUrl ? (
-                    <Image source={{ uri: imageUrl }} style={styles.photoPreview} resizeMode="cover" />
-                  ) : (
-                    <View style={styles.photoPlaceholder}>
-                      <Ionicons name="image-outline" size={26} color="#a9b2ac" />
-                      <Text style={styles.photoPlaceholderText}>No photo</Text>
-                    </View>
-                  )}
-                </View>
-              );
-            })}
-          </ScrollView>
-
-          <Text style={styles.photoCounter}>{uploadedCount} of {PHOTO_SLOT_COUNT} photos uploaded</Text>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Product Details</Text>
-          <Text style={styles.sectionSubtitle}>The casket name, price, stock, variations, and description.</Text>
-
-          <Text style={styles.inputLabel}>Product Name</Text>
-          <View style={styles.staticField}>
-            <Text style={styles.staticFieldText}>{product.name || "Untitled Product"}</Text>
-          </View>
-
-          <Text style={styles.inputLabel}>Price</Text>
-          <View style={styles.staticField}>
-            <Text style={styles.staticFieldText}>{formatPhilippinePeso(product.price)}</Text>
-          </View>
-
-          <View style={styles.row}>
-            <View style={styles.rowField}>
-              <Text style={styles.inputLabel}>Stock</Text>
-              <View style={styles.staticField}>
-                <Text style={styles.staticFieldText}>{String(product.stock ?? 0)}</Text>
+            {variations.length === 0 ? (
+              <View style={styles.emptyVariationRow}>
+                <Ionicons name="layers-outline" size={20} color={colors.textMuted} />
+                <Text style={styles.emptyVariationText}>No variations have been added yet.</Text>
               </View>
-            </View>
-            <View style={styles.rowField}>
-              <Text style={styles.inputLabel}>Product Type</Text>
-              <View style={styles.staticField}>
-                <Text style={styles.staticFieldText}>Casket</Text>
-              </View>
-            </View>
-          </View>
-
-          <Text style={styles.inputLabel}>Has Variations?</Text>
-          <View style={styles.toggleRow}>
-            <View style={[styles.toggleButton, !product.hasVariations ? styles.toggleButtonActive : null]}>
-              <Text style={[styles.toggleButtonText, !product.hasVariations ? styles.toggleButtonTextActive : null]}>Off</Text>
-            </View>
-            <View style={[styles.toggleButton, product.hasVariations ? styles.toggleButtonActive : null]}>
-              <Text style={[styles.toggleButtonText, product.hasVariations ? styles.toggleButtonTextActive : null]}>On</Text>
-            </View>
-          </View>
-
-          {product.hasVariations ? (
-            <View style={styles.variationSection}>
-              <Text style={styles.variationHeading}>Casket Variations</Text>
-              <Text style={styles.variationSubheading}>Each variation shown with its name and photo.</Text>
-
-              {variations.length === 0 ? (
-                <View style={styles.variationCard}>
-                  <Text style={styles.variationEmptyText}>No variations recorded yet.</Text>
-                </View>
-              ) : (
-                variations.map((variation, index) => (
-                  <View key={`${product.id}_variation_${index}`} style={styles.variationCard}>
-                    <Text style={styles.variationCardTitle}>Variation {index + 1}</Text>
-
-                    <Text style={styles.inputLabel}>Variation Name</Text>
-                    <View style={styles.staticField}>
-                      <Text style={styles.staticFieldText}>{variation.name || "Unnamed variation"}</Text>
-                    </View>
-
+            ) : (
+              variations.map((variation, index) => (
+                <View key={`${product.id}_variation_${index}`}>
+                  {index > 0 ? <View style={styles.listDivider} /> : null}
+                  <View style={styles.variationRow}>
                     {variation.imageUrl ? (
                       <Image source={{ uri: variation.imageUrl }} style={styles.variationImage} resizeMode="cover" />
                     ) : (
-                      <View style={styles.variationImagePlaceholder}>
-                        <Ionicons name="image-outline" size={24} color="#a9b2ac" />
-                        <Text style={styles.photoPlaceholderText}>No photo</Text>
+                      <View style={styles.variationImageFallback}>
+                        <Ionicons name="image-outline" size={20} color={colors.textMuted} />
                       </View>
                     )}
+                    <View style={styles.variationCopy}>
+                      <Text style={styles.variationName}>{variation.name || "Unnamed variation"}</Text>
+                      <Text style={styles.variationMeta}>Option {index + 1}</Text>
+                    </View>
                   </View>
-                ))
-              )}
-            </View>
-          ) : null}
-
-          <Text style={styles.inputLabel}>Product Description</Text>
-          <View style={[styles.staticField, styles.multilineField]}>
-            <Text style={styles.multilineFieldText}>{product.description || "No description provided."}</Text>
+                </View>
+              ))
+            )}
           </View>
-        </View>
+        ) : null}
 
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Listing Status</Text>
-          <Text style={styles.sectionSubtitle}>Availability and history for this product.</Text>
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Listing</Text>
 
-          <View style={styles.detailRow}>
-            <View style={styles.detailIconWrap}>
-              <Ionicons name="checkmark-circle-outline" size={16} color="#7f6653" />
-            </View>
-            <View style={styles.detailCopy}>
-              <Text style={styles.detailLabel}>Availability</Text>
-              <Text style={styles.detailValue}>{getAvailabilityLabel(product)}</Text>
+          <View style={styles.listingRow}>
+            <Ionicons
+              name={product.active ? "eye-outline" : "eye-off-outline"}
+              size={20}
+              color={colors.primary}
+            />
+            <View style={styles.listingCopy}>
+              <Text style={styles.listingLabel}>Visibility</Text>
+              <Text style={styles.listingValue}>{product.active ? "Visible to buyers" : "Hidden from buyers"}</Text>
             </View>
           </View>
-
-          <View style={styles.detailRow}>
-            <View style={styles.detailIconWrap}>
-              <Ionicons name="calendar-outline" size={16} color="#7f6653" />
-            </View>
-            <View style={styles.detailCopy}>
-              <Text style={styles.detailLabel}>Created</Text>
-              <Text style={styles.detailValue}>{formatDate(product.createdAt)}</Text>
+          <View style={styles.listDivider} />
+          <View style={styles.listingRow}>
+            <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+            <View style={styles.listingCopy}>
+              <Text style={styles.listingLabel}>Created</Text>
+              <Text style={styles.listingValue}>{formatDate(product.createdAt)}</Text>
             </View>
           </View>
-
-          <View style={styles.detailRow}>
-            <View style={styles.detailIconWrap}>
-              <Ionicons name="time-outline" size={16} color="#7f6653" />
-            </View>
-            <View style={styles.detailCopy}>
-              <Text style={styles.detailLabel}>Last Updated</Text>
-              <Text style={styles.detailValue}>{formatDate(product.updatedAt)}</Text>
+          <View style={styles.listDivider} />
+          <View style={styles.listingRow}>
+            <Ionicons name="time-outline" size={20} color={colors.primary} />
+            <View style={styles.listingCopy}>
+              <Text style={styles.listingLabel}>Last updated</Text>
+              <Text style={styles.listingValue}>{formatDate(product.updatedAt)}</Text>
             </View>
           </View>
         </View>
+      </ScrollView>
 
-        <View style={styles.actionStack}>
-          <TouchableOpacity style={styles.primaryButton} onPress={openEditor}>
-            <Ionicons name="create-outline" size={18} color="#ffffff" />
-            <Text style={styles.primaryButtonText}>Edit Product</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.ghostButton} onPress={() => navigation.goBack()}>
-            <Text style={styles.ghostButtonText}>Go Back</Text>
-          </TouchableOpacity>
-        </View>
-      </KeyboardAwareScrollView>
+      <View style={styles.bottomBar}>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Edit product"
+          activeOpacity={0.84}
+          style={styles.primaryButton}
+          onPress={openEditor}
+        >
+          <Ionicons name="create-outline" size={18} color={colors.surface} />
+          <Text style={styles.primaryButtonText}>Edit product</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
@@ -337,287 +365,295 @@ export default function FuneralProductDetailsScreen({ navigation, route }: any) 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#eef1ec",
+    backgroundColor: colors.surfaceWarm,
   },
   emptyWrap: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 14,
-    padding: 24,
+    gap: spacing.md,
+    padding: spacing.xl,
   },
   emptyTitle: {
-    color: "#22312d",
-    fontSize: 18,
-    fontWeight: "900",
+    color: colors.text,
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  header: {
+    minHeight: 56,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderWarm,
+  },
+  headerTitle: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 17,
+    fontWeight: "800",
+    textAlign: "center",
+    paddingHorizontal: spacing.md,
+  },
+  headerSpacer: {
+    width: 40,
+    height: 40,
+  },
+  scrollView: {
+    flex: 1,
   },
   content: {
-    padding: 20,
-    paddingBottom: 120,
-    gap: 16,
+    padding: spacing.lg,
+    paddingBottom: spacing.xxl,
+    gap: spacing.xl,
   },
-  heroCard: {
-    borderRadius: 28,
-    backgroundColor: "#d6e2d2",
-    padding: 20,
-  },
-  backButtonSpacing: {
-    marginBottom: 18,
-  },
-  heroEyebrow: {
-    color: "#86654a",
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 0.4,
-  },
-  heroTitle: {
-    color: "#22312d",
-    fontSize: 30,
-    fontWeight: "900",
-    marginTop: 6,
-  },
-  heroSubtitle: {
-    color: "#53615d",
-    fontSize: 14,
-    lineHeight: 21,
-    marginTop: 8,
-  },
-  card: {
-    borderRadius: 24,
-    backgroundColor: "#f8f6f2",
+  mediaFrame: {
+    width: "100%",
+    overflow: "hidden",
+    borderRadius: radii.lg,
+    backgroundColor: colors.surfaceMuted,
     borderWidth: 1,
-    borderColor: "#d9d6cd",
-    padding: 16,
+    borderColor: colors.borderWarm,
+  },
+  productImage: {
+    backgroundColor: colors.surfaceMuted,
+  },
+  mediaFallback: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+  },
+  mediaFallbackText: {
+    color: colors.textMuted,
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  galleryCounter: {
+    position: "absolute",
+    right: spacing.md,
+    bottom: spacing.md,
+    borderRadius: radii.pill,
+    backgroundColor: colors.primaryDark,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  galleryCounterText: {
+    color: colors.surface,
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  productSummary: {
+    gap: spacing.sm,
+  },
+  productName: {
+    color: colors.text,
+    fontSize: 24,
+    lineHeight: 32,
+    fontWeight: "800",
+  },
+  priceStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+  },
+  productPrice: {
+    flexShrink: 1,
+    color: colors.primary,
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  statusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surfaceMuted,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: radii.pill,
+    backgroundColor: colors.primary,
+  },
+  statusDotPaused: {
+    backgroundColor: colors.warning,
+  },
+  statusDotSoldOut: {
+    backgroundColor: colors.danger,
+  },
+  statusText: {
+    color: colors.primary,
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  statusTextPaused: {
+    color: colors.warning,
+  },
+  statusTextSoldOut: {
+    color: colors.danger,
+  },
+  quickFacts: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderWarm,
+    paddingVertical: spacing.lg,
+  },
+  quickFact: {
+    flex: 1,
+    alignItems: "center",
+    paddingHorizontal: spacing.sm,
+  },
+  quickFactDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: colors.borderWarm,
+  },
+  quickFactLabel: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  quickFactValue: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: "800",
+    marginTop: spacing.xs,
+  },
+  sectionCard: {
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderWarm,
+    padding: spacing.lg,
   },
   sectionTitle: {
-    color: "#22312d",
-    fontSize: 20,
-    fontWeight: "900",
+    color: colors.text,
+    fontSize: 17,
+    fontWeight: "800",
   },
-  sectionSubtitle: {
-    color: "#62706b",
+  sectionHeadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  sectionCount: {
+    minWidth: 24,
+    color: colors.primary,
+    fontSize: 11,
+    fontWeight: "800",
+    textAlign: "center",
+    borderRadius: radii.pill,
+    backgroundColor: colors.surfaceMuted,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  descriptionText: {
+    color: colors.textMuted,
     fontSize: 13,
     lineHeight: 20,
-    marginTop: 4,
-    marginBottom: 14,
+    marginTop: spacing.md,
   },
-  photoRow: {
-    gap: 12,
-    paddingRight: 4,
-  },
-  photoCard: {
-    width: 186,
-    borderRadius: 20,
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#d9d6cd",
-    padding: 12,
-  },
-  photoBadge: {
-    alignSelf: "flex-start",
-    borderRadius: 999,
-    backgroundColor: "#e4ece0",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    marginBottom: 10,
-  },
-  photoBadgeText: {
-    color: "#86654a",
-    fontSize: 11,
-    fontWeight: "900",
-  },
-  photoPreview: {
-    width: "100%",
-    height: 154,
-    borderRadius: 16,
-  },
-  photoPlaceholder: {
-    width: "100%",
-    height: 154,
-    borderRadius: 16,
-    backgroundColor: "#ebf1e8",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  photoPlaceholderText: {
-    color: "#a9b2ac",
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  photoCounter: {
-    color: "#86908a",
-    fontSize: 12,
-    fontWeight: "800",
-    marginTop: 12,
-  },
-  inputLabel: {
-    color: "#53615d",
-    fontSize: 12,
-    fontWeight: "900",
-    marginBottom: 6,
-    marginTop: 6,
-  },
-  staticField: {
-    borderWidth: 1,
-    borderColor: "#d9d6cd",
-    borderRadius: 16,
-    backgroundColor: "#fbfaf7",
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    minHeight: 48,
-    justifyContent: "center",
-  },
-  staticFieldText: {
-    color: "#22312d",
-    fontSize: 14,
-    fontWeight: "800",
-  },
-  multilineField: {
-    minHeight: 120,
-  },
-  multilineFieldText: {
-    color: "#22312d",
-    fontSize: 14,
-    lineHeight: 21,
-  },
-  row: {
+  emptyVariationRow: {
     flexDirection: "row",
-    gap: 12,
-  },
-  rowField: {
-    flex: 1,
-  },
-  toggleRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 4,
-  },
-  toggleButton: {
-    flex: 1,
-    minHeight: 44,
-    borderRadius: 14,
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#d9d6cd",
     alignItems: "center",
-    justifyContent: "center",
+    gap: spacing.md,
+    paddingVertical: spacing.lg,
   },
-  toggleButtonActive: {
-    backgroundColor: "#22312d",
-    borderColor: "#22312d",
-  },
-  toggleButtonText: {
-    color: "#62706b",
-    fontSize: 13,
-    fontWeight: "900",
-  },
-  toggleButtonTextActive: {
-    color: "#ffffff",
-  },
-  variationSection: {
-    marginTop: 16,
-    gap: 12,
-  },
-  variationHeading: {
-    color: "#22312d",
-    fontSize: 16,
-    fontWeight: "900",
-  },
-  variationSubheading: {
-    color: "#62706b",
+  emptyVariationText: {
+    flex: 1,
+    color: colors.textMuted,
     fontSize: 13,
     lineHeight: 20,
   },
-  variationCard: {
-    borderRadius: 20,
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#d9d6cd",
-    padding: 14,
-  },
-  variationCardTitle: {
-    color: "#22312d",
-    fontSize: 15,
-    fontWeight: "900",
-  },
-  variationEmptyText: {
-    color: "#62706b",
-    fontSize: 13,
+  variationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingVertical: spacing.md,
   },
   variationImage: {
-    width: "100%",
-    height: 170,
-    borderRadius: 16,
-    marginTop: 12,
+    width: 64,
+    height: 64,
+    borderRadius: radii.md,
+    backgroundColor: colors.surfaceMuted,
   },
-  variationImagePlaceholder: {
-    width: "100%",
-    height: 170,
-    borderRadius: 16,
-    backgroundColor: "#ebf1e8",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    marginTop: 12,
-  },
-  detailRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0e6da",
-  },
-  detailIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    backgroundColor: "#e4ece0",
+  variationImageFallback: {
+    width: 64,
+    height: 64,
+    borderRadius: radii.md,
+    backgroundColor: colors.surfaceMuted,
     alignItems: "center",
     justifyContent: "center",
   },
-  detailCopy: {
+  variationCopy: {
     flex: 1,
   },
-  detailLabel: {
-    color: "#86654a",
-    fontSize: 12,
+  variationName: {
+    color: colors.text,
+    fontSize: 15,
+    lineHeight: 20,
     fontWeight: "800",
   },
-  detailValue: {
-    color: "#292524",
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 3,
+  variationMeta: {
+    color: colors.textMuted,
+    fontSize: 11,
+    marginTop: spacing.xs,
   },
-  actionStack: {
-    gap: 10,
+  listDivider: {
+    height: 1,
+    backgroundColor: colors.borderWarm,
+  },
+  listingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  listingCopy: {
+    flex: 1,
+  },
+  listingLabel: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  listingValue: {
+    color: colors.text,
+    fontSize: 13,
+    lineHeight: 20,
+    fontWeight: "700",
+    marginTop: spacing.xs,
+  },
+  bottomBar: {
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderWarm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
   },
   primaryButton: {
-    minHeight: 50,
-    borderRadius: 16,
-    backgroundColor: "#22312d",
+    minHeight: 48,
+    borderRadius: radii.md,
+    backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
-    gap: 8,
+    gap: spacing.sm,
+    paddingHorizontal: spacing.xl,
   },
   primaryButtonText: {
-    color: "#ffffff",
-    fontSize: 14,
-    fontWeight: "900",
-  },
-  ghostButton: {
-    minHeight: 48,
-    borderRadius: 16,
-    backgroundColor: "#ece9e3",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  ghostButtonText: {
-    color: "#62706b",
-    fontSize: 14,
+    color: colors.surface,
+    fontSize: 15,
     fontWeight: "800",
   },
 });

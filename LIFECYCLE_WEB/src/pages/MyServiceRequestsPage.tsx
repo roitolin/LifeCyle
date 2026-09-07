@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
+import BrandLogo from '@/components/BrandLogo'
 import './MyServiceRequestsPage.css'
 
 type ViewerProfile = {
@@ -15,8 +16,12 @@ type ServiceRequest = {
   shopName: string | null
   productName: string
   productImageUrl?: string | null
+  productPrice?: number | string | null
   variationName?: string | null
   requestType?: string
+  customDesignNotes?: string | null
+  referencePhotoUrl?: string | null
+  memorialPhotoUrl?: string | null
   deceasedFullName: string
   deceasedDateOfBirth?: string | null
   deceasedDateOfPassing?: string | null
@@ -25,6 +30,12 @@ type ServiceRequest = {
   wakeStartDate?: string | null
   wakeEndDate?: string | null
   burialTime?: string | null
+  tributeMessage?: string | null
+  familyCoordinatorName?: string | null
+  pickupAddress?: string | null
+  contactNumber?: string | null
+  shopContactNumber?: string | null
+  shopAddress?: string | null
   status: string
   paymentQrUrl?: string | null
   paymentAmount?: number | string | null
@@ -40,6 +51,9 @@ type ServiceRequest = {
   shopMarkedCompletedAt?: string | null
   completionProofSeenAt?: string | null
   completedAt?: string | null
+  acceptedAt?: string | null
+  declinedAt?: string | null
+  cancelledAt?: string | null
   createdAt?: string
 }
 
@@ -219,7 +233,11 @@ function statusDetail(status?: string | null): {
   }
 }
 
-export default function MyServiceRequestsPage() {
+type MyServiceRequestsPageProps = {
+  detailRequestId?: string
+}
+
+export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServiceRequestsPageProps) {
   const navigate = useNavigate()
   const { openAlert, alertDialog } = useAlertDialog()
   const [profile, setProfile] = useState<ViewerProfile | null>(null)
@@ -235,12 +253,6 @@ export default function MyServiceRequestsPage() {
   const [detailsRequest, setDetailsRequest] = useState<ServiceRequest | null>(null)
   const [paymentInfoExpanded, setPaymentInfoExpanded] = useState(false)
   const [submittedProofExpanded, setSubmittedProofExpanded] = useState(false)
-
-  const openPaymentDetails = (request: ServiceRequest) => {
-    setPaymentInfoExpanded(false)
-    setSubmittedProofExpanded(false)
-    setDetailsRequest(request)
-  }
 
   const markedSeenRef = useRef<Record<string, boolean>>({})
   useEffect(() => {
@@ -296,12 +308,14 @@ export default function MyServiceRequestsPage() {
 
   const loadRequests = useCallback(async (userId: string): Promise<boolean> => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('funeral_service_requests')
         .select('*')
         .eq('requesterId', userId)
-        .order('createdAt', { ascending: false })
-        .limit(100)
+      query = detailRequestId
+        ? query.eq('id', detailRequestId).limit(1)
+        : query.order('createdAt', { ascending: false }).limit(100)
+      const { data, error } = await query
       if (error) throw error
       setRequests((data ?? []) as ServiceRequest[])
       setReconnecting(false)
@@ -311,7 +325,7 @@ export default function MyServiceRequestsPage() {
       setReconnecting(true)
       return false
     }
-  }, [])
+  }, [detailRequestId])
 
   useEffect(() => {
     if (!viewerId) return
@@ -334,6 +348,13 @@ export default function MyServiceRequestsPage() {
       if (retryTimer) clearTimeout(retryTimer)
     }
   }, [viewerId, loadRequests, refreshKey])
+
+  useEffect(() => {
+    if (!detailRequestId) return
+    setPaymentInfoExpanded(false)
+    setSubmittedProofExpanded(false)
+    setDetailsRequest(requests.find((request) => request.id === detailRequestId) ?? null)
+  }, [detailRequestId, requests])
 
   const getForm = (requestId: string): PaymentSubmissionForm => paymentForms[requestId] ?? EMPTY_PAYMENT_FORM
   const setFormField = (requestId: string, field: keyof PaymentSubmissionForm, value: string) => {
@@ -492,36 +513,49 @@ export default function MyServiceRequestsPage() {
     <div className="requests-shop-page">
       <div className="requests-topbar">
         <div className="requests-topbar-left">
-          <button type="button" className="requests-back-btn" onClick={() => navigate('/user/profile')} aria-label="Go back to profile">
+          <button
+            type="button"
+            className="requests-back-btn"
+            onClick={() => navigate(detailRequestId ? '/user/requests' : '/user/profile')}
+            aria-label={detailRequestId ? 'Back to service requests' : 'Go back to profile'}
+          >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
             Back
           </button>
-          <Link to="/seller">Seller Centre</Link>
-          <span>|</span>
-          <a href="#start-selling">Start Selling</a>
-          <span>|</span>
-          <span>Follow us on</span>
-          <a href="#facebook" aria-label="Facebook">?</a>
-          <a href="#instagram" aria-label="Instagram">?</a>
         </div>
         <div className="requests-topbar-right">
           <Link to="/user/notifications">Notifications</Link>
-          <a href="#help">Help</a>
-          <a href="#language">English?</a>
-          <span className="requests-topbar-user">{profile?.fullName || 'User'}</span>
+          <Link to="/user/help">Help Centre</Link>
+          <span className="requests-divider" aria-hidden="true">|</span>
+          <div className="requests-user-menu">
+            <button type="button" className="requests-user-menu-trigger" aria-label="Open account menu">
+              {profile?.photoURL ? (
+                <img src={profile.photoURL} alt="Account" className="requests-user-avatar" />
+              ) : (
+                <span className="requests-user-avatar requests-user-avatar-placeholder" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" /></svg>
+                </span>
+              )}
+              <span className="requests-topbar-user">{profile?.fullName || 'User'}</span>
+              <svg className="requests-user-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
+            </button>
+            <div className="requests-user-dropdown">
+              <Link to="/user/profile">My Account</Link>
+              <Link to="/user/purchase">Payments</Link>
+              <Link to="/auth/switch-account">Switch Account</Link>
+              <Link to="/auth/logout">Log out</Link>
+            </div>
+          </div>
         </div>
       </div>
 
       <header className="requests-header">
-        <Link to="/funeral" className="requests-brand" aria-label="LifeCycle home">
-          <span className="requests-logo-bag">LC</span>
-          <span className="requests-brand-name">LifeCycle</span>
-        </Link>
+        <BrandLogo to="/funeral" compact className="requests-brand" />
         <div className="requests-header-divider" />
-        <h1>My Service Requests</h1>
+        <h1>{detailRequestId ? 'Request Details' : 'My Service Requests'}</h1>
       </header>
 
-      <main className="requests-main">
+      {!detailRequestId ? <main className="requests-main">
         <button
           type="button"
           className="requests-refresh-btn"
@@ -543,7 +577,6 @@ export default function MyServiceRequestsPage() {
           </section>
         ) : (
           requests.map(request => {
-            const statusText = (request.status || 'pending').replace(/_/g, ' ')
             const payMeta = statusMeta(request.status)
             const showPayment = canShowPaymentSection(request)
             const paymentForm = getForm(request.id)
@@ -569,7 +602,7 @@ export default function MyServiceRequestsPage() {
                       {request.variationName && <p className="requests-card-sub">Variation: {request.variationName}</p>}
                     </div>
                   </div>
-                  <span className={`requests-status status-${(request.status || 'pending').toLowerCase()}`}>{statusText}</span>
+                  <span className={`requests-status status-${(request.status || 'pending').toLowerCase()}`}>{payMeta.label}</span>
                 </div>
 
                 <div className="requests-card-meta">
@@ -763,9 +796,9 @@ export default function MyServiceRequestsPage() {
                       <button
                         type="button"
                         className="requests-details-btn"
-                        onClick={() => openPaymentDetails(request)}
+                        onClick={() => navigate(`/user/requests/${request.id}`)}
                       >
-                        {canSubmit ? 'Open Payment Workspace' : 'View Payment Details & Receipt'}
+                        View request details
                       </button>
                       {String(request.status || '').toLowerCase() === 'awaiting_customer_confirmation' && (
                         <button
@@ -780,11 +813,32 @@ export default function MyServiceRequestsPage() {
                     </div>
                   </div>
                 )}
+                {!showPayment ? (
+                  <div className="requests-card-footer">
+                    <button type="button" className="requests-details-btn" onClick={() => navigate(`/user/requests/${request.id}`)}>
+                      View request details
+                    </button>
+                  </div>
+                ) : null}
               </section>
             )
           })
         )}
-      </main>
+      </main> : null}
+
+      {detailRequestId && !detailsRequest ? (
+        <main className="requests-main">
+          <section className="requests-empty-state">
+            <h2>{loading || reconnecting ? 'Loading request…' : 'Request not found'}</h2>
+            {!loading && !reconnecting ? (
+              <>
+                <p>This request is unavailable or does not belong to your account.</p>
+                <Link to="/user/requests" className="requests-browse-btn">Back to requests</Link>
+              </>
+            ) : null}
+          </section>
+        </main>
+      ) : null}
 
       {viewerUrl && (
         <div className="requests-lightbox" onClick={() => setViewerUrl(null)}>
@@ -799,78 +853,158 @@ export default function MyServiceRequestsPage() {
       {detailsRequest && (() => {
         const detail = detailsRequest
         const payDetail = statusDetail(detail.status)
-        const amount = detail.paymentAmount != null && Number(detail.paymentAmount) > 0 ? formatPeso(detail.paymentAmount) : '—'
+        const amountSource = Number(detail.paymentAmount) > 0 ? detail.paymentAmount : detail.productPrice
+        const amount = amountSource != null && Number(amountSource) > 0 ? formatPeso(amountSource) : 'Quote pending'
         const statusLabel = statusMeta(detail.status).label
         const paymentForm = getForm(detail.id)
         const paymentStatus = String(detail.status || '').toLowerCase()
-
-        const renderStatusIcon = (icon: string, color: string) => {
-          const common = { width: '26', height: '26', viewBox: '0 0 24 24', fill: 'none', stroke: color, strokeWidth: '2', strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
-          if (icon === 'check') {
-            return (
-              <svg {...common}>
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            )
-          }
-          if (icon === 'alert') {
-            return (
-              <svg {...common}>
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" y1="8" x2="12" y2="12" />
-                <line x1="12" y1="16" x2="12.01" y2="16" />
-              </svg>
-            )
-          }
-          return (
-            <svg {...common}>
-              <rect x="3" y="3" width="7" height="7" rx="1" />
-              <rect x="14" y="3" width="7" height="7" rx="1" />
-              <rect x="3" y="14" width="7" height="7" rx="1" />
-              <path d="M14 14H21V21H14V14Z" />
-            </svg>
-          )
-        }
+        const showPaymentWorkspace = canShowPaymentSection(detail)
 
         return (
-          <div className="requests-modal" onClick={() => setDetailsRequest(null)}>
+          <div className="requests-detail-page">
             <div
               className="requests-modal-card requests-payment-details-card"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="payment-workspace-title"
-              onClick={(e) => e.stopPropagation()}
+              role="main"
+              aria-labelledby="request-details-title"
             >
               <div className="requests-modal-header requests-pd-header">
                 <div className="requests-pd-heading">
-                  <div className="requests-pd-head-icon">
-                    <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
-                      <rect x="2" y="5" width="20" height="14" rx="3" stroke="currentColor" strokeWidth="1.8" />
-                      <line x1="2" y1="10" x2="22" y2="10" stroke="currentColor" strokeWidth="1.8" />
-                    </svg>
-                  </div>
                   <div>
-                    <h2 id="payment-workspace-title">Payment Details</h2>
-                    <p className="requests-modal-sub">{detail.shopName || 'Funeral Shop'}</p>
+                    <h2 id="request-details-title">Service request record</h2>
+                    <p className="requests-modal-sub">
+                      {detail.shopName || 'Funeral Shop'} · Request #{detail.id.slice(0, 8).toUpperCase()} · Filed {formatDateTime(detail.createdAt)}
+                    </p>
                   </div>
                 </div>
                 <div className="requests-pd-head-actions">
                   <span className={`requests-pay-pill pay-${statusMeta(detail.status).tone}`}>{statusLabel}</span>
-                  <button type="button" className="requests-modal-close" aria-label="Close" onClick={() => setDetailsRequest(null)}>×</button>
                 </div>
               </div>
 
               <div className="requests-modal-body requests-pd-body">
-                <div className="requests-pd-hero" style={{ backgroundColor: payDetail.background }}>
-                  <div className="requests-pd-hero-badge" style={{ backgroundColor: payDetail.text }}>
-                    {renderStatusIcon(payDetail.icon, '#ffffff')}
+                <section className="requests-record-overview" aria-label="Request overview">
+                  {detail.memorialPhotoUrl ? (
+                    <button
+                      type="button"
+                      className="requests-record-photo"
+                      onClick={() => setViewerUrl(detail.memorialPhotoUrl!)}
+                      aria-label="View memorial portrait"
+                    >
+                      <img src={detail.memorialPhotoUrl} alt={detail.deceasedFullName || 'Deceased'} />
+                    </button>
+                  ) : (
+                    <div className="requests-record-photo requests-record-photo-empty">No photo</div>
+                  )}
+
+                  <div className="requests-record-person">
+                    <span>Deceased</span>
+                    <h3>{detail.deceasedFullName || 'Name not provided'}</h3>
+                    <dl>
+                      <div>
+                        <dt>Date of passing</dt>
+                        <dd>{detail.deceasedDateOfPassing ? formatDate(detail.deceasedDateOfPassing) : 'Not provided'}</dd>
+                      </div>
+                      <div>
+                        <dt>Age</dt>
+                        <dd>{detail.deceasedAge ?? 'Not provided'}</dd>
+                      </div>
+                      <div>
+                        <dt>Family coordinator</dt>
+                        <dd>{detail.familyCoordinatorName || 'Not provided'}</dd>
+                      </div>
+                    </dl>
                   </div>
+
+                  <div className="requests-record-service">
+                    <span>Requested service</span>
+                    <div>
+                      {detail.productImageUrl ? (
+                        <button
+                          type="button"
+                          onClick={() => setViewerUrl(detail.productImageUrl!)}
+                          aria-label="View requested service image"
+                        >
+                          <img src={detail.productImageUrl} alt="" />
+                        </button>
+                      ) : (
+                        <div className="requests-record-service-fallback">LC</div>
+                      )}
+                      <div>
+                        <strong>{detail.productName || 'Custom casket service'}</strong>
+                        <small>{detail.variationName || 'Standard option'}</small>
+                        <b>{amount}</b>
+                      </div>
+                    </div>
+                  </div>
+
+                  {detail.customDesignNotes || detail.referencePhotoUrl ? (
+                    <div className="requests-record-note">
+                      {detail.customDesignNotes ? (
+                        <div>
+                          <span>Custom design specifications</span>
+                          <p>{detail.customDesignNotes}</p>
+                        </div>
+                      ) : null}
+                      {detail.referencePhotoUrl ? (
+                        <button type="button" className="requests-detail-media" onClick={() => setViewerUrl(detail.referencePhotoUrl!)}>
+                          View design reference
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </section>
+
+                <div className="requests-pd-hero" style={{ backgroundColor: payDetail.background }}>
                   <div className="requests-pd-hero-copy">
                     <h3 style={{ color: payDetail.text }}>{payDetail.label}</h3>
                     <p style={{ color: payDetail.text }}>{payDetail.message}</p>
                   </div>
                 </div>
 
+                <section className="requests-detail-groups" aria-label="Request information">
+                  <details>
+                    <summary>Family and memorial information</summary>
+                    <div className="requests-detail-grid">
+                      <div><span>Date of birth</span><strong>{detail.deceasedDateOfBirth ? formatDate(detail.deceasedDateOfBirth) : 'Not provided'}</strong></div>
+                      <div><span>Family contact</span><strong>{detail.contactNumber || 'Not provided'}</strong></div>
+                    </div>
+                    {detail.tributeMessage ? (
+                      <div className="requests-detail-note">
+                        <span>Tribute message</span>
+                        <p>{detail.tributeMessage}</p>
+                      </div>
+                    ) : null}
+                  </details>
+
+                  <details>
+                    <summary>Schedule and locations</summary>
+                    <div className="requests-detail-grid">
+                      <div><span>Wake venue</span><strong>{detail.wakeAddress || 'Not provided'}</strong></div>
+                      <div><span>Pickup address</span><strong>{detail.pickupAddress || 'Not provided'}</strong></div>
+                      <div><span>Wake start</span><strong>{formatScheduleDate(detail.wakeStartDate)}</strong></div>
+                      <div><span>Wake end</span><strong>{formatScheduleDate(detail.wakeEndDate)}</strong></div>
+                      <div><span>Burial time</span><strong>{formatTime(detail.burialTime)}</strong></div>
+                      <div><span>Shop contact</span><strong>{detail.shopContactNumber || 'Not provided'}</strong></div>
+                      <div className="requests-detail-wide"><span>Shop address</span><strong>{detail.shopAddress || 'Not provided'}</strong></div>
+                    </div>
+                  </details>
+
+                  <details>
+                    <summary>Activity history</summary>
+                    <div className="requests-detail-timeline">
+                      <div><span>Request submitted</span><strong>{formatDateTime(detail.createdAt)}</strong></div>
+                      {detail.acceptedAt ? <div><span>Accepted by shop</span><strong>{formatDateTime(detail.acceptedAt)}</strong></div> : null}
+                      {detail.paymentSubmittedAt ? <div><span>Payment submitted</span><strong>{formatDateTime(detail.paymentSubmittedAt)}</strong></div> : null}
+                      {detail.paymentVerifiedAt ? <div><span>Payment verified</span><strong>{formatDateTime(detail.paymentVerifiedAt)}</strong></div> : null}
+                      {detail.shopMarkedCompletedAt ? <div><span>Marked delivered</span><strong>{formatDateTime(detail.shopMarkedCompletedAt)}</strong></div> : null}
+                      {detail.completedAt ? <div><span>Request completed</span><strong>{formatDateTime(detail.completedAt)}</strong></div> : null}
+                      {detail.declinedAt ? <div><span>Request declined</span><strong>{formatDateTime(detail.declinedAt)}</strong></div> : null}
+                      {detail.cancelledAt ? <div><span>Request cancelled</span><strong>{formatDateTime(detail.cancelledAt)}</strong></div> : null}
+                    </div>
+                  </details>
+                </section>
+
+                {showPaymentWorkspace ? (
                 <div className="requests-pd-layout">
                   <aside className="requests-pd-sidebar">
                 <div className="requests-pd-section-title">Order Details</div>
@@ -908,7 +1042,7 @@ export default function MyServiceRequestsPage() {
                 <div className="requests-pd-divider" />
 
                 <div className="requests-pd-pay-card">
-                  <span className="requests-pd-kicker">PAY THIS SHOP</span>
+                  <span className="requests-pd-kicker">Payment to shop</span>
                   <strong className="requests-pd-pay-amount">{amount}</strong>
                   {detail.paymentQrUrl ? (
                     <button
@@ -936,7 +1070,7 @@ export default function MyServiceRequestsPage() {
                   <div className="requests-pd-form-card">
                     <div className="requests-pd-form-heading">
                       <div>
-                        <span className="requests-pd-kicker">TRANSACTION DETAILS</span>
+                        <span className="requests-pd-kicker">Payment information</span>
                         <h3>Submit your payment</h3>
                       </div>
                       <span>All fields marked * are required</span>
@@ -1178,6 +1312,7 @@ export default function MyServiceRequestsPage() {
                 ) : null}
                   </section>
                 </div>
+                ) : null}
               </div>
             </div>
           </div>

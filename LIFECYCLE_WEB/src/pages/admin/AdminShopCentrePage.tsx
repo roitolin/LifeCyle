@@ -156,16 +156,6 @@ function AdminShopCentrePage() {
   const [detailError, setDetailError] = useState<string | null>(null)
   const [galleryIndex, setGalleryIndex] = useState(0)
   const [lightboxOpen, setLightboxOpen] = useState(false)
-  const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
-    order: true,
-    product: true,
-    setting: true,
-  })
-
-  const toggleMenu = (menu: string) => {
-    setExpandedMenus((prev) => ({ ...prev, [menu]: !prev[menu] }))
-  }
-
   const openProductDetail = useCallback(async (product: ShopProduct) => {
     setSelectedProduct(product)
     setDetailData(null)
@@ -347,12 +337,13 @@ function AdminShopCentrePage() {
         r.status === 'accepted_by_shop' || r.status === 'awaiting_payment' || r.status === 'payment_submitted' || r.status === 'payment_verified'
       ).length,
       completedOrders: requests.filter((r) => r.status === 'completed').length,
-      unpaidOrders: 0,
-      toProcessShipment: requests.filter((r) =>
-        r.status === 'accepted_by_shop' || r.status === 'payment_submitted' || r.status === 'payment_verified'
+      awaitingPayment: requests.filter((r) =>
+        r.status === 'accepted_by_shop' || r.status === 'awaiting_payment'
       ).length,
-      processedShipment: requests.filter((r) => r.status === 'completed').length,
-      pendingCancellation: 0,
+      paymentReview: requests.filter((r) => r.status === 'payment_submitted').length,
+      inService: requests.filter((r) =>
+        r.status === 'payment_verified' || r.status === 'awaiting_customer_confirmation'
+      ).length,
     }),
     [products, requests],
   )
@@ -375,121 +366,40 @@ function AdminShopCentrePage() {
   const mainImage = galleryImages[galleryIndex] || selectedProduct?.imageUrl || ''
 
   return (
-    <div className="sc-page">
-      <header className="sc-header-bar">
-        <div className="sc-header-left">
-          <Link to="/admin/funeral-shops" className="sc-logo-area">
-            <div className="sc-logo-box">LC</div>
-            <span className="sc-logo-text">
-              LifeCycle <span className="sc-logo-sub">Admin Shop Centre</span>
-            </span>
-          </Link>
-        </div>
-        <div className="sc-header-right">
-          <Link to="/admin/funeral-shops" className="sc-btn sc-btn-secondary" style={{ textDecoration: 'none' }}>
-            Back to Funeral Shops
-          </Link>
-          <div className="sc-header-divider" />
-          <div className="sc-header-user">
-            {shop?.shopImageUrl ? (
-              <img src={shop.shopImageUrl} alt={shop.shopName} className="sc-header-avatar" />
-            ) : (
-              <div className="sc-header-avatar-ph">
-                <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" />
-                </svg>
-              </div>
-            )}
-            <span className="sc-header-username">{shop?.shopName || 'Shop'}</span>
+    <section className="panel sc-page admin-shop-workspace">
+      <header className="admin-shop-workspace-head">
+        <Link to="/admin/funeral-shops" className="ghost-btn btn-link">
+          Back to funeral shops
+        </Link>
+        <div className="admin-shop-identity">
+          {shop?.shopImageUrl ? (
+            <img src={shop.shopImageUrl} alt="" />
+          ) : (
+            <span aria-hidden="true">LC</span>
+          )}
+          <div>
+            <strong>{shop?.shopName || 'Shop'}</strong>
+            <small>{shop ? statusBadge(shop.status) : 'Loading'}</small>
           </div>
         </div>
       </header>
 
-      <div className="sc-workspace">
-        <aside className="sc-sidebar">
-          <nav className="sc-sidebar-nav">
-            <div className={`sc-sidebar-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
-              <svg className="sc-sidebar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="3" width="7" height="9"></rect>
-                <rect x="14" y="3" width="7" height="5"></rect>
-                <rect x="14" y="12" width="7" height="9"></rect>
-                <rect x="3" y="16" width="7" height="5"></rect>
-              </svg>
-              <span>Dashboard</span>
-            </div>
+      <nav className="admin-shop-tabs" aria-label="Shop workspace sections">
+        <button type="button" className={activeTab === 'dashboard' ? 'active' : ''} onClick={() => setActiveTab('dashboard')}>
+          Overview
+        </button>
+        <button type="button" className={activeTab === 'orders' ? 'active' : ''} onClick={() => setActiveTab('orders')}>
+          Service requests <span>{stats.totalOrders}</span>
+        </button>
+        <button type="button" className={activeTab === 'products' ? 'active' : ''} onClick={() => setActiveTab('products')}>
+          Products <span>{stats.totalProducts}</span>
+        </button>
+        <button type="button" className={activeTab === 'shop' ? 'active' : ''} onClick={() => setActiveTab('shop')}>
+          Shop profile
+        </button>
+      </nav>
 
-            <div className="sc-sidebar-group">
-              <div className="sc-sidebar-group-header" onClick={() => toggleMenu('order')}>
-                <div className="sc-sidebar-group-title">
-                  <svg className="sc-sidebar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                    <polyline points="14 2 14 8 20 8"></polyline>
-                    <line x1="16" y1="13" x2="8" y2="13"></line>
-                    <line x1="16" y1="17" x2="8" y2="17"></line>
-                  </svg>
-                  <span>Requests</span>
-                </div>
-                <svg className={`sc-arrow ${expandedMenus.order ? 'expanded' : ''}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
-              </div>
-              {expandedMenus.order && (
-                <div className="sc-sidebar-sub">
-                  <div className={`sc-sidebar-sub-item ${activeTab === 'orders' ? 'active' : ''}`} onClick={() => setActiveTab('orders')}>
-                    Service Requests ({stats.totalOrders})
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="sc-sidebar-group">
-              <div className="sc-sidebar-group-header" onClick={() => toggleMenu('product')}>
-                <div className="sc-sidebar-group-title">
-                  <svg className="sc-sidebar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                    <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                  </svg>
-                  <span>Product</span>
-                </div>
-                <svg className={`sc-arrow ${expandedMenus.product ? 'expanded' : ''}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
-              </div>
-              {expandedMenus.product && (
-                <div className="sc-sidebar-sub">
-                  <div className={`sc-sidebar-sub-item ${activeTab === 'products' ? 'active' : ''}`} onClick={() => setActiveTab('products')}>
-                    Products ({stats.totalProducts})
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="sc-sidebar-group">
-              <div className="sc-sidebar-group-header" onClick={() => toggleMenu('setting')}>
-                <div className="sc-sidebar-group-title">
-                  <svg className="sc-sidebar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="3"></circle>
-                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                  </svg>
-                  <span>Setting</span>
-                </div>
-                <svg className={`sc-arrow ${expandedMenus.setting ? 'expanded' : ''}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
-              </div>
-              {expandedMenus.setting && (
-                <div className="sc-sidebar-sub">
-                  <div className={`sc-sidebar-sub-item ${activeTab === 'shop' ? 'active' : ''}`} onClick={() => setActiveTab('shop')}>
-                    Shop Profile
-                  </div>
-                </div>
-              )}
-            </div>
-          </nav>
-        </aside>
-
-        <main className="sc-content-area">
+      <main className="admin-shop-content">
           {loading && (
             <div className="sc-state">
               <div className="sc-spinner" />
@@ -507,91 +417,58 @@ function AdminShopCentrePage() {
           {!loading && !error && shop && (
             <div className="sc-content-grid">
               {activeTab === 'dashboard' && (
-                <div className="sc-dashboard-layout">
-                  <div className="sc-dashboard-main">
-                    <div className="sc-dashboard-card">
-                      <div className="sc-card-header">
-                        <h3>To Do List</h3>
-                        <span className="sc-card-subtitle">Things you need to deal with</span>
+                <div className="admin-shop-overview">
+                  <div className="admin-shop-overview-main">
+                    <section className="admin-shop-section">
+                      <div className="admin-shop-section-head">
+                        <h3>Needs attention</h3>
+                        <p>Current requests and inventory issues.</p>
                       </div>
-                      <div className="sc-todo-grid">
-                        <div className="sc-todo-item" onClick={() => setActiveTab('orders')}>
-                          <span className="sc-todo-num">{stats.unpaidOrders}</span>
-                          <span className="sc-todo-label">Awaiting Payment</span>
-                        </div>
-                        <div className="sc-todo-item" onClick={() => setActiveTab('orders')}>
-                          <span className="sc-todo-num">{stats.toProcessShipment}</span>
-                          <span className="sc-todo-label">Requests to Process</span>
-                        </div>
-                        <div className="sc-todo-item" onClick={() => setActiveTab('orders')}>
-                          <span className="sc-todo-num">{stats.processedShipment}</span>
-                          <span className="sc-todo-label">Processed Requests</span>
-                        </div>
-                        <div className="sc-todo-item" onClick={() => setActiveTab('orders')}>
-                          <span className="sc-todo-num">{stats.pendingCancellation}</span>
-                          <span className="sc-todo-label">Pending Cancellation</span>
-                        </div>
-                        <div className="sc-todo-item" onClick={() => setActiveTab('products')}>
-                          <span className="sc-todo-num">0</span>
-                          <span className="sc-todo-label">Banned Products</span>
-                        </div>
-                        <div className="sc-todo-item" onClick={() => { setActiveTab('products'); setProductTab('soldout') }}>
-                          <span className="sc-todo-num">{stats.soldOutProducts}</span>
-                          <span className="sc-todo-label">Sold Out Products</span>
-                        </div>
+                      <div className="admin-shop-work-list">
+                        <button type="button" onClick={() => setActiveTab('orders')}>
+                          <span>New requests</span><strong>{stats.pendingOrders}</strong>
+                        </button>
+                        <button type="button" onClick={() => setActiveTab('orders')}>
+                          <span>Awaiting family payment</span><strong>{stats.awaitingPayment}</strong>
+                        </button>
+                        <button type="button" onClick={() => setActiveTab('orders')}>
+                          <span>Payments to review</span><strong>{stats.paymentReview}</strong>
+                        </button>
+                        <button type="button" onClick={() => setActiveTab('orders')}>
+                          <span>Services in progress</span><strong>{stats.inService}</strong>
+                        </button>
+                        <button type="button" onClick={() => { setActiveTab('products'); setProductTab('soldout') }}>
+                          <span>Unavailable products</span><strong>{stats.soldOutProducts}</strong>
+                        </button>
                       </div>
-                    </div>
+                    </section>
 
-                    <div className="sc-dashboard-card">
-                      <div className="sc-card-header sc-flex-between">
-                        <div>
-                          <h3>Business Insights</h3>
-                          <span className="sc-card-subtitle">Admin overview of this shop&apos;s catalogue and requests</span>
-                        </div>
+                    <section className="admin-shop-section">
+                      <div className="admin-shop-section-head">
+                        <h3>Activity summary</h3>
                       </div>
-                      <div className="sc-insights-grid">
-                        <div className="sc-insight-card">
-                          <span className="sc-insight-label">Products</span>
-                          <span className="sc-insight-val">{stats.totalProducts}</span>
-                          <span className="sc-insight-diff">{stats.liveProducts} live</span>
-                        </div>
-                        <div className="sc-insight-card">
-                          <span className="sc-insight-label">Service Requests</span>
-                          <span className="sc-insight-val">{stats.totalOrders}</span>
-                          <span className="sc-insight-diff">{stats.pendingOrders} waiting</span>
-                        </div>
-                        <div className="sc-insight-card">
-                          <span className="sc-insight-label">Accepted / Confirmed</span>
-                          <span className="sc-insight-val">{stats.confirmedOrders}</span>
-                          <span className="sc-insight-diff">accepted by shop</span>
-                        </div>
-                        <div className="sc-insight-card">
-                          <span className="sc-insight-label">Completed</span>
-                          <span className="sc-insight-val">{stats.completedOrders}</span>
-                          <span className="sc-insight-diff">finished requests</span>
-                        </div>
-                      </div>
-                    </div>
+                      <dl className="admin-shop-summary">
+                        <div><dt>Products</dt><dd>{stats.totalProducts}</dd><small>{stats.liveProducts} live</small></div>
+                        <div><dt>Service requests</dt><dd>{stats.totalOrders}</dd><small>{stats.pendingOrders} new</small></div>
+                        <div><dt>Accepted</dt><dd>{stats.confirmedOrders}</dd><small>Active requests</small></div>
+                        <div><dt>Completed</dt><dd>{stats.completedOrders}</dd><small>Finished requests</small></div>
+                      </dl>
+                    </section>
                   </div>
-                  <div className="sc-dashboard-sidebar">
-                    <div className="sc-dashboard-card">
-                      <div className="sc-card-header">
-                        <h3>Shop Overview</h3>
-                      </div>
-                      <div className="sc-announcements-list">
-                        <div className="sc-announcement-item">
-                          <div className="sc-announcement-title">{shop.shopName}</div>
-                          <div className="sc-announcement-desc">
-                            Owner: {shop.ownerName || '—'}{shop.ownerEmail ? ` (${shop.ownerEmail})` : ''}
-                          </div>
-                          <div className="sc-announcement-desc">Status: {statusBadge(shop.status)}</div>
-                          <div className="sc-announcement-desc">Location: {shop.generalLocation || '—'}</div>
-                          <div className="sc-announcement-desc">Phone: {shop.shopPhoneNumber || '—'}</div>
-                          <div className="sc-announcement-desc">Joined: {shop.createdAt ? new Date(shop.createdAt).toLocaleDateString() : '—'}</div>
-                        </div>
-                      </div>
+
+                  <aside className="admin-shop-section admin-shop-details">
+                    <div className="admin-shop-section-head">
+                      <h3>Shop details</h3>
                     </div>
-                  </div>
+                    <dl>
+                      <div><dt>Owner</dt><dd>{shop.ownerName || 'Not provided'}</dd></div>
+                      <div><dt>Email</dt><dd>{shop.ownerEmail || 'Not provided'}</dd></div>
+                      <div><dt>Status</dt><dd>{statusBadge(shop.status)}</dd></div>
+                      <div><dt>Location</dt><dd>{shop.generalLocation || 'Not provided'}</dd></div>
+                      <div><dt>Phone</dt><dd>{shop.shopPhoneNumber || 'Not provided'}</dd></div>
+                      <div><dt>Joined</dt><dd>{shop.createdAt ? new Date(shop.createdAt).toLocaleDateString() : 'Not provided'}</dd></div>
+                    </dl>
+                  </aside>
                 </div>
               )}
 
@@ -688,23 +565,23 @@ function AdminShopCentrePage() {
                                     <div className="sc-product-thumb-sc">LC</div>
                                   )}
                                   <div>
-                                    <div style={{ fontWeight: 600 }}>{r.productName || 'Custom Casket'}</div>
-                                    {r.variationName && <div style={{ fontSize: '11px', color: 'var(--sc-muted)' }}>Variation: {r.variationName}</div>}
-                                    <div style={{ fontSize: '12px', color: 'var(--sc-brand)', marginTop: '4px' }}>{formatPeso(r.productPrice)}</div>
+                                    <div className="admin-shop-request-product">{r.productName || 'Custom Casket'}</div>
+                                    {r.variationName && <div className="admin-shop-request-variation">Variation: {r.variationName}</div>}
+                                    <div className="admin-shop-request-price">{formatPeso(r.productPrice)}</div>
                                   </div>
                                 </div>
                               </td>
                               <td>
-                                <div style={{ fontSize: '13px' }}>
+                                <div className="admin-shop-request-contact">
                                   <div><strong>Type:</strong> {r.requestType?.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}</div>
                                   <div><strong>Contact:</strong> {r.contactNumber || '—'}</div>
                                 </div>
                               </td>
                               <td>
-                                <div style={{ fontSize: '13px' }}>
+                                <div className="admin-shop-request-contact">
                                   <div>{r.deceasedFullName || '—'}</div>
                                   {r.deceasedDateOfPassing && (
-                                    <div style={{ fontSize: '12px', color: 'var(--sc-muted)', marginTop: '2px' }}>
+                                    <div className="admin-shop-request-sub">
                                       Passing: {new Date(r.deceasedDateOfPassing).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}
                                     </div>
                                   )}
@@ -804,7 +681,6 @@ function AdminShopCentrePage() {
             </div>
           )}
         </main>
-      </div>
 
       {selectedProduct && (
         <div className="sc-modal-overlay" onClick={() => setSelectedProduct(null)}>
@@ -816,23 +692,32 @@ function AdminShopCentrePage() {
             <div className="sc-modal-body">
               <div className="sc-product-detail-hero">
                 <div className="sc-product-detail-gallery">
-                  <div className="sc-gallery-main" onClick={() => mainImage && setLightboxOpen(true)}>
+                  <button
+                    type="button"
+                    className="sc-gallery-main"
+                    disabled={!mainImage}
+                    aria-label={mainImage ? 'Open product image' : 'No product image available'}
+                    onClick={() => mainImage && setLightboxOpen(true)}
+                  >
                     {mainImage ? (
                       <img src={mainImage} alt={selectedProduct.name} />
                     ) : (
                       <div className="sc-gallery-main-ph">LC</div>
                     )}
-                  </div>
+                  </button>
                   {galleryImages.length > 1 && (
                     <div className="sc-gallery-thumbs">
                       {galleryImages.map((url, idx) => (
-                        <div
+                        <button
+                          type="button"
                           key={idx}
                           className={`sc-gallery-thumb ${idx === galleryIndex ? 'active' : ''}`}
+                          aria-label={`Show product image ${idx + 1}`}
+                          aria-pressed={idx === galleryIndex}
                           onClick={() => setGalleryIndex(idx)}
                         >
                           <img src={url} alt={`thumb ${idx + 1}`} />
-                        </div>
+                        </button>
                       ))}
                     </div>
                   )}
@@ -944,7 +829,7 @@ function AdminShopCentrePage() {
           <span className="sc-lightbox-counter">{galleryIndex + 1} / {galleryImages.length}</span>
         </div>
       )}
-    </div>
+    </section>
   )
 }
 

@@ -1,3 +1,7 @@
+-- RETIRED SECURITY SCRIPT - DO NOT EXECUTE.
+-- Password credentials must remain exclusively in Supabase Auth (auth.users).
+-- The former script is retained inside a block comment for historical reference.
+/*
 -- ═══════════════════════════════════════════════════════
 -- LifeCycle — PASSWORD HASHING HELPERS (bcrypt via pgcrypto)
 -- Run this in the Supabase SQL editor.
@@ -101,3 +105,4 @@ $$;
 -- Salt proof: same password -> different hash every time:
 --   select public.hash_password('secret123'), public.hash_password('secret123');
 --   select public.verify_password('secret123', public.hash_password('secret123')) as matches; -- true
+*/

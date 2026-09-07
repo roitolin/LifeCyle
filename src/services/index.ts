@@ -4,4 +4,5 @@ export {
   uploadCertificate,
   uploadProfilePicture,
   uploadReportEvidence,
+  uploadHomeHeroImage,
 } from './supabaseStorage';

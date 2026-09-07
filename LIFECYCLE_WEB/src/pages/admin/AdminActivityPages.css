@@ -109,7 +109,7 @@
   font-weight: 600;
   cursor: pointer;
 }
-.activity-filters button span { min-width: 18px; padding: 1px 4px; border-radius: 3px; color: #64748b; background: #f1f5f9; font-size: 9px; text-align: center; }
+.activity-filters button span { min-width: 18px; padding: 1px 4px; border-radius: 3px; color: #64748b; background: #f1f5f9; font-size: 11px; text-align: center; }
 .activity-filters button.active { border-color: #334155; color: #fff; background: #334155; }
 .activity-filters button.active span { color: #334155; background: #fff; }
 
@@ -141,7 +141,7 @@
   border-radius: 3px;
   color: #334155;
   background: #f8fafc;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: .02em;
   text-transform: uppercase;
@@ -167,7 +167,7 @@
   background: #fff;
 }
 .security-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.admin-section-label { color: #64748b; font-size: 9px; font-weight: 700; letter-spacing: .1em; }
+.admin-section-label { color: #64748b; font-size: 11px; font-weight: 700; letter-spacing: .1em; }
 .security-session-card h3,
 .security-action-card h3,
 .admin-section-heading h3 { margin: 4px 0 0; color: #1e293b; font-size: 14px; font-weight: 600; }
@@ -181,7 +181,7 @@
   border-radius: 3px;
   color: #166534;
   background: #f0fdf4;
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 750;
   letter-spacing: .05em;
   text-transform: uppercase;
@@ -210,11 +210,11 @@
 }
 .security-action-card button:hover { background: #991b1b; }
 .security-action-card button:disabled { opacity: .55; cursor: wait; }
-.security-action-card small { display: block; margin-top: 8px; color: #9c7373; font-size: 9px; text-align: center; }
+.security-action-card small { display: block; margin-top: 8px; color: #9c7373; font-size: 11px; text-align: center; }
 
 .admin-section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; margin-top: 2px; padding-top: 16px; border-top: 1px solid var(--admin-border, #e2e8f0); }
 .admin-section-heading .panel-sub { margin: 3px 0 0; }
-.admin-section-heading > span { padding: 4px 7px; border: 1px solid #e2e8f0; border-radius: 3px; color: #64748b; background: #f8fafc; font-size: 9px; font-weight: 650; }
+.admin-section-heading > span { padding: 4px 7px; border: 1px solid #e2e8f0; border-radius: 3px; color: #64748b; background: #f8fafc; font-size: 11px; font-weight: 650; }
 .security-event-badge.login_success { border-color: #bbdfc7; color: #166534; background: #f0fdf4; }
 .security-event-badge.logout { color: #475569; background: #f8fafc; }
 .security-event-badge.other_sessions_signed_out { border-color: #fecaca; color: #991b1b; background: #fff1f2; }
@@ -256,7 +256,7 @@
   .activity-table td + td,
   .security-table td + td { border-top: 1px solid #f1f5f9 !important; }
   .activity-table td::before,
-  .security-table td::before { content: attr(data-label); color: #64748b; font-size: 9px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+  .security-table td::before { content: attr(data-label); color: #64748b; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
   .activity-primary { min-width: 0; }
   .session-details { grid-template-columns: 1fr; }
   .session-details div:nth-child(odd) { border-right: 0; }

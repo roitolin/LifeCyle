@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { acceptFuneralServiceRequest } from '@/utils/serviceRequestFlow'
 import type { User } from '@supabase/supabase-js'
-import { loadFuneralPurchases, updateFuneralPurchaseStatus, type WebFuneralPurchase } from '@/utils/funeralPurchase'
 import './SellerCentrePage.css'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import { addMonths, daysRemaining, formatSubscriptionDate, SUBSCRIPTION_MONTHS } from '@/utils/subscription'
 import { fetchNotificationsForUser } from '@/utils/supabaseNotifications'
 import PaymentQrCard from '@/components/PaymentQrCard'
+import BrandLogo from '@/components/BrandLogo'
 
 type ShopInfo = {
   id: string
@@ -89,6 +89,17 @@ type ServiceRequest = {
   createdAt?: string
 }
 
+type CustomerSummary = {
+  id: string
+  name: string
+  contactNumber: string
+  arrangements: ServiceRequest[]
+  activeCount: number
+  completedCount: number
+  totalValue: number
+  lastActivity: string | null
+}
+
 async function notifyShopFollowersOnNewProduct(
   shopId: string,
   shopName: string,
@@ -164,6 +175,14 @@ function formatPeso(value: number | string | null | undefined): string {
   const num = Number(String(value ?? '').replace(/[^\d.]/g, ''))
   if (!Number.isFinite(num) || num <= 0) return value ? String(value) : '—'
   return `₱${new Intl.NumberFormat('en-PH', { maximumFractionDigits: 0 }).format(num)}`
+}
+
+function formatCompactPeso(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return '\\u20b10'
+  return `\\u20b1${new Intl.NumberFormat('en-PH', {
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(value)}`
 }
 
 function getProductState(item: ShopProduct) {
@@ -302,6 +321,7 @@ function shopStatusMeta(status: string, rejectionReason: string | null) {
 
 export default function SellerCentrePage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { openAlert, alertDialog } = useAlertDialog()
   const { openConfirm, confirmDialog } = useConfirmDialog()
   const [user, setUser] = useState<User | null>(null)
@@ -309,8 +329,9 @@ export default function SellerCentrePage() {
   const [shop, setShop] = useState<ShopInfo | null>(null)
   const [products, setProducts] = useState<ShopProduct[]>([])
   const [requests, setRequests] = useState<ServiceRequest[]>([])
-  const [customerOrders, setCustomerOrders] = useState<WebFuneralPurchase[]>([])
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'orders' | 'payments' | 'admin_payments' | 'customer_orders' | 'shop' | 'payment_setup' | 'product_editor'>('dashboard')
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'orders' | 'customers' | 'calendar' | 'reports' | 'payments' | 'admin_payments' | 'shop' | 'payment_setup' | 'product_editor'>(() => (
+    searchParams.get('tab') === 'orders' ? 'orders' : 'dashboard'
+  ))
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [productTab, setProductTab] = useState<'all' | 'live' | 'soldout'>('all')
@@ -322,6 +343,8 @@ export default function SellerCentrePage() {
   const [notifications, setNotifications] = useState<SellerNotification[]>([])
   const [sidebarExpanded, setSidebarExpanded] = useState<Record<string, boolean>>({ order: true, product: true, finance: true, setting: true })
   const [paymentVerifyingId, setPaymentVerifyingId] = useState('')
+  const [customerSearch, setCustomerSearch] = useState('')
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null)
 
   // Product details viewer
   const [selectedProduct, setSelectedProduct] = useState<ShopProduct | null>(null)
@@ -551,7 +574,7 @@ export default function SellerCentrePage() {
 
   const openRequestDetail = (request: ServiceRequest) => {
     clearCompletionProofSelection()
-    setViewRequest(request)
+    navigate(`/seller/requests/${request.id}`)
   }
 
   const handleSavePaymentSettings = async () => {
@@ -859,15 +882,12 @@ export default function SellerCentrePage() {
           .select('*')
           .eq('shopId', user.id)
           .order('createdAt', { ascending: false })
-          .limit(50),
+          .limit(250),
       ])
 
       const reqs: ServiceRequest[] = (reqData?.data ?? []) as ServiceRequest[]
       setRequests(reqs)
 
-      const allPurchases = loadFuneralPurchases()
-      const shopPurchases = allPurchases.filter(p => p.items.some(i => i.shopId === user.id))
-      setCustomerOrders(shopPurchases)
     } catch (e: any) {
       setError(e?.message ?? 'Unable to load shop data.')
     } finally {
@@ -1335,14 +1355,166 @@ export default function SellerCentrePage() {
 
   const stats = useMemo(() => ({
     soldOutProducts: products.filter(p => !p.active || p.stock <= 0).length,
+    lowStockProducts: products.filter(p => p.active && p.stock > 0 && p.stock <= 3).length,
+    liveProducts: products.filter(p => p.active && p.stock > 0).length,
+    newRequests: requests.filter(r => String(r.status || '').toLowerCase() === 'pending_shop_acceptance').length,
     unpaidOrders: requests.filter(r => String(r.status || '').toLowerCase() === 'awaiting_payment').length,
     paymentsToVerify: requests.filter(r => String(r.status || '').toLowerCase() === 'payment_submitted').length,
     toProcessShipment: requests.filter(r => r.status === 'payment_verified').length,
+    awaitingFamilyConfirmation: requests.filter(r => r.status === 'awaiting_customer_confirmation').length,
+    activeCases: requests.filter(r => !['completed', 'declined_by_shop', 'cancelled', 'cancelled_by_requester'].includes(String(r.status || '').toLowerCase())).length,
     processedShipment: requests.filter(r => r.status === 'completed').length,
   }), [products, requests])
 
+  const customers = useMemo<CustomerSummary[]>(() => {
+    const terminalStatuses = new Set(['completed', 'declined_by_shop', 'cancelled', 'cancelled_by_requester'])
+    const byCustomer = new Map<string, CustomerSummary>()
+
+    requests.forEach((request) => {
+      const customerId = String(request.requesterId || request.contactNumber || request.id)
+      const existing = byCustomer.get(customerId)
+      const requestValue = Number(request.paymentAmount ?? request.productPrice) || 0
+      const activity = request.completedAt || request.paymentVerifiedAt || request.acceptedAt || request.createdAt || null
+      const status = String(request.status || '').toLowerCase()
+      const name = request.requesterName || request.familyCoordinatorName || request.paymentPayerName || `Customer ${customerId.slice(0, 8)}`
+
+      if (!existing) {
+        byCustomer.set(customerId, {
+          id: customerId,
+          name,
+          contactNumber: request.contactNumber || '',
+          arrangements: [request],
+          activeCount: terminalStatuses.has(status) ? 0 : 1,
+          completedCount: status === 'completed' ? 1 : 0,
+          totalValue: ['payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(status) ? requestValue : 0,
+          lastActivity: activity,
+        })
+        return
+      }
+
+      existing.arrangements.push(request)
+      if (!existing.contactNumber && request.contactNumber) existing.contactNumber = request.contactNumber
+      if (!terminalStatuses.has(status)) existing.activeCount += 1
+      if (status === 'completed') existing.completedCount += 1
+      if (['payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(status)) existing.totalValue += requestValue
+      if (activity && (!existing.lastActivity || new Date(activity).getTime() > new Date(existing.lastActivity).getTime())) {
+        existing.lastActivity = activity
+      }
+    })
+
+    return [...byCustomer.values()].sort((a, b) =>
+      new Date(b.lastActivity || 0).getTime() - new Date(a.lastActivity || 0).getTime()
+    )
+  }, [requests])
+
+  const visibleCustomers = useMemo(() => {
+    const query = customerSearch.trim().toLowerCase()
+    if (!query) return customers
+    return customers.filter((customer) =>
+      [customer.name, customer.contactNumber, customer.id].some((value) => value.toLowerCase().includes(query))
+    )
+  }, [customerSearch, customers])
+
+  const selectedCustomer = useMemo(
+    () => customers.find((customer) => customer.id === selectedCustomerId) || null,
+    [customers, selectedCustomerId]
+  )
+
+  const scheduledRequests = useMemo(
+    () => requests
+      .filter((request) => request.wakeStartDate || request.wakeEndDate || request.burialTime)
+      .sort((a, b) => {
+        const left = new Date(a.wakeStartDate || a.wakeEndDate || a.createdAt || 0).getTime()
+        const right = new Date(b.wakeStartDate || b.wakeEndDate || b.createdAt || 0).getTime()
+        return left - right
+      }),
+    [requests]
+  )
+
+  const upcomingRequests = useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return scheduledRequests
+      .filter((request) => {
+        const scheduleDate = request.wakeStartDate || request.wakeEndDate
+        if (!scheduleDate) return false
+        const parsed = new Date(scheduleDate)
+        return !Number.isNaN(parsed.getTime()) && parsed.getTime() >= today.getTime()
+      })
+      .slice(0, 4)
+  }, [scheduledRequests])
+
+  const recentRequests = useMemo(
+    () => [...requests]
+      .sort((left, right) => new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime())
+      .slice(0, 5),
+    [requests]
+  )
+
+  const report = useMemo(() => {
+    const successfulStatuses = new Set(['payment_verified', 'awaiting_customer_confirmation', 'completed'])
+    const acceptedStatuses = new Set(['accepted_by_shop', 'awaiting_payment', 'payment_submitted', ...successfulStatuses])
+    const monthly = Array.from({ length: 6 }, (_, index) => {
+      const date = new Date()
+      date.setMonth(date.getMonth() - (5 - index), 1)
+      date.setHours(0, 0, 0, 0)
+      return {
+        key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
+        label: date.toLocaleDateString('en-PH', { month: 'short' }),
+        cases: 0,
+        revenue: 0,
+      }
+    })
+
+    let revenue = 0
+    let completed = 0
+    let accepted = 0
+    requests.forEach((request) => {
+      const status = String(request.status || '').toLowerCase()
+      const amount = Number(request.paymentAmount ?? request.productPrice) || 0
+      if (successfulStatuses.has(status)) revenue += amount
+      if (status === 'completed') completed += 1
+      if (acceptedStatuses.has(status)) accepted += 1
+      const createdAt = request.createdAt ? new Date(request.createdAt) : null
+      if (!createdAt || Number.isNaN(createdAt.getTime())) return
+      const key = `${createdAt.getFullYear()}-${String(createdAt.getMonth() + 1).padStart(2, '0')}`
+      const bucket = monthly.find((entry) => entry.key === key)
+      if (!bucket) return
+      bucket.cases += 1
+      if (successfulStatuses.has(status)) bucket.revenue += amount
+    })
+
+    return {
+      revenue,
+      completed,
+      accepted,
+      conversionRate: requests.length ? Math.round((accepted / requests.length) * 100) : 0,
+      averageValue: accepted ? revenue / accepted : 0,
+      lowStock: products.filter((product) => product.stock > 0 && product.stock <= 3).length,
+      soldOut: products.filter((product) => !product.active || product.stock <= 0).length,
+      monthly,
+    }
+  }, [products, requests])
+
+  const maxMonthlyCases = Math.max(1, ...report.monthly.map((entry) => entry.cases))
+  const maxMonthlyRevenue = Math.max(1, ...report.monthly.map((entry) => entry.revenue))
+
   const statusMeta = shopStatusMeta(shop?.status || 'none', shop?.rejectionReason || null)
   const isShopOnline = shop?.status === 'live'
+
+  const profileReady = Boolean(shop?.shopName && shop.shopAddress && shop.shopPhoneNumber)
+  const paymentSetupReady = Boolean(
+    paymentQrUrl && Number(String(paymentFeeInput).replace(/[^\\d.]/g, '')) > 0
+  )
+  const readinessItems = [
+    { label: 'Shop profile', detail: 'Address and contact details', complete: profileReady, tab: 'shop' },
+    { label: 'Payment collection', detail: 'QR code and service fee', complete: paymentSetupReady, tab: 'payment_setup' },
+    { label: 'Product catalog', detail: 'At least one available product', complete: stats.liveProducts > 0, tab: 'products' },
+    { label: 'Storefront visibility', detail: 'Subscription active and shop online', complete: Boolean(subscriptionActive && isShopOnline), tab: 'admin_payments' },
+  ] as const
+  const readinessCompleted = readinessItems.filter(item => item.complete).length
+  const readinessProgress = Math.round((readinessCompleted / readinessItems.length) * 100)
+  const attentionCount = stats.newRequests + stats.paymentsToVerify + stats.toProcessShipment + stats.lowStockProducts + stats.soldOutProducts
 
   const paymentSubmissions = useMemo(
     () =>
@@ -1352,6 +1524,22 @@ export default function SellerCentrePage() {
       }),
     [requests]
   )
+
+  const financeSummary = useMemo(() => {
+    const settledStatuses = new Set(['payment_verified', 'awaiting_customer_confirmation', 'completed'])
+    return paymentSubmissions.reduce(
+      (summary, request) => {
+        const status = String(request.status || '').toLowerCase()
+        if (status === 'payment_submitted') summary.awaitingReview += 1
+        if (settledStatuses.has(status)) {
+          summary.verified += 1
+          summary.received += Number(request.paymentAmount) || 0
+        }
+        return summary
+      },
+      { awaitingReview: 0, verified: 0, received: 0 }
+    )
+  }, [paymentSubmissions])
 
   const filtered = useMemo(() => {
     if (productTab === 'all') return products
@@ -1365,7 +1553,7 @@ export default function SellerCentrePage() {
       selectedProduct.imageUrl ?? '',
       ...(detailData?.images ?? []).map((img) => img.imageUrl ?? ''),
     ]
-    return imgs.filter((url) => url)
+    return [...new Set(imgs.filter((url) => url))]
   }, [selectedProduct, detailData])
 
   const mainImage = galleryImages[galleryIndex] || selectedProduct?.imageUrl || ''
@@ -1407,10 +1595,10 @@ export default function SellerCentrePage() {
   if (!loading && !shop) {
     return (
       <div className="sc-page">
-        <div className="sc-state" style={{ textAlign: 'center', padding: '60px 20px', maxWidth: '400px', margin: '0 auto' }}>
+        <div className="sc-status-page">
           <h2>No Shop Registered</h2>
-          <p style={{ color: '#666', marginTop: '12px', marginBottom: '24px' }}>You haven't registered a funeral shop yet. Click below to register your shop and start selling on LifeCycle.</p>
-          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+          <p>You haven't registered a funeral shop yet. Click below to register your shop and start selling on LifeCycle.</p>
+          <div className="sc-status-page-actions">
             <button className="sc-btn sc-btn-secondary" onClick={() => navigate('/funeral')}>Go Back</button>
             <Link to="/seller/register" className="sc-primary-btn">Register Shop</Link>
           </div>
@@ -1422,10 +1610,12 @@ export default function SellerCentrePage() {
   if (!loading && shop?.status === 'pending') {
     return (
       <div className="sc-page">
-        <div className="sc-state" style={{ textAlign: 'center', padding: '60px 20px', maxWidth: '400px', margin: '0 auto' }}>
+        <div className="sc-status-page">
           <h2>Registration Pending</h2>
-          <p style={{ color: '#666', marginTop: '12px', marginBottom: '24px' }}>Your shop registration is currently under review. We will notify you once it has been verified.</p>
-          <button className="sc-primary-btn" onClick={() => navigate('/funeral')}>Go Back</button>
+          <p>Your shop registration is currently under review. We will notify you once it has been verified.</p>
+          <div className="sc-status-page-actions">
+            <button className="sc-primary-btn" onClick={() => navigate('/funeral')}>Go Back</button>
+          </div>
         </div>
       </div>
     )
@@ -1434,15 +1624,17 @@ export default function SellerCentrePage() {
   if (!loading && shop?.status === 'rejected') {
     return (
       <div className="sc-page">
-        <div className="sc-state" style={{ textAlign: 'center', padding: '60px 20px', maxWidth: '400px', margin: '0 auto' }}>
-          <h2 style={{ color: '#334155' }}>Registration Rejected</h2>
-          <p style={{ color: '#666', marginTop: '12px', marginBottom: '16px' }}>Your shop registration was not approved.</p>
+        <div className="sc-status-page">
+          <h2>Registration Rejected</h2>
+          <p>Your shop registration was not approved.</p>
           {shop.rejectionReason && (
-            <div style={{ background: '#fdf0f0', border: '1px solid #f5c2c7', padding: '12px', borderRadius: '4px', marginBottom: '24px', color: '#842029', textAlign: 'left' }}>
+            <div className="sc-status-page-error-box">
               <strong>Reason:</strong> {shop.rejectionReason}
             </div>
           )}
-          <button className="sc-primary-btn" onClick={() => navigate('/funeral')}>Go Back</button>
+          <div className="sc-status-page-actions">
+            <button className="sc-primary-btn" onClick={() => navigate('/funeral')}>Go Back</button>
+          </div>
         </div>
       </div>
     )
@@ -1455,12 +1647,10 @@ export default function SellerCentrePage() {
       {/* ── Header Bar ── */}
       <div className="sc-header-bar">
         <div className="sc-header-left">
-          <Link to="/funeral" className="sc-logo-area">
-            <div className="sc-logo-box">LC</div>
-            <div className="sc-logo-text">
-              LifeCycle <span className="sc-logo-sub">Seller Centre</span>
-            </div>
-          </Link>
+          <div className="sc-logo-area">
+            <BrandLogo to="/funeral" compact />
+            <span className="sc-logo-sub">Shop Centre</span>
+          </div>
         </div>
         <div className="sc-header-right">
           <div
@@ -1546,21 +1736,27 @@ export default function SellerCentrePage() {
               Dashboard
             </div>
 
-            {/* Order Group */}
+            {/* Operations Group */}
             <div className="sc-sidebar-group">
               <div className="sc-sidebar-group-header" onClick={() => setSidebarExpanded(prev => ({ ...prev, order: !prev.order }))}>
                 <div className="sc-sidebar-group-title">
                   <svg className="sc-sidebar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
-                  Order
+                  Operations
                 </div>
                 <svg className={`sc-arrow${sidebarExpanded.order ? ' expanded' : ''}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
               </div>
               {sidebarExpanded.order && (
                 <div className="sc-sidebar-sub">
-                  <div className={`sc-sidebar-sub-item${activeTab === 'orders' ? ' active' : ''}`} onClick={() => setActiveTab('orders')}>Service Requests</div>
-                  <div className={`sc-sidebar-sub-item${activeTab === 'customer_orders' ? ' active' : ''}`} onClick={() => setActiveTab('customer_orders')}>Customer Orders</div>
+                  <div className={`sc-sidebar-sub-item${activeTab === 'orders' ? ' active' : ''}`} onClick={() => setActiveTab('orders')}>Arrangement Cases</div>
+                  <div className={`sc-sidebar-sub-item${activeTab === 'customers' ? ' active' : ''}`} onClick={() => setActiveTab('customers')}>Customers</div>
+                  <div className={`sc-sidebar-sub-item${activeTab === 'calendar' ? ' active' : ''}`} onClick={() => setActiveTab('calendar')}>Service Schedule</div>
                 </div>
               )}
+            </div>
+
+            <div className={`sc-sidebar-item${activeTab === 'reports' ? ' active' : ''}`} onClick={() => setActiveTab('reports')}>
+              <span className='sc-sidebar-icon' aria-hidden='true'>R</span>
+              Reports
             </div>
 
             {/* Product Group */}
@@ -1574,8 +1770,7 @@ export default function SellerCentrePage() {
               </div>
               {sidebarExpanded.product && (
                 <div className="sc-sidebar-sub">
-                  <div className={`sc-sidebar-sub-item${activeTab === 'products' ? ' active' : ''}`} onClick={() => setActiveTab('products')}>My Products</div>
-                  <div className={`sc-sidebar-sub-item${activeTab === 'product_editor' ? ' active' : ''}`} onClick={() => void openProductEditor(null)}>Add New Product</div>
+                  <div className={`sc-sidebar-sub-item${activeTab === 'products' ? ' active' : ''}`} onClick={() => setActiveTab('products')}>Product Catalog</div>
                 </div>
               )}
             </div>
@@ -1591,9 +1786,9 @@ export default function SellerCentrePage() {
               </div>
               {sidebarExpanded.finance && (
                 <div className="sc-sidebar-sub">
-                  <div className={`sc-sidebar-sub-item${activeTab === 'payments' ? ' active' : ''}`} onClick={() => setActiveTab('payments')}>Payment Verification</div>
-                  <div className={`sc-sidebar-sub-item${activeTab === 'payment_setup' ? ' active' : ''}`} onClick={() => setActiveTab('payment_setup')}>Payment QR Setup</div>
-                  <div className={`sc-sidebar-sub-item${activeTab === 'admin_payments' ? ' active' : ''}`} onClick={openAdminPayments}>Payments to Admin</div>
+                  <div className={`sc-sidebar-sub-item${activeTab === 'payments' ? ' active' : ''}`} onClick={() => setActiveTab('payments')}>Family Payments</div>
+                  <div className={`sc-sidebar-sub-item${activeTab === 'payment_setup' ? ' active' : ''}`} onClick={() => setActiveTab('payment_setup')}>Family Payment Setup</div>
+                  <div className={`sc-sidebar-sub-item${activeTab === 'admin_payments' ? ' active' : ''}`} onClick={openAdminPayments}>LifeCycle Payments</div>
                 </div>
               )}
             </div>
@@ -1603,7 +1798,7 @@ export default function SellerCentrePage() {
               <div className="sc-sidebar-group-header" onClick={() => setSidebarExpanded(prev => ({ ...prev, setting: !prev.setting }))}>
                 <div className="sc-sidebar-group-title">
                   <svg className="sc-sidebar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
-                  Setting
+                  Settings
                 </div>
                 <svg className={`sc-arrow${sidebarExpanded.setting ? ' expanded' : ''}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
               </div>
@@ -1639,54 +1834,334 @@ export default function SellerCentrePage() {
               
               {/* DASHBOARD VIEW */}
               {activeTab === 'dashboard' && (
-                <div className="sc-dashboard-layout">
-                  <div className="sc-dashboard-main">
-
-                    {/* To Do List */}
-                    <div className="sc-dashboard-card">
-                      <div className="sc-card-header">
-                        <h3>To Do List</h3>
-                        <span className="sc-card-subtitle">Things you need to deal with</span>
-                      </div>
-                      <div className="sc-todo-grid">
-                        <div className="sc-todo-item" onClick={() => setActiveTab('orders')}>
-                          <span className="sc-todo-num">{stats.unpaidOrders}</span>
-                          <span className="sc-todo-label">Awaiting Payment</span>
-                        </div>
-                        <div className="sc-todo-item" onClick={() => setActiveTab('orders')}>
-                          <span className="sc-todo-num">{stats.toProcessShipment}</span>
-                          <span className="sc-todo-label">Requests to Process</span>
-                        </div>
-                        <div className="sc-todo-item" onClick={() => setActiveTab('payments')}>
-                          <span className="sc-todo-num">{stats.paymentsToVerify}</span>
-                          <span className="sc-todo-label">Payments to Verify</span>
-                        </div>
-                        <div className="sc-todo-item" onClick={() => setActiveTab('orders')}>
-                          <span className="sc-todo-num">{stats.processedShipment}</span>
-                          <span className="sc-todo-label">Processed Requests</span>
-                        </div>
-                        <div className="sc-todo-item" onClick={() => { setActiveTab('products'); setProductTab('soldout') }}>
-                          <span className="sc-todo-num">{stats.soldOutProducts}</span>
-                          <span className="sc-todo-label">Sold Out Products</span>
-                        </div>
-                        <div className="sc-todo-item" style={{ cursor: 'default' }}></div>
-                      </div>
+                <div className="sc-dashboard-overview">
+                  <section className="sc-dashboard-intro">
+                    <div className="sc-dashboard-intro-copy">
+                      <span className="sc-dashboard-eyebrow">Shop overview</span>
+                      <h1>{shop.shopName}</h1>
+                      <p>Review cases that need attention, monitor performance, and keep your storefront ready for families.</p>
                     </div>
+                    <div className="sc-dashboard-intro-actions">
+                      {isShopOnline && (
+                        <button type="button" className="sc-dashboard-btn sc-dashboard-btn-secondary" onClick={() => navigate(`/shop/${shop.id}`)}>
+                          View storefront
+                        </button>
+                      )}
+                      <button type="button" className="sc-dashboard-btn sc-dashboard-btn-primary" onClick={() => void openProductEditor(null)}>
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
+                        Add product
+                      </button>
+                    </div>
+                  </section>
 
+                  <section className="sc-dashboard-kpis" aria-label="Shop performance summary">
+                    <article className="sc-dashboard-kpi">
+                      <span className="sc-dashboard-kpi-icon revenue" aria-hidden="true">₱</span>
+                      <div><span>Confirmed value</span><strong>{formatPeso(report.revenue)}</strong><small>Verified and completed cases</small></div>
+                    </article>
+                    <article className="sc-dashboard-kpi">
+                      <span className="sc-dashboard-kpi-icon cases" aria-hidden="true">
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 6h13M8 12h13M8 18h13" /><path d="M3 6h.01M3 12h.01M3 18h.01" /></svg>
+                      </span>
+                      <div><span>Active cases</span><strong>{stats.activeCases}</strong><small>{stats.awaitingFamilyConfirmation} awaiting family confirmation</small></div>
+                    </article>
+                    <article className="sc-dashboard-kpi">
+                      <span className="sc-dashboard-kpi-icon requests" aria-hidden="true">
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 2h9l5 5v15H6z" /><path d="M14 2v6h6M9 13h8M9 17h6" /></svg>
+                      </span>
+                      <div><span>New requests</span><strong>{stats.newRequests}</strong><small>{requests.length} total arrangement cases</small></div>
+                    </article>
+                    <article className="sc-dashboard-kpi">
+                      <span className="sc-dashboard-kpi-icon products" aria-hidden="true">
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m3 7 9-4 9 4-9 4-9-4Z" /><path d="m3 7 9 4 9-4M3 12l9 4 9-4" /></svg>
+                      </span>
+                      <div><span>Live products</span><strong>{stats.liveProducts}</strong><small>{stats.lowStockProducts + stats.soldOutProducts} need stock attention</small></div>
+                    </article>
+                  </section>
+
+                  <section className="sc-dashboard-panel sc-dashboard-analytics">
+                    <div className="sc-dashboard-panel-head">
+                      <div>
+                        <span className="sc-dashboard-panel-kicker">Performance</span>
+                        <h2>Last six months</h2>
+                      </div>
+                      <button type="button" className="sc-dashboard-text-btn" onClick={() => setActiveTab('reports')}>Full report</button>
+                    </div>
+                    <div className="sc-dashboard-chart-grid">
+                      <article className="sc-dashboard-chart-card">
+                        <div className="sc-dashboard-chart-head">
+                          <div><span>Cases received</span><strong>{report.monthly.reduce((total, entry) => total + entry.cases, 0)}</strong></div>
+                          <small>Monthly requests</small>
+                        </div>
+                        <div className="sc-dashboard-chart-bars" role="img" aria-label="Cases received over the last six months">
+                          {report.monthly.map((entry) => (
+                            <div className="sc-dashboard-chart-column" key={entry.key}>
+                              <span className="sc-dashboard-chart-value">{entry.cases}</span>
+                              <div className="sc-dashboard-chart-track">
+                                <span className="cases" style={{ height: `${entry.cases ? Math.max(8, Math.round((entry.cases / maxMonthlyCases) * 100)) : 3}%` }} />
+                              </div>
+                              <small>{entry.label}</small>
+                            </div>
+                          ))}
+                        </div>
+                      </article>
+
+                      <article className="sc-dashboard-chart-card">
+                        <div className="sc-dashboard-chart-head">
+                          <div><span>Confirmed value</span><strong>{formatPeso(report.revenue)}</strong></div>
+                          <small>Verified case value</small>
+                        </div>
+                        <div className="sc-dashboard-chart-bars" role="img" aria-label="Confirmed value over the last six months">
+                          {report.monthly.map((entry) => (
+                            <div className="sc-dashboard-chart-column" key={entry.key}>
+                              <span className="sc-dashboard-chart-value">{formatCompactPeso(entry.revenue)}</span>
+                              <div className="sc-dashboard-chart-track">
+                                <span className="revenue" style={{ height: `${entry.revenue ? Math.max(8, Math.round((entry.revenue / maxMonthlyRevenue) * 100)) : 3}%` }} />
+                              </div>
+                              <small>{entry.label}</small>
+                            </div>
+                          ))}
+                        </div>
+                      </article>
+                    </div>
+                  </section>
+
+                  <div className="sc-dashboard-primary-grid">
+                    <section className="sc-dashboard-panel sc-dashboard-actions-panel">
+                      <div className="sc-dashboard-panel-head">
+                        <div><span className="sc-dashboard-panel-kicker">Action center</span><h2>Needs your attention</h2></div>
+                        <span className="sc-dashboard-count">{attentionCount}</span>
+                      </div>
+                      <div className="sc-dashboard-action-list">
+                        {stats.newRequests > 0 && (
+                          <button type="button" className="sc-dashboard-action-item priority" onClick={() => setActiveTab('orders')}>
+                            <span className="sc-dashboard-action-icon">!</span>
+                            <span className="sc-dashboard-action-copy"><strong>Respond to new requests</strong><small>Accept or decline each family request promptly.</small></span>
+                            <span className="sc-dashboard-action-value">{stats.newRequests}</span><span className="sc-dashboard-action-arrow" aria-hidden="true">›</span>
+                          </button>
+                        )}
+                        {stats.paymentsToVerify > 0 && (
+                          <button type="button" className="sc-dashboard-action-item warning" onClick={() => setActiveTab('payments')}>
+                            <span className="sc-dashboard-action-icon">₱</span>
+                            <span className="sc-dashboard-action-copy"><strong>Verify submitted payments</strong><small>Review references and uploaded payment proof.</small></span>
+                            <span className="sc-dashboard-action-value">{stats.paymentsToVerify}</span><span className="sc-dashboard-action-arrow" aria-hidden="true">›</span>
+                          </button>
+                        )}
+                        {stats.toProcessShipment > 0 && (
+                          <button type="button" className="sc-dashboard-action-item info" onClick={() => setActiveTab('orders')}>
+                            <span className="sc-dashboard-action-icon">✓</span>
+                            <span className="sc-dashboard-action-copy"><strong>Prepare confirmed arrangements</strong><small>These cases have verified payments and can proceed.</small></span>
+                            <span className="sc-dashboard-action-value">{stats.toProcessShipment}</span><span className="sc-dashboard-action-arrow" aria-hidden="true">›</span>
+                          </button>
+                        )}
+                        {(stats.lowStockProducts + stats.soldOutProducts) > 0 && (
+                          <button type="button" className="sc-dashboard-action-item neutral" onClick={() => setActiveTab('products')}>
+                            <span className="sc-dashboard-action-icon">□</span>
+                            <span className="sc-dashboard-action-copy"><strong>Review product availability</strong><small>Update low-stock or unavailable catalog items.</small></span>
+                            <span className="sc-dashboard-action-value">{stats.lowStockProducts + stats.soldOutProducts}</span><span className="sc-dashboard-action-arrow" aria-hidden="true">›</span>
+                          </button>
+                        )}
+                        {attentionCount === 0 && (
+                          <div className="sc-dashboard-action-empty">
+                            <span aria-hidden="true">✓</span>
+                            <div><strong>Nothing urgent right now</strong><small>New requests and payment tasks will appear here.</small></div>
+                          </div>
+                        )}
+                      </div>
+                    </section>
+
+                    <div className="sc-dashboard-side-stack">
+                      <section className="sc-dashboard-panel sc-dashboard-readiness">
+                        <div className="sc-dashboard-panel-head compact">
+                          <div><span className="sc-dashboard-panel-kicker">Shop readiness</span><h2>{readinessProgress}% complete</h2></div>
+                          <span className="sc-dashboard-readiness-score">{readinessCompleted}/{readinessItems.length}</span>
+                        </div>
+                        <div className="sc-dashboard-progress" aria-label={`Shop readiness ${readinessProgress}%`}><span style={{ width: `${readinessProgress}%` }} /></div>
+                        <div className="sc-dashboard-checklist">
+                          {readinessItems.map((item) => (
+                            <button type="button" key={item.label} onClick={() => setActiveTab(item.tab)}>
+                              <span className={item.complete ? 'complete' : ''}>{item.complete ? '✓' : '○'}</span>
+                              <span><strong>{item.label}</strong><small>{item.detail}</small></span>
+                              <b aria-hidden="true">›</b>
+                            </button>
+                          ))}
+                        </div>
+                      </section>
+
+                      <section className="sc-dashboard-panel sc-dashboard-quick">
+                        <div className="sc-dashboard-panel-head compact"><div><span className="sc-dashboard-panel-kicker">Shortcuts</span><h2>Quick actions</h2></div></div>
+                        <div className="sc-dashboard-quick-grid">
+                          <button type="button" onClick={() => void openProductEditor(null)}><span>+</span><strong>Add product</strong></button>
+                          <button type="button" onClick={() => setActiveTab('orders')}><span>↗</span><strong>View cases</strong></button>
+                          <button type="button" onClick={() => setActiveTab('payment_setup')}><span>₱</span><strong>Payment setup</strong></button>
+                          <button type="button" onClick={() => setActiveTab('shop')}><span>⌂</span><strong>Edit profile</strong></button>
+                        </div>
+                      </section>
+                    </div>
                   </div>
-                  <div className="sc-dashboard-sidebar">
-                    {/* Announcements */}
-                    <div className="sc-dashboard-card">
-                      <div className="sc-card-header">
-                        <h3>Announcements</h3>
+
+                  <div className="sc-dashboard-secondary-grid">
+                    <section className="sc-dashboard-panel">
+                      <div className="sc-dashboard-panel-head">
+                        <div><span className="sc-dashboard-panel-kicker">Latest activity</span><h2>Recent arrangement cases</h2></div>
+                        <button type="button" className="sc-dashboard-text-btn" onClick={() => setActiveTab('orders')}>View all</button>
                       </div>
-                      <div className="sc-announcements-list">
-                        <div className="sc-announcement-item">
-                          <div className="sc-announcement-title">Welcome to the Seller Centre!</div>
-                          <div className="sc-announcement-desc">Manage your products, shop details, and track customer service requests directly from this panel. Ensure your services and contact details are accurate to receive updates.</div>
+                      {recentRequests.length === 0 ? (
+                        <div className="sc-dashboard-list-empty">Arrangement requests will appear here.</div>
+                      ) : (
+                        <div className="sc-dashboard-case-list">
+                          {recentRequests.map((request) => (
+                            <button type="button" key={request.id} onClick={() => openRequestDetail(request)}>
+                              <span className="sc-dashboard-case-avatar">{(request.requesterName || request.familyCoordinatorName || request.productName || 'C').trim().charAt(0).toUpperCase()}</span>
+                              <span className="sc-dashboard-case-copy">
+                                <strong>{request.requesterName || request.familyCoordinatorName || 'Family request'}</strong>
+                                <small>{request.productName || 'Custom arrangement'} · {formatTimestamp(request.createdAt)}</small>
+                              </span>
+                              <span className={`sc-status sc-status-${String(request.status || 'pending').toLowerCase()}`}>{String(request.status || 'pending').replace(/_/g, ' ')}</span>
+                              <span className="sc-dashboard-action-arrow" aria-hidden="true">›</span>
+                            </button>
+                          ))}
                         </div>
+                      )}
+                    </section>
+
+                    <section className="sc-dashboard-panel">
+                      <div className="sc-dashboard-panel-head">
+                        <div><span className="sc-dashboard-panel-kicker">Schedule</span><h2>Upcoming services</h2></div>
+                        <button type="button" className="sc-dashboard-text-btn" onClick={() => setActiveTab('calendar')}>Open calendar</button>
                       </div>
+                      {upcomingRequests.length === 0 ? (
+                        <div className="sc-dashboard-list-empty">No upcoming services have been scheduled.</div>
+                      ) : (
+                        <div className="sc-dashboard-schedule-list">
+                          {upcomingRequests.map((request) => (
+                            <button type="button" key={request.id} onClick={() => openRequestDetail(request)}>
+                              <span className="sc-dashboard-date">
+                                <strong>{request.wakeStartDate ? new Date(request.wakeStartDate).getDate() : '--'}</strong>
+                                <small>{request.wakeStartDate ? new Date(request.wakeStartDate).toLocaleDateString('en-PH', { month: 'short' }) : 'TBD'}</small>
+                              </span>
+                              <span className="sc-dashboard-case-copy">
+                                <strong>{request.deceasedFullName || request.productName || 'Arrangement service'}</strong>
+                                <small>{request.wakeAddress || 'Venue not set'}</small>
+                              </span>
+                              <span className="sc-dashboard-schedule-meta">{formatScheduleDate(request.wakeStartDate)}</span>
+                              <span className="sc-dashboard-action-arrow" aria-hidden="true">›</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </section>
+                  </div>
+                </div>
+              )}
+
+              {/* CUSTOMERS VIEW */}
+              {activeTab === 'customers' && (
+                <div className='sc-ops-page'>
+                  <div className='sc-section-head'>
+                    <div>
+                      <h2>Customers</h2>
+                      <p className='sc-card-subtitle'>Family contacts and their complete arrangement history.</p>
                     </div>
+                    <span className='sc-count-label'>{customers.length} customers</span>
+                  </div>
+                  <input className='sc-simple-search' value={customerSearch} onChange={(event) => setCustomerSearch(event.target.value)} placeholder='Search by name or contact number' aria-label='Search customers' />
+                  {visibleCustomers.length === 0 ? (
+                    <div className='sc-empty'><p>{customers.length ? 'No customers match your search.' : 'Customer profiles will appear after families send requests.'}</p></div>
+                  ) : (
+                    <div className='sc-simple-list'>
+                      {visibleCustomers.map((customer) => (
+                        <button key={customer.id} type='button' className='sc-customer-row' onClick={() => setSelectedCustomerId(customer.id)}>
+                          <span className='sc-customer-avatar'>{customer.name.trim().charAt(0).toUpperCase() || 'C'}</span>
+                          <span className='sc-customer-main'>
+                            <strong>{customer.name}</strong>
+                            <small>{customer.contactNumber || 'No contact number'} - Last activity {formatTimestamp(customer.lastActivity)}</small>
+                          </span>
+                          <span className='sc-customer-metric'><strong>{customer.arrangements.length}</strong><small>Cases</small></span>
+                          <span className='sc-customer-metric'><strong>{customer.activeCount}</strong><small>Active</small></span>
+                          <span className='sc-customer-metric sc-customer-value'><strong>{formatPeso(customer.totalValue)}</strong><small>Confirmed value</small></span>
+                          <span className='sc-row-arrow' aria-hidden='true'>&gt;</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* CALENDAR VIEW */}
+              {activeTab === 'calendar' && (
+                <div className='sc-ops-page'>
+                  <div className='sc-section-head'>
+                    <div>
+                      <h2>Service Calendar</h2>
+                      <p className='sc-card-subtitle'>Wake and burial schedules from active arrangement cases.</p>
+                    </div>
+                    <button className='sc-btn' onClick={() => void loadData()} disabled={loading}>Refresh</button>
+                  </div>
+                  <div className='sc-summary-strip'>
+                    <div><strong>{scheduledRequests.length}</strong><span>Scheduled cases</span></div>
+                    <div><strong>{requests.filter((request) => !request.wakeStartDate && !request.wakeEndDate && !request.burialTime).length}</strong><span>Need a schedule</span></div>
+                  </div>
+                  {scheduledRequests.length === 0 ? (
+                    <div className='sc-empty'><p>No services have been scheduled yet.</p></div>
+                  ) : (
+                    <div className='sc-schedule-list'>
+                      {scheduledRequests.map((request) => (
+                        <button key={request.id} type='button' className='sc-schedule-row' onClick={() => openRequestDetail(request)}>
+                          <span className='sc-date-tile'>
+                            <strong>{request.wakeStartDate ? new Date(request.wakeStartDate).getDate() : '--'}</strong>
+                            <small>{request.wakeStartDate ? new Date(request.wakeStartDate).toLocaleDateString('en-PH', { month: 'short' }) : 'TBD'}</small>
+                          </span>
+                          <span className='sc-schedule-main'>
+                            <strong>{request.deceasedFullName || request.productName || 'Arrangement case'}</strong>
+                            <small>{request.familyCoordinatorName || request.requesterName || 'Requestor'} - {request.wakeAddress || 'Venue not set'}</small>
+                          </span>
+                          <span className='sc-schedule-time'>{formatScheduleDate(request.wakeStartDate)} to {formatScheduleDate(request.wakeEndDate)}</span>
+                          <span className={`sc-status sc-status-${String(request.status || '').toLowerCase()}`}>{String(request.status || 'pending').replace(/_/g, ' ')}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* REPORTS VIEW */}
+              {activeTab === 'reports' && (
+                <div className='sc-ops-page'>
+                  <div className='sc-section-head'>
+                    <div>
+                      <h2>Reports</h2>
+                      <p className='sc-card-subtitle'>A simple view of sales, cases, and inventory health.</p>
+                    </div>
+                    <button className='sc-btn' onClick={() => void loadData()} disabled={loading}>Refresh</button>
+                  </div>
+                  <div className='sc-report-grid'>
+                    <article><span>Confirmed revenue</span><strong>{formatPeso(report.revenue)}</strong></article>
+                    <article><span>Accepted cases</span><strong>{report.accepted}</strong></article>
+                    <article><span>Completed cases</span><strong>{report.completed}</strong></article>
+                    <article><span>Acceptance rate</span><strong>{report.conversionRate}%</strong></article>
+                    <article><span>Average case value</span><strong>{formatPeso(report.averageValue)}</strong></article>
+                    <article><span>Stock attention</span><strong>{report.lowStock + report.soldOut}</strong></article>
+                  </div>
+                  <div className='sc-report-panel'>
+                    <div className='sc-card-header'>
+                      <h3>Cases received - last 6 months</h3>
+                      <span className='sc-card-subtitle'>Based on arrangement creation date</span>
+                    </div>
+                    <div className='sc-simple-chart'>
+                      {report.monthly.map((entry) => (
+                        <div className='sc-chart-column' key={entry.key}>
+                          <strong>{entry.cases}</strong>
+                          <div className='sc-chart-track'><span style={{ height: `${Math.max(4, Math.round((entry.cases / maxMonthlyCases) * 100))}%` }} /></div>
+                          <small>{entry.label}</small>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className='sc-report-note'>
+                    <strong>Inventory check</strong>
+                    <span>{report.lowStock} low-stock product{report.lowStock === 1 ? '' : 's'} and {report.soldOut} unavailable product{report.soldOut === 1 ? '' : 's'}.</span>
+                    <button type='button' className='sc-btn sc-btn-sm' onClick={() => setActiveTab('products')}>Review products</button>
                   </div>
                 </div>
               )}
@@ -1794,7 +2269,13 @@ export default function SellerCentrePage() {
               {/* ORDERS VIEW */}
               {activeTab === 'orders' && (
                 <div className="sc-orders-layout">
-                  <h2>Service Requests</h2>
+                  <div className='sc-section-head'>
+                    <div>
+                      <h2>Arrangement Cases</h2>
+                      <p className='sc-card-subtitle'>Track each family from request through payment, preparation, and completion.</p>
+                    </div>
+                    <span className='sc-count-label'>{requests.length} cases</span>
+                  </div>
                   {requests.length === 0 ? (
                     <div className="sc-empty"><p>No service requests yet.</p></div>
                   ) : (
@@ -1803,7 +2284,7 @@ export default function SellerCentrePage() {
                         <thead>
                           <tr>
                             <th>Product</th>
-                            <th>Requester Details</th>
+                            <th>Requestor Details</th>
                             <th>Deceased Info</th>
                             <th>Status</th>
                             <th>Payment</th>
@@ -1945,25 +2426,57 @@ export default function SellerCentrePage() {
 
               {/* PAYMENTS VIEW */}
               {activeTab === 'payments' && (
-                <div className="sc-orders-layout">
-                  <div className="sc-section-head">
+                <div className="sc-finance-layout">
+                  <header className="sc-finance-header">
                     <div>
-                      <h2>Payments</h2>
-                      <p className="sc-card-subtitle" style={{ marginTop: 4, maxWidth: 560 }}>
-                        All payments users sent for your service requests. Review the proof and verify or reject each payment here.
-                      </p>
+                      <span className="sc-finance-kicker">Finance</span>
+                      <h2>Family payments</h2>
+                      <p>Review payment receipts submitted for arrangement cases.</p>
                     </div>
-                    <button className="sc-btn" onClick={() => void loadData()} disabled={loading}>Refresh</button>
-                  </div>
+                    <button className="sc-finance-refresh" onClick={() => void loadData()} disabled={loading}>
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7" /><path d="M20 5v6h-6" /></svg>
+                      Refresh
+                    </button>
+                  </header>
+
+                  <section className="sc-finance-summary" aria-label="Family payment summary">
+                    <article className="sc-finance-summary-primary">
+                      <span>Confirmed payments</span>
+                      <strong>{formatPeso(financeSummary.received)}</strong>
+                      <small>{financeSummary.verified} verified receipt{financeSummary.verified === 1 ? '' : 's'}</small>
+                    </article>
+                    <article>
+                      <span>Needs review</span>
+                      <strong>{financeSummary.awaitingReview}</strong>
+                      <small>Receipt{financeSummary.awaitingReview === 1 ? '' : 's'} awaiting a decision</small>
+                    </article>
+                    <article>
+                      <span>All submissions</span>
+                      <strong>{paymentSubmissions.length}</strong>
+                      <small>Payment records received</small>
+                    </article>
+                  </section>
+
+                  <section className="sc-finance-panel">
+                    <div className="sc-finance-panel-head">
+                      <div>
+                        <h3>Payment receipts</h3>
+                        <p>Open a request to review its complete payment information and receipt.</p>
+                      </div>
+                      <span>{paymentSubmissions.length} total</span>
+                    </div>
 
                   {paymentSubmissions.length === 0 ? (
-                    <div className="sc-empty">
-                      <p>No payments submitted yet.</p>
-                      <span style={{ fontSize: '12px', color: 'var(--sc-muted)' }}>When a user submits a payment for one of your requests, it will appear here for review and verification.</span>
+                    <div className="sc-finance-empty">
+                      <div aria-hidden="true">
+                        <svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" /><path d="M9 8h6M9 12h6" /></svg>
+                      </div>
+                      <strong>No payment receipts yet</strong>
+                      <span>Submitted family payments will appear here for review.</span>
                     </div>
                   ) : (
-                    <div className="sc-table-wrap">
-                      <table className="sc-table">
+                    <div className="sc-table-wrap sc-finance-table-wrap">
+                      <table className="sc-table sc-finance-table">
                         <thead>
                           <tr>
                             <th>Service</th>
@@ -1977,7 +2490,7 @@ export default function SellerCentrePage() {
                           {paymentSubmissions.map(r => {
                             const status = String(r.status || '').toLowerCase()
                             const submitted = status === 'payment_submitted'
-                            const verified = status === 'payment_verified'
+                            const verified = ['payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(status)
                             const rejected = status === 'awaiting_payment' && Boolean(r.paymentRejectionReason)
 
                             return (
@@ -1995,57 +2508,56 @@ export default function SellerCentrePage() {
                                     </div>
                                   </div>
                                 </td>
-                                <td>
+                                <td className="sc-finance-sender">
                                   <div style={{ fontWeight: 600 }}>{r.paymentPayerName || '—'}</div>
                                   {r.paymentSubmittedAt && (
-                                    <div style={{ fontSize: '11px', color: 'var(--sc-muted)', marginTop: 3 }}>{formatTimestamp(r.paymentSubmittedAt)}</div>
+                                    <small>{formatTimestamp(r.paymentSubmittedAt)}</small>
                                   )}
                                 </td>
-                                <td>{r.paymentAmount != null && Number(r.paymentAmount) > 0 ? formatPeso(r.paymentAmount) : '—'}</td>
+                                <td className="sc-finance-amount">{r.paymentAmount != null && Number(r.paymentAmount) > 0 ? formatPeso(r.paymentAmount) : '—'}</td>
                                 <td>
-                                  <span className={`sc-status sc-status-${submitted ? 'pending' : verified ? 'confirmed' : 'soldout'}`}>
+                                  <span className={`sc-finance-status ${submitted ? 'is-pending' : verified ? 'is-verified' : 'is-rejected'}`}>
                                     {submitted ? 'Awaiting Verification' : verified ? 'Verified' : rejected ? 'Rejected' : (r.status || '').replace(/_/g, ' ')}
                                   </span>
                                   {rejected && r.paymentRejectionReason && (
-                                    <div style={{ fontSize: '11px', color: 'var(--sc-danger)', marginTop: 4 }} title={r.paymentRejectionReason}>
+                                    <div className="sc-finance-rejection" title={r.paymentRejectionReason}>
                                       {r.paymentRejectionReason.length > 60 ? r.paymentRejectionReason.slice(0, 60) + '…' : r.paymentRejectionReason}
                                     </div>
                                   )}
                                 </td>
                                 <td>
-                                  <div className="sc-actions" style={{ flexDirection: 'column' }}>
+                                  <div className="sc-finance-actions">
                                     <button
                                       type="button"
-                                      className="sc-btn sc-btn-sm sc-btn-secondary"
+                                      className="sc-finance-action"
                                       disabled={saving}
                                       onClick={() => openRequestDetail(r)}
                                     >
-                                      View
+                                      Review
                                     </button>
                                     {submitted ? (
-                                      <div className="sc-actions" style={{ flexDirection: 'column' }}>
+                                      <>
                                         <button
-                                          className="sc-btn sc-btn-sm"
-                                          style={{ borderColor: 'var(--sc-success)', color: 'var(--sc-success)' }}
+                                          className="sc-finance-action sc-finance-action-verify"
                                           disabled={saving || paymentVerifyingId === r.id}
                                           onClick={() => void handleVerifyPayment(r, 'verified')}
                                         >
                                           {paymentVerifyingId === r.id ? 'Updating…' : 'Verify'}
                                         </button>
                                         <button
-                                          className="sc-btn sc-btn-sm sc-btn-danger"
+                                          className="sc-finance-action sc-finance-action-reject"
                                           disabled={saving || paymentVerifyingId === r.id}
                                           onClick={() => void handleVerifyPayment(r, 'rejected')}
                                         >
                                           Reject
                                         </button>
-                                      </div>
+                                      </>
                                     ) : verified ? (
-                                      <span style={{ fontSize: '12px', color: 'var(--sc-muted)' }}>
+                                      <span className="sc-finance-reviewed">
                                         {r.paymentVerifiedAt ? `Verified ${new Date(r.paymentVerifiedAt).toLocaleDateString()}` : 'Verified'}
                                       </span>
                                     ) : (
-                                      <span style={{ fontSize: '12px', color: 'var(--sc-muted)' }}>—</span>
+                                      <span className="sc-finance-reviewed">—</span>
                                     )}
                                   </div>
                                 </td>
@@ -2056,102 +2568,7 @@ export default function SellerCentrePage() {
                       </table>
                     </div>
                   )}
-                </div>
-              )}
-
-              {/* CUSTOMER ORDERS VIEW */}
-              {activeTab === 'customer_orders' && (
-                <div className="sc-orders-layout">
-                  <h2>Customer Orders</h2>
-                  {customerOrders.length === 0 ? (
-                    <div className="sc-empty"><p>No customer orders yet.</p></div>
-                  ) : (
-                    <div className="sc-table-wrap">
-                      <table className="sc-table">
-                        <thead>
-                          <tr>
-                            <th>Order ID</th>
-                            <th>Items</th>
-                            <th>Total Price</th>
-                            <th>Status</th>
-                            <th>Date</th>
-                            <th>Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {customerOrders.map(order => {
-                            const shopItems = order.items.filter(i => i.shopId === user?.id)
-                            const shopTotal = shopItems.reduce((acc, i) => acc + (i.price * i.quantity), 0)
-                            return (
-                              <tr key={order.orderId}>
-                                <td><span className="sc-req-id">{order.orderId.substring(0, 8)}...</span></td>
-                                <td>
-                                  {shopItems.map((item, idx) => (
-                                    <div key={idx} style={{ marginBottom: '8px' }}>
-                                      <div style={{ fontWeight: 600 }}>{item.quantity}x {item.name}</div>
-                                      {item.variationName && <div style={{ fontSize: '11px', color: 'var(--sc-muted)' }}>Var: {item.variationName}</div>}
-                                    </div>
-                                  ))}
-                                </td>
-                                <td>{formatPeso(shopTotal)}</td>
-                                <td>
-                                  <span className={`sc-status sc-status-${order.status}`}>{order.status}</span>
-                                </td>
-                                <td>{new Date(order.createdAt).toLocaleDateString()}</td>
-                                <td>
-                                  {order.status === 'pending' ? (
-                                    <div className="sc-actions" style={{ flexDirection: 'column' }}>
-                                      <button 
-                                        className="sc-btn sc-btn-sm" 
-                                        style={{ borderColor: 'var(--sc-success)', color: 'var(--sc-success)' }}
-                                        onClick={() => {
-                                          updateFuneralPurchaseStatus(order.orderId, 'processing')
-                                          setCustomerOrders(prev => prev.map(o => o.orderId === order.orderId ? { ...o, status: 'processing' } : o))
-                                        }}
-                                      >
-                                        Process Order
-                                      </button>
-                                      <button 
-                                        className="sc-btn sc-btn-sm sc-btn-danger"
-                                        onClick={() => {
-                                          openConfirm({
-                                            title: 'Cancel Order',
-                                            message: `Cancel order ${order.orderId.substring(0, 8)}...? This action cannot be undone.`,
-                                            confirmLabel: 'Cancel Order',
-                                            cancelLabel: 'Back',
-                                            tone: 'danger',
-                                            onConfirm: () => {
-                                              updateFuneralPurchaseStatus(order.orderId, 'cancelled')
-                                              setCustomerOrders(prev => prev.map(o => o.orderId === order.orderId ? { ...o, status: 'cancelled' } : o))
-                                            },
-                                          })
-                                        }}
-                                      >
-                                        Cancel Order
-                                      </button>
-                                    </div>
-                                  ) : order.status === 'processing' ? (
-                                    <button 
-                                      className="sc-btn sc-btn-sm" 
-                                      style={{ borderColor: 'var(--sc-success)', color: 'var(--sc-success)' }}
-                                      onClick={() => {
-                                        updateFuneralPurchaseStatus(order.orderId, 'completed')
-                                        setCustomerOrders(prev => prev.map(o => o.orderId === order.orderId ? { ...o, status: 'completed' } : o))
-                                      }}
-                                    >
-                                      Mark Completed
-                                    </button>
-                                  ) : (
-                                    <span style={{ fontSize: '12px', color: 'var(--sc-muted)' }}>—</span>
-                                  )}
-                                </td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                  </section>
                 </div>
               )}
 
@@ -2268,8 +2685,9 @@ export default function SellerCentrePage() {
               {activeTab === 'admin_payments' && (
                 <div className="sc-payment-layout sc-admin-payments-layout">
                   <PaymentQrCard
-                    title="Payments to Admin"
-                    description="Pay or renew your LifeCycle shop registration, track the admin review status, and view your payment history here."
+                    className="sc-lifecycle-payment-card"
+                    title="LifeCycle billing"
+                    description="Submit your shop registration or renewal payment and review its approval status."
                     onSuccess={() => void loadData()}
                   />
                 </div>
@@ -2277,22 +2695,27 @@ export default function SellerCentrePage() {
 
               {/* PAYMENT QR & AMOUNT VIEW */}
               {activeTab === 'payment_setup' && (
-                <div className="sc-payment-layout">
-                  <h2>Payment QR & Amount</h2>
-                  <p className="sc-payment-subtitle">
-                    When you accept a service request, the family will be shown this QR code and the exact amount they need to send you (e.g. via GCash). You can verify each payment from the Payments tab.
-                  </p>
-
-                  <div className="sc-payment-card">
-                    <div className="sc-payment-card-head">
-                      <h3>Payment QR Code</h3>
-                      {paymentQrUrl && (
-                        <span className="sc-payment-saved-at">
-                          {paymentQrSavedAt ? `Last updated ${new Date(paymentQrSavedAt).toLocaleDateString()}` : 'Saved'}
-                        </span>
-                      )}
+                <div className="sc-finance-layout sc-finance-setup-layout">
+                  <header className="sc-finance-header">
+                    <div>
+                      <span className="sc-finance-kicker">Finance</span>
+                      <h2>Family payment setup</h2>
+                      <p>Set the QR code and default amount shown after accepting a request.</p>
                     </div>
-                    <div className="sc-payment-qr-row">
+                    <span className={`sc-finance-setup-status ${paymentSetupReady ? 'is-ready' : 'is-required'}`}>
+                      <i aria-hidden="true" />
+                      {paymentSetupReady ? 'Ready to collect' : 'Setup required'}
+                    </span>
+                  </header>
+
+                  <section className="sc-finance-setup-panel">
+                    <div className="sc-finance-qr-pane">
+                      <div className="sc-finance-field-heading">
+                        <span>Payment QR</span>
+                        {paymentQrUrl && (
+                          <small>{paymentQrSavedAt ? `Updated ${new Date(paymentQrSavedAt).toLocaleDateString()}` : 'Saved'}</small>
+                        )}
+                      </div>
                       <div className="sc-payment-qr-box">
                         {paymentQrPreview ? (
                           <img className="sc-payment-qr-img" src={paymentQrPreview} alt="New payment QR preview" />
@@ -2302,6 +2725,28 @@ export default function SellerCentrePage() {
                           <div className="sc-payment-qr-empty">No QR code uploaded yet.</div>
                         )}
                       </div>
+                      <small className="sc-finance-qr-note">Use a clear GCash or e-wallet QR image.</small>
+                    </div>
+
+                    <div className="sc-finance-setup-fields">
+                      <span className="sc-finance-kicker">Collection details</span>
+                      <h3>Default family payment</h3>
+                      <p>This amount and QR code are shared with the family when you accept an arrangement request.</p>
+
+                      <label className="sc-finance-amount-field">
+                        <span>Amount to collect</span>
+                        <div>
+                          <b>₱</b>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            placeholder="0.00"
+                            value={paymentFeeInput}
+                            onChange={e => setPaymentFeeInput(e.target.value)}
+                          />
+                        </div>
+                      </label>
+
                       <div className="sc-payment-qr-actions">
                         <input
                           ref={paymentQrFileInputRef}
@@ -2311,52 +2756,32 @@ export default function SellerCentrePage() {
                           onChange={handlePaymentQrFileChange}
                         />
                         <button
-                          className="sc-btn sc-btn-primary"
+                          className="sc-finance-action"
                           disabled={paymentSaving}
                           onClick={() => paymentQrFileInputRef.current?.click()}
                         >
                           {paymentQrPreview || paymentQrUrl ? 'Replace QR Code' : 'Upload QR Code'}
                         </button>
                         {paymentQrPreview && (
-                          <button className="sc-btn sc-btn-ghost" disabled={paymentSaving} onClick={clearPaymentQrSelection}>
+                          <button className="sc-finance-action" disabled={paymentSaving} onClick={clearPaymentQrSelection}>
                             Cancel
                           </button>
                         )}
                         {paymentQrUrl && !paymentQrPreview && (
-                          <button className="sc-btn sc-btn-danger-ghost" disabled={paymentSaving} onClick={handleRemovePaymentQr}>
+                          <button className="sc-finance-action sc-finance-action-reject" disabled={paymentSaving} onClick={handleRemovePaymentQr}>
                             Remove QR
                           </button>
                         )}
                       </div>
                     </div>
-                    <p className="sc-payment-hint">Upload a clear, valid GCash (or other e-wallet) QR image that requesters can scan to pay you.</p>
-                  </div>
 
-                  <div className="sc-payment-card">
-                    <div className="sc-payment-card-head">
-                      <h3>Amount to Send</h3>
-                    </div>
-                    <div className="sc-payment-fee-row">
-                      <span className="sc-payment-fee-label">Service fee (PHP)</span>
-                      <input
-                        className="sc-form-input sc-payment-fee-input"
-                        type="text"
-                        inputMode="decimal"
-                        placeholder="e.g. 250"
-                        value={paymentFeeInput}
-                        onChange={e => setPaymentFeeInput(e.target.value)}
-                      />
-                    </div>
-                    <p className="sc-payment-hint">
-                      This is the amount the family must send after you accept their service request. If you leave it empty, no payment will be required.
-                    </p>
-                  </div>
-
-                  <div className="sc-payment-save-row">
-                    <button className="sc-btn sc-btn-primary" disabled={paymentSaving} onClick={handleSavePaymentSettings}>
-                      {paymentSaving ? 'Saving…' : 'Save Payment Settings'}
-                    </button>
-                  </div>
+                    <footer className="sc-finance-setup-footer">
+                      <span>Changes apply to newly accepted requests.</span>
+                      <button className="sc-btn sc-btn-primary" disabled={paymentSaving} onClick={handleSavePaymentSettings}>
+                        {paymentSaving ? 'Saving…' : 'Save Payment Settings'}
+                      </button>
+                    </footer>
+                  </section>
                 </div>
               )}
 
@@ -2414,7 +2839,7 @@ export default function SellerCentrePage() {
                         <div className="sc-editor-form-grid">
                           <div className="sc-form-group">
                             <label htmlFor="prodName">Product Name <span className="sc-required">*</span></label>
-                            <input id="prodName" type="text" className="sc-form-input" placeholder="Enter product name (e.g. Elegant White Wood Casket)" value={editorName} onChange={(e) => setEditorName(e.target.value)} />
+                            <input id="prodName" type="text" className="sc-form-input" placeholder="e.g. Elegant White Wood Casket" value={editorName} onChange={(e) => setEditorName(e.target.value)} />
                           </div>
                           
                           <div className="sc-form-group">
@@ -2519,63 +2944,124 @@ export default function SellerCentrePage() {
         </main>
       </div>{/* end sc-workspace */}
 
+      {/* CUSTOMER HISTORY MODAL */}
+      {selectedCustomer && (
+        <div className='sc-modal-overlay' onClick={() => setSelectedCustomerId(null)}>
+          <div className='sc-modal' onClick={(event) => event.stopPropagation()}>
+            <div className='sc-modal-header'>
+              <h3>Customer History</h3>
+              <button type='button' className='sc-modal-close' aria-label='Close' onClick={() => setSelectedCustomerId(null)}>x</button>
+            </div>
+            <div className='sc-modal-body'>
+              <div className='sc-customer-profile-head'>
+                <span className='sc-customer-avatar sc-customer-avatar-lg'>{selectedCustomer.name.trim().charAt(0).toUpperCase() || 'C'}</span>
+                <div>
+                  <h4>{selectedCustomer.name}</h4>
+                  <p>{selectedCustomer.contactNumber || 'No contact number provided'}</p>
+                </div>
+              </div>
+              <div className='sc-summary-strip'>
+                <div><strong>{selectedCustomer.arrangements.length}</strong><span>Total cases</span></div>
+                <div><strong>{selectedCustomer.activeCount}</strong><span>Active cases</span></div>
+                <div><strong>{formatPeso(selectedCustomer.totalValue)}</strong><span>Confirmed value</span></div>
+              </div>
+              <div className='sc-detail-section'>
+                <h5>Arrangement history</h5>
+                <div className='sc-simple-list'>
+                  {selectedCustomer.arrangements.map((request) => (
+                    <button key={request.id} type='button' className='sc-history-row' onClick={() => { setSelectedCustomerId(null); openRequestDetail(request) }}>
+                      <span>
+                        <strong>{request.deceasedFullName || request.productName || 'Arrangement case'}</strong>
+                        <small>{request.productName || 'Custom service'} - {formatTimestamp(request.createdAt)}</small>
+                      </span>
+                      <span className={`sc-status sc-status-${String(request.status || '').toLowerCase()}`}>{String(request.status || 'pending').replace(/_/g, ' ')}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* PRODUCT DETAIL MODAL */}
       {selectedProduct && (
-        <div className="sc-modal-overlay" onClick={() => setSelectedProduct(null)}>
-          <div className="sc-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="sc-modal-header">
-              <h3>Product Details</h3>
-              <button type="button" className="sc-modal-close" aria-label="Close" onClick={() => setSelectedProduct(null)}>×</button>
-            </div>
-            <div className="sc-modal-body">
-              <div className="sc-product-detail-hero">
+        <div className="sc-modal-overlay sc-product-modal-overlay" onClick={() => setSelectedProduct(null)}>
+          <div
+            className="sc-modal sc-product-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sc-product-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="sc-product-modal-header">
+              <div>
+                <span>Product catalog</span>
+                <h3 id="sc-product-modal-title">Product details</h3>
+              </div>
+              <button type="button" className="sc-modal-close" aria-label="Close product details" onClick={() => setSelectedProduct(null)}>×</button>
+            </header>
+
+            <div className="sc-product-modal-scroll">
+              <section className="sc-product-modal-overview">
                 <div className="sc-product-detail-gallery">
-                  <div className="sc-gallery-main" onClick={() => mainImage && setLightboxOpen(true)}>
+                  <button
+                    type="button"
+                    className="sc-gallery-main"
+                    disabled={!mainImage}
+                    onClick={() => mainImage && setLightboxOpen(true)}
+                    aria-label={mainImage ? 'View product image full size' : 'No product image available'}
+                  >
                     {mainImage ? (
                       <img src={mainImage} alt={selectedProduct.name} />
                     ) : (
                       <div className="sc-gallery-main-ph">LC</div>
                     )}
-                  </div>
+                    {mainImage && <span className="sc-product-image-hint">View larger</span>}
+                  </button>
                   {galleryImages.length > 1 && (
                     <div className="sc-gallery-thumbs">
                       {galleryImages.map((url, idx) => (
-                        <div
-                          key={idx}
+                        <button
+                          type="button"
+                          key={url}
                           className={`sc-gallery-thumb ${idx === galleryIndex ? 'active' : ''}`}
                           onClick={() => setGalleryIndex(idx)}
+                          aria-label={`Show product image ${idx + 1}`}
                         >
-                          <img src={url} alt={`thumb ${idx + 1}`} />
-                        </div>
+                          <img src={url} alt="" />
+                        </button>
                       ))}
                     </div>
                   )}
                 </div>
-                <div className="sc-product-detail-info">
-                  <h4>{selectedProduct.name}</h4>
-                  <span className={`sc-status ${getProductState(selectedProduct) === 'live' ? 'sc-status-live' : 'sc-status-soldout'}`}>
-                    {getProductState(selectedProduct) === 'live' ? 'Live' : 'Sold Out'}
-                  </span>
+
+                <div className="sc-product-modal-info">
+                  <span className="sc-product-modal-eyebrow">Item #{selectedProduct.id.slice(0, 8).toUpperCase()}</span>
+                  <div className="sc-product-modal-title-row">
+                    <h2>{selectedProduct.name}</h2>
+                    <span className={`sc-product-availability ${!selectedProduct.active ? 'is-paused' : selectedProduct.stock > 0 ? 'is-live' : 'is-soldout'}`}>
+                      {!selectedProduct.active ? 'Paused' : selectedProduct.stock > 0 ? 'Live' : 'Sold out'}
+                    </span>
+                  </div>
                   <div className="sc-product-detail-price">{formatPeso(selectedProduct.price)}</div>
-                </div>
-              </div>
 
-              <div className="sc-detail-grid">
-                <div className="sc-detail"><span>Stock</span><strong>{selectedProduct.stock}</strong></div>
-                <div className="sc-detail"><span>Variants</span><strong>{selectedProduct.hasVariations ? selectedProduct.variationCount : 'None'}</strong></div>
-                <div className="sc-detail"><span>Created</span><strong>{selectedProduct.createdAt ? new Date(selectedProduct.createdAt).toLocaleDateString() : '—'}</strong></div>
-                <div className="sc-detail"><span>Status</span><strong>{getProductState(selectedProduct) === 'live' ? 'Live' : 'Sold Out'}</strong></div>
-              </div>
+                  <dl className="sc-product-modal-facts">
+                    <div><dt>Available stock</dt><dd>{selectedProduct.stock}</dd></div>
+                    <div><dt>Variations</dt><dd>{selectedProduct.hasVariations ? selectedProduct.variationCount : 'None'}</dd></div>
+                    <div><dt>Photos</dt><dd>{galleryImages.length}</dd></div>
+                    <div><dt>Added</dt><dd>{selectedProduct.createdAt ? new Date(selectedProduct.createdAt).toLocaleDateString() : '—'}</dd></div>
+                  </dl>
 
-              {selectedProduct.description ? (
-                <div className="sc-detail-section">
-                  <h5>Description</h5>
-                  <p>{selectedProduct.description}</p>
+                  <div className="sc-product-modal-description">
+                    <h4>Description</h4>
+                    <p>{selectedProduct.description || 'No product description has been added.'}</p>
+                  </div>
                 </div>
-              ) : null}
+              </section>
 
               {detailLoading && (
-                <div className="sc-empty">
+                <div className="sc-product-modal-loading">
                   <div className="sc-spinner" />
                   <p>Loading product details…</p>
                 </div>
@@ -2584,8 +3070,11 @@ export default function SellerCentrePage() {
               {detailError && <p className="sc-rejection">{detailError}</p>}
 
               {detailData && detailData.variations.length > 0 && (
-                <div className="sc-detail-section">
-                  <h5>Variations ({detailData.variations.length})</h5>
+                <section className="sc-product-modal-section">
+                  <div className="sc-product-modal-section-head">
+                    <div><span>Options</span><h4>Product variations</h4></div>
+                    <small>{detailData.variations.length} variation{detailData.variations.length === 1 ? '' : 's'}</small>
+                  </div>
                   <div className="sc-var-list">
                     {detailData.variations.map((v) => (
                       <div className="sc-var-item" key={v.id}>
@@ -2594,52 +3083,82 @@ export default function SellerCentrePage() {
                       </div>
                     ))}
                   </div>
-                </div>
+                </section>
               )}
 
               {detailData && (
-                <div className="sc-detail-section">
-                  <h5>Ratings &amp; Feedback</h5>
-                  <div className="sc-rating-summary">
-                    <span className="sc-rating-score">
-                      {detailData.ratingCount ? detailData.averageRating.toFixed(1) : '—'}
-                    </span>
-                    <div>
-                      <Stars value={detailData.averageRating} />
-                      <div className="sc-rating-meta">
-                        {detailData.ratingCount} rating{detailData.ratingCount === 1 ? '' : 's'} · {detailData.feedbackCount} feedback
+                <section className="sc-product-modal-section">
+                  <div className="sc-product-modal-section-head">
+                    <div><span>Customer response</span><h4>Ratings and feedback</h4></div>
+                    <small>{detailData.feedbackCount} feedback</small>
+                  </div>
+                  <div className="sc-product-review-layout">
+                    <div className="sc-rating-summary">
+                      <span className="sc-rating-score">
+                        {detailData.ratingCount ? detailData.averageRating.toFixed(1) : '—'}
+                      </span>
+                      <div>
+                        <Stars value={detailData.averageRating} />
+                        <div className="sc-rating-meta">
+                          {detailData.ratingCount} rating{detailData.ratingCount === 1 ? '' : 's'}
+                        </div>
                       </div>
                     </div>
+
+                    {detailData.feedbacks.length === 0 ? (
+                      <div className="sc-product-feedback-empty">No customer feedback yet.</div>
+                    ) : (
+                      <div className="sc-feedback-list">
+                        {detailData.feedbacks.map((fb) => (
+                          <article className="sc-feedback-item" key={fb.id}>
+                            <div className="sc-feedback-item-head">
+                              <span className="sc-feedback-author">{fb.displayName || fb.userEmail || 'Anonymous'}</span>
+                              <span className="sc-feedback-date">
+                                {fb.createdAt ? new Date(fb.createdAt).toLocaleDateString() : ''}
+                              </span>
+                            </div>
+                            {fb.ratingSnapshot ? (
+                              <div className="sc-feedback-stars"><Stars value={fb.ratingSnapshot} /></div>
+                            ) : null}
+                            <p className="sc-feedback-text">{fb.feedback}</p>
+                          </article>
+                        ))}
+                      </div>
+                    )}
                   </div>
-
-                  {detailData.feedbacks.length === 0 ? (
-                    <p className="sc-modal-muted">No customer feedback for this product yet.</p>
-                  ) : (
-                    <div className="sc-feedback-list">
-                      {detailData.feedbacks.map((fb) => (
-                        <div className="sc-feedback-item" key={fb.id}>
-                          <div className="sc-feedback-item-head">
-                            <span className="sc-feedback-author">{fb.displayName || fb.userEmail || 'Anonymous'}</span>
-                            <span className="sc-feedback-date">
-                              {fb.createdAt ? new Date(fb.createdAt).toLocaleDateString() : ''}
-                            </span>
-                          </div>
-                          {fb.ratingSnapshot ? (
-                            <div className="sc-feedback-stars"><Stars value={fb.ratingSnapshot} /></div>
-                          ) : null}
-                          <p className="sc-feedback-text">{fb.feedback}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                </section>
               )}
+            </div>
 
-              <div className="sc-editor-actions" style={{ marginTop: '20px' }}>
+            <footer className="sc-product-modal-footer">
+              <button
+                type="button"
+                className="sc-product-delete-action"
+                disabled={saving}
+                onClick={() => {
+                  const p = selectedProduct
+                  setSelectedProduct(null)
+                  handleDeleteProduct(p)
+                }}
+              >
+                Delete product
+              </button>
+              <div>
                 <button type="button" className="sc-btn sc-btn-secondary" onClick={() => setSelectedProduct(null)}>Close</button>
                 <button
                   type="button"
-                  className="sc-btn"
+                  className="sc-btn sc-btn-secondary"
+                  onClick={() => {
+                    const productId = selectedProduct.id
+                    setSelectedProduct(null)
+                    navigate(`/funeral/product/${productId}`)
+                  }}
+                >
+                  View storefront
+                </button>
+                <button
+                  type="button"
+                  className="sc-btn sc-btn-primary"
                   disabled={saving}
                   onClick={() => {
                     const p = selectedProduct
@@ -2647,23 +3166,10 @@ export default function SellerCentrePage() {
                     void openProductEditor(p.id)
                   }}
                 >
-                  Edit Product
-                </button>
-                <button
-                  type="button"
-                  className="sc-primary-btn"
-                  style={{ background: 'var(--sc-danger)', borderColor: 'var(--sc-danger)' }}
-                  disabled={saving}
-                  onClick={() => {
-                    const p = selectedProduct
-                    setSelectedProduct(null)
-                    handleDeleteProduct(p)
-                  }}
-                >
-                  Delete
+                  Edit product
                 </button>
               </div>
-            </div>
+            </footer>
           </div>
         </div>
       )}
@@ -2672,27 +3178,47 @@ export default function SellerCentrePage() {
       {viewRequest && (() => {
         const r = viewRequest
         const status = String(r.status || '').toLowerCase()
-        const showPayment = ['awaiting_payment', 'payment_submitted', 'payment_verified', 'completed'].includes(status) && (
+        const statusLabel = String(r.status || 'pending').replace(/_/g, ' ').replace(/\\b\\w/g, letter => letter.toUpperCase())
+        const requestTypeLabel = r.requestType?.replace(/_/g, ' ').replace(/\\b\\w/g, letter => letter.toUpperCase()) || 'Standard service'
+        const showPayment = ['awaiting_payment', 'payment_submitted', 'payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(status) && (
           r.paymentAmount != null || r.paymentPayerName || r.paymentGcashName || r.paymentGcashNumber || r.paymentReferenceNumber || r.paymentProofImageUrl || r.paymentSubmittedAt
         )
+        const hasSchedule = Boolean(r.wakeAddress || r.wakeStartDate || r.wakeEndDate || r.burialTime || r.pickupAddress)
+        const timelineItems = [
+          { label: 'Request created', value: r.createdAt },
+          { label: 'Shop responded', value: r.shopRespondedAt },
+          { label: 'Accepted', value: r.acceptedAt },
+          { label: 'Declined', value: r.declinedAt },
+          { label: 'Cancelled', value: r.cancelledAt },
+          { label: 'Payment submitted', value: r.paymentSubmittedAt },
+          { label: 'Payment verified', value: r.paymentVerifiedAt },
+          { label: 'Completed', value: r.completedAt },
+        ].filter(item => Boolean(item.value))
         return (
           <div className="sc-modal-overlay" onClick={() => setViewRequest(null)}>
-            <div className="sc-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="sc-modal-header">
-                <h3>Service Request Details</h3>
-                <button type="button" className="sc-modal-close" aria-label="Close" onClick={() => setViewRequest(null)}>×</button>
+            <div className="sc-modal sc-request-modal" role="dialog" aria-modal="true" aria-labelledby="sc-request-title" onClick={(e) => e.stopPropagation()}>
+              <div className="sc-modal-header sc-request-modal-header">
+                <div>
+                  <span className="sc-request-eyebrow">Arrangement case #{r.id.slice(0, 8).toUpperCase()}</span>
+                  <h3 id="sc-request-title">Service request</h3>
+                </div>
+                <div className="sc-request-header-actions">
+                  <span className={`sc-status sc-status-${status}`}>{statusLabel}</span>
+                  <button type="button" className="sc-modal-close" aria-label="Close" onClick={() => setViewRequest(null)}>×</button>
+                </div>
               </div>
-              <div className="sc-modal-body">
+              <div className="sc-modal-body sc-request-modal-body">
                 <div className="sc-product-detail-hero">
                   {r.productImageUrl ? (
                     <div className="sc-product-detail-gallery">
-                      <div
+                      <button
+                        type="button"
                         className="sc-gallery-main"
-                        style={{ cursor: 'zoom-in' }}
                         onClick={() => setProofLightboxUrl(r.productImageUrl as string)}
+                        aria-label="View product image"
                       >
                         <img src={r.productImageUrl} alt={r.productName || 'Product'} />
-                      </div>
+                      </button>
                     </div>
                   ) : (
                     <div className="sc-product-detail-gallery">
@@ -2700,22 +3226,88 @@ export default function SellerCentrePage() {
                     </div>
                   )}
                   <div className="sc-product-detail-info">
+                    <span className="sc-request-product-label">{requestTypeLabel}</span>
                     <h4>{r.productName || 'Custom Casket'}</h4>
-                    {r.variationName && <div style={{ fontSize: '12px', color: 'var(--sc-muted)' }}>Variation: {r.variationName}</div>}
+                    {r.variationName && <div className="sc-request-variation">Variation: {r.variationName}</div>}
                     <div className="sc-product-detail-price">{formatPeso(r.productPrice)}</div>
-                    <div style={{ marginTop: '10px' }}>
-                      <span className={`sc-status sc-status-${status}`}>
-                        {(r.status || 'pending').replace(/_/g, ' ')}
-                      </span>
-                    </div>
                   </div>
                 </div>
 
-                <div className="sc-detail-grid">
+                <div className="sc-request-info-grid">
+                  <section className="sc-request-info-card">
+                    <div className="sc-request-section-head">
+                      <span aria-hidden="true">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></svg>
+                      </span>
+                      <div><h4>Family contact</h4><p>Primary requestor details</p></div>
+                    </div>
+                    <dl className="sc-request-data-list">
+                      <div><dt>Requestor</dt><dd>{r.familyCoordinatorName || r.requesterName || 'Not provided'}</dd></div>
+                      <div><dt>Contact number</dt><dd>{r.contactNumber || 'Not provided'}</dd></div>
+                    </dl>
+                  </section>
+
+                  <section className="sc-request-info-card">
+                    <div className="sc-request-section-head">
+                      <span aria-hidden="true">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 3h16v18H4z" /><path d="M8 7h8M8 11h8M8 15h5" /></svg>
+                      </span>
+                      <div><h4>Service information</h4><p>Deceased and arrangement information</p></div>
+                    </div>
+                    <dl className="sc-request-data-list">
+                      <div><dt>Request type</dt><dd>{requestTypeLabel}</dd></div>
+                      <div><dt>Deceased</dt><dd>{r.deceasedFullName || 'Not provided'}</dd></div>
+                      {r.deceasedDateOfBirth && <div><dt>Date of birth</dt><dd>{new Date(r.deceasedDateOfBirth).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}</dd></div>}
+                      {r.deceasedDateOfPassing && <div><dt>Date of passing</dt><dd>{new Date(r.deceasedDateOfPassing).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}</dd></div>}
+                      {r.deceasedAge != null && <div><dt>Age</dt><dd>{r.deceasedAge}</dd></div>}
+                    </dl>
+                    {r.memorialPhotoUrl && (
+                      <button type="button" className="sc-request-memorial" onClick={() => setProofLightboxUrl(r.memorialPhotoUrl as string)}>
+                        <img src={r.memorialPhotoUrl} alt="Memorial" />
+                        <span>View memorial photo</span>
+                      </button>
+                    )}
+                  </section>
+
+                  {hasSchedule && (
+                    <section className="sc-request-info-card sc-request-info-wide">
+                      <div className="sc-request-section-head">
+                        <span aria-hidden="true">
+                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18" /></svg>
+                        </span>
+                        <div><h4>Schedule and logistics</h4><p>Wake, burial, and pickup information</p></div>
+                      </div>
+                      <dl className="sc-request-data-list sc-request-data-columns">
+                        {r.wakeAddress && <div><dt>Wake venue</dt><dd>{r.wakeAddress}</dd></div>}
+                        {(r.wakeStartDate || r.wakeEndDate) && <div><dt>Wake schedule</dt><dd>{formatScheduleDate(r.wakeStartDate)} to {formatScheduleDate(r.wakeEndDate)}</dd></div>}
+                        {r.burialTime && <div><dt>Burial time</dt><dd>{formatScheduleTime(r.burialTime)}</dd></div>}
+                        {r.pickupAddress && <div><dt>Pickup address</dt><dd>{r.pickupAddress}</dd></div>}
+                      </dl>
+                    </section>
+                  )}
+
+                  <section className="sc-request-info-card sc-request-info-wide">
+                    <div className="sc-request-section-head">
+                      <span aria-hidden="true">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+                      </span>
+                      <div><h4>Case timeline</h4><p>Recorded milestones for this request</p></div>
+                    </div>
+                    <ol className="sc-request-timeline">
+                      {timelineItems.map((item, index) => (
+                        <li key={item.label} className={index === timelineItems.length - 1 ? 'current' : ''}>
+                          <span aria-hidden="true" />
+                          <div><strong>{item.label}</strong><time>{formatTimestamp(item.value)}</time></div>
+                        </li>
+                      ))}
+                    </ol>
+                  </section>
+                </div>
+
+                <div className="sc-detail-grid sc-request-legacy-details">
                   <div className="sc-detail"><span>Request Type</span><strong>{r.requestType?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || '—'}</strong></div>
-                  <div className="sc-detail"><span>Requester</span><strong>{r.requesterName || '—'}</strong></div>
                   <div className="sc-detail"><span>Contact Number</span><strong>{r.contactNumber || '—'}</strong></div>
-                  <div className="sc-detail"><span>Family Coordinator</span><strong>{r.familyCoordinatorName || '—'}</strong></div>
+                  <div className="sc-detail"><span>Requestor</span><strong>{r.familyCoordinatorName || r.requesterName || '—'}</strong></div>
                   <div className="sc-detail"><span>Deceased Full Name</span><strong>{r.deceasedFullName || '—'}</strong></div>
                   <div className="sc-detail"><span>Deceased Date of Birth</span><strong>{r.deceasedDateOfBirth ? new Date(r.deceasedDateOfBirth).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}</strong></div>
                   <div className="sc-detail"><span>Date of Passing</span><strong>{r.deceasedDateOfPassing ? new Date(r.deceasedDateOfPassing).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}</strong></div>
@@ -2739,28 +3331,15 @@ export default function SellerCentrePage() {
                   <div className="sc-detail"><span>Completed At</span><strong>{formatTimestamp(r.completedAt)}</strong></div>
                 </div>
 
-                {r.memorialPhotoUrl && (
-                  <div className="sc-detail-section">
-                    <h5>Memorial Photo</h5>
-                    <img
-                      src={r.memorialPhotoUrl}
-                      alt="Memorial"
-                      className="sc-payment-proof-thumb"
-                      style={{ width: '140px', height: '140px', objectFit: 'cover', cursor: 'zoom-in' }}
-                      onClick={() => setProofLightboxUrl(r.memorialPhotoUrl as string)}
-                    />
-                  </div>
-                )}
-
                 {r.customDesignNotes ? (
-                  <div className="sc-detail-section">
+                  <div className="sc-detail-section sc-request-note-card">
                     <h5>Custom Design Notes</h5>
                     <p>{r.customDesignNotes}</p>
                   </div>
                 ) : null}
 
                 {r.tributeMessage ? (
-                  <div className="sc-detail-section">
+                  <div className="sc-detail-section sc-request-note-card">
                     <h5>Tribute Message</h5>
                     <p>{r.tributeMessage}</p>
                   </div>
@@ -2825,7 +3404,7 @@ export default function SellerCentrePage() {
                 )}
 
                 {status === 'payment_verified' && (
-                  <div className="sc-detail-section">
+                  <div className="sc-detail-section sc-request-completion-card">
                     <h5>Completion Proof</h5>
                     {completionProofPreview ? (
                       <>
@@ -2863,7 +3442,7 @@ export default function SellerCentrePage() {
                 )}
 
                 {status === 'awaiting_customer_confirmation' && (
-                  <div className="sc-rejection" style={{ marginTop: '12px' }}>
+                  <div className="sc-request-waiting-note">
                     <strong>Awaiting Customer Confirmation</strong> — the family is reviewing your completion proof and will confirm the request as done.
                   </div>
                 )}
@@ -2903,7 +3482,7 @@ export default function SellerCentrePage() {
                   </div>
                 )}
 
-                <div className="sc-editor-actions" style={{ marginTop: '20px' }}>
+                <div className="sc-editor-actions sc-request-actions">
                   <button type="button" className="sc-btn sc-btn-secondary" onClick={() => setViewRequest(null)}>Close</button>
                   {status === 'pending_shop_acceptance' && (
                     <>

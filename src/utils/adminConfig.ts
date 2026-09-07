@@ -6,6 +6,9 @@ type GetAdminIdOptions = {
 };
 
 let cachedAdminIds: string[] | null = null;
+let cacheExpiresAt = 0;
+let adminLoadPromise: Promise<string[]> | null = null;
+const ADMIN_CACHE_MS = 5 * 60 * 1000;
 
 const normalizeAdminId = (value: unknown): string | null => {
   const normalized = String(value || "").trim();
@@ -31,8 +34,8 @@ const pickAdminId = (
   return adminIds[0] || null;
 };
 
-const loadAdminIds = async (): Promise<string[]> => {
-  if (cachedAdminIds) return cachedAdminIds;
+const discoverAdminIds = async (): Promise<string[]> => {
+  if (cachedAdminIds && Date.now() < cacheExpiresAt) return cachedAdminIds;
 
   const discoveredAdminIds: string[] = [];
 
@@ -61,8 +64,35 @@ const loadAdminIds = async (): Promise<string[]> => {
     // Keep silent to avoid noisy logs in production UI.
   }
 
-  cachedAdminIds = uniqueAdminIds(discoveredAdminIds);
-  return cachedAdminIds;
+  const uniqueIds = uniqueAdminIds(discoveredAdminIds);
+  if (uniqueIds.length > 0) {
+    cachedAdminIds = uniqueIds;
+    cacheExpiresAt = Date.now() + ADMIN_CACHE_MS;
+  }
+  return uniqueIds;
+};
+
+const loadAdminIds = async (): Promise<string[]> => {
+  if (cachedAdminIds && Date.now() < cacheExpiresAt) return cachedAdminIds;
+  if (!adminLoadPromise) {
+    adminLoadPromise = discoverAdminIds().finally(() => {
+      adminLoadPromise = null;
+    });
+  }
+  return adminLoadPromise;
+};
+
+export const getAdminIds = async (options: GetAdminIdOptions = {}): Promise<string[]> => {
+  const adminIds = await loadAdminIds();
+  const excludedId = normalizeAdminId(options.excludeUserId);
+  const filteredIds = excludedId ? adminIds.filter((id) => id !== excludedId) : adminIds;
+  if (filteredIds.length > 0) return filteredIds;
+  return options.allowExcludedFallback ? adminIds : [];
+};
+
+export const clearAdminIdCache = () => {
+  cachedAdminIds = null;
+  cacheExpiresAt = 0;
 };
 
 export const getAdminId = async (options: GetAdminIdOptions = {}): Promise<string | null> => {

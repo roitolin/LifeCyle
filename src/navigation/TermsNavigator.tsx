@@ -9,7 +9,7 @@ export default function TermsNavigator() {
       <Stack.Screen
         name="TermsAndConditions"
         component={TermsAndConditionsScreen}
-        options={{ title: "Terms & Conditions", headerBackVisible: false }}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );

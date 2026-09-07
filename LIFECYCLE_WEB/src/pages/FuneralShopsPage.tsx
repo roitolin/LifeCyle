@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { User } from '@supabase/supabase-js'
+import BrandLogo from '@/components/BrandLogo'
 import { supabase } from '@/lib/supabase'
 import { loadFuneralCart } from '@/utils/funeralCart'
 import './ShopPage.css'
@@ -106,19 +107,10 @@ export default function FuneralShopsPage() {
         <div className="sp-topbar-inner">
           <div className="sp-topbar-left">
             <Link to="/seller">Seller Centre</Link>
-            <span className="sp-divider">|</span>
-            <span>Follow us on</span>
-            <a href="#fb" aria-label="Facebook">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg>
-            </a>
-            <a href="#ig" aria-label="Instagram">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor"/></svg>
-            </a>
           </div>
           <div className="sp-topbar-right">
             <Link to="/user/notifications">Notifications</Link>
-            <a href="#help">Help</a>
-            <a href="#language">English</a>
+            <Link to="/user/help">Help Centre</Link>
             <span className="sp-divider">|</span>
             {isLoggedIn
               ? (
@@ -137,6 +129,7 @@ export default function FuneralShopsPage() {
                   <div className="sp-user-dropdown">
                     <Link to="/user/profile">My Account</Link>
                     <Link to="/user/purchase">Purchases</Link>
+                    <Link to="/auth/switch-account" className="sp-dropdown-switch">Switch Account</Link>
                     <Link to="/auth/logout">Log out</Link>
                   </div>
                 </div>
@@ -149,10 +142,7 @@ export default function FuneralShopsPage() {
       {/* ── Header ── */}
       <header className="sp-header">
         <div className="sp-header-inner">
-          <Link to="/funeral" className="sp-logo" aria-label="LifeCycle Home">
-            <div className="sp-logo-box">LC</div>
-            <span>LifeCycle</span>
-          </Link>
+          <BrandLogo />
 
           <div className="sp-search-wrap">
             <div className="sp-search-box">
@@ -162,7 +152,7 @@ export default function FuneralShopsPage() {
                 value={queryText}
                 onChange={e => setQueryText(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && navigate(`/funeral?search=${encodeURIComponent(queryText)}`)}
-                placeholder="Search funeral products, caskets, urns..."
+                placeholder="Search funeral products"
                 aria-label="Search"
               />
               <button type="button" className="sp-search-btn" onClick={() => navigate(`/funeral?search=${encodeURIComponent(queryText)}`)} aria-label="Search">
@@ -186,51 +176,35 @@ export default function FuneralShopsPage() {
       </header>
 
       <div className="sp-container">
-        <button
-          onClick={() => navigate(-1)}
-          style={{
-            marginBottom: '16px',
-            background: 'transparent',
-            border: 'none',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            color: '#666',
-            fontSize: '14px',
-            fontWeight: '500',
-            padding: '0',
-          }}
-        >
+        <button type="button" onClick={() => navigate(-1)} className="fsp-back-btn">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"></path><polyline points="12 19 5 12 12 5"></polyline></svg>
           Back
         </button>
 
         <div className="fsp-hero">
-          <h1>Verified Funeral Shops</h1>
-          <p>Browse trusted casket sellers. Once a funeral shop is verified, it appears here automatically for families to browse.</p>
+          <h1>Funeral shops</h1>
+          <p>Browse active funeral shops and view their available products and contact details.</p>
           <div className="fsp-hero-pill">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
-            {loading ? 'Loading...' : `${shops.length} verified ${shops.length === 1 ? 'shop' : 'shops'}`}
+            {loading ? 'Loading…' : `${shops.length} available ${shops.length === 1 ? 'shop' : 'shops'}`}
           </div>
         </div>
 
         {loading ? (
           <div className="fsp-state">
             <div className="sp-spinner" />
-            <p>Loading verified shops...</p>
+            <p>Loading shops…</p>
           </div>
         ) : error ? (
           <div className="fsp-state fsp-state-error">{error}</div>
         ) : filtered.length === 0 ? (
           <div className="fsp-state">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#86908a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
-            <p>No verified shops yet. Verified funeral shops will show up here automatically as soon as admins approve them.</p>
+            <p>No funeral shops are currently available.</p>
           </div>
         ) : (
           <div className="fsp-list">
             {filtered.map(shop => (
-              <div key={shop.id} className="fsp-card">
+              <article key={shop.id} className="fsp-card">
                 {shop.shopImageUrl ? (
                   <img src={shop.shopImageUrl} alt={shop.shopName} className="fsp-card-img" />
                 ) : (
@@ -254,10 +228,10 @@ export default function FuneralShopsPage() {
                   {shop.businessName ? <div className="fsp-card-business">{shop.businessName}</div> : null}
                 </div>
 
-                <button className="fsp-card-btn" onClick={() => navigate(`/shop/${shop.id}`)}>
-                  View Products
-                </button>
-              </div>
+                <Link className="fsp-card-btn" to={`/shop/${shop.id}`}>
+                  View products
+                </Link>
+              </article>
             ))}
           </div>
         )}

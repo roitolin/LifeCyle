@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { addFuneralCartItem, loadFuneralCart } from '@/utils/funeralCart'
 import type { User } from '@supabase/supabase-js'
+import BrandLogo from '@/components/BrandLogo'
 import './ProductDetailPage.css'
 
 type Product = {
@@ -30,24 +31,19 @@ type RelatedProduct = {
   imageUrl: string | null
 }
 
+function readStoredFavorites(): Record<string, boolean> {
+  try {
+    const stored = JSON.parse(localStorage.getItem('lifecycle_favorites') || '{}')
+    return stored && typeof stored === 'object' ? stored : {}
+  } catch {
+    return {}
+  }
+}
+
 function formatPeso(value: number | string | null | undefined): string {
   const num = Number(String(value ?? '').replace(/[^\d.]/g, ''))
   if (!Number.isFinite(num) || num <= 0) return value ? String(value) : '-'
   return `\u20b1${new Intl.NumberFormat('en-PH', { maximumFractionDigits: 0 }).format(num)}`
-}
-
-function Stars({ rating = 4.8 }: { rating?: number }) {
-  const full = Math.floor(rating || 0)
-  const half = (rating || 0) - full >= 0.5
-  return (
-    <div className="pd-stars">
-      {Array.from({ length: 5 }, (_, i) => (
-        <svg key={i} width="14" height="14" viewBox="0 0 24 24" fill={i < full || (half && i === full) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
-          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-        </svg>
-      ))}
-    </div>
-  )
 }
 
 // Icons
@@ -86,16 +82,17 @@ export default function ProductDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [galleryIndex, setGalleryIndex] = useState(0)
   const [selectedVariation, setSelectedVariation] = useState<string | null>(null)
-  const [quantity, setQuantity] = useState(1)
   const [cartCount, setCartCount] = useState(0)
   const [userProfile, setUserProfile] = useState<any>(null)
   const [queryText, setQueryText] = useState('')
   const [isImageModalOpen, setIsImageModalOpen] = useState(false)
   const [isFavorite, setIsFavorite] = useState(false)
+  const imageTriggerRef = useRef<HTMLButtonElement>(null)
+  const imageCloseRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     if (productId && viewer) {
-      const favs = JSON.parse(localStorage.getItem('lifecycle_favorites') || '{}')
+      const favs = readStoredFavorites()
       setIsFavorite(!!favs[productId])
     } else {
       setIsFavorite(false)
@@ -105,6 +102,7 @@ export default function ProductDetailPage() {
   const [showLoginToast, setShowLoginToast] = useState(false)
   const [showAddedToast, setShowAddedToast] = useState(false)
   const [showVariationToast, setShowVariationToast] = useState(false)
+  const [showShareToast, setShowShareToast] = useState(false)
 
   const toggleFavorite = () => {
     if (!productId) return
@@ -115,20 +113,39 @@ export default function ProductDetailPage() {
     }
     const nextState = !isFavorite
     setIsFavorite(nextState)
-    const favs = JSON.parse(localStorage.getItem('lifecycle_favorites') || '{}')
+    const favs = readStoredFavorites()
     if (nextState) {
       favs[productId] = true
     } else {
       delete favs[productId]
     }
     localStorage.setItem('lifecycle_favorites', JSON.stringify(favs))
+    window.dispatchEvent(new Event('lifecycle-favorites-updated'))
   }
 
-  const gallery = product?.galleryImageUrls.length ? product.galleryImageUrls
-    : product?.imageUrl ? [product.imageUrl]
-    : []
+  const shareProduct = async () => {
+    if (!product) return
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: product.name, text: `View ${product.name} on LifeCycle`, url: window.location.href })
+      } else {
+        await navigator.clipboard.writeText(window.location.href)
+        setShowShareToast(true)
+        window.setTimeout(() => setShowShareToast(false), 2500)
+      }
+    } catch {
+      // Closing the native share sheet is not an error the page needs to surface.
+    }
+  }
 
   const variations = product?.variations ?? []
+  const baseGallery = product?.galleryImageUrls.length ? product.galleryImageUrls
+    : product?.imageUrl ? [product.imageUrl]
+    : []
+  const gallery = Array.from(new Set([
+    ...baseGallery,
+    ...variations.map(variation => variation.imageUrl).filter((url): url is string => Boolean(url)),
+  ]))
   const isLoggedIn = Boolean(viewer)
 
   useEffect(() => {
@@ -155,9 +172,28 @@ export default function ProductDetailPage() {
   }, [isLoggedIn])
 
   useEffect(() => {
+    if (!isImageModalOpen) return
+    const imageTrigger = imageTriggerRef.current
+    const previousOverflow = document.body.style.overflow
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsImageModalOpen(false)
+    }
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', closeOnEscape)
+    window.requestAnimationFrame(() => imageCloseRef.current?.focus())
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', closeOnEscape)
+      imageTrigger?.focus()
+    }
+  }, [isImageModalOpen])
+
+  useEffect(() => {
     if (!productId) return
+    let cancelled = false
     setLoading(true)
     setError(null)
+    setRelatedProducts([])
     void (async () => {
       try {
         const { data, error: err } = await supabase
@@ -175,7 +211,10 @@ export default function ProductDetailPage() {
           .maybeSingle()
 
         if (err) throw err
-        if (!data) { setError('Product not found.'); setLoading(false); return }
+        if (!data) {
+          if (!cancelled) setError('Product not found.')
+          return
+        }
 
         const row = data as any
         const imgs = (row.funeral_product_images ?? []) as any[]
@@ -204,22 +243,24 @@ export default function ProductDetailPage() {
           galleryImageUrls: galleryUrls,
           variations: variationList,
         }
+        if (cancelled) return
         setProduct(productData)
         setGalleryIndex(0)
         setSelectedVariation(null)
-        setQuantity(1)
 
         // Load related products from the same shop (excluding this product)
         const { data: relData } = await supabase
           .from('funeral_products')
           .select(`id, name, price, stock, "imageUrl", active, funeral_shops!inner(status)`)
           .eq('active', true)
+          .gt('stock', 0)
           .eq('funeral_shops.status', 'live')
           .gt('funeral_shops.paidUntil', new Date().toISOString())
+          .eq('shopId', productData.shopId)
           .neq('id', productId)
           .limit(6)
 
-        if (relData) {
+        if (relData && !cancelled) {
           setRelatedProducts((relData as any[]).map(r => ({
             id: String(r.id),
             name: String(r.name ?? ''),
@@ -229,11 +270,15 @@ export default function ProductDetailPage() {
           })))
         }
       } catch (e: any) {
-        setError(e?.message ?? 'Unable to load product.')
+        console.error('Unable to load product details', e)
+        if (!cancelled) setError('We could not load this product right now. Please try again.')
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     })()
+    return () => {
+      cancelled = true
+    }
   }, [productId])
 
   const handleAddToCart = () => {
@@ -244,6 +289,7 @@ export default function ProductDetailPage() {
     if (!product) return
     if (product.variations.length > 0 && !selectedVariation) {
       setShowVariationToast(true)
+      window.requestAnimationFrame(() => document.getElementById('pd-variations')?.focus())
       setTimeout(() => setShowVariationToast(false), 3000)
       return
     }
@@ -256,12 +302,9 @@ export default function ProductDetailPage() {
       price: product.price,
       imageUrl: varItem?.imageUrl ?? product.imageUrl,
       variationName: varItem?.name ?? null,
-      quantity: quantity
+      quantity: 1,
     })
     
-    // Dispatch event so cart count updates immediately
-    window.dispatchEvent(new Event('funeral-cart-updated'))
-
     setShowAddedToast(true)
     setTimeout(() => {
       setShowAddedToast(false)
@@ -276,6 +319,7 @@ export default function ProductDetailPage() {
     if (!product) return
     if (product.variations.length > 0 && !selectedVariation) {
       setShowVariationToast(true)
+      window.requestAnimationFrame(() => document.getElementById('pd-variations')?.focus())
       setTimeout(() => setShowVariationToast(false), 3000)
       return
     }
@@ -288,18 +332,9 @@ export default function ProductDetailPage() {
       price: product.price,
       imageUrl: varItem?.imageUrl ?? product.imageUrl,
       variationName: varItem?.name ?? null,
-      quantity: quantity
+      quantity: 1,
     })
     navigate('/user/cart')
-  }
-
-  const updateQuantity = (amount: number) => {
-    if (!product) return
-    const maxStock = product.stock || 1
-    const newQty = quantity + amount
-    if (newQty >= 1 && newQty <= maxStock) {
-      setQuantity(newQty)
-    }
   }
 
   if (loading) {
@@ -317,7 +352,15 @@ export default function ProductDetailPage() {
     return (
       <div className="pd-page">
         <div className="pd-container pd-state">
-          <p style={{ color: '#334155' }}>{error ?? 'Product not found.'}</p>
+          <div className="pd-state-card">
+            <span className="pd-state-eyebrow">Product unavailable</span>
+            <h1>We could not open this item.</h1>
+            <p>{error ?? 'This product may no longer be available.'}</p>
+            <div className="pd-state-actions">
+              <button type="button" onClick={() => window.location.reload()}>Try again</button>
+              <Link to="/funeral">Browse the catalog</Link>
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -332,19 +375,10 @@ export default function ProductDetailPage() {
         <div className="sp-topbar-inner">
           <div className="sp-topbar-left">
             <Link to="/seller">Seller Centre</Link>
-            <span className="sp-divider">|</span>
-            <span>Follow us on</span>
-            <a href="#fb" aria-label="Facebook">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg>
-            </a>
-            <a href="#ig" aria-label="Instagram">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor"/></svg>
-            </a>
           </div>
           <div className="sp-topbar-right">
             <Link to="/user/notifications">Notifications</Link>
-            <a href="#help">Help</a>
-            <a href="#language">English</a>
+            <Link to="/user/help">Help Centre</Link>
             <span className="sp-divider">|</span>
             {isLoggedIn
               ? (
@@ -363,6 +397,7 @@ export default function ProductDetailPage() {
                   <div className="sp-user-dropdown">
                     <Link to="/user/profile">My Account</Link>
                     <Link to="/user/purchase">Purchases</Link>
+                    <Link to="/auth/switch-account" className="sp-dropdown-switch">Switch Account</Link>
                     <Link to="/auth/logout">Log out</Link>
                   </div>
                 </div>
@@ -375,10 +410,7 @@ export default function ProductDetailPage() {
       {/* ── Header ── */}
       <header className="sp-header">
         <div className="sp-header-inner">
-          <Link to="/funeral" className="sp-logo" aria-label="LifeCycle Home">
-            <div className="sp-logo-box">LC</div>
-            <span>LifeCycle</span>
-          </Link>
+          <BrandLogo to="/" />
 
           <div className="sp-search-wrap">
             <div className="sp-search-box">
@@ -388,7 +420,7 @@ export default function ProductDetailPage() {
                 value={queryText}
                 onChange={e => setQueryText(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && navigate(`/funeral?search=${encodeURIComponent(queryText)}`)}
-                placeholder="Search funeral products, caskets, urns..."
+                placeholder="Search for caskets..."
                 aria-label="Search"
               />
               <button type="button" className="sp-search-btn" onClick={() => navigate(`/funeral?search=${encodeURIComponent(queryText)}`)} aria-label="Search">
@@ -396,9 +428,7 @@ export default function ProductDetailPage() {
               </button>
             </div>
             <div className="sp-trending">
-              {['Caskets', 'Floral Tributes', 'Urns', 'Memorial Package', 'Burial Needs'].map(t => (
-                <button key={t} onClick={() => navigate(`/funeral?search=${encodeURIComponent(t)}`)}>{t}</button>
-              ))}
+              <button type="button" onClick={() => navigate('/funeral?search=Caskets')}>Caskets</button>
             </div>
           </div>
 
@@ -411,128 +441,147 @@ export default function ProductDetailPage() {
         </div>
       </header>
 
-      <div className="pd-breadcrumbs-wrap">
-        <div className="pd-breadcrumbs">
-          <button 
-            type="button" 
-            className="pd-breadcrumbs-back"
-            onClick={() => navigate(-1)} 
-            aria-label="Go back"
+      <main className="pd-container">
+        <div className="pd-product-nav">
+          <button
+            type="button"
+            className="pd-product-back"
+            onClick={() => navigate(-1)}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"></path><polyline points="12 19 5 12 12 5"></polyline></svg>
-            Back
+            Back to products
           </button>
-          <span className="pd-breadcrumbs-divider"></span>
-
-          <Link to="/funeral">Home</Link>
-          <span className="pd-breadcrumb-sep">&gt;</span>
-          <Link to={`/funeral?category=${encodeURIComponent(product.category)}`}>{product.category}</Link>
-          <span className="pd-breadcrumb-sep">&gt;</span>
-          <span className="pd-breadcrumb-current">{product.name}</span>
+          <nav className="pd-product-path" aria-label="Breadcrumb">
+            <Link to="/funeral">Catalog</Link>
+            <span aria-hidden="true">/</span>
+            <Link to={`/funeral?search=${encodeURIComponent(product.category)}`}>{product.category}</Link>
+          </nav>
         </div>
-      </div>
-
-      <div className="pd-container">
 
         {/* Main Product Card */}
         <div className="pd-main-card">
           
           {/* Gallery Left */}
           <div className="pd-gallery-section">
-            <div className="pd-main-image" onClick={() => mainImage && setIsImageModalOpen(true)} style={{ cursor: mainImage ? 'zoom-in' : 'default' }}>
+            <button
+              type="button"
+              ref={imageTriggerRef}
+              className="pd-main-image"
+              onClick={() => mainImage && setIsImageModalOpen(true)}
+              disabled={!mainImage}
+              aria-label={mainImage ? `Open a larger image of ${product.name}` : 'No product image available'}
+            >
               {mainImage ? (
                 <img src={mainImage} alt={product.name} />
               ) : (
-                <div style={{ color: '#ccc', fontSize: 64 }}>No Image</div>
+                <span className="pd-image-placeholder">No image available</span>
               )}
-            </div>
+              {mainImage && <span className="pd-image-zoom">View larger</span>}
+            </button>
             
             {gallery.length > 0 && (
               <div className="pd-thumbs">
                 {gallery.slice(0, 5).map((url, idx) => (
-                  <div 
+                  <button
+                    type="button"
                     key={idx} 
                     className={`pd-thumb ${idx === galleryIndex ? 'active' : ''}`}
                     onClick={() => setGalleryIndex(idx)}
+                    aria-label={`View image ${idx + 1} of ${gallery.length}`}
+                    aria-pressed={idx === galleryIndex}
                   >
-                    <img src={url} alt={`thumb ${idx}`} />
-                  </div>
+                    <img src={url} alt="" />
+                  </button>
                 ))}
               </div>
             )}
             
             <div className="pd-social-share">
-              <div className="pd-social-icons">
-                <span style={{color: 'var(--text-main)', fontSize: 16, marginRight: 5}}>Share:</span>
+              <button type="button" className="pd-share-button" onClick={shareProduct}>
                 <ShareIcon />
-              </div>
-              <div className={`pd-favorite ${isFavorite ? 'saved' : ''}`} onClick={toggleFavorite} style={{ cursor: 'pointer' }}>
+                <span>Share</span>
+              </button>
+              <button type="button" className={`pd-favorite ${isFavorite ? 'saved' : ''}`} onClick={toggleFavorite} aria-pressed={isFavorite}>
                 <BookmarkIcon filled={isFavorite} />
                 <span>{isFavorite ? 'Saved' : 'Save'}</span>
-              </div>
+              </button>
             </div>
           </div>
 
           {/* Info Right */}
           <div className="pd-info-section">
+            <div className="pd-product-kicker">
+              <span>{product.category}</span>
+              <span className="pd-verified-label">Verified provider</span>
+            </div>
             <h1 className="pd-title">{product.name}</h1>
             
             <div className="pd-meta">
               <div className="pd-meta-item">
-                <Stars rating={4.8} />
+                <span className="pd-stock-dot" aria-hidden="true"></span>
+                <span>{product.stock > 0 ? 'Available' : 'Contact provider'}</span>
               </div>
               <div className="pd-meta-item">
-                <span className="pd-meta-value" style={{color: 'var(--text-main)', borderBottomColor: 'var(--text-main)'}}>{product.stock}</span>
-                <span className="pd-meta-label" style={{marginLeft: 5}}>In Stock</span>
+                <span>{product.stock} {product.stock === 1 ? 'item' : 'items'} in stock</span>
               </div>
             </div>
 
             <div className="pd-price-block">
+              <span className="pd-price-label">Price</span>
               <div className="pd-price-value">{formatPeso(product.price)}</div>
             </div>
 
 
 
             {variations.length > 0 && (
-              <div className="pd-option-row align-start">
-                <div className="pd-option-label" style={{marginTop: 8}}>Variations</div>
+              <div
+                className={`pd-option-row align-start${showVariationToast ? ' has-error' : ''}`}
+                id="pd-variations"
+                tabIndex={-1}
+              >
+                <div className="pd-option-label">Choose an option</div>
                 <div className="pd-option-content">
                   {variations.map(v => (
-                    <div 
+                    <button
+                      type="button"
                       key={v.id} 
                       className={`pd-variation-btn ${selectedVariation === v.id ? 'selected' : ''}`}
-                      onClick={() => setSelectedVariation(v.id)}
+                      onClick={() => {
+                        setSelectedVariation(v.id)
+                        if (v.imageUrl) {
+                          const imageIndex = gallery.indexOf(v.imageUrl)
+                          if (imageIndex >= 0) setGalleryIndex(imageIndex)
+                        }
+                      }}
+                      aria-pressed={selectedVariation === v.id}
                     >
                       {v.imageUrl && <img src={v.imageUrl} alt={v.name} className="pd-variation-img" />}
                       <span>{v.name}</span>
-                    </div>
+                    </button>
                   ))}
                 </div>
+                {showVariationToast && <p className="pd-variation-error">Choose an option before continuing.</p>}
               </div>
             )}
 
             <div className="pd-option-row">
-              <div className="pd-option-label">Quantity</div>
+              <div className="pd-option-label">Service request</div>
               <div className="pd-option-content">
-                <div className="pd-qty-control">
-                  <button className="pd-qty-btn" onClick={() => updateQuantity(-1)} disabled={quantity <= 1}>-</button>
-                  <input type="text" className="pd-qty-input" value={quantity} readOnly />
-                  <button className="pd-qty-btn" onClick={() => updateQuantity(1)} disabled={quantity >= product.stock}>+</button>
-                </div>
-                <span className="pd-stock-info">{product.stock} pieces available</span>
+                <span className="pd-single-order-note">One casket per service request</span>
+                <span className="pd-stock-info">{product.stock} available</span>
               </div>
             </div>
 
             <div className="pd-actions-row">
               <button className="pd-btn pd-btn-cart" onClick={handleAddToCart} disabled={product.stock === 0}>
-                <CartIcon /> Add To Cart
+                <CartIcon /> Add to cart
               </button>
               <button className="pd-btn pd-btn-buy" onClick={handleBuyNow} disabled={product.stock === 0}>
-                Buy Now
+                Buy now
               </button>
             </div>
             {!isLoggedIn && (
-              <p style={{color: 'var(--text-muted)', fontSize: 12, marginTop: 10}}>Guests must log in to checkout.</p>
+              <p className="pd-login-note">You can browse freely. Sign in when you are ready to check out.</p>
             )}
 
           </div>
@@ -545,69 +594,84 @@ export default function ProductDetailPage() {
               {product.shopImageUrl ? (
                 <img src={product.shopImageUrl} alt={product.shopName} className="pd-shop-avatar-img" />
               ) : (
-                <span style={{fontSize: 24, fontWeight: 'bold'}}>{product.shopName.charAt(0)}</span>
+                <span className="pd-shop-avatar-fallback">{product.shopName.charAt(0)}</span>
               )}
             </div>
             <div className="pd-shop-info">
-              <div className="pd-shop-name">{product.shopName}</div>
-              <div className="pd-shop-active">Verified Shop</div>
+              <span className="pd-shop-eyebrow">Sold and fulfilled by</span>
+              <h2 className="pd-shop-name">{product.shopName}</h2>
+              <div className="pd-shop-active">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 12 2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>
+                Active LifeCycle shop
+              </div>
               <div className="pd-shop-actions">
                 <button 
                   className="pd-shop-btn pd-shop-btn-primary"
                   onClick={() => {
                     if (!isLoggedIn) {
-                      navigate('/login', { state: { returnTo: location.pathname } })
+                      navigate('/login?next=' + encodeURIComponent(window.location.pathname))
                       return
                     }
                     window.dispatchEvent(new CustomEvent('open-chat', { detail: { userId: product.shopId } }))
                   }}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-                  Chat Now
+                  Chat
                 </button>
                 <button 
                   className="pd-shop-btn pd-shop-btn-outline"
                   onClick={() => navigate(`/shop/${product.shopId}`)}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
-                  View Shop
+                  View shop
                 </button>
               </div>
             </div>
           </div>
           <div className="pd-shop-right">
-            {product.shopAddress && <div className="pd-shop-stat">Location <span>{product.shopAddress}</span></div>}
-            {product.shopPhoneNumber && <div className="pd-shop-stat">Contact <span>{product.shopPhoneNumber}</span></div>}
+            {product.shopAddress && <div className="pd-shop-stat"><strong>Location</strong><span>{product.shopAddress}</span></div>}
+            {product.shopPhoneNumber && <div className="pd-shop-stat"><strong>Contact</strong><span>{product.shopPhoneNumber}</span></div>}
           </div>
         </div>
 
         {/* Product Description */}
-        <div className="pd-details-card">
-          <h2 className="pd-section-header">Product Description</h2>
-          <div className="pd-spec-row">
-            <div className="pd-spec-label">Availability</div>
-            <div className="pd-spec-value">{product.stock > 0 ? 'In Stock' : 'Ask Shop'}</div>
+        <article className="pd-details-card">
+          <h2 className="pd-section-header">About this product</h2>
+          <div className="pd-details-layout">
+            <div className="pd-desc-content">
+              {product.description || 'The provider has not added a detailed description yet. Contact the shop if you need more information before deciding.'}
+            </div>
+            <dl className="pd-spec-list">
+              <div className="pd-spec-row">
+                <dt className="pd-spec-label">Category</dt>
+                <dd className="pd-spec-value">{product.category}</dd>
+              </div>
+              <div className="pd-spec-row">
+                <dt className="pd-spec-label">Availability</dt>
+                <dd className="pd-spec-value">{product.stock > 0 ? 'In stock' : 'Ask provider'}</dd>
+              </div>
+              <div className="pd-spec-row">
+                <dt className="pd-spec-label">Options</dt>
+                <dd className="pd-spec-value">{product.variations.length > 0 ? `${product.variations.length} available` : 'Standard'}</dd>
+              </div>
+            </dl>
           </div>
-          <div className="pd-spec-row">
-            <div className="pd-spec-label">Variations</div>
-            <div className="pd-spec-value">{product.variations.length > 0 ? `${product.variations.length} options` : 'Standard'}</div>
-          </div>
-          <div className="pd-desc-content">
-            {product.description || 'No description provided by the seller.'}
-          </div>
-        </div>
+        </article>
 
         {/* Related Products (real data) */}
         {relatedProducts.length > 0 && (
           <div className="pd-related">
-            <div className="pd-related-header">YOU MAY ALSO LIKE</div>
+            <div className="pd-related-header">
+              <span>More from {product.shopName}</span>
+              <Link to={`/shop/${product.shopId}`}>View shop <span aria-hidden="true">→</span></Link>
+            </div>
             <div className="pd-related-grid">
               {relatedProducts.map(rp => (
                 <Link to={`/funeral/product/${rp.id}`} key={rp.id} className="pd-related-card">
                   {rp.imageUrl ? (
                     <img src={rp.imageUrl} alt={rp.name} className="pd-related-img" />
                   ) : (
-                    <div className="pd-related-img" style={{ background: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ccc' }}>No Image</div>
+                    <div className="pd-related-img pd-related-img-empty">No image</div>
                   )}
                   <div className="pd-related-info">
                     <div className="pd-related-name">{rp.name}</div>
@@ -622,41 +686,48 @@ export default function ProductDetailPage() {
           </div>
         )}
 
-      </div>
+      </main>
 
       {/* Image Modal */}
       {isImageModalOpen && (
-        <div className="pd-image-modal-overlay" onClick={() => setIsImageModalOpen(false)}>
-          <div className="pd-image-modal-content" onClick={e => e.stopPropagation()}>
+        <div className="pd-image-modal-overlay" onClick={() => setIsImageModalOpen(false)} role="presentation">
+          <div className="pd-image-modal-content" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={`Images of ${product.name}`}>
             <div className="pd-image-modal-left">
               <img src={gallery[galleryIndex] || product.imageUrl || ''} alt={product.name} />
-              <button 
+              {gallery.length > 1 && <button
+                type="button"
                 className="pd-image-modal-nav pd-image-modal-prev" 
                 onClick={() => setGalleryIndex((prev) => (prev > 0 ? prev - 1 : gallery.length - 1))}
+                aria-label="Previous image"
               >
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-              </button>
-              <button 
+              </button>}
+              {gallery.length > 1 && <button
+                type="button"
                 className="pd-image-modal-nav pd-image-modal-next" 
                 onClick={() => setGalleryIndex((prev) => (prev < gallery.length - 1 ? prev + 1 : 0))}
+                aria-label="Next image"
               >
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-              </button>
+              </button>}
             </div>
             <div className="pd-image-modal-right">
-              <button className="pd-image-modal-close" onClick={() => setIsImageModalOpen(false)}>
+              <button ref={imageCloseRef} type="button" className="pd-image-modal-close" onClick={() => setIsImageModalOpen(false)} aria-label="Close image viewer">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
               </button>
               <h2 className="pd-image-modal-title">{product.name}</h2>
               <div className="pd-image-modal-gallery">
                 {gallery.map((url, idx) => (
-                  <div 
+                  <button
+                    type="button"
                     key={idx} 
                     className={`pd-image-modal-thumb ${idx === galleryIndex ? 'active' : ''}`}
                     onClick={() => setGalleryIndex(idx)}
+                    aria-label={`View image ${idx + 1}`}
+                    aria-pressed={idx === galleryIndex}
                   >
-                    <img src={url} alt={`thumb ${idx}`} />
-                  </div>
+                    <img src={url} alt="" />
+                  </button>
                 ))}
               </div>
             </div>
@@ -666,43 +737,53 @@ export default function ProductDetailPage() {
 
       {/* Added to Cart Toast — Centered Card */}
       {showAddedToast && (
-        <div className="pd-added-overlay">
+        <div className="pd-added-overlay" role="status" aria-live="polite">
           <div className="pd-added-card">
             <div className="pd-added-icon-ring">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
                 <path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </div>
-            <p className="pd-added-heading">Added to Cart</p>
-            <p className="pd-added-sub">This item has been added to your shopping cart successfully.</p>
+            <p className="pd-added-heading">Added to cart</p>
+          </div>
+        </div>
+      )}
+
+      {showShareToast && (
+        <div className="pd-login-toast" role="status" aria-live="polite">
+          <div className="pd-login-toast-content pd-share-toast-content">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
+            <span>Product link copied.</span>
           </div>
         </div>
       )}
 
       {/* Login Toast */}
       {showLoginToast && (
-        <div className="pd-login-toast">
+        <div className="pd-login-toast" role="status" aria-live="polite">
           <div className="pd-login-toast-content">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10"></circle>
               <line x1="15" y1="9" x2="9" y2="15"></line>
               <line x1="9" y1="9" x2="15" y2="15"></line>
             </svg>
-            <span>Please <Link to="/login" style={{ color: '#334155', fontWeight: 600, textDecoration: 'underline' }}>log in</Link> first to add favorites.</span>
+            <span><Link to="/login" className="pd-login-link">Log in</Link> to add favorites.</span>
           </div>
         </div>
       )}
 
       {/* Select Variation Toast */}
       {showVariationToast && (
-        <div className="pd-login-toast">
+        <div className="pd-login-toast" role="status" aria-live="polite">
           <div className="pd-login-toast-content pd-variation-toast-content">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10"></circle>
               <line x1="12" y1="8" x2="12" y2="12"></line>
               <line x1="12" y1="16" x2="12.01" y2="16"></line>
             </svg>
-            <span>Please select a variation first before adding this product to your cart or buying it.</span>
+            <span>Select a variation before adding this product.</span>
           </div>
         </div>
       )}

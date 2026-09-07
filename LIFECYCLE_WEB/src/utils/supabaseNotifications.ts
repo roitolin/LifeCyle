@@ -30,3 +30,32 @@ export async function fetchNotificationsForUser(userId: string) {
   if (error) throw error
   return data || []
 }
+
+export const CHAT_NOTIFICATION_TYPES = new Set(['support_message', 'chat_message'])
+
+export function isChatNotificationType(type: string) {
+  return CHAT_NOTIFICATION_TYPES.has(String(type || '').toLowerCase())
+}
+
+export async function markNotificationRead(id: string) {
+  const { error } = await supabase.from('notifications').update({ read: true }).eq('id', id)
+  if (error) throw error
+}
+
+export async function markNotificationsRead(ids: string[]) {
+  if (ids.length === 0) return
+  const { error } = await supabase.from('notifications').update({ read: true }).in('id', ids)
+  if (error) throw error
+}
+
+export async function markNotificationsUnread(ids: string[]) {
+  if (ids.length === 0) return
+  const { error } = await supabase.from('notifications').update({ read: false }).in('id', ids)
+  if (error) throw error
+}
+
+export async function deleteNotificationsByIds(ids: string[]) {
+  if (ids.length === 0) return
+  const { error } = await supabase.from('notifications').delete().in('id', ids)
+  if (error) throw error
+}

@@ -25,13 +25,11 @@ import {
   formatCompactPeso,
   type SalesOverview,
 } from "@/utils/salesAnalytics";
-import { acceptFuneralServiceRequest } from '@/utils/serviceRequestFlow';
 import { hapticSuccess } from "@/utils/haptics";
-import { formatServiceDate, formatServiceTime } from "@/utils/serviceRequestSchedule";
 
 type ShopStatus = "none" | "pending" | "verified" | "live" | "offline" | "rejected";
 type ProductTab = "all" | "available" | "soldout";
-type CenterSection = "overview" | "orders" | "payments" | "products";
+type CenterSection = "overview" | "payments" | "products";
 type IoniconName = ComponentProps<typeof Ionicons>["name"];
 
 type ShopInfo = {
@@ -258,47 +256,52 @@ function ProductCard({ item, onPress, onEdit, onDelete, onToggle }: ProductCardP
 
   return (
     <TouchableOpacity activeOpacity={0.92} style={styles.productCard} onPress={onPress}>
-      {productImage ? (
-        <Image source={{ uri: productImage }} style={styles.productImage} resizeMode="cover" />
-      ) : (
-        <View style={styles.productImageFallback}>
-          <Ionicons name="image-outline" size={24} color="#9aa39d" />
-        </View>
-      )}
+      <View style={styles.productSummaryRow}>
+        {productImage ? (
+          <Image source={{ uri: productImage }} style={styles.productImage} resizeMode="cover" />
+        ) : (
+          <View style={styles.productImageFallback}>
+            <Ionicons name="image-outline" size={24} color="#9aa39d" />
+          </View>
+        )}
 
-      <View style={styles.productBody}>
-        <View style={styles.productTopRow}>
-          <Text style={styles.productName} numberOfLines={1}>
-            {item.name}
+        <View style={styles.productBody}>
+          <View style={styles.productTopRow}>
+            <Text style={styles.productName} numberOfLines={1}>
+              {item.name}
+            </Text>
+            <ProductStateBadge state={productState} />
+          </View>
+
+          <Text style={styles.productPrice}>{formatPhilippinePeso(item.price)}</Text>
+          <Text style={styles.productMeta}>
+            Stock {item.stock ?? 0}
+            {item.hasVariations && item.variations?.length ? ` | ${item.variations.length} variations` : ""}
           </Text>
-          <ProductStateBadge state={productState} />
+          <Text style={styles.productDescription} numberOfLines={2}>
+            {item.description || "No description yet."}
+          </Text>
+          <Text style={styles.productUpdatedText}>{formatUpdatedAt(item.updatedAt)}</Text>
         </View>
+      </View>
 
-        <Text style={styles.productPrice}>{formatPhilippinePeso(item.price)}</Text>
-        <Text style={styles.productMeta}>
-          Stock {item.stock ?? 0}
-          {item.hasVariations && item.variations?.length ? ` | ${item.variations.length} variations` : ""}
-        </Text>
-        <Text style={styles.productDescription} numberOfLines={2}>
-          {item.description || "No description yet."}
-        </Text>
-
-        <View style={styles.productActionRow}>
-          <TouchableOpacity style={styles.inlineGhostButton} onPress={onPress}>
-            <Text style={styles.inlineGhostButtonText}>View Details</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.inlinePrimaryButton} onPress={onEdit}>
-            <Text style={styles.inlinePrimaryButtonText}>Edit</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.inlineToggleButton} onPress={onToggle}>
-            <Text style={styles.inlineToggleButtonText}>{item.active ? "Pause" : "Activate"}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.inlineDangerButton} onPress={onDelete}>
-            <Text style={styles.inlineDangerButtonText}>Delete</Text>
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.productUpdatedText}>{formatUpdatedAt(item.updatedAt)}</Text>
+      <View style={styles.productActionRow}>
+        <TouchableOpacity style={styles.inlinePrimaryButton} onPress={onEdit}>
+          <Ionicons name="create-outline" size={14} color="#ffffff" />
+          <Text style={styles.inlinePrimaryButtonText}>Edit</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.inlineToggleButton} onPress={onToggle}>
+          <Ionicons name={item.active ? "pause-outline" : "play-outline"} size={14} color="#58645f" />
+          <Text style={styles.inlineToggleButtonText}>{item.active ? "Pause" : "Activate"}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={`Delete ${item.name}`}
+          style={styles.inlineDangerButton}
+          onPress={onDelete}
+        >
+          <Ionicons name="trash-outline" size={16} color="#991b1b" />
+        </TouchableOpacity>
       </View>
     </TouchableOpacity>
   );
@@ -348,7 +351,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
   const [savingPayment, setSavingPayment] = useState(false);
 
   const [productTab, setProductTab] = useState<ProductTab>("all");
-  const [centerSection, setCenterSection] = useState<CenterSection>("overview");
+  const [centerSection] = useState<CenterSection>("overview");
 
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [adminPaymentsVisible, setAdminPaymentsVisible] = useState(false);
@@ -526,14 +529,25 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
   const visibleProducts = productTab === "all" ? sortedProducts : productTab === "available" ? availableProducts : soldOutProducts;
   const todoStats = useMemo(
     () => ({
-      unpaid: requests.filter((item) => String(item.status || "").toLowerCase() === "awaiting_payment").length,
-      toProcess: requests.filter((item) => String(item.status || "").toLowerCase() === "payment_verified").length,
+      waitingForFamilyPayment: requests.filter((item) => String(item.status || "").toLowerCase() === "awaiting_payment").length,
+      requestsToReview: requests.filter((item) => String(item.status || "").toLowerCase() === "pending_shop_acceptance").length,
+      servicesToPrepare: requests.filter((item) => String(item.status || "").toLowerCase() === "payment_verified").length,
       paymentsToVerify: requests.filter((item) => String(item.status || "").toLowerCase() === "payment_submitted").length,
-      processed: requests.filter((item) => item.status === "completed").length,
+      completed: requests.filter((item) => String(item.status || "").toLowerCase() === "completed").length,
       soldOut: soldOutProducts.length,
     }),
     [requests, soldOutProducts]
   );
+  const scheduledRequestCount = useMemo(
+    () =>
+      requests.filter((item) => {
+        const status = String(item.status || "").toLowerCase();
+        return Boolean(item.wakeStartDate || item.wakeEndDate) && !["declined_by_shop", "cancelled", "completed"].includes(status);
+      }).length,
+    [requests]
+  );
+  const attentionTotal =
+    todoStats.requestsToReview + todoStats.paymentsToVerify + todoStats.servicesToPrepare + todoStats.soldOut;
   const shopDisplayName = shopInfo?.shopName || businessInfo?.businessName || "My Shop";
   const shopLocation = shopInfo?.shopAddress || businessInfo?.generalLocation || "Add your storefront location";
   const shopContact = shopInfo?.shopPhoneNumber || "Add your contact number";
@@ -556,10 +570,16 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
     setCoverImageUrl(shopInfo?.coverImageUrl || null);
   };
 
-  const openShopDetails = () => {
-    resetShopDetailsDraft();
-    setShopDetailsEditable(false);
-    setShopDetailsVisible(true);
+  const openVerifiedScreen = (
+    routeName: "ServiceRequestsInbox" | "ServiceSchedule" | "ShopPayments" | "ShopCatalog" | "ShopCustomers" | "ShopReports",
+    featureName: string
+  ) => {
+    if (!isVerified) {
+      Alert.alert("Shop Approval Required", `Your shop must be approved before you can use ${featureName}.`);
+      return;
+    }
+
+    navigation.navigate(routeName);
   };
 
   const closeShopDetails = () => {
@@ -704,90 +724,6 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
               );
             } catch (error: any) {
               Alert.alert("Update Failed", error?.message || "Unable to update the product.");
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const updateRequestStatus = (
-    request: ServiceRequest,
-    nextStatus: "accepted_by_shop" | "declined_by_shop"
-  ) => {
-    const user = auth.currentUser;
-    if (!user || updatingRequestId) return;
-
-    const accepting = nextStatus === "accepted_by_shop";
-    const savedPaymentQr = String(shopInfo?.paymentQrUrl || "").trim();
-    const savedPaymentAmount = Number(shopInfo?.serviceFeeAmount) || 0;
-
-    if (accepting && (!savedPaymentQr || savedPaymentAmount <= 0)) {
-      Alert.alert(
-        "Payment Setup Required",
-        "Save your payment QR code and default amount in Shop Center settings before accepting requests. These details are applied automatically to every accepted request."
-      );
-      return;
-    }
-
-    Alert.alert(
-      accepting ? "Accept Order?" : "Decline Order?",
-      accepting
-        ? "The saved shop QR and default amount will be shown to the family immediately. Product stock will be reduced when applicable."
-        : "The family will be notified that the shop declined this request.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: accepting ? "Accept" : "Decline",
-          style: accepting ? "default" : "destructive",
-          onPress: async () => {
-            setUpdatingRequestId(request.id);
-            try {
-              if (accepting) {
-                await acceptFuneralServiceRequest(request.id);
-              } else {
-                const respondedAt = new Date().toISOString();
-                const { error: requestError } = await supabase
-                  .from("funeral_service_requests")
-                  .update({
-                    status: "declined_by_shop",
-                    updatedAt: respondedAt,
-                    shopRespondedAt: respondedAt,
-                    acceptedAt: null,
-                    declinedAt: respondedAt,
-                    handledByShopId: user.uid,
-                  })
-                  .eq("id", request.id)
-                  .eq("status", "pending_shop_acceptance");
-                if (requestError) throw requestError;
-              }
-
-              try {
-                await supabase.from("notifications").insert({
-                  userId: request.requesterId,
-                  type: accepting ? "funeral_payment_ready" : "funeral_request_updated",
-                  title: accepting ? "Request Accepted - Payment Ready" : "Request Declined",
-                  body: accepting
-                    ? shopDisplayName + " accepted your request. Please pay " + formatPhilippinePeso(String(savedPaymentAmount)) + " using the shop QR code now shown in your request."
-                    : shopDisplayName + " declined your service request.",
-                  data: { requestId: request.id, shopId: user.uid },
-                  read: false,
-                });
-              } catch (notificationError) {
-                console.warn("Failed to create order notification:", notificationError);
-              }
-
-              await loadData();
-              Alert.alert(
-                "Order Updated",
-                accepting
-                  ? "The request is awaiting payment. Your saved QR code and amount are now visible to the family."
-                  : "The request was declined."
-              );
-            } catch (error: any) {
-              Alert.alert("Update Failed", error?.message || "Unable to update this order.");
-            } finally {
-              setUpdatingRequestId(null);
             }
           },
         },
@@ -1167,7 +1103,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
                 accessibilityLabel="Open shop settings"
                 activeOpacity={0.85}
                 style={styles.settingsButton}
-                onPress={() => setSettingsVisible(true)}
+                onPress={() => navigation.navigate("ShopSettings")}
               >
                 <Ionicons name="settings-outline" size={21} color="#22312d" />
               </TouchableOpacity>
@@ -1185,7 +1121,6 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
                 </View>
 
               <View style={styles.heroTextBlock}>
-                <Text style={styles.heroEyebrow}>A polished place to manage your storefront</Text>
                 <Text style={styles.heroTitle}>{shopDisplayName}</Text>
                 <Text style={styles.heroSubtitle}>{shopLocation}</Text>
                 <View style={styles.heroMetaRow}>
@@ -1195,28 +1130,6 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
                </View>
              </View>
 
-            <View style={styles.heroActionRow}>
-              <TouchableOpacity
-                activeOpacity={0.92}
-                style={[styles.heroPrimaryButton, styles.heroPrimaryButtonCentered, !isVerified ? styles.heroButtonDisabled : null]}
-                onPress={openShopDetails}
-                disabled={!isVerified}
-              >
-                <Ionicons name="information-circle-outline" size={16} color="#ffffff" />
-                <Text style={styles.heroPrimaryButtonText}>View Details</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                activeOpacity={0.92}
-                style={[styles.heroPrimaryButton, styles.heroInboxButton, !isVerified ? styles.heroButtonDisabled : null]}
-                onPress={() => navigation.navigate("ServiceRequestsInbox")}
-                disabled={!isVerified}
-                accessibilityRole="button"
-                accessibilityLabel="Open service request inbox"
-              >
-                <Ionicons name="mail-open-outline" size={17} color="#ffffff" />
-                <Text style={styles.heroPrimaryButtonText}>Service Request Inbox</Text>
-              </TouchableOpacity>
-            </View>
           </View>
 
           <View style={[styles.statusBanner, { backgroundColor: statusMeta.background, borderColor: statusMeta.border }]}>
@@ -1227,72 +1140,214 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
              </View>
           </View>
 
-          <View style={styles.centerNavigation}>
-            {([
-              { key: "overview", label: "Overview", icon: "grid-outline" },
-              { key: "orders", label: "Requests", icon: "receipt-outline" },
-              { key: "payments", label: "Payments", icon: "cash-outline" },
-              { key: "products", label: "Products", icon: "cube-outline" },
-            ] as { key: CenterSection; label: string; icon: IoniconName }[]).map((entry) => (
-              <TouchableOpacity
-                key={entry.key}
-                style={[styles.centerNavigationItem, centerSection === entry.key ? styles.centerNavigationItemActive : null]}
-                onPress={() => setCenterSection(entry.key)}
-              >
-                <Ionicons name={entry.icon} size={17} color={centerSection === entry.key ? "#ffffff" : "#62706b"} />
-                <Text style={[styles.centerNavigationText, centerSection === entry.key ? styles.centerNavigationTextActive : null]}>
-                  {entry.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
+          <View style={styles.shopToolsSection}>
+            <View style={styles.shopToolsHeader}>
+              <View style={styles.sectionHeadingBlock}>
+                <Text style={styles.shopToolsTitle}>Manage your shop</Text>
+                <Text style={styles.shopToolsSubtitle}>Cases, customers, schedule, catalog, payments, and reports in one place.</Text>
+              </View>
+              {attentionTotal > 0 ? (
+                <View style={styles.attentionCountBadge}>
+                  <Text style={styles.attentionCountBadgeText}>{attentionTotal}</Text>
+                </View>
+              ) : null}
+            </View>
+
+            <View style={styles.shopToolsGrid}>
+              {([
+                {
+                  key: "products",
+                  label: "Product catalog",
+                  description:
+                    todoStats.soldOut > 0 ? `${todoStats.soldOut} unavailable listings` : `${sortedProducts.length} listings`,
+                  icon: "cube-outline",
+                  badge: todoStats.soldOut,
+                  urgent: todoStats.soldOut > 0,
+                  onPress: () => openVerifiedScreen("ShopCatalog", "the product catalog"),
+                },
+                {
+                  key: "requests",
+                  label: "Arrangement cases",
+                  description: isVerified
+                    ? todoStats.requestsToReview > 0
+                      ? `${todoStats.requestsToReview} waiting for review`
+                      : "Open the full inbox"
+                    : "Available after approval",
+                  icon: isVerified ? "mail-open-outline" : "lock-closed-outline",
+                  badge: todoStats.requestsToReview,
+                  urgent: todoStats.requestsToReview > 0,
+                  onPress: () => openVerifiedScreen("ServiceRequestsInbox", "arrangement cases"),
+                },
+                {
+                  key: "customers",
+                  label: "Customers",
+                  description: isVerified ? "Family contacts and case history" : "Available after approval",
+                  icon: isVerified ? "people-outline" : "lock-closed-outline",
+                  badge: 0,
+                  urgent: false,
+                  onPress: () => openVerifiedScreen("ShopCustomers", "customers"),
+                },
+                {
+                  key: "payments",
+                  label: "Family payments",
+                  description:
+                    todoStats.paymentsToVerify > 0 ? `${todoStats.paymentsToVerify} receipts to verify` : "Review payment history",
+                  icon: isVerified ? "wallet-outline" : "lock-closed-outline",
+                  badge: todoStats.paymentsToVerify,
+                  urgent: todoStats.paymentsToVerify > 0,
+                  onPress: () => openVerifiedScreen("ShopPayments", "family payments"),
+                },
+                {
+                  key: "schedule",
+                  label: "Service schedule",
+                  description: isVerified
+                    ? scheduledRequestCount > 0
+                      ? `${scheduledRequestCount} services planned`
+                      : "Plan services and events"
+                    : "Available after approval",
+                  icon: isVerified ? "calendar-clear-outline" : "lock-closed-outline",
+                  badge: 0,
+                  urgent: false,
+                  onPress: () => openVerifiedScreen("ServiceSchedule", "the service schedule"),
+                },
+                {
+                  key: "reports",
+                  label: "Reports",
+                  description: isVerified ? "Sales, cases, and inventory health" : "Available after approval",
+                  icon: isVerified ? "bar-chart-outline" : "lock-closed-outline",
+                  badge: 0,
+                  urgent: false,
+                  onPress: () => openVerifiedScreen("ShopReports", "shop reports"),
+                },
+              ] as {
+                key: string;
+                label: string;
+                description: string;
+                icon: IoniconName;
+                badge: number;
+                urgent: boolean;
+                onPress: () => void;
+              }[]).map((entry, index) => (
+                <View key={entry.key} style={styles.shopToolGroupEntry}>
+                  {index === 0 || index === 1 ? (
+                    <View style={styles.shopToolGroupHeader}>
+                      <Text style={styles.shopToolGroupLabel}>{index === 0 ? "STORE MANAGEMENT" : "OPERATIONS"}</Text>
+                      <Text style={styles.shopToolGroupDescription}>
+                        {index === 0
+                          ? "Keep your product listings accurate and available."
+                          : "Cases, customers, payments, schedules, and reporting."}
+                      </Text>
+                    </View>
+                  ) : null}
+                  <TouchableOpacity
+                    activeOpacity={0.88}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${entry.label}. ${entry.description}`}
+                    style={[styles.shopToolCard, entry.urgent ? styles.shopToolCardUrgent : null]}
+                    onPress={entry.onPress}
+                  >
+                    <View style={styles.shopToolIcon}>
+                      <Ionicons name={entry.icon} size={21} color="#42534d" />
+                    </View>
+                    <View style={styles.shopToolCopy}>
+                      <Text style={styles.shopToolLabel}>{entry.label}</Text>
+                      <Text style={styles.shopToolDescription} numberOfLines={2}>
+                        {entry.description}
+                      </Text>
+                    </View>
+                    <View style={styles.shopToolTrailing}>
+                      {entry.badge > 0 ? (
+                        <View style={styles.shopToolBadge}>
+                          <Text style={styles.shopToolBadgeText}>{entry.badge > 99 ? "99+" : entry.badge}</Text>
+                        </View>
+                      ) : null}
+                      <View style={styles.shopToolArrow}>
+                        <Ionicons name="chevron-forward" size={16} color="#61706b" />
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
           </View>
 
-          {centerSection === "overview" ? (
-            <>
-              <View style={styles.sectionCard}>
-                <View style={styles.sectionHeadingBlock}>
-                  <Text style={styles.sectionTitle}>To Do List</Text>
-                  <Text style={styles.sectionSubtitle}>Things you need to deal with</Text>
-                  </View>
-                <View style={styles.todoGrid}>
-                  {([
-                    { key: "unpaid", label: "Awaiting Payment", value: todoStats.unpaid, onPress: () => setCenterSection("orders") },
-                    { key: "toProcess", label: "Requests to Process", value: todoStats.toProcess, onPress: () => setCenterSection("orders") },
-                    {
-                      key: "payments",
-                      label: "Payments to Verify",
-                      value: todoStats.paymentsToVerify,
-                      onPress: () => setCenterSection("payments"),
-                    },
-                    { key: "processed", label: "Processed Requests", value: todoStats.processed, onPress: () => setCenterSection("orders") },
-                    {
-                      key: "soldOut",
-                      label: "Sold Out Products",
-                      value: todoStats.soldOut,
-                      onPress: () => {
-                        setCenterSection("products");
-                        setProductTab("soldout");
-                      },
-                    },
-                  ] as { key: string; label: string; value: number; onPress: () => void }[]).map((entry) => (
-                    <TouchableOpacity key={entry.key} style={styles.todoItem} activeOpacity={0.7} onPress={entry.onPress}>
-                      <Text style={styles.todoNum}>{entry.value}</Text>
-                      <Text style={styles.todoLabel}>{entry.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                  </View>
+          <View>
+          {centerSection === "overview" && attentionTotal > 0 ? (
+            <View style={styles.sectionCard}>
+              <View style={styles.attentionHeader}>
+                <View style={styles.attentionHeaderIcon}>
+                  <Ionicons name={attentionTotal > 0 ? "sparkles-outline" : "checkmark-circle-outline"} size={20} color="#ffffff" />
                 </View>
-              </>
-            ) : null}
+                <View style={styles.sectionHeadingBlock}>
+                  <Text style={styles.sectionTitle}>Needs your attention</Text>
+                  <Text style={styles.sectionSubtitle}>
+                    Start with these items. They are sorted by the action your shop needs to take.
+                  </Text>
+                </View>
+              </View>
+
+              {todoStats.requestsToReview > 0 ? (
+                <TouchableOpacity style={styles.attentionRow} onPress={() => openVerifiedScreen("ServiceRequestsInbox", "the request inbox")}>
+                  <View style={styles.attentionNumber}><Text style={styles.attentionNumberText}>{todoStats.requestsToReview}</Text></View>
+                  <View style={styles.attentionRowCopy}>
+                    <Text style={styles.attentionRowTitle}>Review new service requests</Text>
+                    <Text style={styles.attentionRowText}>Accept or decline requests from families.</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#89938e" />
+                </TouchableOpacity>
+              ) : null}
+
+              {todoStats.paymentsToVerify > 0 ? (
+                <TouchableOpacity style={styles.attentionRow} onPress={() => openVerifiedScreen("ShopPayments", "family payments")}>
+                  <View style={styles.attentionNumber}><Text style={styles.attentionNumberText}>{todoStats.paymentsToVerify}</Text></View>
+                  <View style={styles.attentionRowCopy}>
+                    <Text style={styles.attentionRowTitle}>Verify payment receipts</Text>
+                    <Text style={styles.attentionRowText}>Confirm or reject submitted payment proof.</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#89938e" />
+                </TouchableOpacity>
+              ) : null}
+
+              {todoStats.servicesToPrepare > 0 ? (
+                <TouchableOpacity style={styles.attentionRow} onPress={() => openVerifiedScreen("ServiceSchedule", "the service schedule")}>
+                  <View style={styles.attentionNumber}><Text style={styles.attentionNumberText}>{todoStats.servicesToPrepare}</Text></View>
+                  <View style={styles.attentionRowCopy}>
+                    <Text style={styles.attentionRowTitle}>Prepare confirmed services</Text>
+                    <Text style={styles.attentionRowText}>Check dates and coordinate the next service steps.</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#89938e" />
+                </TouchableOpacity>
+              ) : null}
+
+              {todoStats.soldOut > 0 ? (
+                <TouchableOpacity
+                  style={styles.attentionRow}
+                  onPress={() => {
+                    if (!isVerified) {
+                      Alert.alert("Shop Approval Required", "Your shop must be approved before you can use the product catalog.");
+                      return;
+                    }
+                    navigation.navigate("ShopCatalog", { initialFilter: "soldout" });
+                  }}
+                >
+                  <View style={styles.attentionNumber}><Text style={styles.attentionNumberText}>{todoStats.soldOut}</Text></View>
+                  <View style={styles.attentionRowCopy}>
+                    <Text style={styles.attentionRowTitle}>Restock unavailable products</Text>
+                    <Text style={styles.attentionRowText}>Update stock before making these listings available.</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#89938e" />
+                </TouchableOpacity>
+              ) : null}
+
+            </View>
+          ) : null}
 
           {centerSection === "overview" && analytics ? (
             <View style={styles.sectionCard}>
               <View style={styles.sectionHeader}>
                 <View style={styles.sectionHeadingBlock}>
                   <Text style={styles.sectionTitle}>Sales Analytics</Text>
-                  <Text style={styles.sectionSubtitle}>
-                    Revenue and sales from your confirmed and completed service requests (last 6 months).
-                  </Text>
+                  <Text style={styles.sectionSubtitle}>Last 6 months</Text>
                   </View>
                 <TouchableOpacity style={styles.refreshButton} onPress={() => void loadData()}>
                   <Ionicons name="refresh-outline" size={16} color="#22312d" />
@@ -1368,117 +1423,12 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
             </View>
           ) : null}
 
-          {centerSection === "orders" ? (
-            <View style={styles.sectionCard}>
-              <View style={styles.sectionHeader}>
-                <View style={styles.sectionHeadingBlock}>
-                  <Text style={styles.sectionTitle}>Service Requests</Text>
-                  <Text style={styles.sectionSubtitle}>Review recent requests here, or open the full inbox for complete details.</Text>
-                  </View>
-                <TouchableOpacity style={styles.refreshButton} onPress={() => void loadData()}>
-                  <Ionicons name="refresh-outline" size={16} color="#22312d" />
-                </TouchableOpacity>
-                </View>
-
-              {requests.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <Ionicons name="receipt-outline" size={24} color="#8b938c" />
-                  <Text style={styles.emptyStateTitle}>No service requests yet</Text>
-                  <Text style={styles.emptyStateText}>New family service requests will appear here.</Text>
-                  </View>
-              ) : (
-                requests.slice(0, 8).map((item) => {
-                  const waiting = item.status === "pending_shop_acceptance";
-                  return (
-                    <TouchableOpacity
-                      key={item.id}
-                      style={styles.orderCard}
-                      activeOpacity={0.9}
-                      onPress={() => navigation.navigate("ServiceRequestDetails", { request: item })}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Open ${item.productName || "service request"} details`}
-                    >
-                      {item.productImageUrl ? (
-                        <Image source={{ uri: item.productImageUrl }} style={styles.orderImage} resizeMode="cover" />
-                      ) : (
-                        <View style={styles.orderImageFallback}>
-                          <Ionicons name="cube-outline" size={20} color="#7f6653" />
-                          </View>
-                      )}
-                      <View style={styles.orderCardCopy}>
-                        <View style={styles.orderCardTop}>
-                          <View style={styles.orderCardTitleBlock}>
-                            <Text style={styles.orderProductName} numberOfLines={1}>{item.productName || "Custom Casket"}</Text>
-                            {item.variationName ? (
-                              <Text style={styles.orderMeta}>Variation: {item.variationName}</Text>
-                            ) : null}
-                            </View>
-                          <View style={[styles.orderStatusBadge, waiting ? styles.orderStatusWaiting : styles.orderStatusDone]}>
-                            <Text style={styles.orderStatusText}>{getRequestStatusLabel(item.status)}</Text>
-                            </View>
-                          </View>
-                        {item.productPrice ? (
-                          <Text style={styles.orderPrice}>{formatPhilippinePeso(item.productPrice)}</Text>
-                        ) : null}
-                        {item.requestType ? (
-                          <Text style={styles.orderMeta}>Type: {getRequestStatusLabel(item.requestType)}</Text>
-                        ) : null}
-                        <Text style={styles.orderMeta}>Contact: {item.contactNumber || "Not provided"}</Text>
-                        <Text style={styles.orderMeta}>For: {item.deceasedFullName || "Not provided"}</Text>
-                        {item.wakeStartDate && item.wakeEndDate ? (
-                          <Text style={styles.orderMeta}>Wake: {formatServiceDate(item.wakeStartDate)} to {formatServiceDate(item.wakeEndDate)}</Text>
-                        ) : null}
-                        {item.wakeEndDate && item.burialTime ? (
-                          <Text style={styles.orderMeta}>Burial: {formatServiceDate(item.wakeEndDate)} at {formatServiceTime(item.burialTime)}</Text>
-                        ) : null}
-                        <Text style={styles.orderDate}>{item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "Recently received"}</Text>
-                        <View style={styles.requestViewHint}>
-                          <Text style={styles.requestViewHintText}>View details</Text>
-                          <Ionicons name="chevron-forward" size={16} color="#7f6653" />
-                        </View>
-                        {waiting ? (
-                          <View style={styles.orderActionRow}>
-                            <TouchableOpacity
-                              style={[styles.orderAcceptButton, updatingRequestId === item.id ? styles.heroButtonDisabled : null]}
-                              onPress={(event) => {
-                                event.stopPropagation();
-                                updateRequestStatus(item, "accepted_by_shop");
-                              }}
-                              disabled={updatingRequestId === item.id}
-                            >
-                              <Text style={styles.orderAcceptButtonText}>
-                                {updatingRequestId === item.id ? "Updating" : "Accept"}
-                              </Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              style={[styles.orderDeclineButton, updatingRequestId === item.id ? styles.heroButtonDisabled : null]}
-                              onPress={(event) => {
-                                event.stopPropagation();
-                                updateRequestStatus(item, "declined_by_shop");
-                              }}
-                              disabled={updatingRequestId === item.id}
-                            >
-                              <Text style={styles.orderDeclineButtonText}>Decline</Text>
-                            </TouchableOpacity>
-                            </View>
-                        ) : null}
-                        </View>
-                      </TouchableOpacity>
-                  );
-                })
-              )}
-
-             </View>
-          ) : null}
-
           {centerSection === "payments" ? (
             <View style={styles.sectionCard}>
               <View style={styles.sectionHeader}>
                 <View style={styles.sectionHeadingBlock}>
                   <Text style={styles.sectionTitle}>Payments</Text>
-                  <Text style={styles.sectionSubtitle}>
-                    All payments users sent for your service requests. Review the proof and verify or reject each one here.
-                  </Text>
+                  <Text style={styles.sectionSubtitle}>Review submitted payment proof.</Text>
                   </View>
                 <TouchableOpacity style={styles.refreshButton} onPress={() => void loadData()}>
                   <Ionicons name="refresh-outline" size={16} color="#22312d" />
@@ -1585,7 +1535,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
             <View style={styles.sectionHeader}>
               <View style={styles.sectionHeadingBlock}>
                 <Text style={styles.sectionTitle}>Browse Products</Text>
-                <Text style={styles.sectionSubtitle}>Manage your shop listings in one cleaner catalog view.</Text>
+                <Text style={styles.sectionSubtitle}>Update stock, availability, and listing details.</Text>
                 </View>
               <View style={styles.catalogActions}>
                 <TouchableOpacity style={styles.refreshButton} onPress={() => void loadData()}>
@@ -1646,6 +1596,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
             )}
           </View>
           ) : null}
+          </View>
         </ScrollView>
       </View>
 
@@ -1851,17 +1802,16 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
                     </View>
 
                   <Text style={styles.inputLabel}>Shop Name</Text>
-                  <TextInput style={styles.input} value={shopNameInput} onChangeText={setShopNameInput} placeholder="Shop name" />
+                  <TextInput style={styles.input} value={shopNameInput} onChangeText={setShopNameInput} />
 
                   <Text style={styles.inputLabel}>Shop Address</Text>
-                  <TextInput style={styles.input} value={shopAddressInput} onChangeText={setShopAddressInput} placeholder="Shop address" />
+                  <TextInput style={styles.input} value={shopAddressInput} onChangeText={setShopAddressInput} />
 
                   <Text style={styles.inputLabel}>Phone Number</Text>
                   <TextInput
                     style={styles.input}
                     value={shopPhoneInput}
                     onChangeText={setShopPhoneInput}
-                    placeholder="Phone number"
                     keyboardType="phone-pad"
                   />
 
@@ -2049,7 +1999,6 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
               accessibilityLabel="Back from payment receipt"
             />
             <View style={styles.receiptModalHeading}>
-              <Text style={styles.receiptModalEyebrow}>PAYMENT RECEIPT</Text>
               <Text style={styles.receiptModalTitle} numberOfLines={1}>
                 {receiptRequest?.productName || "Service Request"}
               </Text>
@@ -2191,10 +2140,10 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   heroSection: {
-    minHeight: 350,
+    minHeight: 244,
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 30,
+    paddingBottom: 34,
     backgroundColor: "#d6e2d2",
     overflow: "hidden",
   },
@@ -2282,11 +2231,6 @@ const styles = StyleSheet.create({
   heroAvatarWrap: {
     flexShrink: 0,
     alignSelf: "center",
-    shadowColor: "#7e9080",
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 6,
   },
   heroAvatarImage: {
     width: 92,
@@ -2309,12 +2253,6 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     justifyContent: "center",
-  },
-  heroEyebrow: {
-    color: "#796555",
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 0.5,
   },
   heroTitle: {
     color: "#22312d",
@@ -2341,11 +2279,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
   },
-  heroActionRow: {
-    zIndex: 2,
-    marginTop: 24,
-    alignItems: "center",
-  },
   shopStatusCard: {
     borderWidth: 1,
     borderColor: "#d9d6cd",
@@ -2365,29 +2298,6 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     marginTop: 4,
   },
-  heroPrimaryButton: {
-    width: "100%",
-    minHeight: 48,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    backgroundColor: "#22312d",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-  heroPrimaryButtonCentered: {
-    alignSelf: "center",
-  },
-  heroInboxButton: {
-    marginTop: 10,
-    backgroundColor: "rgba(23, 23, 23, 0.88)",
-  },
-  heroPrimaryButtonText: {
-    color: "#ffffff",
-    fontSize: 14,
-    fontWeight: "900",
-  },
   heroButtonDisabled: {
     opacity: 0.48,
   },
@@ -2401,7 +2311,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 10,
-    shadowColor: "#7e9080",
+    shadowColor: "#000000",
     shadowOpacity: 0.08,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
@@ -2438,70 +2348,220 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 2,
   },
-  centerNavigation: {
+  shopToolsSection: {
     marginHorizontal: 20,
     marginTop: 16,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#d9d6cd",
-    backgroundColor: "#f8f6f2",
-    padding: 5,
-    flexDirection: "row",
-    gap: 5,
   },
-  centerNavigationItem: {
-    flex: 1,
-    minHeight: 52,
-    borderRadius: 14,
-    flexDirection: "column",
+  shopToolsHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    marginBottom: 12,
+  },
+  shopToolsTitle: {
+    color: "#22312d",
+    fontSize: 20,
+    fontWeight: "900",
+  },
+  shopToolsSubtitle: {
+    color: "#62706b",
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 3,
+  },
+  attentionCountBadge: {
+    minWidth: 30,
+    height: 30,
+    borderRadius: 15,
+    paddingHorizontal: 8,
+    backgroundColor: "#9f2f2f",
     alignItems: "center",
     justifyContent: "center",
-    gap: 3,
-    paddingHorizontal: 4,
-    paddingVertical: 6,
-    position: "relative",
   },
-  centerNavigationItemActive: {
-    backgroundColor: "#22312d",
-  },
-  centerNavigationText: {
-    color: "#62706b",
+  attentionCountBadgeText: {
+    color: "#ffffff",
     fontSize: 12,
     fontWeight: "900",
   },
-  centerNavigationTextActive: {
-    color: "#ffffff",
-  },
-  todoGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+  shopToolsGrid: {
     gap: 8,
-    marginTop: 14,
   },
-  todoItem: {
-    flexBasis: "30%",
-    flexGrow: 1,
-    minHeight: 74,
-    borderRadius: 14,
+  shopToolGroupEntry: {
+    gap: 9,
+  },
+  shopToolGroupHeader: {
+    paddingHorizontal: 2,
+    paddingTop: 7,
+  },
+  shopToolGroupLabel: {
+    color: "#8a745b",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.8,
+  },
+  shopToolGroupDescription: {
+    color: "#7a8580",
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  shopToolCard: {
+    minHeight: 76,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: "#d9d6cd",
     backgroundColor: "#ffffff",
+    padding: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    shadowColor: "#000000",
+    shadowOpacity: 0.05,
+    shadowRadius: 9,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 1,
+  },
+  shopToolCardActive: {
+    backgroundColor: "#22312d",
+    borderColor: "#22312d",
+  },
+  shopToolCardUrgent: {
+    borderColor: "#d8a77d",
+    backgroundColor: "#fffaf4",
+  },
+  shopToolIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 12,
+    backgroundColor: "#e7eee4",
+  },
+  shopToolIconActive: {
+    backgroundColor: "rgba(255, 255, 255, 0.16)",
+  },
+  shopToolBadge: {
+    minWidth: 24,
+    height: 24,
+    borderRadius: 12,
     paddingHorizontal: 6,
+    backgroundColor: "#a43535",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  todoNum: {
-    color: "#0958d9",
-    fontSize: 20,
-    fontWeight: "800",
+  shopToolBadgeText: {
+    color: "#ffffff",
+    fontSize: 10,
+    fontWeight: "900",
   },
-  todoLabel: {
+  shopToolLabel: {
+    color: "#22312d",
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  shopToolLabelActive: {
+    color: "#ffffff",
+  },
+  shopToolDescription: {
+    color: "#6c7772",
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 3,
+  },
+  shopToolDescriptionActive: {
+    color: "#d8e2de",
+  },
+  shopToolArrow: {
+    width: 28,
+    height: 28,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#edf1ec",
+  },
+  shopToolArrowActive: {
+    backgroundColor: "rgba(255, 255, 255, 0.14)",
+  },
+  shopToolCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  shopToolTrailing: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  attentionHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 11,
+    marginBottom: 12,
+  },
+  attentionHeaderIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: "#516961",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  attentionRow: {
+    minHeight: 68,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    borderTopWidth: 1,
+    borderTopColor: "#e6e1d8",
+    paddingVertical: 11,
+  },
+  attentionNumber: {
+    minWidth: 34,
+    height: 34,
+    borderRadius: 12,
+    paddingHorizontal: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f1dfd5",
+  },
+  attentionNumberText: {
+    color: "#8b3d2f",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  attentionRowCopy: {
+    flex: 1,
+  },
+  attentionRowTitle: {
+    color: "#22312d",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  attentionRowText: {
+    color: "#6c7772",
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  waitingNote: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    borderRadius: 14,
+    backgroundColor: "#f2ece5",
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    marginTop: 10,
+  },
+  waitingNoteText: {
+    flex: 1,
+    color: "#6f5a48",
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  completedSummaryText: {
     color: "#62706b",
     fontSize: 11,
-    fontWeight: "700",
     textAlign: "center",
-    marginTop: 2,
   },
   analyticsGrid: {
     flexDirection: "row",
@@ -2747,7 +2807,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#d9d6cd",
     padding: 16,
-    shadowColor: "#7e9080",
+    shadowColor: "#000000",
     shadowOpacity: 0.06,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
@@ -2856,8 +2916,6 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   productCard: {
-    flexDirection: "row",
-    gap: 12,
     padding: 12,
     borderRadius: 20,
     borderWidth: 1,
@@ -2865,15 +2923,20 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     marginTop: 12,
   },
+  productSummaryRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
   productImage: {
-    width: 104,
-    height: 104,
-    borderRadius: 18,
+    width: 88,
+    height: 88,
+    borderRadius: 16,
   },
   productImageFallback: {
-    width: 104,
-    height: 104,
-    borderRadius: 18,
+    width: 88,
+    height: 88,
+    borderRadius: 16,
     backgroundColor: "#ebf1e8",
     alignItems: "center",
     justifyContent: "center",
@@ -2913,48 +2976,38 @@ const styles = StyleSheet.create({
   },
   productActionRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
+    alignItems: "center",
+    gap: 7,
     marginTop: 12,
   },
-  inlineGhostButton: {
-    flex: 1,
-    minWidth: 96,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#e7dcb2",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: "#fffdf5",
-    alignItems: "center",
-  },
-  inlineGhostButtonText: {
-    color: "#8b7255",
-    fontSize: 11,
-    fontWeight: "900",
-  },
   inlinePrimaryButton: {
-    minWidth: 72,
-    borderRadius: 999,
-    backgroundColor: "#d6e2d2",
+    flex: 1,
+    minHeight: 38,
+    borderRadius: 13,
+    backgroundColor: "#22312d",
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
   },
   inlinePrimaryButtonText: {
-    color: "#22312d",
+    color: "#ffffff",
     fontSize: 11,
     fontWeight: "900",
   },
   inlineToggleButton: {
-    minWidth: 72,
-    borderRadius: 999,
+    flex: 1,
+    minHeight: 38,
+    borderRadius: 13,
     backgroundColor: "#f1ebe4",
     borderWidth: 1,
     borderColor: "#dfd1c2",
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
   },
   inlineToggleButtonText: {
     color: "#7f6653",
@@ -2962,19 +3015,14 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   inlineDangerButton: {
-    minWidth: 72,
-    borderRadius: 999,
+    width: 38,
+    height: 38,
+    borderRadius: 13,
     backgroundColor: "#fee2e2",
     borderWidth: 1,
     borderColor: "#fecaca",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
     alignItems: "center",
-  },
-  inlineDangerButtonText: {
-    color: "#991b1b",
-    fontSize: 11,
-    fontWeight: "900",
+    justifyContent: "center",
   },
   productUpdatedText: {
     color: "#8f9891",
@@ -3232,8 +3280,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8f6f2",
     borderWidth: 3,
     borderColor: "#ffffff",
-    shadowColor: "#7e9080",
-    shadowOpacity: 0.18,
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
     elevation: 4,
@@ -3623,12 +3671,6 @@ const styles = StyleSheet.create({
   },
   receiptModalHeading: {
     flex: 1,
-  },
-  receiptModalEyebrow: {
-    color: "#8b7255",
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 0.4,
   },
   receiptModalTitle: {
     color: "#22312d",

@@ -21,11 +21,33 @@ export async function ensureAppAudioReady() {
 }
 
 async function waitUntilLoaded(player: AudioPlayer) {
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    if (player.currentStatus.isLoaded) return;
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-  throw new Error("The sound did not finish loading.");
+  if (player.currentStatus.isLoaded) return;
+
+  await new Promise<void>((resolve, reject) => {
+    let settled = false;
+    let subscription: { remove(): void } | undefined;
+
+    const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      subscription?.remove();
+      if (error) reject(error);
+      else resolve();
+    };
+
+    const timeout = setTimeout(() => {
+      finish(new Error("The sound did not finish loading within 10 seconds."));
+    }, 10_000);
+
+    subscription = player.addListener("playbackStatusUpdate", (status) => {
+      if (status.isLoaded) finish();
+    });
+
+    // Close the gap between the first check and listener registration.
+    if (settled) subscription.remove();
+    else if (player.currentStatus.isLoaded) finish();
+  });
 }
 
 export async function playSoundFromStart(player: AudioPlayer) {

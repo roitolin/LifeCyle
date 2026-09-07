@@ -337,18 +337,15 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
 
   return (
     <SafeAreaView style={styles.screen}>
-      <KeyboardAwareScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.heroCard}>
-          <AppBackButton style={styles.backButtonSpacing} onPress={() => navigation.goBack()} />
-
-          <Text style={styles.heroEyebrow}>Product Form</Text>
-          <Text style={styles.heroTitle}>{isEditing ? "Edit Product" : "Add Product"}</Text>
-          <Text style={styles.heroSubtitle}>
-            Upload 5 product photos. The first image becomes the main product photo, and the rest can be swiped to show more angles.
-          </Text>
+      <View style={styles.header}>
+        <AppBackButton onPress={() => navigation.goBack()} />
+        <View style={styles.headerCopy}>
+          <Text style={styles.headerTitle}>{isEditing ? "Edit Product" : "Add Product"}</Text>
         </View>
+      </View>
 
-        <View style={styles.card}>
+      <KeyboardAwareScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Product Photos</Text>
           <Text style={styles.sectionSubtitle}>Fill all 5 photo slots. Slot 1 is the main display image.</Text>
 
@@ -387,12 +384,11 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
           <Text style={styles.photoCounter}>{uploadedCount} of {PHOTO_SLOT_COUNT} photos uploaded</Text>
         </View>
 
-        <View style={styles.card}>
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Product Details</Text>
-          <Text style={styles.sectionSubtitle}>Add the casket name, price, stock, optional variations, and description.</Text>
 
           <Text style={styles.inputLabel}>Product Name</Text>
-          <TextInput style={styles.input} value={productName} onChangeText={setProductName} placeholder="Product name" />
+          <TextInput style={styles.input} value={productName} onChangeText={setProductName} />
 
           <Text style={styles.inputLabel}>Price</Text>
           <TextInput
@@ -406,7 +402,7 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
           <View style={styles.row}>
             <View style={styles.rowField}>
               <Text style={styles.inputLabel}>Stock</Text>
-              <TextInput style={styles.input} value={productStock} onChangeText={setProductStock} placeholder="Stock" keyboardType="number-pad" />
+              <TextInput style={styles.input} value={productStock} onChangeText={setProductStock} keyboardType="number-pad" />
             </View>
             <View style={styles.rowField}>
               <Text style={styles.inputLabel}>Product Type</Text>
@@ -515,7 +511,7 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#eef1ec",
+    backgroundColor: "#f3f5f7",
   },
   loadingWrap: {
     flex: 1,
@@ -529,47 +525,37 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   content: {
-    padding: 20,
+    padding: 18,
     paddingBottom: 120,
     gap: 16,
   },
-  heroCard: {
-    borderRadius: 28,
-    backgroundColor: "#d6e2d2",
-    padding: 20,
+  header: {
+    minHeight: 58,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#dce2df",
+    backgroundColor: "#ffffff",
   },
-  backButtonSpacing: {
-    marginBottom: 18,
+  headerCopy: {
+    flex: 1,
   },
-  heroEyebrow: {
-    color: "#86654a",
-    fontSize: 12,
+  headerTitle: {
+    color: "#1c2a26",
+    fontSize: 18,
     fontWeight: "800",
-    letterSpacing: 0.4,
   },
-  heroTitle: {
-    color: "#22312d",
-    fontSize: 30,
-    fontWeight: "900",
-    marginTop: 6,
-  },
-  heroSubtitle: {
-    color: "#53615d",
-    fontSize: 14,
-    lineHeight: 21,
-    marginTop: 8,
-  },
-  card: {
-    borderRadius: 24,
-    backgroundColor: "#f8f6f2",
-    borderWidth: 1,
-    borderColor: "#d9d6cd",
-    padding: 16,
+  section: {
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#d8e0e8",
   },
   sectionTitle: {
-    color: "#22312d",
-    fontSize: 20,
-    fontWeight: "900",
+    color: "#1c2a26",
+    fontSize: 17,
+    fontWeight: "800",
   },
   sectionSubtitle: {
     color: "#62706b",
@@ -583,12 +569,7 @@ const styles = StyleSheet.create({
     paddingRight: 4,
   },
   photoCard: {
-    width: 186,
-    borderRadius: 20,
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#d9d6cd",
-    padding: 12,
+    width: 174,
   },
   photoBadge: {
     alignSelf: "flex-start",
@@ -606,19 +587,22 @@ const styles = StyleSheet.create({
   photoPreview: {
     width: "100%",
     height: 154,
-    borderRadius: 16,
+    borderRadius: 8,
   },
   photoPlaceholder: {
     width: "100%",
     height: 154,
-    borderRadius: 16,
-    backgroundColor: "#ebf1e8",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "#d2d7d1",
+    backgroundColor: "#fafaf9",
     alignItems: "center",
     justifyContent: "center",
   },
   photoButton: {
     minHeight: 42,
-    borderRadius: 14,
+    borderRadius: 8,
     backgroundColor: "#d6e2d2",
     borderWidth: 1,
     borderColor: "#c3d0bf",
@@ -633,8 +617,6 @@ const styles = StyleSheet.create({
   },
   photoGhostButton: {
     minHeight: 40,
-    borderRadius: 14,
-    backgroundColor: "#ece9e3",
     alignItems: "center",
     justifyContent: "center",
     marginTop: 8,
@@ -651,26 +633,28 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   inputLabel: {
-    color: "#53615d",
-    fontSize: 12,
-    fontWeight: "900",
-    marginBottom: 6,
-    marginTop: 6,
+    color: "#35433e",
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 7,
+    marginTop: 14,
   },
   input: {
+    minHeight: 48,
     borderWidth: 1,
-    borderColor: "#d9d6cd",
-    borderRadius: 16,
-    backgroundColor: "#fbfaf7",
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    borderColor: "#cfd7d3",
+    borderRadius: 8,
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 13,
+    paddingVertical: 11,
     color: "#22312d",
+    fontSize: 14,
   },
   staticField: {
     borderWidth: 1,
-    borderColor: "#d9d6cd",
-    borderRadius: 16,
-    backgroundColor: "#ebf1e8",
+    borderColor: "#cfd7d3",
+    borderRadius: 8,
+    backgroundColor: "#edf1ef",
     paddingHorizontal: 12,
     paddingVertical: 12,
     minHeight: 48,
@@ -700,10 +684,10 @@ const styles = StyleSheet.create({
   toggleButton: {
     flex: 1,
     minHeight: 44,
-    borderRadius: 14,
+    borderRadius: 8,
     backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: "#d9d6cd",
+    borderColor: "#cfd7d3",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -745,7 +729,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: "#d9d6cd",
+    borderColor: "#cfd7d3",
   },
   variationCountButtonActive: {
     backgroundColor: "#d6e2d2",
@@ -760,11 +744,9 @@ const styles = StyleSheet.create({
     color: "#22312d",
   },
   variationCard: {
-    borderRadius: 20,
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#d9d6cd",
-    padding: 14,
+    borderTopWidth: 1,
+    borderTopColor: "#d8e0e8",
+    paddingTop: 16,
   },
   variationCardTitle: {
     color: "#22312d",
@@ -774,14 +756,17 @@ const styles = StyleSheet.create({
   variationImage: {
     width: "100%",
     height: 170,
-    borderRadius: 16,
+    borderRadius: 8,
     marginTop: 12,
   },
   variationImagePlaceholder: {
     width: "100%",
     height: 170,
-    borderRadius: 16,
-    backgroundColor: "#ebf1e8",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "#d2d7d1",
+    backgroundColor: "#fafaf9",
     alignItems: "center",
     justifyContent: "center",
     marginTop: 12,
@@ -791,7 +776,7 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     minHeight: 50,
-    borderRadius: 16,
+    borderRadius: 10,
     backgroundColor: "#22312d",
     alignItems: "center",
     justifyContent: "center",
@@ -805,8 +790,6 @@ const styles = StyleSheet.create({
   },
   ghostButton: {
     minHeight: 48,
-    borderRadius: 16,
-    backgroundColor: "#ece9e3",
     alignItems: "center",
     justifyContent: "center",
   },

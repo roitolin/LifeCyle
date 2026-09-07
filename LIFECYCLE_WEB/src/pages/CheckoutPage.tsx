@@ -5,6 +5,7 @@ import { uploadCertificateWeb } from '@/lib/supabaseStorage'
 import { removeFuneralCartItem, type WebFuneralCartItem } from '@/utils/funeralCart'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
+import BrandLogo from '@/components/BrandLogo'
 import './CheckoutPage.css'
 
 type ViewerProfile = {
@@ -359,7 +360,7 @@ export default function CheckoutPage() {
   if (!cartItem) {
     return (
       <div className="checkout-page">
-        <TopBar profileName={profile?.fullName} />
+        <TopBar profile={profile} />
         <Header />
         <div className="checkout-empty">
           <h2>No cart item selected</h2>
@@ -374,10 +375,9 @@ export default function CheckoutPage() {
   if (successState) {
     return (
       <div className="checkout-page">
-        <TopBar profileName={profile?.fullName} />
+        <TopBar profile={profile} />
         <Header />
         <div className="checkout-success">
-          <div className="checkout-success-icon">⏳</div>
           <h2 className="checkout-success-title">Request Sent</h2>
           <p className="checkout-success-text">
             Your service request has been forwarded to {successState.shopName}. Please wait while the shop reviews and accepts your request.
@@ -396,12 +396,13 @@ export default function CheckoutPage() {
   // ── Form ──────────────────────────────────────
   return (
     <div className="checkout-page">
-      <TopBar profileName={profile?.fullName} />
+      <TopBar profile={profile} />
       <Header />
 
       <div className="checkout-main">
-        {/* Product Summary */}
-        <div className="checkout-card">
+        <div className="checkout-layout">
+        <aside className="checkout-order-summary">
+          <h2>Request summary</h2>
           <div className="checkout-summary">
             {cartItem.imageUrl ? (
               <img src={cartItem.imageUrl} alt={cartItem.name} className="checkout-summary-image" />
@@ -415,15 +416,21 @@ export default function CheckoutPage() {
                 <p className="checkout-summary-variation">Option: {cartItem.variationName}</p>
               ) : null}
               <p className="checkout-summary-note">
-                Fill out the request details below so the shop can review the arrangement.
+                The shop will confirm availability before requesting payment.
               </p>
             </div>
           </div>
-        </div>
+          <div className="checkout-summary-divider" />
+          <div className="checkout-summary-row">
+            <span>Service price</span>
+            <strong>{formatPeso(cartItem.price)}</strong>
+          </div>
+          <p className="checkout-summary-help">No payment is collected when you send this request.</p>
+        </aside>
 
-        {/* Memorial Photo */}
-        <div className="checkout-card">
-          <h3 className="checkout-section-title">Memorial Portrait</h3>
+        <main className="checkout-form-column">
+        <section className="checkout-section">
+          <h3 className="checkout-section-title">Memorial portrait</h3>
           <div className={`checkout-photo-zone${memorialPhotoPreview ? ' has-photo' : ''}`}>
             {uploadingPhoto ? (
               <span className="checkout-photo-uploading">Uploading photo…</span>
@@ -433,7 +440,6 @@ export default function CheckoutPage() {
               </>
             ) : (
               <>
-                <span className="checkout-photo-icon">🖼️</span>
                 <span className="checkout-photo-label">Click to add memorial photo</span>
                 <input
                   ref={fileInputRef}
@@ -450,19 +456,17 @@ export default function CheckoutPage() {
               <button type="button" className="checkout-photo-remove-btn" onClick={removePhoto}>Remove</button>
             </div>
           ) : null}
-        </div>
+        </section>
 
-        {/* Service Request Form */}
-        <div className="checkout-card">
-          <h3 className="checkout-section-title">Service Request Details</h3>
+        <section className="checkout-section checkout-form-section">
+          <h3 className="checkout-section-title">Arrangement details</h3>
 
-          <div className="checkout-field">
+          <div className="checkout-field checkout-field-wide">
             <label className="checkout-label" htmlFor="checkout-deceased-name">Full Name of the Deceased</label>
             <input
               id="checkout-deceased-name"
               className="checkout-input"
               type="text"
-              placeholder="Full name of the deceased"
               value={deceasedFullName}
               onChange={(e) => setDeceasedFullName(e.target.value)}
             />
@@ -492,7 +496,7 @@ export default function CheckoutPage() {
             />
           </div>
 
-          <div className="checkout-field">
+          <div className="checkout-field checkout-field-wide">
             <label className="checkout-label" htmlFor="checkout-age">Age of the Deceased</label>
             <div className="checkout-age-mode-row">
               <button
@@ -543,7 +547,7 @@ export default function CheckoutPage() {
             ) : null}
           </div>
 
-          <div className="checkout-field">
+          <div className="checkout-field checkout-field-wide">
             <label className="checkout-label" htmlFor="checkout-tribute">Tribute Message</label>
             <textarea
               id="checkout-tribute"
@@ -554,7 +558,7 @@ export default function CheckoutPage() {
             />
           </div>
 
-          <div className="checkout-field">
+          <div className="checkout-field checkout-field-wide">
             <label className="checkout-label" htmlFor="checkout-coordinator">Family Coordinator</label>
             <input
               id="checkout-coordinator"
@@ -566,7 +570,7 @@ export default function CheckoutPage() {
             />
           </div>
 
-          <div className="checkout-field">
+          <div className="checkout-field checkout-field-wide">
             <label className="checkout-label" htmlFor="checkout-wake">Wake Venue</label>
             <textarea
               id="checkout-wake"
@@ -578,7 +582,7 @@ export default function CheckoutPage() {
           </div>
 
           <div className="checkout-field">
-            <label className="checkout-label" htmlFor="checkout-wake-start">Wake Start (From)</label>
+            <label className="checkout-label" htmlFor="checkout-wake-start">Wake Starts</label>
             <input
               id="checkout-wake-start"
               className="checkout-input"
@@ -591,7 +595,7 @@ export default function CheckoutPage() {
           </div>
 
           <div className="checkout-field">
-            <label className="checkout-label" htmlFor="checkout-wake-end">Wake End (To)</label>
+            <label className="checkout-label" htmlFor="checkout-wake-end">Wake Ends</label>
             <input
               id="checkout-wake-end"
               className="checkout-input"
@@ -603,7 +607,7 @@ export default function CheckoutPage() {
             />
           </div>
 
-          <div className="checkout-field">
+          <div className="checkout-field checkout-field-wide">
             <label className="checkout-label" htmlFor="checkout-burial-time">Burial Time</label>
             <input
               id="checkout-burial-time"
@@ -615,7 +619,7 @@ export default function CheckoutPage() {
             />
           </div>
 
-          <div className="checkout-field">
+          <div className="checkout-field checkout-field-wide">
             <label className="checkout-label" htmlFor="checkout-pickup">Pickup Address</label>
             <textarea
               id="checkout-pickup"
@@ -632,18 +636,11 @@ export default function CheckoutPage() {
               id="checkout-contact"
               className="checkout-input"
               type="tel"
-              placeholder="Enter contact number"
               value={contactNumber}
               onChange={(e) => setContactNumber(e.target.value)}
             />
           </div>
-        </div>
-
-        {/* Price summary */}
-        <div className="checkout-card" style={{ textAlign: 'right' }}>
-          <span style={{ color: '#64748b', fontSize: 14 }}>Service Price: </span>
-          <strong style={{ fontSize: 20, color: '#334155' }}>{formatPeso(cartItem.price * (cartItem.quantity || 1))}</strong>
-        </div>
+        </section>
 
         {/* Submit */}
         <button
@@ -658,6 +655,8 @@ export default function CheckoutPage() {
         <p className="checkout-footer-hint">
           The shop will review this request first. Please wait for their acceptance after sending it.
         </p>
+        </main>
+        </div>
       </div>
 
       {confirmDialog}
@@ -669,7 +668,7 @@ export default function CheckoutPage() {
 
 /* ── Shared sub-components ─────────────────────── */
 
-function TopBar({ profileName }: { profileName?: string | null }) {
+function TopBar({ profile }: { profile: ViewerProfile | null }) {
   const navigate = useNavigate()
   return (
     <div className="checkout-topbar">
@@ -679,31 +678,25 @@ function TopBar({ profileName }: { profileName?: string | null }) {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
             Back
           </button>
-          <span className="checkout-divider">|</span>
-          <Link to="/seller">Seller Centre</Link>
-          <span className="checkout-divider">|</span>
-          <span>Follow us on</span>
-          <a href="#fb" aria-label="Facebook">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg>
-          </a>
-          <a href="#ig" aria-label="Instagram">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor"/></svg>
-          </a>
         </div>
         <div className="checkout-topbar-right">
           <Link to="/user/notifications">Notifications</Link>
-          <a href="#help">Help</a>
-          <a href="#language">English</a>
+          <Link to="/user/help">Help Centre</Link>
           <span className="checkout-divider">|</span>
           <div className="checkout-user-menu">
             <div className="checkout-user-menu-trigger">
-              <svg className="checkout-user-avatar" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
-              <span className="checkout-user-name">{profileName || 'User'}</span>
+              {profile?.photoURL ? (
+                <img src={profile.photoURL} alt="Account" className="checkout-user-avatar checkout-user-avatar-image" />
+              ) : (
+                <svg className="checkout-user-avatar" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+              )}
+              <span className="checkout-user-name">{profile?.fullName || 'User'}</span>
               <svg className="checkout-user-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
             </div>
             <div className="checkout-user-dropdown">
               <Link to="/user/profile">My Account</Link>
               <Link to="/user/purchase">Purchases</Link>
+              <Link to="/auth/switch-account" className="checkout-dropdown-switch">Switch Account</Link>
               <Link to="/auth/logout">Log out</Link>
             </div>
           </div>
@@ -717,12 +710,9 @@ function Header() {
   return (
     <header className="checkout-header">
       <div className="checkout-header-inner">
-        <Link to="/funeral" className="checkout-brand" aria-label="LifeCycle Home">
-          <div className="checkout-logo-bag">LC</div>
-          <span className="checkout-brand-name">LifeCycle</span>
-        </Link>
+        <BrandLogo to="/funeral" compact className="checkout-brand-logo" />
         <div className="checkout-header-divider" />
-        <h1>Checkout</h1>
+        <h1>Service Request</h1>
       </div>
     </header>
   )

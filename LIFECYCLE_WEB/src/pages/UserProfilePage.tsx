@@ -128,67 +128,84 @@ export default function UserProfilePage() {
     }
   }
 
-  if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>Loading...</div>
+  if (loading) return <div className="profile-loading">Loading…</div>
 
   return (
     <ProfileLayout title="My Profile" subtitle="Manage your personal details for funeral service coordination.">
-      <div className="profile-form-area">
+      {/* Hero Identity Card */}
+      <div className="profile-identity-card">
+        <div className="profile-identity-avatar-wrapper">
+          {photoURL ? (
+            <img src={photoURL} alt="Avatar" />
+          ) : (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-7 8-7s8 3 8 7"/></svg>
+          )}
+        </div>
+        <div className="profile-identity-info">
+          <h2 className="profile-identity-name">{fullName || viewer?.email || 'LifeCycle User'}</h2>
+          <p className="profile-identity-email">{viewer?.email}</p>
+        </div>
+        <div className="profile-identity-actions">
+          <label className="btn-outline profile-photo-button">
+            Change photo
+            <input type="file" accept="image/jpeg,image/png" onChange={handleImageUpload} className="profile-file-input" />
+          </label>
+        </div>
+      </div>
+      <p className="profile-photo-hint">Maximum 10 MB. JPEG or PNG.</p>
+
+      {/* Form Settings Card */}
+      <div className="profile-settings-card">
+        <div className="profile-settings-header">
+          <h2>Personal information</h2>
+        </div>
+        
         <form onSubmit={handleSave}>
-          <div className="form-group">
-            <label>Full Name</label>
-            <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Your Full Name" />
-          </div>
-          <div className="form-group">
-            <label>Gender</label>
-            <div className="radio-group" style={{ display: 'flex', gap: '20px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: 14 }}>
-                <input type="radio" name="gender" value="male" checked={gender?.toLowerCase() === 'male'} onChange={e => setGender(e.target.value)} /> Male
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: 14 }}>
-                <input type="radio" name="gender" value="female" checked={gender?.toLowerCase() === 'female'} onChange={e => setGender(e.target.value)} /> Female
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: 14 }}>
-                <input type="radio" name="gender" value="other" checked={gender?.toLowerCase() === 'other'} onChange={e => setGender(e.target.value)} /> Other
-              </label>
+          <div className="profile-settings-body">
+            <div className="profile-input-stack">
+              <label>Full Name</label>
+              <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} />
+            </div>
+
+            <div className="profile-input-stack">
+              <label>Gender</label>
+              <div className="profile-radio-group">
+                <label>
+                  <input type="radio" name="gender" value="male" checked={gender?.toLowerCase() === 'male'} onChange={e => setGender(e.target.value)} /> Male
+                </label>
+                <label>
+                  <input type="radio" name="gender" value="female" checked={gender?.toLowerCase() === 'female'} onChange={e => setGender(e.target.value)} /> Female
+                </label>
+                <label>
+                  <input type="radio" name="gender" value="other" checked={gender?.toLowerCase() === 'other'} onChange={e => setGender(e.target.value)} /> Other
+                </label>
+              </div>
+            </div>
+
+            <div className="profile-input-stack">
+              <label>Date of Birth</label>
+              <input type="date" value={dateOfBirth} onChange={e => setDateOfBirth(e.target.value)} max={new Date().toISOString().split('T')[0]} />
+            </div>
+
+            <div className="profile-input-stack">
+              <label>Email Address</label>
+              <div className="profile-readonly-text">{viewer?.email}</div>
+            </div>
+
+            <div className="profile-input-stack">
+              <label>Account UID</label>
+              <div className="uid-pill">{viewer?.id}</div>
             </div>
           </div>
-          <div className="form-group">
-            <label>Date of birth</label>
-            <input type="date" value={dateOfBirth} onChange={e => setDateOfBirth(e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label>Email</label>
-            <div className="static-text">{viewer?.email}</div>
-          </div>
-          <div className="form-group">
-            <label>UID</label>
-            <div className="static-text uid-pill">{viewer?.id}</div>
-          </div>
-          <div className="form-actions">
+
+          <div className="profile-settings-footer">
             <button type="submit" disabled={saving} className="btn-save">
-              {saving ? 'Saving...' : 'Save'}
+              {saving ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </form>
       </div>
-
-      <div className="profile-avatar-area">
-        <div className="profile-avatar-large">
-          {photoURL ? (
-            <img src={photoURL} alt="Avatar" />
-          ) : (
-            <svg viewBox="0 0 24 24" fill="none" stroke="#ccc"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-7 8-7s8 3 8 7"/></svg>
-          )}
-        </div>
-        <label className="btn-outline" style={{ cursor: 'pointer' }}>
-          Select Image
-          <input type="file" accept="image/jpeg,image/png" onChange={handleImageUpload} style={{ display: 'none' }} />
-        </label>
-        <div className="avatar-hint">
-          File size: maximum 10 MB<br/>
-          File extension: .JPEG, .PNG
-        </div>
-      </div>
+      
       {alertDialog}
     </ProfileLayout>
   )

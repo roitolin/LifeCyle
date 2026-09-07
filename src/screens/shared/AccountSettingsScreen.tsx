@@ -170,7 +170,6 @@ export default function AccountSettingsScreen({ navigation }: any) {
       <KeyboardAwareScrollView style={styles.screen} contentContainerStyle={styles.content}>
         <Card style={styles.headerCard}>
           <Card.Content>
-            <Text style={styles.kicker}>Personal Information</Text>
             <Text style={styles.title}>Personal details</Text>
             <Text style={styles.subtitle}>Update your registration information and profile photo.</Text>
           </Card.Content>
@@ -280,14 +279,6 @@ const styles = StyleSheet.create({
     borderColor: "#d9d6cd",
   },
 
-  kicker: {
-    color: "#62706b",
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 1.1,
-    textTransform: "uppercase",
-    marginBottom: 8,
-  },
   title: {
     color: "#22312d",
     fontSize: 28,

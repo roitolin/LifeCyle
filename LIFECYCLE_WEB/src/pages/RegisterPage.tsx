@@ -104,19 +104,19 @@ function RegisterPage() {
           <div className="auth-brand-inner">
             <img className="auth-logo" src={APP_ICON_TRANSPARENT_URL} alt="LifeCycle" />
             <h2>LifeCycle</h2>
-            <p className="auth-brand-tagline">Compassionate funeral service coordination for every Philippine family.</p>
+            <p className="auth-brand-tagline">Browse funeral shops and coordinate service requests.</p>
             <ul className="auth-brand-list">
               <li>
                 <svg className="auth-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                <span>Verified and accredited funeral shops</span>
+                <span>Active funeral shop listings</span>
               </li>
               <li>
                 <svg className="auth-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                <span>Personalised service and tribute requests</span>
+                <span>Service and custom tribute requests</span>
               </li>
               <li>
                 <svg className="auth-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                <span>Secure payments with GCash, Maya &amp; cards</span>
+                <span>Shop payment instructions and receipt review</span>
               </li>
             </ul>
           </div>

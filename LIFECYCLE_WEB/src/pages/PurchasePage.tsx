@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { loadFuneralPurchases, type WebFuneralPurchase } from '@/utils/funeralPurchase'
+import BrandLogo from '@/components/BrandLogo'
 import './PurchasePage.css'
 
 type ViewerProfile = {
@@ -76,41 +77,59 @@ export default function PurchasePage() {
   return (
     <div className="purchase-shop-page">
       <div className="purchase-topbar">
-        <div className="purchase-topbar-left">
-          <button type="button" className="purchase-back-btn" onClick={() => navigate(-1)} aria-label="Go back">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-            Back
-          </button>
-          <Link to="/seller">Seller Centre</Link>
-          <span>|</span>
-          <a href="#start-selling">Start Selling</a>
-          <span>|</span>
-          <span>Follow us on</span>
-          <a href="#facebook" aria-label="Facebook">?</a>
-          <a href="#instagram" aria-label="Instagram">?</a>
-        </div>
-        <div className="purchase-topbar-right">
-          <Link to="/user/notifications">Notifications</Link>
-          <a href="#help">Help</a>
-          <a href="#language">English?</a>
-          <span className="purchase-topbar-user">{profile?.fullName || 'User'}</span>
+        <div className="purchase-topbar-inner">
+          <div className="purchase-topbar-left">
+            <Link to="/seller">Seller Centre</Link>
+          </div>
+          <div className="purchase-topbar-right">
+            <Link to="/user/notifications">Notifications</Link>
+            <Link to="/user/help">Help Centre</Link>
+            <span className="purchase-divider">|</span>
+            <div className="purchase-user-menu">
+              <div className="purchase-user-menu-trigger">
+                {profile?.photoURL ? (
+                  <img src={profile.photoURL} alt="Avatar" className="purchase-user-avatar" />
+                ) : (
+                  <div className="purchase-user-avatar-placeholder">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" /></svg>
+                  </div>
+                )}
+                <span className="purchase-user-name">{profile?.fullName || 'User'}</span>
+                <svg className="purchase-user-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+              </div>
+              <div className="purchase-user-dropdown">
+                <Link to="/user/profile">My Account</Link>
+                <Link to="/user/purchase">Purchases</Link>
+                <Link to="/auth/switch-account">Switch Account</Link>
+                <Link to="/auth/logout">Log out</Link>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
       <header className="purchase-header">
-        <Link to="/funeral" className="purchase-brand" aria-label="LifeCycle home">
-          <span className="purchase-logo-bag">LC</span>
-          <span className="purchase-brand-name">LifeCycle</span>
-        </Link>
-        <div className="purchase-header-divider" />
-        <h1>My Purchases</h1>
-        <div className="purchase-search">
-          <input type="search" placeholder="Search purchase orders" />
-          <button type="button" aria-label="Search">?</button>
+        <div className="purchase-header-inner">
+          <BrandLogo to="/" />
+          <div className="purchase-header-divider" />
+          <h1>My Purchases</h1>
+          <div className="purchase-search">
+            <input type="search" placeholder="Search purchase orders" />
+            <button type="button" aria-label="Search">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="purchase-main">
+        <div className="purchase-page-nav">
+          <button type="button" className="purchase-back-btn" onClick={() => navigate(-1)}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5" /><polyline points="12 19 5 12 12 5" /></svg>
+            Back
+          </button>
+        </div>
+
         {purchases.length === 0 ? (
           <section className="purchase-empty-state">
             <h2>No Purchases Yet</h2>
@@ -141,9 +160,9 @@ export default function PurchasePage() {
                         <div className="purchase-item-info">
                           <h2>{item.name}</h2>
                           {item.variationName ? (
-                            <p>{item.shopName} · Variation: {item.variationName} · Qty: {item.quantity}</p>
+                            <p>{item.shopName}{' \u00b7 '}Variation: {item.variationName}{' \u00b7 '}Qty: {item.quantity}</p>
                           ) : (
-                            <p>{item.shopName} · Qty: {item.quantity}</p>
+                            <p>{item.shopName}{' \u00b7 '}Qty: {item.quantity}</p>
                           )}
                         </div>
                       <span className="purchase-item-total">{formatPeso(item.price * item.quantity)}</span>

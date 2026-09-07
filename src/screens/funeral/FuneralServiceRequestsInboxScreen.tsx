@@ -143,7 +143,6 @@ export default function FuneralServiceRequestsInboxScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.headerCard}>
           <View>
-            <Text style={styles.headerEyebrow}>Service Request Inbox</Text>
             <Text style={styles.headerTitle}>Family Requests</Text>
             <Text style={styles.headerSubtitle}>Review incoming requests and respond so families know your next step.</Text>
           </View>
@@ -228,11 +227,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     gap: 12,
-  },
-  headerEyebrow: {
-    color: "#8b7255",
-    fontSize: 12,
-    fontWeight: "800",
   },
   headerTitle: {
     color: "#22312d",

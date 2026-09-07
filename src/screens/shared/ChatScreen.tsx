@@ -1,5 +1,4 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import LoadingBird from '@/components/LoadingBird';
 import { AppHeaderBackButton } from "@/components";
 import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -29,7 +28,7 @@ import { Avatar, IconButton, Text } from "react-native-paper";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAvoidingView, KeyboardEvents } from "react-native-keyboard-controller";
-import { createAudioPlayer, type AudioPlayer } from "expo-audio";
+import { createAudioPlayer, preload, type AudioPlayer } from "expo-audio";
 import * as Clipboard from "expo-clipboard";
 import { captureScreen, releaseCapture } from "react-native-view-shot";
 import { supabase } from "@/services/supabaseClient";
@@ -46,6 +45,12 @@ import { ensureAppAudioReady, playSoundFromStart } from "../../utils/soundPlayba
 
 const CHAT_SENT_SOUND = require("../../../sound/ChatSents.mp3");
 const CHAT_RECEIVE_SOUND = require("../../../sound/ChatRecieves.mp3");
+const chatSoundsReady = Promise.all([
+  preload(CHAT_SENT_SOUND),
+  preload(CHAT_RECEIVE_SOUND),
+]).catch((error) => {
+  console.warn("Unable to preload chat sounds:", error);
+});
 
 type ChatMessage = {
   id: string;
@@ -190,7 +195,7 @@ type ChatMessageRowProps = {
   mine: boolean;
   showDate: boolean;
   replyPreview: ChatMessage | null;
-  replySenderLabel: string;
+  replyContextLabel: string;
   deliveryLabel: "Sending" | "Sent" | "Delivered" | null;
   showSeenAvatar: boolean;
   avatarSource: ImageSourcePropType;
@@ -202,7 +207,7 @@ const ChatMessageRow = memo(function ChatMessageRow({
   mine,
   showDate,
   replyPreview,
-  replySenderLabel,
+  replyContextLabel,
   deliveryLabel,
   showSeenAvatar,
   avatarSource,
@@ -233,7 +238,13 @@ const ChatMessageRow = memo(function ChatMessageRow({
 
   return (
     <View>
-      {showDate ? <View style={styles.dateRow}><Text style={styles.dateText}>{getDateLabel(item.timestamp)}</Text></View> : null}
+      {showDate ? (
+        <View style={styles.dateRow}>
+          <View style={styles.dateLine} />
+          <Text style={styles.dateText}>{getDateLabel(item.timestamp)}</Text>
+          <View style={styles.dateLine} />
+        </View>
+      ) : null}
       <View style={[styles.messageRow, mine ? styles.messageRowMine : styles.messageRowOther]}>
         {!mine ? (
           <Avatar.Image
@@ -242,32 +253,42 @@ const ChatMessageRow = memo(function ChatMessageRow({
             source={avatarSource}
           />
         ) : null}
-        <Pressable
-          ref={bubbleRef}
-          accessibilityRole="button"
-          accessibilityHint="Long press for message actions"
-          delayLongPress={350}
-          onLongPress={handleLongPress}
-          style={({ pressed }) => [
-            styles.bubble,
-            mine ? styles.bubbleMine : styles.bubbleOther,
-            pressed && styles.bubblePressed,
-          ]}
-        >
+        <View style={[styles.messageCluster, mine ? styles.messageClusterMine : styles.messageClusterOther]}>
           {item.replyToId ? (
-            <View style={[styles.replyPreview, mine ? styles.replyPreviewMine : styles.replyPreviewOther]}>
-              <Text numberOfLines={1} style={styles.replyPreviewSender}>
-                {replyPreview ? replySenderLabel : "Original message unavailable"}
-              </Text>
-              {replyPreview ? <Text numberOfLines={1} style={styles.replyPreviewText}>{replyPreview.text}</Text> : null}
+            <View style={[styles.replyContext, mine ? styles.replyContextMine : styles.replyContextOther]}>
+              <View style={styles.replyContextHeader}>
+                <Ionicons name="return-up-back" size={12} color="#78827e" />
+                <Text numberOfLines={1} style={styles.replyContextLabel}>{replyContextLabel}</Text>
+              </View>
+              <View style={styles.replyQuote}>
+                <Text
+                  numberOfLines={3}
+                  style={[styles.replyQuoteText, !replyPreview && styles.replyQuoteUnavailable]}
+                >
+                  {replyPreview?.text || "Message is no longer available"}
+                </Text>
+              </View>
             </View>
           ) : null}
-          <Text style={styles.messageText}>{item.text}</Text>
-          <View style={styles.messageMeta}>
-            {item.editedAt ? <Text style={styles.editedText}>Edited</Text> : null}
-            <Text style={styles.timeText}>{getTimeLabel(item.timestamp)}</Text>
-          </View>
-        </Pressable>
+          <Pressable
+            ref={bubbleRef}
+            accessibilityRole="button"
+            accessibilityHint="Long press for message actions"
+            delayLongPress={350}
+            onLongPress={handleLongPress}
+            style={({ pressed }) => [
+              styles.bubble,
+              mine ? styles.bubbleMine : styles.bubbleOther,
+              pressed && styles.bubblePressed,
+            ]}
+          >
+            <Text style={[styles.messageText, mine ? styles.messageTextMine : null]}>{item.text}</Text>
+            <View style={styles.messageMeta}>
+              {item.editedAt ? <Text style={[styles.editedText, mine ? styles.messageMetaMine : null]}>Edited</Text> : null}
+              <Text style={[styles.timeText, mine ? styles.messageMetaMine : null]}>{getTimeLabel(item.timestamp)}</Text>
+            </View>
+          </Pressable>
+        </View>
       </View>
       {reactionCounts.length > 0 ? (
         <View style={[styles.reactionSummary, mine ? styles.reactionSummaryMine : styles.reactionSummaryOther]}>
@@ -401,6 +422,7 @@ export default function ChatScreen({ route, navigation }: any) {
     let cancelled = false;
     const prepareSounds = async () => {
       try {
+        await chatSoundsReady;
         await ensureAppAudioReady();
         if (cancelled) return;
         const sent = createAudioPlayer(CHAT_SENT_SOUND, { keepAudioSessionActive: true });
@@ -624,15 +646,15 @@ export default function ChatScreen({ route, navigation }: any) {
             />
             <View style={styles.headerCopy}>
               <Text numberOfLines={1} style={styles.headerName}>{profile.name}</Text>
-              <Text style={styles.headerStatus}>{profile.isShop ? "Funeral shop" : adminProfile ? "LifeCycle support" : "Active conversation"}</Text>
+              <Text style={styles.headerStatus}>{profile.isShop ? "Funeral shop" : adminProfile ? "LifeCycle support" : "Conversation"}</Text>
             </View>
           </TouchableOpacity>
         </View>
       ),
       headerRight: () => currentUserIsAdmin ? null : (
         <View style={styles.headerActions}>
-          <IconButton icon="phone-outline" size={20} onPress={() => void openPhone()} />
-          <IconButton icon="shield-outline" size={21} onPress={openSafety} />
+          <IconButton icon="phone-outline" size={19} iconColor="#35584c" style={styles.headerActionButton} onPress={() => void openPhone()} />
+          <IconButton icon="shield-outline" size={19} iconColor="#35584c" style={styles.headerActionButton} onPress={openSafety} />
         </View>
       ),
     });
@@ -1326,7 +1348,17 @@ export default function ChatScreen({ route, navigation }: any) {
   const renderMessage = useCallback(({ item }: { item: ChatMessage }) => {
     const mine = item.senderId === userId;
     const replyPreview = item.replyToId ? messageById.get(item.replyToId) || null : null;
-    const replySenderLabel = replyPreview?.senderId === userId ? "You" : profile.name;
+    const replyContextLabel = mine
+      ? replyPreview?.senderId === userId
+        ? "You replied to your message"
+        : replyPreview
+          ? `You replied to ${profile.name}`
+          : "You replied"
+      : replyPreview?.senderId === userId
+        ? `${profile.name} replied to you`
+        : replyPreview
+          ? `${profile.name} replied to their message`
+          : `${profile.name} replied`;
     const showSeenAvatar = mine && item.id === latestSeenOutgoingMessageId;
     let deliveryLabel: ChatMessageRowProps["deliveryLabel"] = null;
     if (mine && item.id === latestOutgoingMessageId && !showSeenAvatar) {
@@ -1340,7 +1372,7 @@ export default function ChatScreen({ route, navigation }: any) {
         mine={mine}
         showDate={!!item.showDate}
         replyPreview={replyPreview}
-        replySenderLabel={replySenderLabel}
+        replyContextLabel={replyContextLabel}
         deliveryLabel={deliveryLabel}
         showSeenAvatar={showSeenAvatar}
         avatarSource={messageAvatarSource}
@@ -1453,12 +1485,6 @@ export default function ChatScreen({ route, navigation }: any) {
         style={styles.avoidingView}
       >
         <View style={styles.screen}>
-          <View style={styles.safetyTip}>
-            <Ionicons name="shield-checkmark-outline" size={17} color="#9a6b19" />
-            <Text style={styles.safetyTipText}>Keep messages and transactions inside LifeCycle for your protection.</Text>
-            <Pressable hitSlop={10} onPress={openSafety}><Text style={styles.safetyLink}>Safety</Text></Pressable>
-          </View>
-
           {blockState.blockedEitherWay ? (
             <View style={styles.blockBanner}>
               <Ionicons name="ban-outline" size={17} color="#a33d4a" />
@@ -1468,7 +1494,8 @@ export default function ChatScreen({ route, navigation }: any) {
 
           {loading ? (
             <View style={styles.centerState}>
-              <LoadingBird />
+              <ActivityIndicator size="small" color="#315f50" />
+              <Text style={styles.centerStateText}>Loading messages...</Text>
             </View>
           ) : loadError ? (
             <View style={styles.centerState}>
@@ -1517,21 +1544,23 @@ export default function ChatScreen({ route, navigation }: any) {
                 <View style={styles.emptyState}>
                   <View style={styles.emptyIcon}><Ionicons name="chatbubble-ellipses-outline" size={28} color="#c56a57" /></View>
                   <Text style={styles.emptyTitle}>Start the conversation</Text>
-                  <Text style={styles.emptySubtitle}>Messages sent here appear in LifeCycle Chat on the web too.</Text>
+                  <Text style={styles.emptySubtitle}>Send a message to begin the conversation.</Text>
                 </View>
               }
             />
           )}
 
-          <View style={styles.composerSafeArea}>
+          {!loading && !loadError ? <View style={styles.composerSafeArea}>
             {replyingTo || editingMessage ? (
               <View style={styles.composerContext}>
-                <View style={styles.composerContextAccent} />
+                <View style={styles.composerContextIcon}>
+                  <Ionicons name={editingMessage ? "create-outline" : "arrow-undo-outline"} size={16} color="#3d6656" />
+                </View>
                 <View style={styles.composerContextCopy}>
                   <Text style={styles.composerContextTitle}>
                     {editingMessage
                       ? "Editing message"
-                      : `Replying to ${replyingTo?.senderId === userId ? "yourself" : profile.name}`}
+                      : `Reply to ${replyingTo?.senderId === userId ? "your message" : profile.name}`}
                   </Text>
                   <Text numberOfLines={1} style={styles.composerContextText}>
                     {(editingMessage || replyingTo)?.text}
@@ -1553,7 +1582,7 @@ export default function ChatScreen({ route, navigation }: any) {
                   value={inputText}
                   onChangeText={setInputText}
                   accessibilityLabel="Message"
-                  placeholder={blockState.blockedEitherWay ? "Messaging unavailable" : editingMessage ? "Edit message..." : "Type a message..."}
+                  placeholder={blockState.blockedEitherWay ? "Messaging unavailable" : editingMessage ? "Edit message..." : `Message ${profile.name}`}
                   placeholderTextColor="#8a948f"
                   style={styles.input}
                   multiline
@@ -1574,7 +1603,7 @@ export default function ChatScreen({ route, navigation }: any) {
                   : <Ionicons name={editingMessage ? "checkmark" : "send"} size={19} color="#ffffff" />}
               </TouchableOpacity>
             </View>
-          </View>
+          </View> : null}
         </View>
       </KeyboardAvoidingView>
 
@@ -1743,51 +1772,58 @@ export default function ChatScreen({ route, navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: "#f6f4f0" },
+  safeArea: { flex: 1, backgroundColor: "#ffffff" },
   avoidingView: { flex: 1 },
-  screen: { flex: 1, backgroundColor: "#f6f4f0" },
+  screen: { flex: 1, backgroundColor: "#ffffff" },
   headerLeft: { flexDirection: "row", alignItems: "center", maxWidth: 270 },
   headerIdentity: { flexDirection: "row", alignItems: "center", flexShrink: 1 },
   headerCopy: { marginLeft: 9, flexShrink: 1 },
-  headerName: { color: "#26332e", fontSize: 15, fontWeight: "800" },
+  headerName: { color: "#26332e", fontSize: 15, fontWeight: "900" },
   headerStatus: { color: "#78837e", fontSize: 10, marginTop: 1 },
-  headerActions: { flexDirection: "row", alignItems: "center", marginRight: -8 },
-  safetyTip: { minHeight: 42, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: "#fff8e7", borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#ead9b4", flexDirection: "row", alignItems: "center", gap: 7 },
-  safetyTipText: { flex: 1, color: "#745c35", fontSize: 11, lineHeight: 15 },
-  safetyLink: { color: "#b15141", fontSize: 11, fontWeight: "800" },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 2, marginRight: -5 },
+  headerActionButton: { width: 36, height: 36, margin: 0, borderRadius: 18, borderWidth: 1, borderColor: "#d9e1dd", backgroundColor: "#f8faf9" },
   blockBanner: { paddingHorizontal: 14, paddingVertical: 10, backgroundColor: "#fff0f2", borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#efc4ca", flexDirection: "row", alignItems: "center", gap: 8 },
   blockBannerText: { flex: 1, color: "#8f3440", fontSize: 12, fontWeight: "700" },
   messageList: { flex: 1, minHeight: 0 },
-  messageContent: { flexGrow: 1, justifyContent: "flex-start", paddingHorizontal: 12, paddingTop: 18, paddingBottom: 8 },
+  messageContent: { flexGrow: 1, justifyContent: "flex-start", paddingHorizontal: 14, paddingTop: 20, paddingBottom: 10 },
   emptyMessageContent: { justifyContent: "center" },
   centerState: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10 },
   centerStateText: { color: "#7a8580", fontSize: 12 },
   loadErrorText: { maxWidth: 280, color: "#8f3440", fontSize: 13, lineHeight: 19, textAlign: "center" },
-  retryButton: { minHeight: 40, borderRadius: 20, backgroundColor: "#d65f4a", paddingHorizontal: 18, alignItems: "center", justifyContent: "center" },
+  retryButton: { minHeight: 40, borderRadius: 20, backgroundColor: "#29483e", paddingHorizontal: 18, alignItems: "center", justifyContent: "center" },
   retryButtonText: { color: "#ffffff", fontSize: 13, fontWeight: "800" },
   emptyState: { alignItems: "center", paddingHorizontal: 34 },
-  emptyIcon: { width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center", backgroundColor: "#f5ddd7" },
+  emptyIcon: { width: 58, height: 58, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: "#dfece5" },
   emptyTitle: { marginTop: 13, color: "#34413d", fontSize: 16, fontWeight: "800" },
   emptySubtitle: { marginTop: 6, color: "#7d8783", fontSize: 12, lineHeight: 18, textAlign: "center" },
-  dateRow: { alignItems: "center", marginVertical: 13 },
-  dateText: { color: "#808985", backgroundColor: "#ebe8e2", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, fontSize: 10, fontWeight: "700" },
-  messageRow: { flexDirection: "row", marginVertical: 3, alignItems: "flex-end" },
+  dateRow: { flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 14 },
+  dateLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: "#d7ddda" },
+  dateText: { color: "#7b8580", fontSize: 9, fontWeight: "700" },
+  messageRow: { flexDirection: "row", marginVertical: 4, alignItems: "flex-end" },
   messageRowMine: { justifyContent: "flex-end" },
   messageRowOther: { justifyContent: "flex-start" },
   messageAvatar: { marginRight: 7, marginBottom: 2 },
-  bubble: { maxWidth: "82%", minWidth: 72, borderRadius: 17, paddingHorizontal: 12, paddingTop: 9, paddingBottom: 7 },
-  bubbleMine: { backgroundColor: "#dcefe8", borderBottomRightRadius: 5 },
-  bubbleOther: { backgroundColor: "#ffffff", borderBottomLeftRadius: 5, borderWidth: StyleSheet.hairlineWidth, borderColor: "#e2e3df" },
+  messageCluster: { maxWidth: "80%" },
+  messageClusterMine: { alignItems: "flex-end" },
+  messageClusterOther: { alignItems: "flex-start" },
+  bubble: { maxWidth: "100%", minWidth: 72, borderRadius: 18, paddingHorizontal: 13, paddingTop: 10, paddingBottom: 8 },
+  bubbleMine: { backgroundColor: "#315f50", borderBottomRightRadius: 6 },
+  bubbleOther: { backgroundColor: "#f2f4f3", borderBottomLeftRadius: 6 },
   bubblePressed: { opacity: 0.76, transform: [{ scale: 0.985 }] },
-  replyPreview: { borderLeftWidth: 3, borderRadius: 5, paddingHorizontal: 8, paddingVertical: 5, marginBottom: 7 },
-  replyPreviewMine: { backgroundColor: "rgba(255,255,255,0.45)", borderLeftColor: "#589a83" },
-  replyPreviewOther: { backgroundColor: "#f3f3f0", borderLeftColor: "#c76a57" },
-  replyPreviewSender: { color: "#43534c", fontSize: 10, fontWeight: "800" },
-  replyPreviewText: { color: "#66736e", fontSize: 10, marginTop: 1 },
+  replyContext: { maxWidth: "100%", marginBottom: 4 },
+  replyContextMine: { alignItems: "flex-end" },
+  replyContextOther: { alignItems: "flex-start" },
+  replyContextHeader: { maxWidth: "100%", flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 7, marginBottom: 4 },
+  replyContextLabel: { flexShrink: 1, color: "#78827e", fontSize: 10, fontWeight: "600" },
+  replyQuote: { maxWidth: "100%", minWidth: 132, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: "#e7eae8" },
+  replyQuoteText: { color: "#5f6965", fontSize: 12, lineHeight: 17 },
+  replyQuoteUnavailable: { color: "#89918e", fontStyle: "italic" },
   messageText: { color: "#283630", fontSize: 14, lineHeight: 20 },
+  messageTextMine: { color: "#ffffff" },
   messageMeta: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: 3, marginTop: 4 },
   timeText: { color: "#7d8984", fontSize: 9 },
   editedText: { color: "#7d8984", fontSize: 9, marginRight: 3 },
+  messageMetaMine: { color: "rgba(255,255,255,0.68)" },
   reactionSummary: { minHeight: 23, flexDirection: "row", alignItems: "center", gap: 3, marginTop: -8, marginBottom: 1 },
   reactionSummaryMine: { alignSelf: "flex-end", marginRight: 8 },
   reactionSummaryOther: { alignSelf: "flex-start", marginLeft: 34 },
@@ -1795,17 +1831,17 @@ const styles = StyleSheet.create({
   deliveryStatusRow: { minHeight: 19, alignItems: "flex-end", justifyContent: "center", paddingRight: 2, marginTop: -1, marginBottom: 2 },
   deliveryStatusText: { color: "#78847f", fontSize: 10, fontWeight: "600" },
   seenAvatar: { backgroundColor: "#ffffff", borderWidth: 1, borderColor: "#ffffff" },
-  composerSafeArea: { flexShrink: 0, backgroundColor: "#ffffff", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#dcded9" },
-  composerContext: { minHeight: 48, flexDirection: "row", alignItems: "center", paddingLeft: 12, paddingRight: 4, paddingTop: 7 },
-  composerContextAccent: { width: 3, alignSelf: "stretch", borderRadius: 2, backgroundColor: "#d65f4a", marginRight: 9 },
+  composerSafeArea: { flexShrink: 0, backgroundColor: "#ffffff", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#e5e8e6" },
+  composerContext: { minHeight: 54, flexDirection: "row", alignItems: "center", marginHorizontal: 12, marginTop: 9, paddingLeft: 9, paddingRight: 3, paddingVertical: 7, borderRadius: 12, backgroundColor: "#eef3f0" },
+  composerContextIcon: { width: 34, height: 34, borderRadius: 10, marginRight: 9, alignItems: "center", justifyContent: "center", backgroundColor: "#dce8e2" },
   composerContextCopy: { flex: 1, minWidth: 0 },
-  composerContextTitle: { color: "#b44e3e", fontSize: 11, fontWeight: "800" },
+  composerContextTitle: { color: "#2f6b55", fontSize: 11, fontWeight: "800" },
   composerContextText: { color: "#6f7b76", fontSize: 11, marginTop: 2 },
   composerContextClose: { margin: 0 },
-  composer: { minHeight: 64, flexDirection: "row", alignItems: "flex-end", paddingHorizontal: 10, paddingVertical: 8, gap: 8 },
-  inputWrap: { flex: 1, minHeight: 44, maxHeight: 116, borderWidth: 1, borderColor: "#d9ddd8", borderRadius: 22, backgroundColor: "#f7f8f6", justifyContent: "center" },
+  composer: { minHeight: 68, flexDirection: "row", alignItems: "flex-end", paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
+  inputWrap: { flex: 1, minHeight: 46, maxHeight: 116, borderWidth: 1, borderColor: "#d4dcd7", borderRadius: 23, backgroundColor: "#ffffff", justifyContent: "center" },
   input: { minHeight: 42, maxHeight: 114, color: "#283630", paddingHorizontal: 15, paddingTop: 10, paddingBottom: 10, fontSize: 14 },
-  sendButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: "#d65f4a", alignItems: "center", justifyContent: "center", marginBottom: 1 },
+  sendButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#29483e", alignItems: "center", justifyContent: "center", marginBottom: 1 },
   sendButtonDisabled: { backgroundColor: "#c8ceca" },
   messageActionOverlay: { flex: 1 },
   messageActionFallback: { ...StyleSheet.absoluteFillObject, backgroundColor: "#25262c" },
@@ -1817,7 +1853,7 @@ const styles = StyleSheet.create({
   selectedMessageAvatarWrap: { position: "absolute", width: 28, height: 28, zIndex: 4 },
   selectedMessageAvatar: { backgroundColor: "#303034", borderWidth: 1, borderColor: "rgba(255,255,255,0.7)" },
   selectedMessagePreview: { position: "absolute", overflow: "hidden", borderRadius: 17, paddingHorizontal: 13, paddingTop: 9, paddingBottom: 7, justifyContent: "center", shadowColor: "#000000", shadowOpacity: 0.3, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 10 },
-  selectedMessagePreviewMine: { backgroundColor: "#6f7ff5", borderBottomRightRadius: 5 },
+  selectedMessagePreviewMine: { backgroundColor: "#2f6655", borderBottomRightRadius: 5 },
   selectedMessagePreviewOther: { backgroundColor: "#38383d", borderBottomLeftRadius: 5 },
   selectedReplyPreview: { borderLeftWidth: 3, borderLeftColor: "rgba(255,255,255,0.7)", backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 5, paddingHorizontal: 7, paddingVertical: 4, marginBottom: 6 },
   selectedReplySender: { color: "#ffffff", fontSize: 10, fontWeight: "800" },

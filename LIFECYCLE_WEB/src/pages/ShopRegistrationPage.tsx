@@ -185,7 +185,7 @@ export default function ShopRegistrationPage() {
       
       openAlert({
         title: 'Registration Submitted',
-        message: 'Shop Registration submitted successfully! It is now pending review.',
+        message: 'Your application is now pending review.',
         tone: 'info',
         okLabel: 'Continue',
         onClose: () => navigate('/seller', { replace: true }),
@@ -194,7 +194,7 @@ export default function ShopRegistrationPage() {
     } catch (error: any) {
       openAlert({
         title: 'Registration Failed',
-        message: 'Registration failed: ' + error.message,
+        message: error.message || 'Your application could not be submitted.',
         tone: 'danger',
         okLabel: 'Dismiss',
       })
@@ -216,29 +216,29 @@ export default function ShopRegistrationPage() {
       <div className="reg-content">
         <div className="reg-card">
           <div className="reg-steps">
-            <div className={`reg-step-item ${step === 1 ? 'active' : (step > 1 ? 'completed' : '')}`}>1. Shop Information</div>
-            <div className={`reg-step-item ${step === 2 ? 'active' : ''}`}>2. Business Information</div>
+            <div className={`reg-step-item ${step === 1 ? 'active' : (step > 1 ? 'completed' : '')}`}>1. Shop</div>
+            <div className={`reg-step-item ${step === 2 ? 'active' : ''}`}>2. Verification</div>
           </div>
 
           <div className="reg-form-body">
             {step === 1 && (
               <div>
                 <h3 className="reg-section-title">Shop Information</h3>
-                <p style={{ color: '#66746f', fontSize: '14px', marginBottom: '18px' }}>Enter the basic details customers will use to identify your funeral shop.</p>
+                <p style={{ color: '#66746f', fontSize: '14px', marginBottom: '18px' }}>Customers will see these details.</p>
 
                 <div className="reg-form-group">
                   <label>Shop Name *</label>
-                  <input type="text" className="reg-input" name="shopName" value={formData.shopName} onChange={handleChange} placeholder="Enter shop name" required />
+                  <input type="text" className="reg-input" name="shopName" value={formData.shopName} onChange={handleChange} required />
                 </div>
                 
                 <div className="reg-form-group">
                   <label>Shop Address *</label>
-                  <input type="text" className="reg-input" name="shopAddress" value={formData.shopAddress} onChange={handleChange} placeholder="Enter shop address" required />
+                  <input type="text" className="reg-input" name="shopAddress" value={formData.shopAddress} onChange={handleChange} required />
                 </div>
 
                 <div className="reg-form-group">
                   <label>Phone Number *</label>
-                  <input type="text" className="reg-input" name="shopPhoneNumber" value={formData.shopPhoneNumber} onChange={handleChange} placeholder="Enter phone number" required />
+                  <input type="text" className="reg-input" name="shopPhoneNumber" value={formData.shopPhoneNumber} onChange={handleChange} required />
                 </div>
               </div>
             )}
@@ -246,35 +246,35 @@ export default function ShopRegistrationPage() {
             {step === 2 && (
               <div>
                 <h3 className="reg-section-title">Business Information</h3>
-                <p style={{ color: '#66746f', fontSize: '14px', marginBottom: '18px' }}>Please provide legal and business details for verification.</p>
+                <p style={{ color: '#66746f', fontSize: '14px', marginBottom: '18px' }}>Used to verify your business.</p>
                 <div className="reg-form-group">
                   <label>Individual Registered Name *</label>
-                  <input type="text" className="reg-input" name="individualRegisteredName" value={formData.individualRegisteredName} onChange={handleChange} placeholder="Enter full registered name" required />
+                  <input type="text" className="reg-input" name="individualRegisteredName" value={formData.individualRegisteredName} onChange={handleChange} required />
                 </div>
                 
                 <div className="reg-form-group">
                   <label>Business Name *</label>
-                  <input type="text" className="reg-input" name="businessName" value={formData.businessName} onChange={handleChange} placeholder="Enter business name" required />
+                  <input type="text" className="reg-input" name="businessName" value={formData.businessName} onChange={handleChange} required />
                 </div>
 
                 <div className="reg-form-group">
                   <label>General Location *</label>
-                  <input type="text" className="reg-input" name="generalLocation" value={formData.generalLocation} onChange={handleChange} placeholder="Enter general location (e.g. Quezon City)" required />
+                  <input type="text" className="reg-input" name="generalLocation" value={formData.generalLocation} onChange={handleChange} placeholder="e.g. Quezon City" required />
                 </div>
                 
                 <div className="reg-form-group">
                   <label>Registered Address *</label>
-                  <input type="text" className="reg-input" name="registeredAddress" value={formData.registeredAddress} onChange={handleChange} placeholder="Enter registered business address" required />
+                  <input type="text" className="reg-input" name="registeredAddress" value={formData.registeredAddress} onChange={handleChange} required />
                 </div>
                 
                 <div className="reg-form-group">
                   <label>Zip Code *</label>
-                  <input type="text" className="reg-input" name="zipCode" value={formData.zipCode} onChange={handleChange} placeholder="Enter zip code" required />
+                  <input type="text" className="reg-input" name="zipCode" value={formData.zipCode} onChange={handleChange} required />
                 </div>
                 
                 <div className="reg-form-group">
-                  <label>TIN *</label>
-                  <input type="text" className="reg-input" name="tin" value={formData.tin} onChange={handleChange} placeholder="Enter Tax Identification Number" required />
+                  <label>Tax Identification Number (TIN) *</label>
+                  <input type="text" className="reg-input" name="tin" value={formData.tin} onChange={handleChange} required />
                 </div>
 
                 <div className="reg-form-group">
@@ -297,7 +297,7 @@ export default function ShopRegistrationPage() {
                       <div className="reg-upload-icon">
                         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
                       </div>
-                      <div className="reg-upload-text">Click to upload BIR Certificate (Image)</div>
+                      <div className="reg-upload-text">Choose JPEG or PNG</div>
                       <input type="file" accept="image/jpeg,image/png" style={{ display: 'none' }} onChange={handleImageChange} />
                     </label>
                   )}

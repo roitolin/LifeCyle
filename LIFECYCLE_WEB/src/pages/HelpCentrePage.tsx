@@ -4,85 +4,66 @@ import ProfileLayout from './ProfileLayout'
 const faqs = [
   {
     q: 'How do I find a funeral shop?',
-    a: 'From the LifeCycle home page, open the Funeral Shops section to browse verified providers. You can compare their profiles, products, and ratings before making a decision.',
+    a: 'Open Funeral shops from the marketplace to browse active providers. Each shop page shows its available products and published contact details.',
   },
   {
-    q: 'How do I place an order?',
-    a: 'Browse a shop\'s products, add your chosen items to the cart, and proceed to checkout. You can send service details and track the status of your request from the shop centre.',
+    q: 'How do I send a service request?',
+    a: 'Add products from one shop to your cart, continue to checkout, and review the service and contact details before submitting. A checkout submission creates a request for that shop.',
   },
   {
-    q: 'How do I track my order or service request?',
-    a: 'Open your Purchases page or the shop centre to see the current status. Shops update the status as they process, ship, and complete your order.',
+    q: 'Where can I check a request?',
+    a: 'Open Service requests from your account. Select a request to view its current status, payment details, and any available actions.',
   },
   {
-    q: 'Can I cancel an order?',
-    a: 'Yes. Open the order in your Purchases page and request a cancellation. The shop must approve the cancellation before it is finalised.',
+    q: 'How does payment verification work?',
+    a: 'Follow the payment instructions published for the request, then upload a clear receipt. The payment status changes only after the submitted proof has been reviewed.',
   },
   {
-    q: 'How do I become a seller?',
-    a: 'Register an account and apply to open a funeral shop from the seller centre. Your application will be reviewed and, once verified, you can list products and manage orders.',
+    q: 'How do I ask about a cancellation or refund?',
+    a: 'Use the controls shown on the service request when available. If no action is available, send the request details through Contact support. Approval depends on the request and payment status.',
   },
   {
-    q: 'How do I update my shop profile and cover photos?',
-    a: 'Go to your Seller Centre, open the Shop Profile tab, and use the Upload Cover and Upload Profile buttons to set your shop\'s banner and logo.',
+    q: 'How do I register a funeral shop?',
+    a: 'Open Seller Centre, register a shop, and submit the required information for review. Shop tools become available after the application and publication requirements are completed.',
   },
   {
     q: 'How do I contact support?',
-    a: 'Open the Contact Support page from the Support & Feedback menu to send us a message. We typically respond within 24 hours.',
+    a: 'Open Contact support from your account, enter a subject and message, then submit the form. You can include a service-request reference in the message when relevant.',
   },
 ]
 
 export default function HelpCentrePage() {
   const [openIndex, setOpenIndex] = useState<number | null>(0)
 
-  const toggleFaq = (index: number) => setOpenIndex(openIndex === index ? null : index)
-
   return (
-    <ProfileLayout title="Help Centre" subtitle="Answers to common questions about using LifeCycle.">
+    <ProfileLayout title="Help Centre" subtitle="Common questions about shops, service requests, and payments.">
       <div className="help-content">
-        {/* Hero Banner */}
-        <div className="help-hero">
-          <span className="help-badge">We're here for you</span>
-          <h2 className="help-hero-title">How can we help?</h2>
-          <p className="help-hero-subtitle">
-            Browse our frequently asked questions to find answers quickly.
-          </p>
-          <div className="help-highlights">
-            <div className="help-highlight-card">
-              <div className="help-highlight-value">24/7</div>
-              <div className="help-highlight-label">Family Support</div>
-            </div>
-            <div className="help-highlight-card">
-              <div className="help-highlight-value">24hrs</div>
-              <div className="help-highlight-label">Response Time</div>
-            </div>
-            <div className="help-highlight-card">
-              <div className="help-highlight-value">FAQ</div>
-              <div className="help-highlight-label">Guides</div>
-            </div>
-          </div>
+        <div className="help-intro">
+          <h2>Using LifeCycle</h2>
+          <p>Select a question to view the answer.</p>
         </div>
 
-        {/* FAQ */}
-        <div className="help-card">
-          <div className="help-card-header">
-            <span className="help-card-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            </span>
-            <h3>Frequently Asked Questions</h3>
-          </div>
+        <section className="help-card" aria-label="Frequently asked questions">
           <div className="help-faq-list">
-            {faqs.map((item, index) => (
-              <div key={item.q} className={`help-faq-item${openIndex === index ? ' open' : ''}`}>
-                <button type="button" className="help-faq-question" onClick={() => toggleFaq(index)}>
-                  <span>{item.q}</span>
-                  <svg className="help-faq-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
-                </button>
-                {openIndex === index && <div className="help-faq-answer">{item.a}</div>}
-              </div>
-            ))}
+            {faqs.map((item, index) => {
+              const isOpen = openIndex === index
+              return (
+                <div key={item.q} className={`help-faq-item${isOpen ? ' open' : ''}`}>
+                  <button
+                    type="button"
+                    className="help-faq-question"
+                    aria-expanded={isOpen}
+                    onClick={() => setOpenIndex(isOpen ? null : index)}
+                  >
+                    <span>{item.q}</span>
+                    <svg className="help-faq-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
+                  </button>
+                  {isOpen && <div className="help-faq-answer">{item.a}</div>}
+                </div>
+              )
+            })}
           </div>
-        </div>
+        </section>
       </div>
     </ProfileLayout>
   )

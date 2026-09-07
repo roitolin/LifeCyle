@@ -5,8 +5,6 @@ import type { User } from '@supabase/supabase-js'
 import ProfileLayout from './ProfileLayout'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 
-const SUPPORT_EMAIL = 'support@lifecycle.ph'
-
 export default function ContactPage() {
   const [viewer, setViewer] = useState<User | null>(null)
   const [subject, setSubject] = useState('')
@@ -28,19 +26,19 @@ export default function ContactPage() {
     e.preventDefault()
     if (!subject.trim() || !message.trim()) {
       openAlert({
-        title: 'Incomplete Details',
+        title: 'Incomplete details',
         message: 'Please fill in both subject and message.',
         tone: 'warning',
-        okLabel: 'Got It',
+        okLabel: 'OK',
       })
       return
     }
     if (!viewer) {
       openAlert({
-        title: 'Sign In Required',
+        title: 'Sign in required',
         message: 'Please log in first.',
         tone: 'warning',
-        okLabel: 'Got It',
+        okLabel: 'OK',
       })
       return
     }
@@ -64,7 +62,7 @@ export default function ContactPage() {
       setSent(true)
     } catch (err: any) {
       openAlert({
-        title: 'Message Not Sent',
+        title: 'Message not sent',
         message: 'Failed to send message: ' + (err?.message || 'Unknown error'),
         tone: 'danger',
         okLabel: 'Dismiss',
@@ -75,43 +73,37 @@ export default function ContactPage() {
   }
 
   return (
-    <ProfileLayout title="Contact Support" subtitle="Have a question, suggestion, or issue? Let us know and we'll get back to you.">
+    <ProfileLayout title="Contact support" subtitle="Send a question or report an issue with your account or service request.">
       <div className="contact-content">
         {sent ? (
           <div className="success-banner">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-            <h2>Message Sent!</h2>
-            <p>Your support message was sent successfully. Our admin team will review and respond soon.</p>
-            <button className="btn-save" onClick={() => setSent(false)} style={{ marginTop: 16 }}>Send Another</button>
+            <h2>Message sent</h2>
+            <p>Your message is now available to the support team for review.</p>
+            <button className="btn-save contact-success-action" onClick={() => setSent(false)}>Send another message</button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="contact-form">
-            <div className="contact-info-bar">
-              <p>You can also email us directly at <strong>{SUPPORT_EMAIL}</strong></p>
-            </div>
-
-            <div className="form-group" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
-              <label style={{ textAlign: 'left', width: 'auto', paddingRight: 0, marginBottom: 8 }}>Subject</label>
+            <div className="form-group contact-field">
+              <label>Subject</label>
               <input
                 type="text"
                 value={subject}
                 onChange={e => setSubject(e.target.value)}
-                placeholder="Brief subject of your concern"
-                style={{ maxWidth: '100%', width: '100%' }}
+                placeholder="e.g. Payment question"
               />
             </div>
-            <div className="form-group" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
-              <label style={{ textAlign: 'left', width: 'auto', paddingRight: 0, marginBottom: 8 }}>Message</label>
+            <div className="form-group contact-field">
+              <label>Message</label>
               <textarea
                 value={message}
                 onChange={e => setMessage(e.target.value)}
-                placeholder="Describe your question, issue, or suggestion..."
+                placeholder="Include the relevant details and any service-request reference"
                 rows={6}
                 className="contact-textarea"
               />
             </div>
             <button type="submit" disabled={loading} className="btn-save">
-              {loading ? 'Sending...' : 'Send Message'}
+              {loading ? 'Sending…' : 'Send message'}
             </button>
           </form>
         )}

@@ -247,21 +247,21 @@ export default function FeedbackPage() {
     return m
   }, [ratings])
 
-  if (loading) return <ProfileLayout title="Rate & Feedback" subtitle="Loading..."><div style={{ padding: 40, textAlign: 'center' }}>Loading...</div></ProfileLayout>
+  if (loading) return <ProfileLayout title="Feedback" subtitle="Rate the app or share feedback."><div className="fb-loading">Loading…</div></ProfileLayout>
 
   return (
-    <ProfileLayout title="Rate & Feedback" subtitle="One rating per user. You can post as many feedback comments as you want.">
+    <ProfileLayout title="Feedback" subtitle="Rate the app or share feedback.">
       <div className="feedback-content">
         {/* Summary stats */}
         <div className="fb-summary">
-          <span>Feedback Posts: <strong>{feedbacks.length}</strong></span>
+          <span>Posts: <strong>{feedbacks.length}</strong></span>
           <span>Ratings: <strong>{ratings.length}</strong></span>
-          <span>Average Rating: <strong>{averageRating.toFixed(1)}/5</strong></span>
+          <span>Average: <strong>{averageRating.toFixed(1)}/5</strong></span>
         </div>
 
         {/* Rating Picker */}
         <div className="fb-section">
-          <h3>Your App Rating</h3>
+          <h3>Your app rating</h3>
           {isSuperAdmin ? (
             <p className="fb-notice">Superadmin accounts can read ratings but cannot submit one.</p>
           ) : (
@@ -280,7 +280,7 @@ export default function FeedbackPage() {
                 Show this rating as anonymous
               </label>
               <button className="btn-save" onClick={saveMyRating} disabled={savingRating}>
-                {savingRating ? 'Saving...' : 'Save My Rating'}
+                {savingRating ? 'Saving…' : 'Save rating'}
               </button>
             </>
           )}
@@ -289,7 +289,7 @@ export default function FeedbackPage() {
         {/* Community Ratings List */}
         <div className="fb-section">
           <div className="fb-section-header">
-            <h3>Community Ratings</h3>
+            <h3>Ratings</h3>
             <button className="fb-link-btn" onClick={() => setShowRatingsList(p => !p)}>
               {showRatingsList ? 'Hide' : 'Show'}
             </button>
@@ -321,11 +321,11 @@ export default function FeedbackPage() {
 
         {/* Post Feedback */}
         <div className="fb-section">
-          <h3>Post Feedback (unlimited)</h3>
+          <h3>Post feedback</h3>
           <textarea
             value={feedbackText}
             onChange={e => setFeedbackText(e.target.value)}
-            placeholder="Write your feedback..."
+            placeholder="Write your feedback"
             rows={4}
             className="contact-textarea"
           />
@@ -334,7 +334,7 @@ export default function FeedbackPage() {
             Post feedback anonymously
           </label>
           <button className="btn-save" onClick={submitFeedback} disabled={postingFeedback}>
-            {postingFeedback ? 'Posting...' : 'Post Feedback'}
+            {postingFeedback ? 'Posting…' : 'Post feedback'}
           </button>
         </div>
 
@@ -366,7 +366,7 @@ export default function FeedbackPage() {
               {item.updatedAt && <span className="fb-edited">Edited</span>}
 
               <div className="fb-post-actions">
-                <button className="fb-link-btn" onClick={() => toggleFeedbackReaction(item)}>👍 Like ({rc})</button>
+                <button className="fb-link-btn" onClick={() => toggleFeedbackReaction(item)}>Like ({rc})</button>
                 <button className="fb-link-btn" onClick={() => setExpandedReplies(p => ({ ...p, [item.id]: !p[item.id] }))}>
                   {isExpanded ? `Hide Replies (${item.replies.length})` : `Replies (${item.replies.length})`}
                 </button>
@@ -389,7 +389,7 @@ export default function FeedbackPage() {
                         </div>
                         <p>{reply.text}</p>
                         <div className="fb-post-actions">
-                          <button className="fb-link-btn" onClick={() => toggleReplyReaction(reply)}>👍 Like ({rrc})</button>
+                          <button className="fb-link-btn" onClick={() => toggleReplyReaction(reply)}>Like ({rrc})</button>
                           {re && <button className="fb-link-btn" onClick={() => { setEditState({ type: 'reply', feedbackId: item.id, replyId: reply.id, initialText: reply.text }); setEditText(reply.text) }}>Edit</button>}
                           {re && <button className="fb-link-btn fb-delete" onClick={() => deleteReply(reply.id)}>Delete</button>}
                         </div>
@@ -400,7 +400,7 @@ export default function FeedbackPage() {
                   <textarea
                     value={replyText}
                     onChange={e => setReplyInputByPost(p => ({ ...p, [item.id]: e.target.value }))}
-                    placeholder="Write a reply..."
+                    placeholder="Write a reply"
                     rows={2}
                     className="contact-textarea"
                   />
@@ -409,7 +409,7 @@ export default function FeedbackPage() {
                     Reply anonymously
                   </label>
                   <button className="btn-save" onClick={() => submitReply(item.id)} disabled={replySubmittingPostId === item.id || !replyText.trim()}>
-                    {replySubmittingPostId === item.id ? 'Posting...' : 'Reply'}
+                    {replySubmittingPostId === item.id ? 'Posting…' : 'Reply'}
                   </button>
                 </div>
               )}
@@ -419,15 +419,15 @@ export default function FeedbackPage() {
 
         {/* Edit Modal */}
         {editState && (
-          <div className="about-modal-overlay" onClick={() => setEditState(null)}>
-            <div className="about-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
-              <button className="about-modal-close" onClick={() => setEditState(null)}>✕</button>
-              <h3 style={{ marginBottom: 12 }}>Edit</h3>
+          <div className="fb-modal-overlay" onClick={() => setEditState(null)}>
+            <div className="fb-modal" onClick={e => e.stopPropagation()}>
+              <button className="fb-modal-close" onClick={() => setEditState(null)} aria-label="Close">×</button>
+              <h3>Edit feedback</h3>
               <textarea value={editText} onChange={e => setEditText(e.target.value)} rows={4} className="contact-textarea" />
-              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <div className="fb-modal-actions">
                 <button className="btn-outline" onClick={() => setEditState(null)}>Cancel</button>
                 <button className="btn-save" onClick={saveEdit} disabled={savingEdit || !editText.trim()}>
-                  {savingEdit ? 'Saving...' : 'Save'}
+                  {savingEdit ? 'Saving…' : 'Save'}
                 </button>
               </div>
             </div>

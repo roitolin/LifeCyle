@@ -2,26 +2,27 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import LoadingBird from '@/components/LoadingBird';
 import {
   View,
-  FlatList,
+  SectionList,
   Alert,
+  ActivityIndicator,
+  Modal,
   StyleSheet,
   RefreshControl,
-} from "react-native";
-import {
-  Card,
+  ScrollView,
   Text,
-  IconButton,
-  Button,
-  Badge,
-} from "react-native-paper";
+  TouchableOpacity,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../context/AuthContext";
 import { useResponsive } from "../../utils/responsive";
 import {
-  deleteNotificationById,
   deleteNotificationsByIds,
   fetchNotificationsForUser,
   markNotificationRead,
   markNotificationsRead,
+  markNotificationsUnread,
+  isChatNotificationType,
 } from "../../utils/supabaseNotifications";
 import { CommonActions } from "@react-navigation/native";
 import { supabase } from "../../services/supabaseClient";
@@ -58,15 +59,72 @@ const REQUEST_NOTIFICATION_TYPES = [
   "funeral_payment_verified",
   "funeral_payment_rejected",
   "funeral_request_completed",
+  "funeral_refund_requested",
+  "funeral_refund_updated",
+  "death_certificate_requested",
+  "death_certificate_ready",
 ];
 
-const CHAT_NOTIFICATION_TYPES = new Set([
-  "support_message",
-  "chat_message",
-]);
-
 const isChatNotification = (type: string) =>
-  CHAT_NOTIFICATION_TYPES.has(type);
+  isChatNotificationType(type);
+
+type NotificationFilter = "all" | "requests" | "payments" | "updates";
+
+const getNotificationCategory = (type: string): Exclude<NotificationFilter, "all"> => {
+  const normalized = String(type || "").toLowerCase();
+  if (normalized.includes("payment") || normalized.includes("refund")) return "payments";
+  if (normalized.includes("request") || normalized.includes("booking") || normalized.includes("order")) return "requests";
+  return "updates";
+};
+
+const getNotificationVisual = (type: string) => {
+  const normalized = String(type || "").toLowerCase();
+  if (normalized.includes("payment_rejected") || normalized.includes("refund")) {
+    return { icon: "return-down-back-outline" as const, color: "#9a5148", background: "#fbefed" };
+  }
+  if (normalized.includes("payment")) {
+    return { icon: "wallet-outline" as const, color: "#85632e", background: "#f8f1e5" };
+  }
+  if (normalized.includes("completed") || normalized.includes("verified")) {
+    return { icon: "checkmark-done-outline" as const, color: "#2f6b55", background: "#eaf4ef" };
+  }
+  if (normalized.includes("request") || normalized.includes("booking") || normalized.includes("order")) {
+    return { icon: "document-text-outline" as const, color: "#5d5b82", background: "#f0eff7" };
+  }
+  if (normalized.includes("chat") || normalized.includes("message") || normalized.includes("support")) {
+    return { icon: "chatbubble-ellipses-outline" as const, color: "#3f6d84", background: "#eaf2f6" };
+  }
+  if (normalized.includes("product")) {
+    return { icon: "cube-outline" as const, color: "#765b3d", background: "#f6efe6" };
+  }
+  if (normalized.includes("shop_approved")) {
+    return { icon: "shield-checkmark-outline" as const, color: "#2f6b55", background: "#eaf4ef" };
+  }
+  if (normalized.includes("shop_rejected")) {
+    return { icon: "close-circle-outline" as const, color: "#9a5148", background: "#fbefed" };
+  }
+  if (normalized.includes("announcement")) {
+    return { icon: "megaphone-outline" as const, color: "#7b5c31", background: "#f8f0df" };
+  }
+  if (normalized.includes("schedule") || normalized.includes("reminder")) {
+    return { icon: "calendar-outline" as const, color: "#2f6b55", background: "#eaf4ef" };
+  }
+  return { icon: "notifications-outline" as const, color: "#52635d", background: "#eef1ef" };
+};
+
+const notificationDate = (timestamp: any) => {
+  if (!timestamp) return null;
+  const date = typeof timestamp?.toDate === "function" ? timestamp.toDate() : new Date(String(timestamp));
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const isDateToday = (date: Date | null) => {
+  if (!date) return false;
+  const today = new Date();
+  return date.getFullYear() === today.getFullYear() &&
+    date.getMonth() === today.getMonth() &&
+    date.getDate() === today.getDate();
+};
 
 export default function NotificationsScreen({ navigation, route }: any) {
   const [allNotifications, setAllNotifications] = useState<Notification[]>([]);
@@ -75,14 +133,40 @@ export default function NotificationsScreen({ navigation, route }: any) {
   });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedFilter, setSelectedFilter] = useState<NotificationFilter>("all");
+  const [manageVisible, setManageVisible] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectionBusy, setSelectionBusy] = useState(false);
   const { role, user } = useAuth();
   const currentUserId = user?.id;
   const { isDesktop } = useResponsive();
+  const insets = useSafeAreaInsets();
   const notifications = useMemo(
-    () => filterNotificationsByPreferences(allNotifications, preferences),
+    () => filterNotificationsByPreferences(
+      allNotifications.filter((item) => !isChatNotification(item.type)),
+      preferences
+    ),
     [allNotifications, preferences]
   );
   const unreadCount = notifications.filter((n) => !n.read).length;
+  const filteredNotifications = useMemo(
+    () => selectedFilter === "all"
+      ? notifications
+      : notifications.filter((item) => getNotificationCategory(item.type) === selectedFilter),
+    [notifications, selectedFilter]
+  );
+  const notificationSections = useMemo(() => {
+    const today: Notification[] = [];
+    const earlier: Notification[] = [];
+    filteredNotifications.forEach((item) => {
+      (isDateToday(notificationDate(item.createdAt)) ? today : earlier).push(item);
+    });
+    return [
+      { title: "Today", data: today },
+      { title: "Earlier", data: earlier },
+    ].filter((section) => section.data.length > 0);
+  }, [filteredNotifications]);
   const lastRefreshTokenRef = useRef<number | null>(null);
 
   const fetchNotifications = useCallback(async () => {
@@ -195,6 +279,11 @@ export default function NotificationsScreen({ navigation, route }: any) {
       return;
     }
 
+    if (notification.type === 'account_deletion_requested') {
+      navigation.navigate('AdminTabs', { screen: 'Deletions' });
+      return;
+    }
+
     if (notification.type === "announcement_new") {
       navigation.navigate("AdminTabs");
       return;
@@ -232,39 +321,11 @@ export default function NotificationsScreen({ navigation, route }: any) {
   };
 
   const openRequestDetail = (requestData: any, requesterView: boolean) => {
-    const listScreen = requesterView
-      ? "MyServiceRequests"
-      : "ServiceRequestsInbox";
-    navigation.dispatch(
-      CommonActions.reset({
-        index: 0,
-        routes: [{
-          name: "FuneralTabs",
-          state: {
-            routes: [
-              { name: "Home" },
-              { name: "Shops" },
-              { name: "Carts" },
-              {
-                name: "Profile",
-                state: {
-                  routes: [
-                    { name: "ProfileMain" },
-                    { name: listScreen },
-                    {
-                      name: "ServiceRequestDetails",
-                      params: { request: requestData, requesterView },
-                    },
-                  ],
-                  index: 2,
-                },
-              },
-            ],
-            index: 3,
-          },
-        }],
-      })
-    );
+    navigation.navigate("NotificationServiceRequestDetails", {
+      request: requestData,
+      requesterView,
+      origin: "Notifications",
+    });
   };
 
   const openRequestNotification = async (notification: Notification) => {
@@ -399,8 +460,18 @@ export default function NotificationsScreen({ navigation, route }: any) {
       return;
     }
 
-    if (notification.type === "announcement_new") {
-      navigation.navigate("FuneralTabs", { screen: "Home" });
+    if (notification.type === 'announcement_new') {
+      navigation.navigate('Announcements', {
+        announcementId: data.announcementId,
+      });
+      return;
+    }
+
+    if (notification.type === 'account_deletion_updated') {
+      navigation.navigate('FuneralTabs', {
+        screen: 'Profile',
+        params: { screen: 'PrivacyData' },
+      });
       return;
     }
 
@@ -423,15 +494,25 @@ export default function NotificationsScreen({ navigation, route }: any) {
     await navigateUserNotification(notification);
   };
 
-  const deleteNotification = async (id: string) => {
-    try {
-      await deleteNotificationById(id);
-      setAllNotifications((prev) => prev.filter((n) => n.id !== id));
-    } catch (error: any) {
-      console.error("deleteNotification error:", error);
-      Alert.alert("Error", error?.message || "Failed to delete notification.");
+  const openedFromPushRef = useRef<string | null>(null);
+  const openNotificationRef = useRef(openNotification);
+  openNotificationRef.current = openNotification;
+  useEffect(() => {
+    const notificationId = String(route?.params?.openNotificationId || '').trim();
+    if (
+      loading ||
+      !notificationId ||
+      openedFromPushRef.current === notificationId
+    ) {
+      return;
     }
-  };
+
+    const notification = allNotifications.find((item) => item.id === notificationId);
+    if (!notification) return;
+
+    openedFromPushRef.current = notificationId;
+    void openNotificationRef.current(notification);
+  }, [allNotifications, loading, route?.params?.openNotificationId]);
 
   const markAllAsRead = async () => {
     const unread = notifications.filter((n) => !n.read);
@@ -463,55 +544,161 @@ export default function NotificationsScreen({ navigation, route }: any) {
     }
   };
 
-  const formatDate = (timestamp: any) => {
-    if (!timestamp) return "";
-    const date = typeof timestamp?.toDate === "function" ? timestamp.toDate() : new Date(String(timestamp));
-    if (Number.isNaN(date.getTime())) return "";
-    return date.toLocaleString(undefined, { hour12: true });
+  const leaveSelectionMode = () => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
   };
 
-  const renderItem = ({ item }: { item: Notification }) => (
-    <Card
-      style={[styles.card, !item.read && styles.unreadCard]}
-      onPress={() => openNotification(item)}
-    >
-      <Card.Content>
-        <View style={styles.row}>
-          <View style={styles.info}>
-            <Text style={styles.title}>{item.title}</Text>
-            <Text style={styles.body}>{item.body}</Text>
-            <View style={styles.metaRow}>
-              <Badge
-                style={[
-                  styles.statusBadge,
-                  item.read ? styles.readBadge : styles.unreadBadge,
-                ]}
-              >
-                {item.read ? "READ" : "UNREAD"}
-              </Badge>
-              <Text style={styles.time}>{formatDate(item.createdAt)}</Text>
+  const startSelectionMode = (notificationId?: string) => {
+    setManageVisible(false);
+    setSelectionMode(true);
+    setSelectedIds(notificationId ? new Set([notificationId]) : new Set());
+  };
+
+  const toggleSelectedNotification = (notificationId: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(notificationId)) next.delete(notificationId);
+      else next.add(notificationId);
+      return next;
+    });
+  };
+
+  const selectAllVisibleNotifications = () => {
+    const visibleIds = filteredNotifications.map((item) => item.id);
+    const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      visibleIds.forEach((id) => {
+        if (allVisibleSelected) next.delete(id);
+        else next.add(id);
+      });
+      return next;
+    });
+  };
+
+  const updateSelectedReadState = async (read: boolean) => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length || selectionBusy) return;
+    setSelectionBusy(true);
+    try {
+      if (read) await markNotificationsRead(ids);
+      else await markNotificationsUnread(ids);
+      const selectedIdSet = new Set(ids);
+      setAllNotifications((current) =>
+        current.map((item) => selectedIdSet.has(item.id) ? { ...item, read } : item)
+      );
+      leaveSelectionMode();
+    } catch (error: any) {
+      Alert.alert("Notifications not updated", error?.message || "Please try again.");
+    } finally {
+      setSelectionBusy(false);
+    }
+  };
+
+  const deleteSelectedNotifications = async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length || selectionBusy) return;
+    setSelectionBusy(true);
+    try {
+      await deleteNotificationsByIds(ids);
+      const selectedIdSet = new Set(ids);
+      setAllNotifications((current) => current.filter((item) => !selectedIdSet.has(item.id)));
+      leaveSelectionMode();
+    } catch (error: any) {
+      Alert.alert("Notifications not deleted", error?.message || "Please try again.");
+    } finally {
+      setSelectionBusy(false);
+    }
+  };
+
+  const confirmDeleteSelected = () => {
+    if (!selectedIds.size) return;
+    Alert.alert(
+      "Delete selected notifications?",
+      selectedIds.size + (selectedIds.size === 1 ? " notification will" : " notifications will") + " be permanently removed.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => void deleteSelectedNotifications() },
+      ]
+    );
+  };
+
+  const confirmDeleteRead = () => {
+    const readCount = notifications.filter((item) => item.read).length;
+    if (!readCount) return;
+    Alert.alert(
+      "Delete all read notifications?",
+      readCount + (readCount === 1 ? " read notification will" : " read notifications will") + " be permanently removed.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            setManageVisible(false);
+            void deleteRead();
+          },
+        },
+      ]
+    );
+  };
+
+  const formatNotificationTime = (timestamp: any) => {
+    const date = notificationDate(timestamp);
+    if (!date) return "";
+    if (isDateToday(date)) {
+      return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    }
+    return date.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: date.getFullYear() === new Date().getFullYear() ? undefined : "numeric",
+    });
+  };
+
+  const renderItem = ({ item }: { item: Notification }) => {
+    const visual = getNotificationVisual(item.type);
+    const selected = selectedIds.has(item.id);
+    return (
+      <TouchableOpacity
+        style={[
+          styles.notificationRow,
+          !item.read ? styles.notificationRowUnread : null,
+          selected ? styles.notificationRowSelected : null,
+        ]}
+        onPress={() => selectionMode ? toggleSelectedNotification(item.id) : void openNotification(item)}
+        onLongPress={() => startSelectionMode(item.id)}
+        delayLongPress={450}
+        activeOpacity={0.72}
+        accessibilityRole="button"
+        accessibilityLabel={(item.read ? "" : "Unread. ") + item.title + ". " + item.body}
+        accessibilityState={{ selected }}
+        accessibilityHint={selectionMode ? "Selects or deselects this notification." : "Opens this update. Press and hold to select it."}
+      >
+        <View style={[styles.notificationIcon, { backgroundColor: visual.background }]}>
+          <Ionicons name={visual.icon} size={20} color={visual.color} />
+        </View>
+        <View style={styles.notificationCopy}>
+          <View style={styles.notificationTitleRow}>
+            {!item.read ? <View style={styles.unreadIndicator} /> : null}
+            <Text style={[styles.notificationTitle, !item.read ? styles.notificationTitleUnread : null]} numberOfLines={2}>
+              {item.title}
+            </Text>
+            <View style={styles.notificationMeta}>
+              <Text style={styles.notificationTime}>{formatNotificationTime(item.createdAt)}</Text>
             </View>
           </View>
-          <View style={styles.actions}>
-            {!item.read && (
-              <IconButton
-                icon="check"
-                size={20}
-                onPress={() => markAsRead(item.id)}
-                iconColor="green"
-              />
-            )}
-            <IconButton
-              icon="delete"
-              size={20}
-              onPress={() => deleteNotification(item.id)}
-              iconColor="red"
-            />
-          </View>
+          <Text style={styles.notificationBody} numberOfLines={3}>{item.body}</Text>
         </View>
-      </Card.Content>
-    </Card>
-  );
+        {selectionMode ? (
+          <View style={[styles.selectionCheck, selected ? styles.selectionCheckSelected : null]}>
+            {selected ? <Ionicons name="checkmark" size={15} color="#ffffff" /> : null}
+          </View>
+        ) : null}
+      </TouchableOpacity>
+    );
+  };
 
   if (loading && !refreshing) {
     return <LoadingBird fullScreen />;
@@ -519,26 +706,88 @@ export default function NotificationsScreen({ navigation, route }: any) {
 
   return (
     <View style={[styles.container, isDesktop && styles.containerDesktop]}>
-      <View style={styles.pageHeader}>
-        <Text style={styles.pageTitle}>Notifications</Text>
-        <Text style={styles.pageSubtitle}>Read updates from services, announcements, and support messages.</Text>
-        <View style={styles.headerMetaRow}>
-          <Badge style={styles.unreadCountBadge}>{unreadCount}</Badge>
-          <Text style={styles.headerMetaText}>Unread notifications</Text>
-        </View>
-      </View>
-      <View style={styles.header}>
-        <Button mode="text" onPress={markAllAsRead}>
-          Mark all as read
-        </Button>
-        <Button mode="text" onPress={deleteRead}>
-          Delete read
-        </Button>
-      </View>
-      <FlatList
-        data={notifications}
+      <SectionList
+        sections={notificationSections}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
+        renderSectionHeader={({ section }) => (
+          <Text style={styles.sectionTitle}>{section.title}</Text>
+        )}
+        stickySectionHeadersEnabled={false}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.listContent, selectionMode ? styles.listContentSelecting : null]}
+        ListHeaderComponent={
+          <View>
+            {selectionMode ? (
+              <View style={styles.selectionHeader}>
+                <TouchableOpacity style={styles.selectionClose} onPress={leaveSelectionMode} accessibilityLabel="Cancel selection">
+                  <Ionicons name="close" size={20} color="#4f5f59" />
+                </TouchableOpacity>
+                <View style={styles.selectionHeaderCopy}>
+                  <Text style={styles.selectionHeaderTitle}>{selectedIds.size} selected</Text>
+                  <Text style={styles.selectionHeaderSubtitle}>Choose notifications, then use an action below.</Text>
+                </View>
+                <TouchableOpacity style={styles.selectAllButton} onPress={selectAllVisibleNotifications}>
+                  <Text style={styles.selectAllButtonText}>
+                    {filteredNotifications.length > 0 && filteredNotifications.every((item) => selectedIds.has(item.id)) ? "Clear" : "Select all"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.inboxSummary}>
+                <View style={styles.summaryIcon}>
+                  <Ionicons name="storefront-outline" size={21} color="#2f6b55" />
+                </View>
+                <View style={styles.summaryCopy}>
+                  <Text style={styles.summaryTitle}>
+                    {unreadCount > 0
+                      ? unreadCount + (unreadCount === 1 ? " new update" : " new updates")
+                      : "You're all caught up"}
+                  </Text>
+                  <Text style={styles.summarySubtitle}>
+                    {isAdminRole
+                      ? "Orders and platform activity"
+                      : "Service requests, payments, and shop activity"}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.manageButton}
+                  onPress={() => setManageVisible(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Manage notifications"
+                >
+                  <Ionicons name="options-outline" size={20} color="#53635d" />
+                </TouchableOpacity>
+              </View>
+            )}
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filterRow}
+            >
+              {([
+                { key: "all", label: "All" },
+                { key: "requests", label: "Requests" },
+                { key: "payments", label: "Payments" },
+                { key: "updates", label: isAdminRole ? "System" : "Shop updates" },
+              ] as { key: NotificationFilter; label: string }[]).map((entry) => {
+                const active = selectedFilter === entry.key;
+                return (
+                  <TouchableOpacity
+                    key={entry.key}
+                    style={[styles.filterChip, active ? styles.filterChipActive : null]}
+                    onPress={() => setSelectedFilter(entry.key)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text style={[styles.filterChipText, active ? styles.filterChipTextActive : null]}>{entry.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        }
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -549,9 +798,129 @@ export default function NotificationsScreen({ navigation, route }: any) {
           />
         }
         ListEmptyComponent={
-          <Text style={styles.empty}>No notifications for your enabled preferences</Text>
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIcon}>
+              <Ionicons name="notifications-off-outline" size={25} color="#77847f" />
+            </View>
+            <Text style={styles.emptyTitle}>No notifications here</Text>
+            <Text style={styles.emptyText}>
+              {selectedFilter === "all"
+                ? "New service and shop updates will appear here."
+                : "There are no notifications in this category."}
+            </Text>
+          </View>
         }
+        ListFooterComponent={notifications.length && !selectionMode ? <Text style={styles.holdHint}>Press and hold a notification to select multiple.</Text> : null}
       />
+
+      {selectionMode ? (
+        <View style={[styles.selectionActionBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+          {selectionBusy ? (
+            <ActivityIndicator size="small" color="#2f6b55" />
+          ) : (
+            <>
+              <TouchableOpacity
+                style={[styles.selectionAction, !selectedIds.size ? styles.selectionActionDisabled : null]}
+                onPress={() => void updateSelectedReadState(true)}
+                disabled={!selectedIds.size}
+              >
+                <Ionicons name="mail-open-outline" size={19} color={selectedIds.size ? "#2f6b55" : "#a4aca8"} />
+                <Text style={[styles.selectionActionText, !selectedIds.size ? styles.selectionActionTextDisabled : null]}>Read</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.selectionAction, !selectedIds.size ? styles.selectionActionDisabled : null]}
+                onPress={() => void updateSelectedReadState(false)}
+                disabled={!selectedIds.size}
+              >
+                <Ionicons name="mail-unread-outline" size={19} color={selectedIds.size ? "#6a5278" : "#a4aca8"} />
+                <Text style={[styles.selectionActionText, !selectedIds.size ? styles.selectionActionTextDisabled : null]}>Unread</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.selectionAction, styles.selectionDeleteAction, !selectedIds.size ? styles.selectionActionDisabled : null]}
+                onPress={confirmDeleteSelected}
+                disabled={!selectedIds.size}
+              >
+                <Ionicons name="trash-outline" size={19} color={selectedIds.size ? "#9a5148" : "#a4aca8"} />
+                <Text style={[styles.selectionDeleteText, !selectedIds.size ? styles.selectionActionTextDisabled : null]}>Delete</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      ) : null}
+
+      <Modal visible={manageVisible} transparent animationType="fade" onRequestClose={() => setManageVisible(false)}>
+        <TouchableOpacity style={styles.manageOverlay} activeOpacity={1} onPress={() => setManageVisible(false)}>
+          <TouchableOpacity style={[styles.manageSheet, { paddingBottom: Math.max(insets.bottom, 24) }]} activeOpacity={1}>
+            <View style={styles.manageHeader}>
+              <View style={styles.manageHeaderIcon}>
+                <Ionicons name="options-outline" size={22} color="#2f6b55" />
+              </View>
+              <View style={styles.manageHeaderCopy}>
+                <Text style={styles.manageTitle}>Manage notifications</Text>
+                <Text style={styles.manageSubtitle}>Organize service and shop updates.</Text>
+              </View>
+              <TouchableOpacity style={styles.manageClose} onPress={() => setManageVisible(false)} accessibilityLabel="Close manage notifications">
+                <Ionicons name="close" size={20} color="#57655f" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.manageStats}>
+              <View style={styles.manageStat}>
+                <Text style={styles.manageStatValue}>{unreadCount}</Text>
+                <Text style={styles.manageStatLabel}>Unread</Text>
+              </View>
+              <View style={styles.manageStatDivider} />
+              <View style={styles.manageStat}>
+                <Text style={styles.manageStatValue}>{notifications.length - unreadCount}</Text>
+                <Text style={styles.manageStatLabel}>Read</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.manageOption, !notifications.length ? styles.manageOptionDisabled : null]}
+              onPress={() => startSelectionMode()}
+              disabled={!notifications.length}
+            >
+              <View style={[styles.manageOptionIcon, { backgroundColor: "#eaf3ee" }]}>
+                <Ionicons name="checkbox-outline" size={21} color="#2f6b55" />
+              </View>
+              <View style={styles.manageOptionCopy}>
+                <Text style={styles.manageOptionTitle}>Select notifications</Text>
+                <Text style={styles.manageOptionText}>Choose multiple items to mark read, unread, or delete.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#8b9591" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.manageOption, !unreadCount ? styles.manageOptionDisabled : null]}
+              onPress={() => { setManageVisible(false); void markAllAsRead(); }}
+              disabled={!unreadCount}
+            >
+              <View style={[styles.manageOptionIcon, { backgroundColor: "#f0eff7" }]}>
+                <Ionicons name="checkmark-done-outline" size={21} color="#635f86" />
+              </View>
+              <View style={styles.manageOptionCopy}>
+                <Text style={styles.manageOptionTitle}>Mark all as read</Text>
+                <Text style={styles.manageOptionText}>{unreadCount ? "Clear every NEW indicator." : "Everything is already read."}</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.manageOption, styles.manageDangerOption, notifications.length === unreadCount ? styles.manageOptionDisabled : null]}
+              onPress={confirmDeleteRead}
+              disabled={notifications.length === unreadCount}
+            >
+              <View style={[styles.manageOptionIcon, { backgroundColor: "#fbefed" }]}>
+                <Ionicons name="trash-outline" size={21} color="#9a5148" />
+              </View>
+              <View style={styles.manageOptionCopy}>
+                <Text style={styles.manageDangerTitle}>Delete all read</Text>
+                <Text style={styles.manageOptionText}>Keep unread updates and remove only opened ones.</Text>
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -559,123 +928,145 @@ export default function NotificationsScreen({ navigation, route }: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: "#fbfaf7",
   },
-  pageHeader: {
-    marginHorizontal: 12,
-    marginTop: 12,
-    marginBottom: 10,
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    borderRadius: 12,
-    padding: 14,
+  listContent: { paddingHorizontal: 16, paddingBottom: 32 },
+  listContentSelecting: { paddingBottom: 18 },
+  inboxSummary: {
+    minHeight: 72, flexDirection: "row", alignItems: "center", gap: 11,
+    borderBottomWidth: 1, borderBottomColor: "#e8e9e5", paddingVertical: 13,
   },
-  pageTitle: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: "#b91c1c",
+  summaryIcon: {
+    width: 42, height: 42, borderRadius: 15, backgroundColor: "#eaf3ee",
+    alignItems: "center", justifyContent: "center",
   },
-  pageSubtitle: {
-    marginTop: 4,
-    color: "#4b5563",
-    fontSize: 14,
+  summaryCopy: { flex: 1 },
+  summaryTitle: { color: "#263731", fontSize: 14, fontWeight: "900" },
+  summarySubtitle: { color: "#77827e", fontSize: 10, lineHeight: 15, marginTop: 3 },
+  manageButton: {
+    width: 40, height: 40, borderRadius: 14, borderWidth: 1, borderColor: "#dde1de",
+    backgroundColor: "#ffffff", alignItems: "center", justifyContent: "center",
   },
-  headerMetaRow: {
-    marginTop: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+  selectionHeader: {
+    minHeight: 72, flexDirection: "row", alignItems: "center", gap: 10,
+    borderBottomWidth: 1, borderBottomColor: "#e0e5e2", paddingVertical: 12,
   },
-  unreadCountBadge: {
-    backgroundColor: "#d32f2f",
+  selectionClose: {
+    width: 40, height: 40, borderRadius: 14, backgroundColor: "#eef1ef",
+    alignItems: "center", justifyContent: "center",
   },
-  headerMetaText: {
-    color: "#6b7280",
-    fontWeight: "600",
+  selectionHeaderCopy: { flex: 1 },
+  selectionHeaderTitle: { color: "#253630", fontSize: 14, fontWeight: "900" },
+  selectionHeaderSubtitle: { color: "#7a8580", fontSize: 9, lineHeight: 14, marginTop: 2 },
+  selectAllButton: {
+    minHeight: 36, borderRadius: 12, borderWidth: 1, borderColor: "#cfdad5",
+    backgroundColor: "#ffffff", alignItems: "center", justifyContent: "center", paddingHorizontal: 11,
   },
-  header: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    marginHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    backgroundColor: "#fff",
-    marginBottom: 4,
+  selectAllButtonText: { color: "#35634f", fontSize: 9, fontWeight: "900" },
+  filterRow: { gap: 8, paddingVertical: 13, paddingRight: 8 },
+  filterChip: {
+    minHeight: 36, borderRadius: 11, borderWidth: 1, borderColor: "#dfe2df",
+    backgroundColor: "#ffffff", alignItems: "center", justifyContent: "center", paddingHorizontal: 13,
   },
-  center: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
+  filterChipActive: { borderColor: "#29483e", backgroundColor: "#29483e" },
+  filterChipText: { color: "#586660", fontSize: 10, fontWeight: "800" },
+  filterChipTextActive: { color: "#ffffff" },
+  sectionTitle: {
+    color: "#374842", fontSize: 11, fontWeight: "900", paddingTop: 9, paddingBottom: 6,
   },
-  card: {
-    marginHorizontal: 12,
-    marginVertical: 6,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#eceff3",
+  notificationRow: {
+    minHeight: 88, flexDirection: "row", alignItems: "flex-start", gap: 11,
+    borderBottomWidth: 1, borderBottomColor: "#e9ebe8", backgroundColor: "#fbfaf7",
+    paddingVertical: 12, paddingHorizontal: 3,
   },
-  unreadCard: {
-    backgroundColor: "#fff9e6",
-    borderLeftWidth: 4,
-    borderLeftColor: "#d32f2f",
+  notificationRowUnread: {
+    backgroundColor: "#f6f8f6",
   },
-  row: {
+  notificationRowSelected: { borderRadius: 14, borderBottomColor: "#b8d1c5", backgroundColor: "#e8f2ed" },
+  notificationIcon: {
+    width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center",
+  },
+  notificationCopy: { flex: 1 },
+  notificationTitleRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
+    gap: 8,
   },
-  info: {
-    flex: 1,
+  unreadIndicator: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#2f6b55", marginTop: 5 },
+  notificationTitle: { flex: 1, color: "#46524e", fontSize: 12, lineHeight: 17, fontWeight: "600" },
+  notificationTitleUnread: { color: "#22312c", fontWeight: "800" },
+  notificationMeta: { alignItems: "flex-end" },
+  notificationTime: { color: "#909995", fontSize: 9, fontWeight: "700", paddingTop: 1 },
+  notificationBody: { color: "#68746f", fontSize: 10, lineHeight: 15, marginTop: 3 },
+  selectionCheck: {
+    width: 24, height: 24, borderRadius: 8, borderWidth: 1.5, borderColor: "#b9c2be",
+    backgroundColor: "#ffffff", alignItems: "center", justifyContent: "center", marginTop: 10,
   },
-  title: {
-    fontSize: 17,
-    fontWeight: "700",
-    marginBottom: 4,
-    color: "#111827",
+  selectionCheckSelected: { borderColor: "#2f6b55", backgroundColor: "#2f6b55" },
+  emptyState: { alignItems: "center", justifyContent: "center", paddingHorizontal: 20, paddingVertical: 54 },
+  emptyIcon: {
+    width: 54, height: 54, borderRadius: 19, backgroundColor: "#eef1ef", alignItems: "center", justifyContent: "center",
   },
-  body: {
-    fontSize: 14,
-    color: "#4b5563",
-    marginBottom: 4,
-    lineHeight: 20,
+  emptyTitle: { color: "#35453f", fontSize: 14, fontWeight: "900", marginTop: 12 },
+  emptyText: { color: "#7a8580", fontSize: 10, lineHeight: 15, textAlign: "center", marginTop: 5 },
+  holdHint: { color: "#929a96", fontSize: 9, textAlign: "center", paddingTop: 18 },
+  selectionActionBar: {
+    minHeight: 72, flexDirection: "row", alignItems: "center", justifyContent: "space-around", gap: 8,
+    borderTopWidth: 1, borderTopColor: "#dce2de", backgroundColor: "#ffffff",
+    paddingHorizontal: 14, paddingTop: 9, paddingBottom: 13,
   },
-  time: {
-    fontSize: 12,
-    color: "#999",
-    marginLeft: 8,
+  selectionAction: {
+    flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: "#f1f5f2",
+    alignItems: "center", justifyContent: "center", gap: 3,
   },
-  actions: {
-    flexDirection: "row",
-    alignItems: "center",
+  selectionDeleteAction: { backgroundColor: "#fbefed" },
+  selectionActionDisabled: { backgroundColor: "#f3f4f3" },
+  selectionActionText: { color: "#405a50", fontSize: 9, fontWeight: "900" },
+  selectionDeleteText: { color: "#934d45", fontSize: 9, fontWeight: "900" },
+  selectionActionTextDisabled: { color: "#a4aca8" },
+  manageOverlay: {
+    flex: 1, backgroundColor: "rgba(18, 23, 21, 0.58)", justifyContent: "flex-end", paddingTop: 40,
   },
-  metaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 6,
+  manageSheet: {
+    width: "100%", maxWidth: 560, maxHeight: "90%", alignSelf: "center",
+    borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderColor: "#d9dedb",
+    backgroundColor: "#fbfaf7", padding: 18, paddingBottom: 26,
   },
-  statusBadge: {
-    alignSelf: "flex-start",
+  manageHeader: {
+    flexDirection: "row", alignItems: "center", gap: 11,
+    borderBottomWidth: 1, borderBottomColor: "#e1e5e2", paddingBottom: 14,
   },
-  readBadge: {
-    backgroundColor: "#2e7d32",
-    color: "#fff",
+  manageHeaderIcon: {
+    width: 42, height: 42, borderRadius: 15, backgroundColor: "#e7f1ec", alignItems: "center", justifyContent: "center",
   },
-  unreadBadge: {
-    backgroundColor: "#d32f2f",
-    color: "#fff",
+  manageHeaderCopy: { flex: 1 },
+  manageTitle: { color: "#24352f", fontSize: 18, fontWeight: "900" },
+  manageSubtitle: { color: "#79847f", fontSize: 10, marginTop: 3 },
+  manageClose: {
+    width: 38, height: 38, borderRadius: 13, backgroundColor: "#eceeeb", alignItems: "center", justifyContent: "center",
   },
-  empty: {
-    textAlign: "center",
-    marginTop: 50,
-    fontSize: 16,
-    color: "#666",
+  manageStats: {
+    minHeight: 66, borderRadius: 17, backgroundColor: "#edf3ef", flexDirection: "row",
+    alignItems: "center", marginTop: 14, paddingVertical: 9,
   },
+  manageStat: { flex: 1, alignItems: "center" },
+  manageStatValue: { color: "#2a463c", fontSize: 18, fontWeight: "900" },
+  manageStatLabel: { color: "#71807a", fontSize: 9, fontWeight: "800", marginTop: 2 },
+  manageStatDivider: { width: 1, height: 32, backgroundColor: "#cfd9d4" },
+  manageOption: {
+    minHeight: 72, borderRadius: 17, borderWidth: 1, borderColor: "#e0e4e1", backgroundColor: "#ffffff",
+    flexDirection: "row", alignItems: "center", gap: 11, padding: 11, marginTop: 10,
+  },
+  manageDangerOption: { borderColor: "#efd9d5" },
+  manageOptionDisabled: { opacity: 0.48 },
+  manageOptionIcon: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  manageOptionCopy: { flex: 1 },
+  manageOptionTitle: { color: "#33443e", fontSize: 12, fontWeight: "900" },
+  manageDangerTitle: { color: "#8d4a43", fontSize: 12, fontWeight: "900" },
+  manageOptionText: { color: "#7a8580", fontSize: 9, lineHeight: 14, marginTop: 3 },
   containerDesktop: {
-    maxWidth: 1000,
+    maxWidth: 760,
     width: "100%",
     alignSelf: "center",
   },

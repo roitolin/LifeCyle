@@ -1,10 +1,16 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, Linking } from "react-native";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "../services/supabaseClient";
 import { ensureOwnUserProfile } from "../services/userProfile";
 import { recordAdminLoginActivity } from "../utils/adminLoginActivity";
 import { unregisterCurrentDevicePushToken } from '@/services/pushNotifications';
+import {
+  forgetRememberedAccount,
+  getRememberedAccountSession,
+  rememberAccountSession,
+} from '@/services/deviceAccounts';
 
 import { recordAccountLoginActivity } from '../utils/accountLoginActivity';
 import { recordAccountActivity } from '../utils/accountActivity';
@@ -16,6 +22,12 @@ import {
 
 type Role = "super_admin" | "admin" | "funeral_admin" | "user" | null;
 type BanNotice = { reason: string; banEndsLabel: string } | null;
+const TERMS_ACCEPTANCE_VERSION = '2026-04-02';
+
+function termsAcceptanceStorageKey(userId: string) {
+  return '@lifecycle/terms-accepted:' + TERMS_ACCEPTANCE_VERSION + ':' + userId;
+}
+
 type AppUser = User & {
   uid: string;
   displayName: string | null;
@@ -32,6 +44,7 @@ interface AuthContextType {
   refreshUserProfile: () => Promise<void>;
   clearBanNotice: () => void;
   logout: () => Promise<void>;
+  switchAccount: (accountId: string) => Promise<void>;
   logoutEverywhere: () => Promise<void>;
 }
 
@@ -45,6 +58,7 @@ const AuthContext = createContext<AuthContextType>({
   refreshUserProfile: async () => {},
   clearBanNotice: () => {},
   logout: async () => {},
+  switchAccount: async () => {},
   logoutEverywhere: async () => {},
 });
 
@@ -57,6 +71,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [banNotice, setBanNotice] = useState<BanNotice>(null);
   const [loading, setLoading] = useState(true);
   const acceptedTermsUserIdRef = useRef<string | null>(null);
+  const syncedProfileUserIdRef = useRef<string | null>(null);
 
   const toDate = (value: unknown): Date | null => {
     if (!value) return null;
@@ -161,7 +176,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setRole((data.role ?? null) as Role);
     const hasTermsAcceptedField = Object.prototype.hasOwnProperty.call(data, "termsAccepted");
     const acceptedInCurrentSession = acceptedTermsUserIdRef.current === supabaseUser.id;
-    setTermsAccepted(acceptedInCurrentSession || (hasTermsAcceptedField ? Boolean(data.termsAccepted) : true));
+    const acceptedInProfile = hasTermsAcceptedField ? Boolean(data.termsAccepted) : true;
+    let acceptedOnDevice = false;
+    try {
+      acceptedOnDevice = Boolean(
+        await AsyncStorage.getItem(termsAcceptanceStorageKey(supabaseUser.id))
+      );
+      if (acceptedInProfile && !acceptedOnDevice) {
+        await AsyncStorage.setItem(
+          termsAcceptanceStorageKey(supabaseUser.id),
+          String(data.termsAcceptedAt || new Date().toISOString())
+        );
+        acceptedOnDevice = true;
+      }
+    } catch (error) {
+      console.warn('Local terms acceptance could not be read:', error);
+    }
+    setTermsAccepted(
+      acceptedInCurrentSession || acceptedInProfile || acceptedOnDevice
+    );
   }, []);
 
   const acceptTerms = async () => {
@@ -192,6 +225,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // prevents an older profile request started during login from restoring
     // the pre-acceptance value after this update finishes.
     acceptedTermsUserIdRef.current = supabaseUser.id;
+    try {
+      await AsyncStorage.setItem(
+        termsAcceptanceStorageKey(supabaseUser.id),
+        acceptedAt
+      );
+    } catch (storageError) {
+      console.warn('Terms acceptance could not be cached on this device:', storageError);
+    }
     setTermsAccepted(true);
   };
 
@@ -240,10 +281,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           try {
             const data = await ensureOwnUserProfile(supabaseUser);
             await handleUserProfile(supabaseUser, data);
+            if (session && !Boolean(data?.disabled)) {
+              syncedProfileUserIdRef.current = supabaseUser.id;
+              try {
+                await rememberAccountSession(session, data);
+              } catch (error) {
+                console.warn('Account could not be saved to the device switcher:', error);
+              }
+            }
           } catch (error) {
             const profileError = error as { message?: string };
             console.warn("User profile could not be loaded:", profileError.message ?? "Unknown error");
             setRole(null);
+            if (syncedProfileUserIdRef.current === supabaseUser.id) {
+              syncedProfileUserIdRef.current = null;
+            }
             if (acceptedTermsUserIdRef.current !== supabaseUser.id) setTermsAccepted(false);
             setLoading(false);
             return;
@@ -254,6 +306,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
         setUser(null);
         setRole(null);
+        syncedProfileUserIdRef.current = null;
         acceptedTermsUserIdRef.current = null;
         setTermsAccepted(false);
         setLoading(false);
@@ -266,11 +319,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           console.warn("Saved login session could not be restored:", error.message ?? "Unknown error");
           setUser(null);
           setRole(null);
+          syncedProfileUserIdRef.current = null;
           acceptedTermsUserIdRef.current = null;
           setTermsAccepted(false);
           setLoading(false);
         });
-      const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+        // Supabase can emit SIGNED_IN more than once for the same active user,
+        // and refreshes access tokens in the background. The already resolved
+        // agreement state remains valid for both events, so avoid reopening the
+        // profile-loading gate and causing an unnecessary full-screen flicker.
+        if (
+          session?.user.id &&
+          syncedProfileUserIdRef.current === session.user.id &&
+          (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')
+        ) {
+          setUser(toAppUser(session.user));
+          return;
+        }
         void syncUser(session);
       });
       unsubscribeAuth = () => listener.subscription.unsubscribe();
@@ -278,6 +344,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.warn("Auth listener failed to initialize.");
       setUser(null);
       setRole(null);
+      syncedProfileUserIdRef.current = null;
       acceptedTermsUserIdRef.current = null;
       setTermsAccepted(false);
       setLoading(false);
@@ -344,6 +411,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const logout = async () => {
+    const accountId = user?.id || null;
     await unregisterCurrentDevicePushToken();
     await markCurrentAccountSessionSignedOut('signed_out');
     await recordAccountLoginActivity('logout');
@@ -352,9 +420,56 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
     const { error } = await supabase.auth.signOut({ scope: 'local' });
     if (error) throw error;
+    if (accountId) await forgetRememberedAccount(accountId);
+  };
+
+  const switchAccount = async (accountId: string) => {
+    const targetAccountId = accountId.trim();
+    if (!targetAccountId || targetAccountId === user?.id) return;
+
+    const targetSession = await getRememberedAccountSession(targetAccountId);
+    if (!targetSession) {
+      await forgetRememberedAccount(targetAccountId);
+      throw new Error('This saved account needs to sign in again.');
+    }
+
+    const { data: currentData, error: currentError } = await supabase.auth.getSession();
+    if (currentError) throw currentError;
+    const currentSession = currentData.session;
+    if (!currentSession) throw new Error('The current account session is unavailable.');
+
+    await rememberAccountSession(currentSession);
+    await markCurrentAccountSessionSignedOut('account_switched');
+    await recordAccountLoginActivity('logout');
+    if (role === 'admin' || role === 'super_admin' || role === 'funeral_admin') {
+      await recordAdminLoginActivity('logout', role);
+    }
+
+    const restoreCurrentAccount = async () => {
+      await supabase.auth.setSession({
+        access_token: currentSession.access_token,
+        refresh_token: currentSession.refresh_token,
+      });
+    };
+
+    try {
+      const { data, error } = await supabase.auth.setSession({
+        access_token: targetSession.accessToken,
+        refresh_token: targetSession.refreshToken,
+      });
+      if (error) throw error;
+      if (data.session?.user.id !== targetAccountId) {
+        throw new Error('The saved session did not match the selected account.');
+      }
+      await recordAccountLoginActivity('login_success');
+    } catch (error) {
+      await restoreCurrentAccount();
+      throw error;
+    }
   };
 
   const logoutEverywhere = async () => {
+    const accountId = user?.id || null;
     await unregisterCurrentDevicePushToken();
     await recordAccountActivity('all_sessions_signed_out');
     await markCurrentAccountSessionSignedOut('all_sessions_signed_out');
@@ -364,6 +479,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
     const { error } = await supabase.auth.signOut({ scope: 'global' });
     if (error) throw error;
+    if (accountId) await forgetRememberedAccount(accountId);
   };
 
   return (
@@ -378,6 +494,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         refreshUserProfile,
         clearBanNotice,
         logout,
+        switchAccount,
         logoutEverywhere,
       }}
     >

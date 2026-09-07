@@ -77,7 +77,6 @@ export default function PrivacyPolicyScreen() {
   return (
     <LegalDocumentScreen
       title="Privacy Policy"
-      eyebrow="LifeCycle • Privacy"
       description="How LifeCycle collects, uses, shares, and protects information when families and funeral-service providers use our platform."
       dateLabel="Last updated"
       date="August 16, 2026"

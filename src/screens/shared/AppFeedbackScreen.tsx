@@ -558,7 +558,7 @@ export default function AppFeedbackScreen() {
     const replyAnonymous = Boolean(replyAnonymousByPost[item.id]);
 
     return (
-      <Card style={styles.feedbackCard} mode="elevated">
+      <Card style={styles.feedbackCard} mode="outlined">
         <Card.Content>
           <View style={styles.feedbackHeader}>
             <View style={styles.authorIdentity}>
@@ -669,7 +669,6 @@ export default function AppFeedbackScreen() {
                 <View style={styles.feedbackHeroIcon}>
                   <Ionicons name='star-outline' size={25} color='#ffffff' />
                 </View>
-                <Text style={styles.feedbackHeroEyebrow}>RATE & FEEDBACK</Text>
               </View>
               <Text accessibilityRole='header' style={styles.feedbackHeroTitle}>
                 Help make LifeCycle better.
@@ -923,12 +922,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.12)',
-  },
-  feedbackHeroEyebrow: {
-    color: '#b9c8c0',
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 1.1,
   },
   feedbackHeroTitle: {
     color: '#ffffff',

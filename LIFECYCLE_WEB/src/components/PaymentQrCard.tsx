@@ -413,7 +413,7 @@ export default function PaymentQrCard({
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
-                style={{ display: 'none' }}
+                className="payment-qr-file-input"
                 onChange={handleProofChange}
               />
             </label>

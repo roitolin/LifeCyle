@@ -20,7 +20,12 @@ import { supabase } from "@/services/supabaseClient";
 import { uploadCertificate } from "@/services";
 import { formatPhilippinePeso } from "@/utils/funeralCatalog";
 import { hapticSuccess } from "@/utils/haptics";
+import { colors, radii, spacing } from "@/theme";
 import { createAdminNotification } from "@/utils/createAdminNotification";
+import {
+  paymentSubmissionErrorMessage,
+  validatePaymentSubmission,
+} from '@/utils/paymentValidation';
 
 type AdminPayment = {
   id: string;
@@ -222,14 +227,18 @@ export default function AdminPaymentModal({ visible, onClose, onChanged }: Props
       Alert.alert("Payment Under Review", "Please wait for the admin to review your current submission.");
       return;
     }
-    if (!payerName.trim() || !gcashName.trim() || !payerGcash.trim()) {
-      Alert.alert("Incomplete Details", "Enter the sender name, GCash account name, and GCash number.");
+    const validation = validatePaymentSubmission({
+      senderName: payerName,
+      gcashName,
+      gcashNumber: payerGcash,
+      referenceNumber,
+      proofImageUrl: proofUri,
+    });
+    if (!validation.value) {
+      Alert.alert('Check Payment Details', validation.message || 'Complete all required payment fields.');
       return;
     }
-    if (!proofUri) {
-      Alert.alert("Proof Required", "Attach a screenshot as proof that you paid.");
-      return;
-    }
+    const paymentDetails = validation.value;
 
     setSubmitting(true);
     try {
@@ -241,12 +250,12 @@ export default function AdminPaymentModal({ visible, onClose, onChanged }: Props
         .from("shop_payments")
         .insert({
           shopId: userId,
-          payerName: payerName.trim(),
-          gcashName: gcashName.trim(),
-          gcashNumber: payerGcash.trim(),
-          referenceNumber: referenceNumber.trim(),
+          payerName: paymentDetails.senderName,
+          gcashName: paymentDetails.gcashName,
+          gcashNumber: paymentDetails.gcashNumber,
+          referenceNumber: paymentDetails.referenceNumber,
           amount: Number(qrSetting.feeAmount) || 0,
-          proofImageUrl: proofUri,
+          proofImageUrl: paymentDetails.proofImageUrl,
           status: "pending",
         })
         .select("*")
@@ -271,7 +280,7 @@ export default function AdminPaymentModal({ visible, onClose, onChanged }: Props
         { shopId: userId }
       );
     } catch (error: any) {
-      Alert.alert("Submission Failed", error?.message || "Unable to submit payment details.");
+      Alert.alert('Submission Failed', paymentSubmissionErrorMessage(error));
     } finally {
       setSubmitting(false);
     }
@@ -394,7 +403,6 @@ export default function AdminPaymentModal({ visible, onClose, onChanged }: Props
                         </View>
                         <View style={styles.formTitleCopy}>
                           <Text style={styles.formTitle}>Pay Registration / Renewal</Text>
-                          <Text style={styles.formSubtitle}>Complete the three steps below to send your payment.</Text>
                         </View>
                       </View>
 
@@ -465,13 +473,15 @@ export default function AdminPaymentModal({ visible, onClose, onChanged }: Props
                           keyboardType="phone-pad"
                         />
 
-                        <Text style={styles.inputLabel}>Reference Number <Text style={styles.optionalLabel}>(Optional)</Text></Text>
+                        <Text style={styles.inputLabel}>Transaction Reference *</Text>
                         <TextInput
                           style={styles.input}
                           value={referenceNumber}
                           onChangeText={setReferenceNumber}
                           placeholder="Reference number from the receipt"
                           placeholderTextColor="#9aa39d"
+                          autoCapitalize="characters"
+                          maxLength={40}
                         />
                       </View>
 
@@ -703,7 +713,7 @@ export default function AdminPaymentModal({ visible, onClose, onChanged }: Props
                   accessibilityRole="button"
                   accessibilityLabel="View payment status"
                 >
-                  <Ionicons name="receipt-outline" size={19} color="#8d4aac" />
+                  <Ionicons name="receipt-outline" size={19} color="#315f50" />
                   <Text style={styles.successActionText}>View Payment Details</Text>
                 </TouchableOpacity>
               </View>
@@ -956,7 +966,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(16, 10, 8, 0.58)",
     justifyContent: "center",
     alignItems: "center",
-    padding: 16,
+    padding: spacing.lg,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -965,11 +975,11 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 460,
     height: "90%",
-    borderRadius: 24,
-    backgroundColor: "#f8f6f2",
+    borderRadius: radii.xl,
+    backgroundColor: colors.surfaceWarm,
     borderWidth: 1,
-    borderColor: "#d9d6cd",
-    padding: 18,
+    borderColor: colors.borderWarm,
+    padding: spacing.lg,
   },
   paymentScroll: {
     flex: 1,
@@ -980,10 +990,10 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: spacing.md,
     paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#e6e3da",
+    borderBottomColor: colors.border,
   },
   headerIcon: {
     width: 42,
@@ -997,7 +1007,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    color: "#22312d",
+    color: colors.text,
     fontSize: 20,
     fontWeight: "900",
   },
@@ -1017,7 +1027,7 @@ const styles = StyleSheet.create({
   },
   stateBox: {
     alignItems: "center",
-    gap: 10,
+    gap: spacing.sm,
     paddingVertical: 60,
   },
   stateText: {
@@ -1026,28 +1036,28 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   subscriptionCard: {
-    marginTop: 16,
+    marginTop: spacing.lg,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#d9d6cd",
-    backgroundColor: "#ffffff",
-    padding: 14,
-    gap: 8,
+    borderColor: colors.borderWarm,
+    backgroundColor: colors.surface,
+    padding: spacing.md,
+    gap: spacing.sm,
   },
   subscriptionTop: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    gap: 10,
+    gap: spacing.sm,
   },
   subscriptionTitleRow: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: spacing.sm,
   },
   subscriptionTitle: {
-    color: "#22312d",
+    color: colors.text,
     fontSize: 15,
     fontWeight: "900",
   },
@@ -1060,7 +1070,7 @@ const styles = StyleSheet.create({
     color: "#8f2525",
   },
   statusBadge: {
-    borderRadius: 999,
+    borderRadius: radii.pill,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
@@ -1085,15 +1095,15 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
   infoCard: {
-    marginTop: 16,
+    marginTop: spacing.lg,
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 10,
-    borderRadius: 16,
+    gap: spacing.sm,
+    borderRadius: radii.lg,
     borderWidth: 1,
-    borderColor: "#e6e3da",
+    borderColor: colors.border,
     backgroundColor: "#fbfaf7",
-    padding: 12,
+    padding: spacing.md,
   },
   infoText: {
     flex: 1,
@@ -1102,17 +1112,17 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
   paymentFormCard: {
-    marginTop: 18,
+    marginTop: spacing.lg,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#d9d6cd",
-    backgroundColor: "#ffffff",
-    padding: 14,
+    borderColor: colors.borderWarm,
+    backgroundColor: colors.surface,
+    padding: spacing.md,
   },
   formTitleRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 11,
+    gap: spacing.md,
     marginBottom: 20,
   },
   formTitleIcon: {
@@ -1130,12 +1140,6 @@ const styles = StyleSheet.create({
     color: "#22312d",
     fontSize: 16,
     fontWeight: "900",
-  },
-  formSubtitle: {
-    color: "#6b7671",
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 3,
   },
   stepHeader: {
     flexDirection: "row",
@@ -1263,18 +1267,18 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: "#d9d6cd",
-    borderRadius: 16,
+    borderColor: colors.borderWarm,
+    borderRadius: radii.lg,
     backgroundColor: "#fbfaf7",
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    color: "#22312d",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    color: colors.text,
   },
   proofPreviewWrap: {
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#e6e3da",
-    backgroundColor: "#ffffff",
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
     overflow: "hidden",
   },
   proofPreview: {
@@ -1284,16 +1288,16 @@ const styles = StyleSheet.create({
   },
   proofPreviewActions: {
     flexDirection: "row",
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingBottom: 8,
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
   },
   proofInlineButton: {
     flex: 1,
     minHeight: 42,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#d9d6cd",
+    borderColor: colors.borderWarm,
     backgroundColor: "#fbfaf7",
     flexDirection: "row",
     alignItems: "center",
@@ -1336,7 +1340,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    gap: spacing.sm,
     marginTop: 16,
   },
   submitButtonDisabled: {
@@ -1352,13 +1356,13 @@ const styles = StyleSheet.create({
     gap: 8,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#e6e3da",
-    backgroundColor: "#ffffff",
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
     paddingVertical: 28,
-    paddingHorizontal: 16,
+    paddingHorizontal: spacing.lg,
   },
   emptyTitle: {
-    color: "#22312d",
+    color: colors.text,
     fontSize: 14,
     fontWeight: "800",
   },
@@ -1371,12 +1375,12 @@ const styles = StyleSheet.create({
   historyRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 12,
-    borderRadius: 16,
+    gap: spacing.md,
+    borderRadius: radii.lg,
     borderWidth: 1,
-    borderColor: "#d9d6cd",
-    backgroundColor: "#ffffff",
-    padding: 14,
+    borderColor: colors.borderWarm,
+    backgroundColor: colors.surface,
+    padding: spacing.md,
     marginBottom: 9,
   },
   historyIconWrap: {
@@ -1499,7 +1503,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   successDetails: {
-    gap: 12,
+    gap: spacing.md,
   },
   successDetailRow: {
     flexDirection: "row",
@@ -1591,7 +1595,7 @@ const styles = StyleSheet.create({
     marginTop: 28,
   },
   successActionText: {
-    color: "#8d4aac",
+    color: "#315f50",
     fontSize: 14,
     fontWeight: "900",
   },
@@ -1620,7 +1624,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
+    gap: spacing.md,
   },
   paymentDetailsAccordionIcon: {
     width: 34,
@@ -1634,7 +1638,7 @@ const styles = StyleSheet.create({
     gap: 12,
     borderRadius: 14,
     backgroundColor: "#f7f8f7",
-    padding: 14,
+    padding: spacing.md,
     marginTop: 6,
   },
   paymentDetailsProofSection: {

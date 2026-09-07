@@ -135,7 +135,6 @@ export default function VerificationScreen() {
   return (
     <View style={styles.overlay}>
       <View style={[styles.card, isDesktop && styles.cardDesktop]}>
-        <Text style={styles.kicker}>Account Verification</Text>
         <Text style={styles.title}>Verify Your Email</Text>
         <Text style={styles.message}>
           We have sent a verification email to {"\n"}
@@ -179,14 +178,6 @@ const styles = StyleSheet.create({
   },
   cardDesktop: {
     maxWidth: 500,
-  },
-  kicker: {
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-    textAlign: "center",
-    marginBottom: 8,
   },
   title: {
     fontSize: 24,

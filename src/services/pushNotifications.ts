@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
+import { isRunningInExpoGo } from 'expo';
 import { Platform } from 'react-native';
 
 import { supabase } from '@/services/supabaseClient';
@@ -12,8 +12,20 @@ export const PUSH_SILENT_CHANNEL_ID = 'lifecycle-silent';
 
 const STORED_EXPO_TOKEN_KEY = '@lifecycle/expo-push-token';
 let notificationHandlerConfigured = false;
+let notificationsModule: typeof import('expo-notifications') | null = null;
+
+export function getNotificationsModule() {
+  if (Platform.OS === 'web' || isRunningInExpoGo()) return null;
+
+  // A static import crashes while expo-notifications initializes in Android Expo Go.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  notificationsModule ??= require('expo-notifications') as typeof import('expo-notifications');
+  return notificationsModule;
+}
 
 export function configureForegroundPushNotifications() {
+  const Notifications = getNotificationsModule();
+  if (!Notifications) return;
   if (notificationHandlerConfigured) return;
   notificationHandlerConfigured = true;
 
@@ -31,6 +43,8 @@ export function configureForegroundPushNotifications() {
 
 async function ensureAndroidChannels() {
   if (Platform.OS !== 'android') return;
+  const Notifications = getNotificationsModule();
+  if (!Notifications) return;
 
   await Promise.all([
     Notifications.setNotificationChannelAsync(PUSH_ALERTS_CHANNEL_ID, {
@@ -60,6 +74,9 @@ async function ensureAndroidChannels() {
 }
 
 async function getGrantedNotificationPermissions() {
+  const Notifications = getNotificationsModule();
+  if (!Notifications) return false;
+
   let permissions = await Notifications.getPermissionsAsync();
   if (permissions.granted) return true;
 
@@ -110,7 +127,8 @@ export async function registerCurrentDeviceForPush(
 
   // SDK 53+ does not support remote push inside Expo Go. A development or
   // release build is required so the app owns its FCM/APNs credentials.
-  if (Constants.appOwnership === 'expo') {
+  const Notifications = getNotificationsModule();
+  if (!Notifications) {
     if (__DEV__) console.warn('Push notifications require a development build.');
     return null;
   }

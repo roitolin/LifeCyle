@@ -298,7 +298,7 @@ export default function AdminPaymentsScreen() {
         }
         keyboardShouldPersistTaps="handled"
       >
-        <Card style={styles.hero} mode="elevated">
+        <Card style={styles.hero} mode="outlined">
           <Card.Content>
             <View style={styles.heroRow}>
               <View style={styles.heroIcon}><Ionicons name="wallet-outline" size={24} color="#991b1b" /></View>
@@ -321,7 +321,7 @@ export default function AdminPaymentsScreen() {
         />
 
         {tab === "setup" ? (
-          <Card style={styles.card} mode="elevated">
+          <Card style={styles.card} mode="outlined">
             <Card.Title title="Admin Payment Details" subtitle={`Last updated: ${formatDate(updatedAt)}`} />
             <Card.Content>
               <Text style={styles.label}>Registration fee (₱)</Text>
@@ -330,8 +330,6 @@ export default function AdminPaymentsScreen() {
                 value={feeAmount}
                 onChangeText={setFeeAmount}
                 keyboardType="decimal-pad"
-                placeholder="Enter amount"
-                placeholderTextColor="#9ca3af"
               />
               <Text style={styles.label}>Payment QR code</Text>
               <TouchableOpacity style={styles.qrPicker} onPress={chooseQr} disabled={saving}>
@@ -353,7 +351,7 @@ export default function AdminPaymentsScreen() {
             </Card.Content>
           </Card>
         ) : shownPayments.length === 0 ? (
-          <Card style={styles.card} mode="elevated">
+          <Card style={styles.card} mode="outlined">
             <Card.Content style={styles.emptyState}>
               <Ionicons name="receipt-outline" size={40} color="#9ca3af" />
               <Text variant="titleMedium">No payment submissions yet</Text>
@@ -365,7 +363,7 @@ export default function AdminPaymentsScreen() {
             const meta = statusMeta(payment.status);
             return (
               <TouchableOpacity key={payment.id} activeOpacity={0.85} onPress={() => setSelected(payment)}>
-                <Card style={styles.card} mode="elevated">
+                <Card style={styles.card} mode="outlined">
                   <Card.Content>
                     <View style={styles.rowBetween}>
                       <View style={styles.flex}>

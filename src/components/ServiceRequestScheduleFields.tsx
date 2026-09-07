@@ -22,7 +22,7 @@ const formatDate = (value: Date | null, fallback: string) =>
 const formatTime = (value: Date | null) =>
   value
     ? value.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", hour12: true })
-    : "Select burial time";
+    : "Select time";
 
 export default function ServiceRequestScheduleFields({
   wakeStartDate,
@@ -41,10 +41,9 @@ export default function ServiceRequestScheduleFields({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.heading}>Wake & Burial Schedule</Text>
-      <Text style={styles.helper}>Choose the first and last day of the wake, then the burial time.</Text>
+      <Text style={styles.heading}>Wake and burial schedule</Text>
 
-      <Text style={styles.label}>From *</Text>
+      <Text style={styles.label}>Wake starts *</Text>
       <TouchableOpacity
         style={styles.pickerButton}
         onPress={() => setActivePicker(activePicker === "start" ? null : "start")}
@@ -52,7 +51,7 @@ export default function ServiceRequestScheduleFields({
         accessibilityLabel="Choose wake start date"
       >
         <Text style={[styles.pickerText, !wakeStartDate ? styles.placeholder : null]}>
-          {formatDate(wakeStartDate, "Select wake start date")}
+          {formatDate(wakeStartDate, "Select date")}
         </Text>
         <Ionicons name="calendar-outline" size={18} color="#62706b" />
       </TouchableOpacity>
@@ -73,7 +72,7 @@ export default function ServiceRequestScheduleFields({
         />
       ) : null}
 
-      <Text style={styles.label}>To *</Text>
+      <Text style={styles.label}>Wake ends *</Text>
       <TouchableOpacity
         style={styles.pickerButton}
         onPress={() => setActivePicker(activePicker === "end" ? null : "end")}
@@ -81,7 +80,7 @@ export default function ServiceRequestScheduleFields({
         accessibilityLabel="Choose wake end date"
       >
         <Text style={[styles.pickerText, !wakeEndDate ? styles.placeholder : null]}>
-          {formatDate(wakeEndDate, "Select wake end date")}
+          {formatDate(wakeEndDate, "Select date")}
         </Text>
         <Ionicons name="calendar-outline" size={18} color="#62706b" />
       </TouchableOpacity>
@@ -98,7 +97,7 @@ export default function ServiceRequestScheduleFields({
         />
       ) : null}
 
-      <Text style={styles.label}>Burial Time *</Text>
+      <Text style={styles.label}>Burial time *</Text>
       <TouchableOpacity
         style={styles.pickerButton}
         onPress={() => setActivePicker(activePicker === "burial" ? null : "burial")}
@@ -126,14 +125,13 @@ export default function ServiceRequestScheduleFields({
 const styles = StyleSheet.create({
   container: { marginTop: 18, borderTopWidth: 1, borderTopColor: "#e5e8e3", paddingTop: 16 },
   heading: { color: "#22312d", fontSize: 15, fontWeight: "900" },
-  helper: { color: "#6f7b76", fontSize: 12, lineHeight: 18, marginTop: 4, marginBottom: 4 },
   label: { color: "#53615d", fontSize: 13, fontWeight: "800", marginBottom: 8, marginTop: 12 },
   pickerButton: {
     minHeight: 48,
-    borderRadius: 14,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: "#d2d7d1",
-    backgroundColor: "#fcfcfb",
+    backgroundColor: "#ffffff",
     paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "center",

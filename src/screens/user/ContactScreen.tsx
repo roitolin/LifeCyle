@@ -222,7 +222,7 @@ export default function ContactScreen({ navigation }: any) {
         style={styles.input}
         value={subject}
         onChangeText={setSubject}
-        placeholder="Brief subject"
+        placeholder="e.g. Payment question"
       />
 
       <Text style={styles.label}>Message</Text>
@@ -230,7 +230,6 @@ export default function ContactScreen({ navigation }: any) {
         style={[styles.input, styles.textArea]}
         value={message}
         onChangeText={setMessage}
-        placeholder="Your message..."
         multiline
         numberOfLines={6}
         textAlignVertical="top"

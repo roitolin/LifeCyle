@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
-  Animated,
   View,
   Text,
   Image,
@@ -11,38 +10,31 @@ import {
   Platform,
   findNodeHandle,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Picker } from "@react-native-picker/picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Button as PaperButton } from "react-native-paper";
 import { Ionicons } from "@expo/vector-icons";
 import { AppBackButton, KeyboardAwareScrollView } from "@/components";
+import { colors, radii, spacing } from "@/theme";
 import { supabase } from "../../services/supabaseClient";
 import { getSupabaseEmailRedirectTo } from "../../services/supabaseAuthRedirect";
-import { useResponsive } from "../../utils/responsive";
+import { normalizeEmail } from "../../utils/inputSecurity";
 
-export default function RegisterScreen({ navigation, route }: any) {
+export default function RegisterScreen({ navigation }: any) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [gender, setGender] = useState<"male" | "female" | "other" | "">("");
-  const [dateOfBirth, setDateOfBirth] = useState(new Date());
+  const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const { isDesktop } = useResponsive();
+  const [focusedField, setFocusedField] = useState<"fullName" | "email" | "password" | null>(null);
   const scrollRef = useRef<any>(null);
   const fullNameRef = useRef<TextInput>(null);
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
-  const entrance = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.timing(entrance, {
-      toValue: 1,
-      duration: 420,
-      useNativeDriver: true,
-    }).start();
-  }, [entrance]);
 
   const scrollToInput = (inputRef: any) => {
     const inputHandle = findNodeHandle(inputRef.current);
@@ -52,13 +44,17 @@ export default function RegisterScreen({ navigation, route }: any) {
 
   const handleRegister = async () => {
     if (!fullName.trim() || !gender || !dateOfBirth || !email.trim() || !password.trim()) {
-      Alert.alert("Error", "Please fill in all fields.");
+      Alert.alert("Missing information", "Please complete every field before continuing.");
+      return;
+    }
+    if (password.length < 6) {
+      Alert.alert("Password too short", "Use at least 6 characters for your password.");
       return;
     }
 
     setLoading(true);
     try {
-      const normalizedEmail = email.trim();
+      const normalizedEmail = normalizeEmail(email);
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email: normalizedEmail,
         password,
@@ -110,335 +106,263 @@ export default function RegisterScreen({ navigation, route }: any) {
     }
   };
 
+  const dateOfBirthLabel = dateOfBirth
+    ? dateOfBirth.toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })
+    : "Select your date of birth";
+
   return (
-    <View style={styles.screen}>
-      <View style={styles.glowTop} pointerEvents="none" />
-      <View style={styles.glowBottom} pointerEvents="none" />
+    <SafeAreaView edges={["top", "bottom"]} style={styles.screen}>
       <KeyboardAwareScrollView
         ref={scrollRef}
         style={styles.screen}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={[styles.authWrap, isDesktop && styles.authWrapDesktop]}>
-          {isDesktop && (
-            <Animated.View
-              style={[
-                styles.introCard,
-                {
-                  opacity: entrance,
-                  transform: [
-                    {
-                      translateY: entrance.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [18, 0],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            >
-              <Text style={styles.introKicker}>Create Account</Text>
-              <Text style={styles.introTitle}>Join First</Text>
-              <Text style={styles.introBody}>Create your account first, then continue to LifeCycle after signing in.</Text>
-            </Animated.View>
-          )}
+        <View style={styles.formShell}>
+          {navigation.canGoBack?.() ? (
+            <AppBackButton style={styles.backButton} onPress={() => navigation.goBack()} />
+          ) : null}
 
-          <Animated.View
-            style={[
-              styles.container,
-              isDesktop && styles.containerDesktop,
-              {
-                opacity: entrance,
-                transform: [
-                  {
-                    translateY: entrance.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [28, 0],
-                    }),
-                  },
-                  {
-                    scale: entrance.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.98, 1],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
-            {navigation.canGoBack() && (
-              <AppBackButton style={styles.backLink} onPress={() => navigation.goBack()} />
-            )}
-            <Image source={require("../../../assets/Icon/AppICONTransparents.png")} style={styles.logo} resizeMode="contain" />
-            <Text style={styles.title}>Create Account</Text>
-            <Text style={styles.subtitle}>Register first so you can access LifeCycle after signing in.</Text>
+          <View style={styles.brandRow}>
+            <Image source={require("../../../assets/Icon/AppICONTransparents.png")} style={styles.brandMark} resizeMode="contain" />
+            <Text style={styles.brandName}>LifeCycle</Text>
+          </View>
 
+          <View style={styles.headingBlock}>
+            <Text style={styles.title}>Create your account</Text>
+            <Text style={styles.subtitle}>Enter your details to get started.</Text>
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Full name</Text>
             <TextInput
               ref={fullNameRef}
-              placeholder="Full Name"
-              placeholderTextColor="#9ca3af"
+              accessibilityLabel="Full name"
+              placeholder="Enter your full name"
+              placeholderTextColor={colors.textMuted}
               value={fullName}
               onChangeText={setFullName}
-              onFocus={() => scrollToInput(fullNameRef)}
+              onFocus={() => {
+                setFocusedField("fullName");
+                scrollToInput(fullNameRef);
+              }}
+              onBlur={() => setFocusedField(null)}
+              autoCapitalize="words"
+              autoComplete="name"
+              textContentType="name"
               returnKeyType="next"
               onSubmitEditing={() => emailRef.current?.focus()}
-              style={styles.input}
+              style={[styles.input, focusedField === "fullName" && styles.inputFocused]}
             />
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Email address</Text>
             <TextInput
               ref={emailRef}
-              placeholder="Email"
-              placeholderTextColor="#9ca3af"
+              accessibilityLabel="Email address"
+              placeholder="name@example.com"
+              placeholderTextColor={colors.textMuted}
               value={email}
               onChangeText={setEmail}
-              onFocus={() => scrollToInput(emailRef)}
+              onFocus={() => {
+                setFocusedField("email");
+                scrollToInput(emailRef);
+              }}
+              onBlur={() => setFocusedField(null)}
               autoCapitalize="none"
               keyboardType="email-address"
+              autoComplete="email"
+              textContentType="emailAddress"
+              importantForAutofill="yes"
               returnKeyType="next"
               onSubmitEditing={() => passwordRef.current?.focus()}
-              style={styles.input}
+              style={[styles.input, focusedField === "email" && styles.inputFocused]}
             />
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Password</Text>
             <View style={styles.passwordFieldWrap}>
               <TextInput
-              ref={passwordRef}
-              placeholder="Password"
-              placeholderTextColor="#9ca3af"
+                ref={passwordRef}
+                accessibilityLabel="Password"
+                placeholder="Create a password"
+                placeholderTextColor={colors.textMuted}
                 value={password}
                 onChangeText={setPassword}
-                onFocus={() => scrollToInput(passwordRef)}
+                onFocus={() => {
+                  setFocusedField("password");
+                  scrollToInput(passwordRef);
+                }}
+                onBlur={() => setFocusedField(null)}
                 secureTextEntry={!showPassword}
+                autoComplete="new-password"
+                textContentType="newPassword"
+                importantForAutofill="yes"
                 returnKeyType="done"
-                style={[styles.input, styles.passwordInput]}
+                style={[styles.input, styles.passwordInput, focusedField === "password" && styles.inputFocused]}
               />
-              <TouchableOpacity style={styles.eyeButton} onPress={() => setShowPassword((prev) => !prev)}>
-                  <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={21} color="#22312d" />
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                style={styles.eyeButton}
+                onPress={() => setShowPassword((previous) => !previous)}
+              >
+                <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={colors.text} />
               </TouchableOpacity>
             </View>
+            <Text style={styles.helperText}>Use at least 6 characters.</Text>
+          </View>
 
-            <Text style={styles.label}>Gender</Text>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Gender</Text>
             <View style={styles.pickerContainer}>
               <Picker
+                accessibilityLabel="Gender"
                 selectedValue={gender}
                 onValueChange={(value) => setGender(value)}
-                dropdownIconColor="#22312d"
+                dropdownIconColor={colors.text}
                 style={styles.picker}
               >
-                <Picker.Item label="Select gender..." value="" />
+                <Picker.Item label="Select gender" value="" color={colors.textMuted} />
                 <Picker.Item label="Male" value="male" />
                 <Picker.Item label="Female" value="female" />
                 <Picker.Item label="Other" value="other" />
               </Picker>
             </View>
+          </View>
 
-            <Text style={styles.label}>Date of Birth</Text>
-            <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.dateButton}>
-              <Text style={styles.dateButtonText}>{dateOfBirth.toLocaleDateString()}</Text>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Date of birth</Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel={`Date of birth, ${dateOfBirthLabel}`}
+              onPress={() => setShowDatePicker(true)}
+              style={[styles.dateButton, showDatePicker && styles.inputFocused]}
+            >
+              <Text style={[styles.dateButtonText, !dateOfBirth && styles.placeholderText]}>{dateOfBirthLabel}</Text>
+              <Ionicons name="calendar-outline" size={20} color={colors.textMuted} />
             </TouchableOpacity>
             {showDatePicker && (
-              <DateTimePicker
-                value={dateOfBirth}
-                mode="date"
-                display="default"
-                onChange={onDateChange}
-                maximumDate={new Date()}
-              />
+              <View style={styles.datePickerArea}>
+                <DateTimePicker
+                  value={dateOfBirth || new Date(2000, 0, 1)}
+                  mode="date"
+                  display={Platform.OS === "ios" ? "spinner" : "default"}
+                  onChange={onDateChange}
+                  maximumDate={new Date()}
+                />
+                {Platform.OS === "ios" ? (
+                  <TouchableOpacity accessibilityRole="button" style={styles.dateDoneButton} onPress={() => setShowDatePicker(false)}>
+                    <Text style={styles.dateDoneButtonText}>Done</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
             )}
+          </View>
 
-            <PaperButton
-              mode="contained"
-              loading={loading}
-              disabled={loading}
-              onPress={handleRegister}
-              style={styles.primaryButton}
-              contentStyle={styles.primaryButtonContent}
-              labelStyle={styles.primaryButtonLabel}
-                buttonColor="#22312d"
-            >
-              {loading ? "Registering..." : "Sign up"}
-            </PaperButton>
-            <TouchableOpacity onPress={() => navigation.navigate("Login")} style={styles.linkWrap}>
-              <Text style={styles.link}>Already have an account? Login</Text>
+          <PaperButton
+            mode="contained"
+            loading={loading}
+            disabled={loading}
+            onPress={handleRegister}
+            style={styles.primaryButton}
+            contentStyle={styles.primaryButtonContent}
+            labelStyle={styles.primaryButtonLabel}
+            buttonColor={colors.primaryDark}
+          >
+            {loading ? "Creating account..." : "Create account"}
+          </PaperButton>
+
+          <View style={styles.accountPrompt}>
+            <Text style={styles.accountPromptText}>Already have an account?</Text>
+            <TouchableOpacity accessibilityRole="button" onPress={() => navigation.navigate("Login")}>
+              <Text style={styles.accountPromptLink}>Log in</Text>
             </TouchableOpacity>
-          </Animated.View>
+          </View>
         </View>
       </KeyboardAwareScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#f8f6f2" },
-  glowTop: {
-    position: "absolute",
-    top: -140,
-    left: -90,
-    width: 300,
-    height: 300,
-    borderRadius: 999,
-    backgroundColor: "#ebf1e8",
-  },
-  glowBottom: {
-    position: "absolute",
-    right: -110,
-    bottom: 30,
-    width: 320,
-    height: 320,
-    borderRadius: 999,
-    backgroundColor: "#dce6d7",
-  },
-  scrollContent: { flexGrow: 1, justifyContent: "center", padding: 20 },
-  authWrap: { width: "100%" },
-  authWrapDesktop: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    gap: 18,
-    maxWidth: 1120,
-    width: "100%",
-    alignSelf: "center",
-  },
-  container: {
-    width: "100%",
-    backgroundColor: "#ffffff",
-    borderRadius: 28,
-    padding: 22,
-    borderWidth: 1,
-    borderColor: "#d9d6cd",
-    shadowColor: "#22312d",
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 7,
-  },
-  logo: {
-    width: 96,
-    height: 96,
-    alignSelf: "center",
-    marginBottom: 8,
-  },
-  title: { fontSize: 38, fontWeight: "800", textAlign: "center", marginBottom: 6, color: "#22312d" },
-  subtitle: {
-    fontSize: 15,
-    textAlign: "center",
-    color: "#62706b",
-    marginBottom: 18,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#22312d",
-    marginTop: 6,
-    marginBottom: 6,
-  },
+  screen: { flex: 1, backgroundColor: colors.surfaceWarm },
+  scrollContent: { flexGrow: 1, paddingHorizontal: spacing.xl, paddingVertical: spacing.xxl },
+  formShell: { width: "100%", maxWidth: 520, alignSelf: "center" },
+  backButton: { alignSelf: "flex-start", marginBottom: spacing.xl, backgroundColor: "transparent", borderWidth: 0 },
+  brandRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.xxl },
+  brandMark: { width: 44, height: 44 },
+  brandName: { color: colors.text, fontSize: 20, fontWeight: "800" },
+  headingBlock: { marginBottom: spacing.xl },
+  title: { color: colors.text, fontSize: 32, lineHeight: 40, fontWeight: "800" },
+  subtitle: { color: colors.textMuted, fontSize: 15, lineHeight: 24, marginTop: spacing.sm },
+  fieldGroup: { marginBottom: spacing.lg },
+  fieldLabel: { color: colors.text, fontSize: 13, fontWeight: "700", marginBottom: spacing.sm },
   input: {
+    minHeight: 52,
     borderWidth: 1,
-    borderColor: "#d9d6cd",
-    borderRadius: 18,
-    paddingVertical: 13,
-    paddingHorizontal: 14,
-    marginBottom: 13,
-    backgroundColor: "#ffffff",
-    color: "#1f2937",
-    fontSize: 16,
+    borderColor: colors.borderWarm,
+    borderRadius: radii.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    backgroundColor: colors.surface,
+    color: colors.text,
+    fontSize: 15,
   },
-  passwordFieldWrap: {
-    position: "relative",
-  },
-  passwordInput: {
-    paddingRight: 46,
-  },
+  inputFocused: { borderColor: colors.primaryDark },
+  passwordFieldWrap: { position: "relative" },
+  passwordInput: { paddingRight: 52 },
   eyeButton: {
     position: "absolute",
-    right: 10,
-    top: 8,
-    width: 34,
-    height: 34,
+    right: 2,
+    top: 2,
+    width: 48,
+    height: 48,
     alignItems: "center",
     justifyContent: "center",
   },
+  helperText: { color: colors.textMuted, fontSize: 11, lineHeight: 16, marginTop: spacing.xs },
   pickerContainer: {
+    minHeight: 52,
     borderWidth: 1,
-    borderColor: "#d9d6cd",
-    borderRadius: 18,
-    marginBottom: 13,
+    borderColor: colors.borderWarm,
+    borderRadius: radii.md,
     overflow: "hidden",
-    backgroundColor: "#ffffff",
+    justifyContent: "center",
+    backgroundColor: colors.surface,
   },
-  picker: {
-    color: "#1f2937",
-  },
+  picker: { minHeight: 52, color: colors.text },
   dateButton: {
+    minHeight: 52,
     borderWidth: 1,
-    borderColor: "#d9d6cd",
-    borderRadius: 18,
-    paddingVertical: 13,
-    paddingHorizontal: 14,
-    marginBottom: 14,
+    borderColor: colors.borderWarm,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.lg,
+    flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#ffffff",
+    justifyContent: "space-between",
+    backgroundColor: colors.surface,
   },
-  dateButtonText: {
-    color: "#1f2937",
-    fontWeight: "600",
-  },
-  backLink: {
-    alignSelf: "flex-start",
-    marginBottom: 10,
-  },
-
+  dateButtonText: { color: colors.text, fontSize: 15 },
+  placeholderText: { color: colors.textMuted },
+  datePickerArea: { paddingTop: spacing.sm },
+  dateDoneButton: { alignSelf: "flex-end", minHeight: 40, justifyContent: "center", paddingHorizontal: spacing.sm },
+  dateDoneButtonText: { color: colors.primary, fontSize: 13, fontWeight: "800" },
   primaryButton: {
-    borderRadius: 999,
-    marginTop: 8,
-    shadowColor: "#22312d",
-    shadowOpacity: 0.22,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 8,
+    borderRadius: radii.md,
+    marginTop: spacing.sm,
+    elevation: 0,
   },
-  primaryButtonContent: {
-    paddingVertical: 10,
-  },
+  primaryButtonContent: { minHeight: 52 },
   primaryButtonLabel: {
     fontWeight: "800",
-    fontSize: 20,
-    lineHeight: 24,
+    fontSize: 15,
+    lineHeight: 20,
     includeFontPadding: false,
   },
-  linkWrap: {
-    marginTop: 14,
-  },
-  link: { color: "#41514d", textAlign: "center", fontWeight: "700", fontSize: 15 },
-  containerDesktop: {
-    maxWidth: 500,
-    width: "100%",
-    alignSelf: "center",
-  },
-  introCard: {
-    flex: 1,
-    backgroundColor: "#f8f6f2",
-    borderRadius: 28,
-    padding: 28,
-    borderWidth: 1,
-    borderColor: "#d9d6cd",
-    justifyContent: "center",
-  },
-  introKicker: {
-    color: "#5a6b64",
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    marginBottom: 12,
-  },
-  introTitle: {
-    color: "#22312d",
-    fontSize: 34,
-    fontWeight: "800",
-    marginBottom: 10,
-  },
-  introBody: {
-    color: "#41514d",
-    fontSize: 17,
-    lineHeight: 25,
-    maxWidth: 420,
-  },
+  accountPrompt: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs, marginTop: spacing.lg, paddingBottom: spacing.xl },
+  accountPromptText: { color: colors.textMuted, fontSize: 13 },
+  accountPromptLink: { color: colors.primary, fontSize: 13, fontWeight: "800" },
 });

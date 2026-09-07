@@ -10,10 +10,15 @@ import FuneralCartScreen from "@/screens/funeral/FuneralCartScreen";
 import FuneralCheckoutScreen from "@/screens/funeral/FuneralCheckoutScreen";
 import FuneralCustomCasketRequestScreen from "@/screens/funeral/FuneralCustomCasketRequestScreen";
 import FuneralProductViewScreen from "@/screens/funeral/FuneralProductViewScreen";
+import FuneralSearchScreen from "@/screens/funeral/FuneralSearchScreen";
 import FuneralShopProductsScreen from "@/screens/funeral/FuneralShopProductsScreen";
 import FuneralShopsScreen from "@/screens/funeral/FuneralShopsScreen";
+import FuneralServiceRequestDetailsScreen from "@/screens/funeral/FuneralServiceRequestDetailsScreen";
+import FuneralEditServiceRequestScreen from "@/screens/funeral/FuneralEditServiceRequestScreen";
 import { ChatScreen, ConversationsList, DisputeReportScreen, NotificationsScreen } from "@/pages/shared";
 import FuneralProfileStackNavigator from "./FuneralProfileStackNavigator";
+
+import AnnouncementsScreen from '@/screens/shared/AnnouncementsScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -164,15 +169,28 @@ function FuneralTabs() {
                 nestedRoute === "ShopCenter" ||
                 nestedRoute === "ProductEditor" ||
                 nestedRoute === "ProductDetails" ||
+                nestedRoute === "ShopCatalog" ||
+                nestedRoute === "ShopCustomers" ||
+                nestedRoute === "ShopReports" ||
+                nestedRoute === "ShopSettings" ||
                 nestedRoute === "MyServiceRequests" ||
                 nestedRoute === "ServiceRequestsInbox" ||
                 nestedRoute === "ServiceRequestDetails" ||
+                nestedRoute === "EditServiceRequest" ||
+                nestedRoute === "ServiceSchedule" ||
+                nestedRoute === "ShopPayments" ||
+                nestedRoute === "ShopPaymentReceipt" ||
                 nestedRoute === "ShopInformation" ||
                 nestedRoute === "BusinessInformation" ||
                 nestedRoute === "Contact" ||
                 nestedRoute === "AboutUs" ||
                 nestedRoute === "AppFeedback" ||
                 nestedRoute === "ManageProfile" ||
+                nestedRoute === 'Login' ||
+                nestedRoute === 'ForgotPassword' ||
+                nestedRoute === 'Register' ||
+                nestedRoute === 'VerifyEmail' ||
+                nestedRoute === 'ManageDeviceAccounts' ||
                 nestedRoute === 'AccountSecurity' ||
                 nestedRoute === 'PrivacyData' ||
                 nestedRoute === 'NotificationPreferences' ||
@@ -208,15 +226,24 @@ export default function FuneralNavigator() {
       })}
     >
       <Stack.Screen name="FuneralTabs" component={FuneralTabs} />
+      <Stack.Screen name="Search" component={FuneralSearchScreen} options={{ headerShown: true, title: "Search" }} />
+      <Stack.Screen name='AllProducts' component={FuneralSearchScreen} options={{ headerShown: true, title: 'All Products' }} />
       <Stack.Screen name="ProductView" component={FuneralProductViewScreen} />
       <Stack.Screen name="ShopProducts" component={FuneralShopProductsScreen} />
       <Stack.Screen name="ShopChat" component={ChatScreen} options={{ headerShown: true, title: "Shop Chat" }} />
       <Stack.Screen name="Conversations" component={ConversationsList} options={{ headerShown: true, title: "Chats" }} />
       <Stack.Screen name="Chat" component={ChatScreen} options={{ headerShown: true, title: "Chat" }} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: true, title: "Notifications" }} />
+      <Stack.Screen name="NotificationServiceRequestDetails" component={FuneralServiceRequestDetailsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="EditServiceRequest" component={FuneralEditServiceRequestScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ReportCenter" component={DisputeReportScreen} options={{ headerShown: true, title: "Report Center" }} />
       <Stack.Screen name="FuneralCheckout" component={FuneralCheckoutScreen} options={{ headerShown: true, title: "Service Request" }} />
       <Stack.Screen name="FuneralCustomCasketRequest" component={FuneralCustomCasketRequestScreen} options={{ headerShown: true, title: "Custom Casket Request" }} />
+      <Stack.Screen
+        name='Announcements'
+        component={AnnouncementsScreen}
+        options={{ headerShown: false }}
+      />
     </Stack.Navigator>
   );
 }

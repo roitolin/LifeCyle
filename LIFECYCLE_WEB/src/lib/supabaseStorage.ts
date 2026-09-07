@@ -20,7 +20,7 @@ function imageExtension(file: File) {
   return 'jpg'
 }
 
-export async function uploadCertificateWeb(file: File): Promise<string> {
+async function uploadImageWeb(file: File, folder: 'service-media' | 'home-content'): Promise<string> {
   if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
     throw new Error('Please choose a JPEG, PNG, WebP, HEIC, or HEIF image.')
   }
@@ -34,7 +34,7 @@ export async function uploadCertificateWeb(file: File): Promise<string> {
 
   const objectName =
     Date.now() + '-' + globalThis.crypto.randomUUID() + '.' + imageExtension(file)
-  const objectPath = 'service-media/' + userData.user.id + '/' + objectName
+  const objectPath = folder + '/' + userData.user.id + '/' + objectName
   const { error: uploadError } = await supabase.storage
     .from(STORAGE_BUCKET)
     .upload(objectPath, file, {
@@ -51,3 +51,7 @@ export async function uploadCertificateWeb(file: File): Promise<string> {
   if (!data.publicUrl) throw new Error('Supabase Storage did not return an image URL.')
   return data.publicUrl
 }
+
+export const uploadCertificateWeb = (file: File) => uploadImageWeb(file, 'service-media')
+
+export const uploadHomeHeroImageWeb = (file: File) => uploadImageWeb(file, 'home-content')

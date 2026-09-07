@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
@@ -40,6 +40,7 @@ function getTimeLabel(value: { toDate?: () => Date } | string | null | undefined
   return parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
 }
 
+
 function AdminLayout() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -50,14 +51,6 @@ function AdminLayout() {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [notifications, setNotifications] = useState<AdminNotification[]>([])
   const [profile, setProfile] = useState<ProfileData>({ fullName: 'Admin', photoURL: '', gender: '' })
-  const [refreshNonce, setRefreshNonce] = useState(0)
-  const [refreshingView, setRefreshingView] = useState(false)
-  const [pullDistance, setPullDistance] = useState(0)
-  const mainRef = useRef<HTMLElement | null>(null)
-  const refreshTimerRef = useRef<number | null>(null)
-  const lastTapRef = useRef(0)
-  const touchStartYRef = useRef(0)
-  const touchPullEnabledRef = useRef(false)
   const lastTrackedClickRef = useRef({ signature: '', time: 0 })
 
   useEffect(() => {
@@ -130,72 +123,6 @@ function AdminLayout() {
         : 'Admin Console'
   const homePath = '/admin/dashboard'
   const homeLabel = 'Dashboard'
-
-  useEffect(() => {
-    return () => {
-      if (refreshTimerRef.current !== null) {
-        window.clearTimeout(refreshTimerRef.current)
-      }
-    }
-  }, [])
-
-  const triggerContentRefresh = useCallback(() => {
-    setRefreshNonce(Date.now())
-    setRefreshingView(true)
-    if (refreshTimerRef.current !== null) {
-      window.clearTimeout(refreshTimerRef.current)
-    }
-    refreshTimerRef.current = window.setTimeout(() => {
-      setRefreshingView(false)
-    }, 700)
-  }, [])
-
-  const handleDoubleTapRefresh = () => {
-    const now = Date.now()
-    if (now - lastTapRef.current <= 420) {
-      lastTapRef.current = 0
-      triggerContentRefresh()
-      return
-    }
-    lastTapRef.current = now
-  }
-
-  const getCurrentScrollTop = () => {
-    const container = mainRef.current
-    if (container && container.scrollHeight > container.clientHeight) {
-      return container.scrollTop
-    }
-    return window.scrollY || document.documentElement.scrollTop || 0
-  }
-
-  const handleTouchStart = (event: TouchEvent<HTMLElement>) => {
-    if (event.touches.length !== 1) return
-    touchStartYRef.current = event.touches[0]?.clientY || 0
-    touchPullEnabledRef.current = getCurrentScrollTop() <= 2
-    if (touchPullEnabledRef.current) {
-      setPullDistance(0)
-    }
-  }
-
-  const handleTouchMove = (event: TouchEvent<HTMLElement>) => {
-    if (!touchPullEnabledRef.current || event.touches.length !== 1) return
-    const delta = (event.touches[0]?.clientY || 0) - touchStartYRef.current
-    if (delta <= 0) {
-      setPullDistance(0)
-      touchPullEnabledRef.current = false
-      return
-    }
-    setPullDistance(Math.min(120, delta * 0.55))
-  }
-
-  const handleTouchEnd = () => {
-    if (pullDistance >= 75) {
-      triggerContentRefresh()
-    }
-    setPullDistance(0)
-    touchPullEnabledRef.current = false
-  }
-
   const handleLogout = async () => {
     await Promise.all([
       recordWebAdminLoginActivity('logout', userRole),
@@ -249,7 +176,7 @@ function AdminLayout() {
   return (
     <div className={`user-shell admin-console-shell${sidebarOpen ? '' : ' sidebar-collapsed'}`} onClickCapture={handleAdminClick}>
       <aside className="user-sidebar">
-        <Link to="/" className="brand user-brand">
+        <Link to={homePath} className="brand user-brand">
           <img src={APP_ICON_TRANSPARENT_URL} alt="LifeCycle logo" className="brand-logo" />
           <strong className="sidebar-label">{adminTitle}</strong>
         </Link>
@@ -272,6 +199,7 @@ function AdminLayout() {
             <span className="sidebar-label">Menu</span>
           </button>
 
+          <span className="admin-nav-section sidebar-label">Workspace</span>
           <NavLink to={homePath} end className={({ isActive }) => `user-nav-link${isActive ? ' active' : ''}`}>
             <span className="nav-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none">
@@ -280,6 +208,14 @@ function AdminLayout() {
             </span>
             <span className="sidebar-label">{homeLabel}</span>
           </NavLink>
+          {isRootAdmin ? <NavLink to="/admin/analytics" className={({ isActive }) => `user-nav-link${isActive ? ' active' : ''}`}>
+            <span className="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M4 19V11M10 19V5M16 19V9M22 19H2" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+            <span className="sidebar-label">Analytics</span>
+          </NavLink> : null}
           {isFuneralAdmin ? <NavLink to="/admin/funeral-shops" className={({ isActive }) => `user-nav-link${isActive ? ' active' : ''}`}>
             <span className="nav-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none">
@@ -298,7 +234,7 @@ function AdminLayout() {
                 <path d="M7 4H17V20H7V4Z" strokeWidth="1.8" />
               </svg>
             </span>
-            <span className="sidebar-label">Items</span>
+            <span className="sidebar-label">Products</span>
           </NavLink> : null}
           {isFuneralAdmin ? <NavLink to="/admin/orders" className={({ isActive }) => `user-nav-link${isActive ? ' active' : ''}`}>
             <span className="nav-icon" aria-hidden="true">
@@ -322,6 +258,37 @@ function AdminLayout() {
             </span>
             <span className="sidebar-label">Payments</span>
           </NavLink> : null}
+          {isRootAdmin ? <span className="admin-nav-section sidebar-label">Root Tools</span> : null}
+          {isRootAdmin ? <NavLink to="/admin/home-content" className={({ isActive }) => isActive ? 'user-nav-link active' : 'user-nav-link'}>
+            <span className="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none">
+                <rect x="3" y="4" width="18" height="16" rx="2" strokeWidth="1.8" />
+                <circle cx="9" cy="10" r="2" strokeWidth="1.8" />
+                <path d="M4 17L9 13L13 16L16 13L20 17" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+            <span className="sidebar-label">Mobile Home</span>
+          </NavLink> : null}
+          {isRootAdmin ? <NavLink to="/admin/announcements" className={({ isActive }) => isActive ? 'user-nav-link active' : 'user-nav-link'}>
+            <span className="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M4 10V14L15 18V6L4 10Z" strokeWidth="1.8" strokeLinejoin="round" />
+                <path d="M15 9C17 9.7 18 10.7 18 12C18 13.3 17 14.3 15 15" strokeWidth="1.8" strokeLinecap="round" />
+                <path d="M7 15L8 20H11L10 16" strokeWidth="1.8" strokeLinejoin="round" />
+              </svg>
+            </span>
+            <span className="sidebar-label">Announcements</span>
+          </NavLink> : null}
+          {isRootAdmin ? <NavLink to="/admin/account-deletions" className={({ isActive }) => isActive ? 'user-nav-link active' : 'user-nav-link'}>
+            <span className="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M5 7H19M9 7V4H15V7M7 7L8 20H16L17 7" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M10 11V16M14 11V16" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
+            </span>
+            <span className="sidebar-label">Account Deletions</span>
+          </NavLink> : null}
+          <span className="admin-nav-section sidebar-label">Administration</span>
           <NavLink to="/admin/users" className={({ isActive }) => `user-nav-link${isActive ? ' active' : ''}`}>
             <span className="nav-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none">
@@ -387,29 +354,9 @@ function AdminLayout() {
         </div>
       </aside>
 
-      <main
-        ref={mainRef}
-        className="user-main"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-      >
+      <main className="user-main">
         <header className="user-header">
           <div className="user-header-right">
-            {pullDistance > 0 ? (
-              <span className="pull-refresh-status">
-                {pullDistance >= 75 ? 'Release to refresh' : 'Pull down to refresh'}
-              </span>
-            ) : null}
-            <button
-              type="button"
-              className={`layout-refresh-btn${refreshingView ? ' is-refreshing' : ''}`}
-              onClick={handleDoubleTapRefresh}
-              title="Double-tap to refresh this page"
-              aria-label="Refresh current page (double tap)"
-            >
-              {refreshingView ? 'Refreshing...' : 'Refresh x2'}
-            </button>
             <div className="user-menu-wrap">
               <button
                 type="button"
@@ -466,7 +413,7 @@ function AdminLayout() {
         </header>
 
         <div className="user-content admin-content-full-bleed">
-          <Outlet key={refreshNonce} />
+          <Outlet />
         </div>
       </main>
     </div>

@@ -1,0 +1,240 @@
+<mxfile host='app.diagrams.net' modified='2026-09-07T00:00:00.000Z' agent='Codex' version='24.7.17' type='device'>
+  <diagram id='lifecycle-dfd-overview' name='Level 1 Overview'>
+    <mxGraphModel dx='2600' dy='1450' grid='1' gridSize='10' guides='1' tooltips='1' connect='1' arrows='1' fold='1' page='1' pageScale='1' pageWidth='2600' pageHeight='1450' math='0' shadow='0' background='#F8FAFC'>
+      <root>
+        <mxCell id='0'/>
+        <mxCell id='1' parent='0'/>
+
+        <mxCell id='header' value='' style='rounded=0;whiteSpace=wrap;html=1;fillColor=#0F172A;strokeColor=none;' vertex='1' parent='1'>
+          <mxGeometry x='0' y='0' width='2600' height='120' as='geometry'/>
+        </mxCell>
+        <mxCell id='title' value='LifeCycle — Level 1 Data Flow Diagram' style='text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontColor=#FFFFFF;fontSize=30;fontStyle=1;' vertex='1' parent='1'>
+          <mxGeometry x='70' y='24' width='1500' height='44' as='geometry'/>
+        </mxCell>
+        <mxCell id='subtitle' value='Verified against the current mobile app, web app, Supabase data model and push function' style='text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontColor=#CBD5E1;fontSize=16;' vertex='1' parent='1'>
+          <mxGeometry x='70' y='70' width='1750' height='30' as='geometry'/>
+        </mxCell>
+        <mxCell id='legend' value='&lt;b&gt;FOLLOW THE ARROWHEAD&lt;/b&gt;&amp;nbsp;&amp;nbsp; &lt;font color=#60A5FA&gt;BLUE →&lt;/font&gt; Send/action&amp;nbsp;&amp;nbsp; &lt;font color=#4ADE80&gt;GREEN →&lt;/font&gt; Return/status&amp;nbsp;&amp;nbsp; GRAY → Write&amp;nbsp;&amp;nbsp; GRAY ⇢ Read' style='rounded=1;whiteSpace=wrap;html=1;fillColor=#1E293B;strokeColor=#475569;fontColor=#E2E8F0;fontSize=13;align=center;verticalAlign=middle;arcSize=12;' vertex='1' parent='1'>
+          <mxGeometry x='1690' y='30' width='830' height='60' as='geometry'/>
+        </mxCell>
+
+        <mxCell id='actors_label' value='EXTERNAL ENTITIES' style='text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontColor=#475569;fontSize=14;fontStyle=1;' vertex='1' parent='1'>
+          <mxGeometry x='70' y='140' width='300' height='30' as='geometry'/>
+        </mxCell>
+        <mxCell id='actors_rule' value='' style='shape=line;strokeColor=#CBD5E1;strokeWidth=1;' vertex='1' parent='1'>
+          <mxGeometry x='70' y='170' width='2460' height='1' as='geometry'/>
+        </mxCell>
+
+        <mxCell id='e1' value='&lt;b&gt;Family Customer&lt;/b&gt;&lt;br&gt;Account role: user' style='rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF2FF;strokeColor=#6366F1;strokeWidth=2;fontColor=#312E81;fontSize=17;fontStyle=0;shadow=1;arcSize=12;' vertex='1' parent='1'>
+          <mxGeometry x='100' y='205' width='500' height='105' as='geometry'/>
+        </mxCell>
+        <mxCell id='e2' value='&lt;b&gt;Funeral Shop Owner&lt;/b&gt;&lt;br&gt;Verified user account with a shop record' style='rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF2FF;strokeColor=#6366F1;strokeWidth=2;fontColor=#312E81;fontSize=17;fontStyle=0;shadow=1;arcSize=12;' vertex='1' parent='1'>
+          <mxGeometry x='730' y='205' width='500' height='105' as='geometry'/>
+        </mxCell>
+        <mxCell id='e3' value='&lt;b&gt;Administrator&lt;/b&gt;&lt;br&gt;super_admin, admin or funeral_admin' style='rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F3FF;strokeColor=#7C3AED;strokeWidth=2;fontColor=#4C1D95;fontSize=17;fontStyle=0;shadow=1;arcSize=12;' vertex='1' parent='1'>
+          <mxGeometry x='1360' y='205' width='500' height='105' as='geometry'/>
+        </mxCell>
+        <mxCell id='e4' value='&lt;b&gt;Expo Push Service&lt;/b&gt;&lt;br&gt;External notification delivery' style='rounded=1;whiteSpace=wrap;html=1;fillColor=#ECFEFF;strokeColor=#0891B2;strokeWidth=2;fontColor=#164E63;fontSize=17;fontStyle=0;shadow=1;arcSize=12;' vertex='1' parent='1'>
+          <mxGeometry x='1990' y='205' width='500' height='105' as='geometry'/>
+        </mxCell>
+
+        <mxCell id='p1' value='&lt;b&gt;1.0  Accounts &amp;amp; Secure Access&lt;/b&gt;&lt;br&gt;Registration, sign-in, verification, terms, roles and sessions' style='rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2563EB;strokeWidth=2;fontColor=#0F172A;fontSize=17;shadow=1;arcSize=10;' vertex='1' parent='1'>
+          <mxGeometry x='1010' y='385' width='580' height='120' as='geometry'/>
+        </mxCell>
+
+        <mxCell id='processes_label' value='LIFECYCLE PROCESSES' style='text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontColor=#475569;fontSize=14;fontStyle=1;' vertex='1' parent='1'>
+          <mxGeometry x='70' y='535' width='320' height='30' as='geometry'/>
+        </mxCell>
+        <mxCell id='processes_rule' value='' style='shape=line;strokeColor=#CBD5E1;strokeWidth=1;' vertex='1' parent='1'>
+          <mxGeometry x='70' y='565' width='2460' height='1' as='geometry'/>
+        </mxCell>
+
+        <mxCell id='p2' value='&lt;b&gt;2.0  Customer Marketplace &amp;amp; Requests&lt;/b&gt;&lt;br&gt;Browse shops/products, local cart and web favorites, submit and track requests, chat and support' style='rounded=1;whiteSpace=wrap;html=1;fillColor=#EFF6FF;strokeColor=#2563EB;strokeWidth=2;fontColor=#0F172A;fontSize=16;shadow=1;arcSize=10;' vertex='1' parent='1'>
+          <mxGeometry x='100' y='610' width='500' height='145' as='geometry'/>
+        </mxCell>
+        <mxCell id='p3' value='&lt;b&gt;3.0  Funeral Shop Operations&lt;/b&gt;&lt;br&gt;Register shop, manage catalog, accept or decline requests, update checklists and schedules' style='rounded=1;whiteSpace=wrap;html=1;fillColor=#EFF6FF;strokeColor=#2563EB;strokeWidth=2;fontColor=#0F172A;fontSize=16;shadow=1;arcSize=10;' vertex='1' parent='1'>
+          <mxGeometry x='730' y='610' width='500' height='145' as='geometry'/>
+        </mxCell>
+        <mxCell id='p4' value='&lt;b&gt;4.0  Payments, Refunds &amp;amp; Completion&lt;/b&gt;&lt;br&gt;GCash/e-wallet QR and proof, manual verification, refund handling and completion evidence' style='rounded=1;whiteSpace=wrap;html=1;fillColor=#EFF6FF;strokeColor=#2563EB;strokeWidth=2;fontColor=#0F172A;fontSize=16;shadow=1;arcSize=10;' vertex='1' parent='1'>
+          <mxGeometry x='1360' y='610' width='500' height='145' as='geometry'/>
+        </mxCell>
+        <mxCell id='p5' value='&lt;b&gt;5.0  Administration &amp;amp; Notifications&lt;/b&gt;&lt;br&gt;Review users/shops/requests/payments, moderate content, manage support and deliver in-app/push notices' style='rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F3FF;strokeColor=#7C3AED;strokeWidth=2;fontColor=#0F172A;fontSize=16;shadow=1;arcSize=10;' vertex='1' parent='1'>
+          <mxGeometry x='1990' y='610' width='500' height='145' as='geometry'/>
+        </mxCell>
+
+        <mxCell id='stores_label' value='DATA STORES' style='text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontColor=#475569;fontSize=14;fontStyle=1;' vertex='1' parent='1'>
+          <mxGeometry x='70' y='950' width='260' height='30' as='geometry'/>
+        </mxCell>
+        <mxCell id='stores_rule' value='' style='shape=line;strokeColor=#CBD5E1;strokeWidth=1;' vertex='1' parent='1'>
+          <mxGeometry x='70' y='980' width='2460' height='1' as='geometry'/>
+        </mxCell>
+
+        <mxCell id='d2' value='&lt;b&gt;D2  CLIENT-LOCAL STATE&lt;/b&gt;&lt;br&gt;Mobile + web cart&lt;br&gt;Web favorites&lt;br&gt;&lt;font color=#9A3412&gt;AsyncStorage / localStorage&lt;/font&gt;' style='shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=20;fillColor=#FFF7ED;strokeColor=#EA580C;strokeWidth=2;fontColor=#431407;fontSize=15;shadow=1;' vertex='1' parent='1'>
+          <mxGeometry x='100' y='1030' width='500' height='190' as='geometry'/>
+        </mxCell>
+        <mxCell id='d1' value='&lt;b&gt;D1  SUPABASE APPLICATION DATA &amp;amp; MEDIA&lt;/b&gt;&lt;br&gt;&lt;br&gt;Accounts &amp;amp; security  •  Shops, catalog &amp;amp; reviews  •  Service requests, payments &amp;amp; operations&lt;br&gt;Messages, notifications, support &amp;amp; administration  •  Auth/session records  •  Uploaded media and public URLs' style='shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=22;fillColor=#FFFFFF;strokeColor=#475569;strokeWidth=2;fontColor=#0F172A;fontSize=16;shadow=1;' vertex='1' parent='1'>
+          <mxGeometry x='730' y='1010' width='1760' height='230' as='geometry'/>
+        </mxCell>
+
+        <mxCell id='accuracy_note' value='Arrow rule: every connector is one-way—follow its arrowhead. Payments are manually checked from submitted GCash/e-wallet details and proof; no payment-gateway or map service is active.' style='rounded=1;whiteSpace=wrap;html=1;fillColor=#F1F5F9;strokeColor=#CBD5E1;fontColor=#334155;fontSize=14;align=center;verticalAlign=middle;arcSize=10;' vertex='1' parent='1'>
+          <mxGeometry x='430' y='1300' width='1740' height='70' as='geometry'/>
+        </mxCell>
+
+        <mxCell id='a1' value='SEND — credentials and profile' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=14;strokeColor=#2563EB;strokeWidth=2;fontColor=#1D4ED8;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=0.45;exitY=1;entryX=0.18;entryY=0;' edge='1' parent='1' source='e1' target='p1'>
+          <mxGeometry relative='1' as='geometry'>
+            <Array as='points'><mxPoint x='325' y='340'/><mxPoint x='1115' y='340'/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id='a1r' value='RETURN — session and account status' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=14;strokeColor=#16A34A;strokeWidth=2;fontColor=#15803D;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=0.23;exitY=0;entryX=0.55;entryY=1;' edge='1' parent='1' source='p1' target='e1'>
+          <mxGeometry relative='1' as='geometry'>
+            <Array as='points'><mxPoint x='1143' y='365'/><mxPoint x='375' y='365'/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id='a2' value='SEND — search, cart, request and chat actions' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=14;strokeColor=#2563EB;strokeWidth=2;fontColor=#1D4ED8;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=0.43;exitY=1;entryX=0.43;entryY=0;' edge='1' parent='1' source='e1' target='p2'>
+          <mxGeometry relative='1' as='geometry'/>
+        </mxCell>
+        <mxCell id='a2r' value='RETURN — results and request status' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=14;strokeColor=#16A34A;strokeWidth=2;fontColor=#15803D;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=0.57;exitY=0;entryX=0.57;entryY=1;' edge='1' parent='1' source='p2' target='e1'>
+          <mxGeometry relative='1' as='geometry'/>
+        </mxCell>
+        <mxCell id='a3' value='SEND — credentials and profile' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=14;strokeColor=#2563EB;strokeWidth=2;fontColor=#1D4ED8;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=0.43;exitY=1;entryX=0.4;entryY=0;' edge='1' parent='1' source='e2' target='p1'>
+          <mxGeometry relative='1' as='geometry'/>
+        </mxCell>
+        <mxCell id='a3r' value='RETURN — session and shop access' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=14;strokeColor=#16A34A;strokeWidth=2;fontColor=#15803D;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=0.46;exitY=0;entryX=0.57;entryY=1;' edge='1' parent='1' source='p1' target='e2'>
+          <mxGeometry relative='1' as='geometry'/>
+        </mxCell>
+        <mxCell id='a4' value='SEND — registration, catalog and case updates' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=14;strokeColor=#2563EB;strokeWidth=2;fontColor=#1D4ED8;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=0.43;exitY=1;entryX=0.43;entryY=0;' edge='1' parent='1' source='e2' target='p3'>
+          <mxGeometry relative='1' as='geometry'/>
+        </mxCell>
+        <mxCell id='a4r' value='RETURN — verification and request status' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=14;strokeColor=#16A34A;strokeWidth=2;fontColor=#15803D;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=0.57;exitY=0;entryX=0.57;entryY=1;' edge='1' parent='1' source='p3' target='e2'>
+          <mxGeometry relative='1' as='geometry'/>
+        </mxCell>
+        <mxCell id='a5' value='SEND — admin credentials' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=14;strokeColor=#2563EB;strokeWidth=2;fontColor=#1D4ED8;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=0.43;exitY=1;entryX=0.7;entryY=0;' edge='1' parent='1' source='e3' target='p1'>
+          <mxGeometry relative='1' as='geometry'/>
+        </mxCell>
+        <mxCell id='a5r' value='RETURN — admin session and access role' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=14;strokeColor=#16A34A;strokeWidth=2;fontColor=#15803D;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=0.76;exitY=0;entryX=0.57;entryY=1;' edge='1' parent='1' source='p1' target='e3'>
+          <mxGeometry relative='1' as='geometry'/>
+        </mxCell>
+        <mxCell id='a6' value='SEND — review and moderation actions' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=14;strokeColor=#2563EB;strokeWidth=2;fontColor=#1D4ED8;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=0.43;exitY=1;entryX=0.25;entryY=0;' edge='1' parent='1' source='e3' target='p5'>
+          <mxGeometry relative='1' as='geometry'>
+            <Array as='points'><mxPoint x='1575' y='530'/><mxPoint x='2115' y='530'/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id='a6r' value='RETURN — queues, reports and outcomes' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=14;strokeColor=#16A34A;strokeWidth=2;fontColor=#15803D;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=0.35;exitY=0;entryX=0.57;entryY=1;' edge='1' parent='1' source='p5' target='e3'>
+          <mxGeometry relative='1' as='geometry'>
+            <Array as='points'><mxPoint x='2165' y='565'/><mxPoint x='1645' y='565'/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id='a7' value='RETURN — delivery tickets' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=14;strokeColor=#16A34A;strokeWidth=2;fontColor=#15803D;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=0.43;exitY=1;entryX=0.65;entryY=0;' edge='1' parent='1' source='e4' target='p5'>
+          <mxGeometry relative='1' as='geometry'/>
+        </mxCell>
+        <mxCell id='a7r' value='SEND — push-notification payloads' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=14;strokeColor=#0891B2;strokeWidth=2;fontColor=#0E7490;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=0.75;exitY=0;entryX=0.57;entryY=1;' edge='1' parent='1' source='p5' target='e4'>
+          <mxGeometry relative='1' as='geometry'/>
+        </mxCell>
+
+        <mxCell id='f1' value='SEND — payment, refund and completion actions' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=14;strokeColor=#2563EB;strokeWidth=2;fontColor=#1D4ED8;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=1;exitY=0.65;entryX=0;entryY=0.65;' edge='1' parent='1' source='p2' target='p4'>
+          <mxGeometry relative='1' as='geometry'>
+            <Array as='points'><mxPoint x='650' y='815'/><mxPoint x='1310' y='815'/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id='f1r' value='RETURN — payment, refund and completion status' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=14;strokeColor=#16A34A;strokeWidth=2;fontColor=#15803D;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=0;exitY=0.85;entryX=1;entryY=0.85;' edge='1' parent='1' source='p4' target='p2'>
+          <mxGeometry relative='1' as='geometry'>
+            <Array as='points'><mxPoint x='1310' y='865'/><mxPoint x='650' y='865'/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id='f2' value='SEND — QR, verification and completion data' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=14;strokeColor=#2563EB;strokeWidth=2;fontColor=#1D4ED8;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=1;exitY=0.35;entryX=0;entryY=0.35;' edge='1' parent='1' source='p3' target='p4'>
+          <mxGeometry relative='1' as='geometry'/>
+        </mxCell>
+        <mxCell id='f2r' value='RETURN — payment and case status' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=14;strokeColor=#16A34A;strokeWidth=2;fontColor=#15803D;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=0;exitY=0.65;entryX=1;entryY=0.65;' edge='1' parent='1' source='p4' target='p3'>
+          <mxGeometry relative='1' as='geometry'/>
+        </mxCell>
+
+        <mxCell id='s1' value='WRITE — account and security updates' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=13;strokeColor=#475569;strokeWidth=1.7;fontColor=#334155;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=0.46;exitY=1;entryX=0.33;entryY=0;' edge='1' parent='1' source='p1' target='d1'>
+          <mxGeometry relative='1' as='geometry'/>
+        </mxCell>
+        <mxCell id='s1r' value='READ — account and session records' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=13;strokeColor=#64748B;strokeWidth=1.7;dashed=1;dashPattern=6 4;fontColor=#475569;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=0.37;exitY=0;entryX=0.54;entryY=1;' edge='1' parent='1' source='d1' target='p1'>
+          <mxGeometry relative='1' as='geometry'/>
+        </mxCell>
+        <mxCell id='s2' value='WRITE — marketplace, request and message updates' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=13;strokeColor=#475569;strokeWidth=1.7;fontColor=#334155;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=0.75;exitY=1;entryX=0.07;entryY=0;' edge='1' parent='1' source='p2' target='d1'>
+          <mxGeometry relative='1' as='geometry'/>
+        </mxCell>
+        <mxCell id='s2r' value='READ — shops, requests and messages' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=13;strokeColor=#64748B;strokeWidth=1.7;dashed=1;dashPattern=6 4;fontColor=#475569;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=0.11;exitY=0;entryX=0.85;entryY=1;' edge='1' parent='1' source='d1' target='p2'>
+          <mxGeometry relative='1' as='geometry'/>
+        </mxCell>
+        <mxCell id='s3' value='WRITE — shop, catalog and operation updates' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=13;strokeColor=#475569;strokeWidth=1.7;fontColor=#334155;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=0.45;exitY=1;entryX=0.26;entryY=0;' edge='1' parent='1' source='p3' target='d1'>
+          <mxGeometry relative='1' as='geometry'/>
+        </mxCell>
+        <mxCell id='s3r' value='READ — shop, catalog and operation records' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=13;strokeColor=#64748B;strokeWidth=1.7;dashed=1;dashPattern=6 4;fontColor=#475569;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=0.3;exitY=0;entryX=0.55;entryY=1;' edge='1' parent='1' source='d1' target='p3'>
+          <mxGeometry relative='1' as='geometry'/>
+        </mxCell>
+        <mxCell id='s4' value='WRITE — payment, refund and case updates' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=13;strokeColor=#475569;strokeWidth=1.7;fontColor=#334155;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=0.45;exitY=1;entryX=0.56;entryY=0;' edge='1' parent='1' source='p4' target='d1'>
+          <mxGeometry relative='1' as='geometry'/>
+        </mxCell>
+        <mxCell id='s4r' value='READ — payment, refund and case records' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=13;strokeColor=#64748B;strokeWidth=1.7;dashed=1;dashPattern=6 4;fontColor=#475569;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=0.6;exitY=0;entryX=0.55;entryY=1;' edge='1' parent='1' source='d1' target='p4'>
+          <mxGeometry relative='1' as='geometry'/>
+        </mxCell>
+        <mxCell id='s5' value='WRITE — admin, content and notification updates' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=13;strokeColor=#475569;strokeWidth=1.7;fontColor=#334155;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=0.45;exitY=1;entryX=0.86;entryY=0;' edge='1' parent='1' source='p5' target='d1'>
+          <mxGeometry relative='1' as='geometry'/>
+        </mxCell>
+        <mxCell id='s5r' value='READ — admin, content and notification records' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=13;strokeColor=#64748B;strokeWidth=1.7;dashed=1;dashPattern=6 4;fontColor=#475569;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=0.9;exitY=0;entryX=0.55;entryY=1;' edge='1' parent='1' source='d1' target='p5'>
+          <mxGeometry relative='1' as='geometry'/>
+        </mxCell>
+        <mxCell id='s6' value='WRITE — save cart and web-favorite state' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=13;strokeColor=#EA580C;strokeWidth=2;fontColor=#C2410C;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=0.25;exitY=1;entryX=0.42;entryY=0;' edge='1' parent='1' source='p2' target='d2'>
+          <mxGeometry relative='1' as='geometry'/>
+        </mxCell>
+        <mxCell id='s6r' value='READ — load cart and web-favorite state' style='edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;endArrow=block;endFill=1;endSize=13;strokeColor=#EA580C;strokeWidth=2;dashed=1;dashPattern=6 4;fontColor=#C2410C;fontSize=12;labelBackgroundColor=#F8FAFC;exitX=0.58;exitY=0;entryX=0.35;entryY=1;' edge='1' parent='1' source='d2' target='p2'>
+          <mxGeometry relative='1' as='geometry'/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram id='lifecycle-dfd-reference' name='Data Store Reference'>
+    <mxGraphModel dx='2600' dy='1450' grid='1' gridSize='10' guides='1' tooltips='1' connect='1' arrows='1' fold='1' page='1' pageScale='1' pageWidth='2600' pageHeight='1450' math='0' shadow='0' background='#F8FAFC'>
+      <root>
+        <mxCell id='r0'/>
+        <mxCell id='r1' parent='r0'/>
+
+        <mxCell id='r_header' value='' style='rounded=0;whiteSpace=wrap;html=1;fillColor=#0F172A;strokeColor=none;' vertex='1' parent='r1'>
+          <mxGeometry x='0' y='0' width='2600' height='120' as='geometry'/>
+        </mxCell>
+        <mxCell id='r_title' value='LifeCycle — Data Store Reference' style='text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontColor=#FFFFFF;fontSize=30;fontStyle=1;' vertex='1' parent='r1'>
+          <mxGeometry x='70' y='24' width='1500' height='44' as='geometry'/>
+        </mxCell>
+        <mxCell id='r_subtitle' value='Logical groups represented by D1 and D2 on the Level 1 overview' style='text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontColor=#CBD5E1;fontSize=16;' vertex='1' parent='r1'>
+          <mxGeometry x='70' y='70' width='1500' height='30' as='geometry'/>
+        </mxCell>
+
+        <mxCell id='r_label' value='SUPABASE APPLICATION DATA &amp;amp; MEDIA (D1)' style='text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontColor=#475569;fontSize=15;fontStyle=1;' vertex='1' parent='r1'>
+          <mxGeometry x='90' y='155' width='650' height='30' as='geometry'/>
+        </mxCell>
+        <mxCell id='r_rule' value='' style='shape=line;strokeColor=#CBD5E1;strokeWidth=1;' vertex='1' parent='r1'>
+          <mxGeometry x='90' y='188' width='2420' height='1' as='geometry'/>
+        </mxCell>
+
+        <mxCell id='r_accounts' value='&lt;b&gt;Accounts &amp;amp; Security&lt;/b&gt;&lt;br&gt;&lt;br&gt;users&lt;br&gt;account_activity_log&lt;br&gt;account_login_activity&lt;br&gt;admin_login_activity&lt;br&gt;user_blocks&lt;br&gt;account_deletion_requests' style='rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=22;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=2;fontColor=#0F172A;fontSize=16;shadow=1;arcSize=10;' vertex='1' parent='r1'>
+          <mxGeometry x='90' y='220' width='720' height='300' as='geometry'/>
+        </mxCell>
+        <mxCell id='r_marketplace' value='&lt;b&gt;Shops, Catalog &amp;amp; Reviews&lt;/b&gt;&lt;br&gt;&lt;br&gt;funeral_shops&lt;br&gt;funeral_products&lt;br&gt;funeral_product_variations&lt;br&gt;funeral_product_images&lt;br&gt;funeral_product_ratings&lt;br&gt;funeral_product_feedback&lt;br&gt;shop_follows' style='rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=22;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=2;fontColor=#0F172A;fontSize=16;shadow=1;arcSize=10;' vertex='1' parent='r1'>
+          <mxGeometry x='940' y='220' width='720' height='300' as='geometry'/>
+        </mxCell>
+        <mxCell id='r_service' value='&lt;b&gt;Service Operations &amp;amp; Payments&lt;/b&gt;&lt;br&gt;&lt;br&gt;funeral_service_requests&lt;br&gt;service_request_members&lt;br&gt;service_request_shop_checklists&lt;br&gt;shop_schedule_events&lt;br&gt;death_certificate_requests&lt;br&gt;shop_payments&lt;br&gt;service_refund_requests' style='rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=22;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=2;fontColor=#0F172A;fontSize=16;shadow=1;arcSize=10;' vertex='1' parent='r1'>
+          <mxGeometry x='1790' y='220' width='720' height='300' as='geometry'/>
+        </mxCell>
+
+        <mxCell id='r_comms' value='&lt;b&gt;Communication &amp;amp; Administration&lt;/b&gt;&lt;br&gt;&lt;br&gt;conversations • messages • notifications&lt;br&gt;push_notification_tokens • announcements&lt;br&gt;support_messages • settings&lt;br&gt;app_feedback • app_feedback_replies • app_ratings&lt;br&gt;home_hero_content&lt;br&gt;admin_audit_logs' style='rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=22;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=2;fontColor=#0F172A;fontSize=16;shadow=1;arcSize=10;' vertex='1' parent='r1'>
+          <mxGeometry x='90' y='565' width='720' height='300' as='geometry'/>
+        </mxCell>
+        <mxCell id='r_media' value='&lt;b&gt;Supabase Storage&lt;/b&gt;&lt;br&gt;&lt;br&gt;Bucket: avatars&lt;br&gt;Profiles and shop registration documents&lt;br&gt;Product and shop media&lt;br&gt;Service-request and certificate media&lt;br&gt;Payment QR/proofs and completion evidence&lt;br&gt;Report evidence and home content' style='rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=22;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=2;fontColor=#0F172A;fontSize=16;shadow=1;arcSize=10;' vertex='1' parent='r1'>
+          <mxGeometry x='940' y='565' width='720' height='300' as='geometry'/>
+        </mxCell>
+        <mxCell id='r_local' value='&lt;b&gt;Client-local State (D2)&lt;/b&gt;&lt;br&gt;&lt;br&gt;Mobile AsyncStorage:&lt;br&gt;funeral_cart_v1&lt;br&gt;&lt;br&gt;Web localStorage:&lt;br&gt;funeral_cart_v1&lt;br&gt;lifecycle_favorites' style='rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=22;fillColor=#FFF7ED;strokeColor=#EA580C;strokeWidth=2;fontColor=#431407;fontSize=16;shadow=1;arcSize=10;' vertex='1' parent='r1'>
+          <mxGeometry x='1790' y='565' width='720' height='300' as='geometry'/>
+        </mxCell>
+
+        <mxCell id='r_facts' value='&lt;b&gt;IMPLEMENTATION FACTS&lt;/b&gt;&lt;br&gt;&lt;br&gt;• Customer and funeral-shop owner accounts use the &lt;b&gt;user&lt;/b&gt; role; a shop owner is identified by the related verified funeral-shop record. There is no separate staff role.&lt;br&gt;• Administrative access uses &lt;b&gt;funeral_admin&lt;/b&gt;, &lt;b&gt;admin&lt;/b&gt; and &lt;b&gt;super_admin&lt;/b&gt;.&lt;br&gt;• GCash/e-wallet payments use submitted details, reference numbers and proof images for manual review; no online payment-gateway API is active.&lt;br&gt;• Expo is the external push-delivery service. Maps and blood-related functions are not part of this system.' style='rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=24;fillColor=#F5F3FF;strokeColor=#A78BFA;strokeWidth=2;fontColor=#2E1065;fontSize=16;shadow=1;arcSize=10;' vertex='1' parent='r1'>
+          <mxGeometry x='90' y='930' width='2420' height='320' as='geometry'/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

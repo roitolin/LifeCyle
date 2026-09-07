@@ -125,9 +125,8 @@ export default function ForgotPasswordScreen({ navigation, route }: any) {
                 },
               ]}
             >
-              <Text style={styles.introKicker}>Account Access</Text>
-              <Text style={styles.introTitle}>Reset Your Password</Text>
-              <Text style={styles.introBody}>Reset your password, then sign in again to continue to LifeCycle.</Text>
+              <Text style={styles.introTitle}>Return to LifeCycle</Text>
+              <Text style={styles.introBody}>Your service requests and messages will be waiting after you sign in.</Text>
             </Animated.View>
           )}
 
@@ -157,7 +156,7 @@ export default function ForgotPasswordScreen({ navigation, route }: any) {
             <AppBackButton style={styles.backRow} onPress={() => navigation.goBack()} accessibilityLabel="Back to login" />
 
             <Image source={require("../../../assets/Icon/AppICONTransparents.png")} style={styles.logo} resizeMode="contain" />
-            <Text style={styles.title}>Forgot Password</Text>
+            <Text style={styles.title}>Reset Password</Text>
             <Text style={styles.subtitle}>
               Enter your email and we&apos;ll send a reset link so you can create a new password.
             </Text>
@@ -240,11 +239,6 @@ const styles = StyleSheet.create({
     padding: 22,
     borderWidth: 1,
     borderColor: "#d9d6cd",
-    shadowColor: "#22312d",
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 7,
   },
   backRow: {
     alignSelf: "flex-start",
@@ -277,11 +271,6 @@ const styles = StyleSheet.create({
   primaryButton: {
     borderRadius: 999,
     marginTop: 8,
-    shadowColor: "#22312d",
-    shadowOpacity: 0.22,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 8,
   },
   primaryButtonContent: {
     paddingVertical: 10,
@@ -309,14 +298,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#d9d6cd",
     justifyContent: "center",
-  },
-  introKicker: {
-    color: "#5a6b64",
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    marginBottom: 12,
   },
   introTitle: {
     color: "#22312d",

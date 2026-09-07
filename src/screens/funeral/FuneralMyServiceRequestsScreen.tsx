@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ComponentProps } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import LoadingBird from '@/components/LoadingBird';
 import {
   ActivityIndicator,
@@ -25,6 +25,10 @@ import ServiceRequestScheduleFields from "@/components/ServiceRequestScheduleFie
 import { supabase } from "@/services/supabaseClient";
 import { auth, uploadCertificate } from "@/services";
 import { hapticMedium, hapticSuccess } from "@/utils/haptics";
+import {
+  paymentSubmissionErrorMessage,
+  validatePaymentSubmission,
+} from '@/utils/paymentValidation';
 import {
   formatServiceDate,
   formatServiceTime,
@@ -80,6 +84,7 @@ type FuneralServiceRequest = {
   acceptedAt?: any;
   declinedAt?: any;
   cancelledAt?: any;
+  sharedWithMe?: boolean;
 };
 
 type PaymentSubmissionForm = {
@@ -103,6 +108,7 @@ type RequestEditForm = {
 };
 
 type IoniconName = ComponentProps<typeof Ionicons>["name"];
+type RequestFilter = "all" | "action" | "active" | "completed";
 
 const isPendingRequest = (status: string) => String(status || "").toLowerCase() === "pending_shop_acceptance";
 
@@ -115,7 +121,9 @@ const hasPaymentSetup = (request: FuneralServiceRequest) =>
   Boolean(request.paymentQrUrl) && Number(request.paymentAmount) > 0;
 
 const needsPayment = (request: FuneralServiceRequest) =>
-  String(request.status || "").toLowerCase() === "awaiting_payment" && hasPaymentSetup(request);
+  !request.sharedWithMe &&
+  String(request.status || "").toLowerCase() === "awaiting_payment" &&
+  hasPaymentSetup(request);
 
 const formatPeso = (value: number | string | null | undefined) => {
   const num = Number(value);
@@ -346,6 +354,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [reconnecting, setReconnecting] = useState(false);
   const [requests, setRequests] = useState<FuneralServiceRequest[]>([]);
+  const [requestFilter, setRequestFilter] = useState<RequestFilter>("all");
   const [selectedRequest, setSelectedRequest] = useState<FuneralServiceRequest | null>(null);
   const markedSeenRef = useRef<Record<string, boolean>>({});
   useEffect(() => {
@@ -421,14 +430,29 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
     if (!user) return false;
 
     try {
-      const { data: rows, error } = await supabase
+      const { data: memberships, error: membershipsError } = await supabase
+        .from("service_request_members")
+        .select("service_request_id")
+        .eq("user_id", user.uid)
+        .eq("status", "active");
+      if (membershipsError && !["42P01", "PGRST204", "PGRST205"].includes(String(membershipsError.code || ""))) {
+        throw membershipsError;
+      }
+      const sharedRequestIds = (memberships || []).map((membership: any) => String(membership.service_request_id));
+      let requestQuery = supabase
         .from("funeral_service_requests")
         .select("*")
-        .eq("requesterId", user.uid)
         .order("createdAt", { ascending: false });
+      requestQuery = sharedRequestIds.length > 0
+        ? requestQuery.or(`requesterId.eq.${user.uid},id.in.(${sharedRequestIds.join(",")})`)
+        : requestQuery.eq("requesterId", user.uid);
+      const { data: rows, error } = await requestQuery;
       if (error) throw error;
 
-      const nextRequests = (rows || []) as FuneralServiceRequest[];
+      const nextRequests = (rows || []).map((row: any) => ({
+        ...row,
+        sharedWithMe: String(row.requesterId) !== String(user.uid),
+      })) as FuneralServiceRequest[];
       setRequests(nextRequests);
       setSelectedRequest((current) => nextRequests.find((item: any) => item.id === current?.id) || null);
       setReconnecting(false);
@@ -636,19 +660,12 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
 
   const submitPayment = useCallback(
     async (request: FuneralServiceRequest) => {
-      const senderName = paymentForm.senderName.trim();
-      const gcashName = paymentForm.gcashName.trim();
-      const gcashNumber = paymentForm.gcashNumber.trim();
-      const referenceNumber = paymentForm.referenceNumber.trim();
-
-      if (!senderName || !gcashName || !gcashNumber) {
-        Alert.alert("Incomplete", "Enter the sender name, GCash name, and GCash number.");
+      const validation = validatePaymentSubmission(paymentForm);
+      if (!validation.value) {
+        Alert.alert('Check Payment Details', validation.message || 'Complete all required payment fields.');
         return;
       }
-      if (!paymentForm.proofImageUrl) {
-        Alert.alert("Proof Required", "Attach a screenshot as proof that you paid the shop.");
-        return;
-      }
+      const { senderName, gcashName, gcashNumber, referenceNumber, proofImageUrl } = validation.value;
 
       setSubmittingPayment(true);
       try {
@@ -658,8 +675,8 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
           paymentPayerName: senderName,
           paymentGcashName: gcashName,
           paymentGcashNumber: gcashNumber,
-          paymentReferenceNumber: referenceNumber || null,
-          paymentProofImageUrl: paymentForm.proofImageUrl,
+          paymentReferenceNumber: referenceNumber,
+          paymentProofImageUrl: proofImageUrl,
           paymentSubmittedAt: submittedAt,
           paymentRejectionReason: null,
           updatedAt: new Date().toISOString(),
@@ -686,7 +703,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
           paymentGcashName: gcashName,
           paymentGcashNumber: gcashNumber,
           paymentReferenceNumber: referenceNumber,
-          paymentProofImageUrl: paymentForm.proofImageUrl,
+          paymentProofImageUrl: proofImageUrl,
           paymentSubmittedAt: submittedAt,
           paymentRejectionReason: null,
         };
@@ -702,7 +719,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
         setSelectedRequest(null);
         setPaymentSuccessRequest(submittedRequest);
       } catch (error: any) {
-        Alert.alert("Error", error?.message || "Failed to submit your payment details.");
+        Alert.alert('Payment Not Submitted', paymentSubmissionErrorMessage(error));
       } finally {
         setSubmittingPayment(false);
       }
@@ -712,7 +729,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
 
   const canShowPaymentSection = (request: FuneralServiceRequest) => {
     const status = String(request.status || "").toLowerCase();
-    return ["awaiting_payment", "payment_submitted", "payment_verified", "awaiting_customer_confirmation", "completed"].includes(status) && hasPaymentSetup(request);
+    return !request.sharedWithMe && ["awaiting_payment", "payment_submitted", "payment_verified", "awaiting_customer_confirmation", "completed"].includes(status) && hasPaymentSetup(request);
   };
 
   const confirmDoneRequest = useCallback(
@@ -800,20 +817,67 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
     }
   }, []);
 
-  const paymentNeededCount = requests.filter(needsPayment).length;
+  const paymentNeededCount = useMemo(() => requests.filter(needsPayment).length, [requests]);
+  const actionNeededCount = useMemo(
+    () => requests.filter((item) =>
+      ["awaiting_payment", "awaiting_customer_confirmation"].includes(String(item.status || "").toLowerCase())
+    ).length,
+    [requests]
+  );
+  const activeCount = useMemo(
+    () => requests.filter((item) =>
+      !["completed", "declined_by_shop", "cancelled_by_requester"].includes(String(item.status || "").toLowerCase())
+    ).length,
+    [requests]
+  );
+  const completedCount = useMemo(
+    () => requests.filter((item) => String(item.status || "").toLowerCase() === "completed").length,
+    [requests]
+  );
+  const visibleRequests = useMemo(() => {
+    if (requestFilter === "action") {
+      return requests.filter((item) =>
+        ["awaiting_payment", "awaiting_customer_confirmation"].includes(String(item.status || "").toLowerCase())
+      );
+    }
+    if (requestFilter === "active") {
+      return requests.filter((item) =>
+        !["completed", "declined_by_shop", "cancelled_by_requester"].includes(String(item.status || "").toLowerCase())
+      );
+    }
+    if (requestFilter === "completed") {
+      return requests.filter((item) => String(item.status || "").toLowerCase() === "completed");
+    }
+    return requests;
+  }, [requestFilter, requests]);
 
   return (
     <SafeAreaView style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.headerCard}>
-          <Text style={styles.headerEyebrow}>My Service Requests</Text>
-          <Text style={styles.headerTitle}>Request Tracker</Text>
-          <Text style={styles.headerSubtitle}>Monitor your submitted arrangements and wait for the shop&apos;s response here.</Text>
+          <Text style={styles.headerTitle}>Service requests</Text>
+          <Text style={styles.headerSubtitle}>Track shop responses, payments, and completion.</Text>
+          <View style={styles.headerStats}>
+            <View style={styles.headerStat}>
+              <Text style={styles.headerStatValue}>{actionNeededCount}</Text>
+              <Text style={styles.headerStatLabel}>Your action</Text>
+            </View>
+            <View style={styles.headerStatDivider} />
+            <View style={styles.headerStat}>
+              <Text style={styles.headerStatValue}>{activeCount}</Text>
+              <Text style={styles.headerStatLabel}>Active</Text>
+            </View>
+            <View style={styles.headerStatDivider} />
+            <View style={styles.headerStat}>
+              <Text style={styles.headerStatValue}>{completedCount}</Text>
+              <Text style={styles.headerStatLabel}>Completed</Text>
+            </View>
+          </View>
         </View>
 
         <TouchableOpacity style={styles.refreshButton} onPress={() => void loadWithRetry()} disabled={loading}>
           <Ionicons name="refresh-outline" size={16} color="#22312d" />
-          <Text style={styles.refreshButtonText}>{loading ? "Refreshing..." : "Refresh Requests"}</Text>
+          <Text style={styles.refreshButtonText}>{loading ? "Refreshing..." : "Refresh requests"}</Text>
         </TouchableOpacity>
 
         {!loading && paymentNeededCount > 0 ? (
@@ -822,7 +886,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
               <Ionicons name="wallet-outline" size={20} color="#22312d" />
             </View>
             <View style={styles.paymentNeededCopy}>
-              <Text style={styles.paymentNeededTitle}>Payment Required Now</Text>
+              <Text style={styles.paymentNeededTitle}>Payment required</Text>
               <Text style={styles.paymentNeededText}>
                 {paymentNeededCount === 1
                   ? "1 request needs your payment to proceed. Tap it below and pay the shop."
@@ -830,6 +894,25 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
               </Text>
             </View>
           </View>
+        ) : null}
+
+        {!loading && requests.length > 0 ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.requestFilterRow}>
+            {([
+              { key: "all", label: `All (${requests.length})` },
+              { key: "action", label: `Your action (${actionNeededCount})` },
+              { key: "active", label: `Active (${activeCount})` },
+              { key: "completed", label: `Completed (${completedCount})` },
+            ] as { key: RequestFilter; label: string }[]).map((item) => (
+              <TouchableOpacity
+                key={item.key}
+                style={[styles.requestFilterChip, requestFilter === item.key ? styles.requestFilterChipActive : null]}
+                onPress={() => setRequestFilter(item.key)}
+              >
+                <Text style={[styles.requestFilterText, requestFilter === item.key ? styles.requestFilterTextActive : null]}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         ) : null}
 
         {loading ? (
@@ -845,8 +928,14 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
             <Text style={styles.emptyTitle}>No service requests yet</Text>
             <Text style={styles.emptyText}>Once you send a funeral service request, it will appear here for tracking.</Text>
           </View>
+        ) : visibleRequests.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Ionicons name="filter-outline" size={28} color="#8b938c" />
+            <Text style={styles.emptyTitle}>Nothing in this view</Text>
+            <Text style={styles.emptyText}>Choose another filter to see your other service requests.</Text>
+          </View>
         ) : (
-          requests.map((item: any) => {
+          visibleRequests.map((item: any) => {
             const statusMeta = getStatusMeta(item.status);
             const paymentRequired = needsPayment(item);
             return (
@@ -868,6 +957,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                     <View style={styles.requestTextBlock}>
                       <Text style={styles.requestName}>{item.deceasedFullName}</Text>
                       <Text style={styles.requestShop}>{item.shopName}</Text>
+                      {item.sharedWithMe ? <Text style={styles.sharedRequestLabel}>Shared family arrangement</Text> : null}
                     </View>
                     <View style={[styles.statusBadge, { backgroundColor: statusMeta.background }]}>
                       <Text style={[styles.statusBadgeText, { color: statusMeta.text }]}>{statusMeta.label}</Text>
@@ -875,7 +965,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                   </View>
                   <Text style={styles.requestMeta}>Service: {item.productName}</Text>
                   <Text style={styles.requestMeta}>Sent: {formatTimestamp(item.createdAt)}</Text>
-                  <Text style={[styles.requestMeta, styles.requestMessage]}>{statusMeta.message}</Text>
+                  <Text style={[styles.requestMeta, styles.requestMessage]} numberOfLines={3}>{statusMeta.message}</Text>
                   {canShowPaymentSection(item) ? (
                     <TouchableOpacity
                       style={styles.cardPaymentButton}
@@ -886,17 +976,17 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                       }}
                     >
                       <Ionicons name="receipt-outline" size={15} color="#7f6653" />
-                      <Text style={styles.cardPaymentButtonText}>View Payment Details</Text>
+                      <Text style={styles.cardPaymentButtonText}>View receipt</Text>
                     </TouchableOpacity>
                   ) : null}
                   {paymentRequired ? (
                     <View style={styles.payNowBanner}>
                       <Ionicons name="alert-circle-outline" size={17} color="#ffffff" />
-                      <Text style={styles.payNowBannerText}>Proceed to payment now — tap to open</Text>
+                      <Text style={styles.payNowBannerText}>Payment needed — tap to open</Text>
                     </View>
                   ) : null}
                   <View style={styles.viewDetailsRow}>
-                    <Text style={styles.viewDetailsText}>View Details</Text>
+                    <Text style={styles.viewDetailsText}>View details</Text>
                     <Ionicons name="chevron-forward" size={16} color="#7f6653" />
                   </View>
                 </View>
@@ -991,13 +1081,14 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                   accessibilityRole="button"
                   accessibilityLabel="Track your order"
                 >
-                  <Ionicons name="location-outline" size={19} color="#8d4aac" />
+                  <Ionicons name="location-outline" size={19} color="#315f50" />
                   <Text style={styles.paymentSuccessTrackText}>Track your order</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
           </SafeAreaView>
         ) : null}
+
       </Modal>
 
       <Modal visible={Boolean(selectedRequest)} transparent animationType="fade" onRequestClose={() => setSelectedRequest(null)}>
@@ -1042,7 +1133,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                   <View style={styles.payNowModalBanner}>
                     <Ionicons name="wallet-outline" size={22} color="#ffffff" />
                     <View style={styles.payNowModalBannerCopy}>
-                      <Text style={styles.payNowModalBannerTitle}>Payment Required Now</Text>
+                      <Text style={styles.payNowModalBannerTitle}>Payment required</Text>
                       <Text style={styles.payNowModalBannerText}>
                         The shop is waiting for your payment to proceed. Scroll down to the Pay the Shop section below.
                       </Text>
@@ -1151,7 +1242,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                   ) : null}
                 </View>
 
-                {isPendingRequest(selectedRequest.status) ? (
+                {!selectedRequest.sharedWithMe && isPendingRequest(selectedRequest.status) ? (
                   <View style={styles.actionStack}>
                     <TouchableOpacity
                       style={styles.editButton}
@@ -1162,7 +1253,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                   </View>
                 ) : null}
 
-                {isCancellable(selectedRequest.status) ? (
+                {!selectedRequest.sharedWithMe && isCancellable(selectedRequest.status) ? (
                   <View style={styles.actionStack}>
                     <TouchableOpacity
                       style={[styles.cancelButton, cancellingRequestId === selectedRequest.id ? styles.buttonDisabled : null]}
@@ -1179,7 +1270,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                   <Text style={styles.statusInfoText}>{getStatusMeta(selectedRequest.status).message}</Text>
                 </View>
 
-                {String(selectedRequest.status || "").toLowerCase() === "awaiting_customer_confirmation" ? (
+                {!selectedRequest.sharedWithMe && String(selectedRequest.status || "").toLowerCase() === "awaiting_customer_confirmation" ? (
                   <View style={styles.actionStack}>
                     <TouchableOpacity
                       style={[styles.confirmDoneButton, cancellingRequestId === selectedRequest.id ? styles.buttonDisabled : null]}
@@ -1202,7 +1293,6 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                       </View>
                       <View style={styles.paymentHeaderCopy}>
                         <Text style={styles.paymentTitle}>Pay the Shop</Text>
-                        <Text style={styles.paymentSubtitle}>Follow the steps below to complete your payment to the shop.</Text>
                       </View>
                     </View>
 
@@ -1286,13 +1376,15 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                           keyboardType="phone-pad"
                         />
 
-                        <Text style={styles.inputLabel}>Reference Number (Optional)</Text>
+                        <Text style={styles.inputLabel}>Transaction Reference *</Text>
                         <TextInput
                           style={styles.input}
                           value={paymentForm.referenceNumber}
                           onChangeText={(value) => setPaymentForm((current) => ({ ...current, referenceNumber: value }))}
-                          placeholder="Enter it if shown on your receipt"
+                          placeholder="Reference shown on the receipt"
                           placeholderTextColor="#9aa39d"
+                          autoCapitalize="characters"
+                          maxLength={40}
                         />
 
                         <Text style={styles.inputLabel}>Proof of Payment *</Text>
@@ -1521,10 +1613,10 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                   onPress={() => setPaymentInfoExpanded((expanded) => !expanded)}
                   activeOpacity={0.82}
                   accessibilityRole="button"
-                  accessibilityLabel={paymentInfoExpanded ? "Hide payment information" : "Show payment information"}
+                  accessibilityLabel={paymentInfoExpanded ? "Hide receipt information" : "Show receipt information"}
                   accessibilityState={{ expanded: paymentInfoExpanded }}
                 >
-                  <Text style={styles.paymentDetailsSectionTitle}>Payment Information</Text>
+                  <Text style={styles.paymentDetailsSectionTitle}>Receipt Information</Text>
                   <View style={styles.paymentDetailsAccordionIcon}>
                     <Ionicons name={paymentInfoExpanded ? "chevron-up" : "chevron-down"} size={19} color="#53615d" />
                   </View>
@@ -1783,7 +1875,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#eef1ec",
+    backgroundColor: "#f3f5f7",
   },
   content: {
     padding: 18,
@@ -1791,34 +1883,81 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   headerCard: {
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "#d9d6cd",
-    backgroundColor: "#f8f6f2",
-    padding: 18,
-  },
-  headerEyebrow: {
-    color: "#8b7255",
-    fontSize: 12,
-    fontWeight: "800",
+    paddingVertical: 4,
   },
   headerTitle: {
     color: "#22312d",
-    fontSize: 24,
+    fontSize: 23,
+    lineHeight: 29,
     fontWeight: "900",
-    marginTop: 4,
   },
   headerSubtitle: {
-    color: "#62706b",
+    color: "#69788b",
     fontSize: 13,
-    lineHeight: 20,
-    marginTop: 8,
+    lineHeight: 19,
+    marginTop: 4,
+  },
+  headerStats: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#d8e0e8",
+    backgroundColor: "#ffffff",
+    marginTop: 14,
+    paddingVertical: 11,
+  },
+  headerStat: {
+    flex: 1,
+    alignItems: "center",
+  },
+  headerStatValue: {
+    color: "#22312d",
+    fontSize: 19,
+    fontWeight: "900",
+  },
+  headerStatLabel: {
+    color: "#69788b",
+    fontSize: 10,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  headerStatDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: "#d8e0e8",
+  },
+  requestFilterRow: {
+    gap: 8,
+    paddingRight: 4,
+  },
+  requestFilterChip: {
+    minHeight: 38,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#d6d2c9",
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  requestFilterChipActive: {
+    borderColor: "#516961",
+    backgroundColor: "#516961",
+  },
+  requestFilterText: {
+    color: "#62706b",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  requestFilterTextActive: {
+    color: "#ffffff",
   },
   paymentNeededBanner: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    borderRadius: 20,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#f4d0a6",
     backgroundColor: "#fdf3e7",
@@ -1875,7 +2014,7 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   emptyCard: {
-    borderRadius: 24,
+    borderRadius: 12,
     backgroundColor: "#ffffff",
     borderWidth: 1,
     borderColor: "#d9d6cd",
@@ -1900,7 +2039,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
     padding: 12,
-    borderRadius: 20,
+    borderRadius: 12,
     backgroundColor: "#ffffff",
     borderWidth: 1,
     borderColor: "#d9d6cd",
@@ -1909,15 +2048,15 @@ const styles = StyleSheet.create({
     borderColor: "#f4c48f",
   },
   requestImage: {
-    width: 104,
-    height: 104,
-    borderRadius: 18,
+    width: 78,
+    height: 88,
+    borderRadius: 10,
     backgroundColor: "#ebf1e8",
   },
   requestImageFallback: {
-    width: 104,
-    height: 104,
-    borderRadius: 18,
+    width: 78,
+    height: 88,
+    borderRadius: 10,
     backgroundColor: "#ebf1e8",
     alignItems: "center",
     justifyContent: "center",
@@ -1926,17 +2065,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   requestTopRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+    flexDirection: "column",
     alignItems: "flex-start",
-    gap: 12,
+    gap: 8,
   },
   requestTextBlock: {
     flex: 1,
   },
   requestName: {
     color: "#22312d",
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "900",
   },
   requestShop: {
@@ -1944,6 +2082,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "800",
     marginTop: 4,
+  },
+  sharedRequestLabel: {
+    marginTop: 3,
+    color: "#315f50",
+    fontSize: 9,
+    fontWeight: "800",
   },
   requestMeta: {
     color: "#62706b",
@@ -1981,7 +2125,9 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   statusBadge: {
-    borderRadius: 999,
+    alignSelf: "flex-start",
+    maxWidth: "100%",
+    borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
@@ -2000,7 +2146,7 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 480,
     height: "86%",
-    borderRadius: 24,
+    borderRadius: 16,
     backgroundColor: "#f8f6f2",
     borderWidth: 1,
     borderColor: "#d9d6cd",
@@ -2034,13 +2180,13 @@ const styles = StyleSheet.create({
   modalImage: {
     width: "100%",
     height: 220,
-    borderRadius: 18,
+    borderRadius: 12,
     marginBottom: 14,
   },
   modalItemImage: {
     width: "100%",
     height: 170,
-    borderRadius: 18,
+    borderRadius: 12,
     marginBottom: 14,
   },
   payNowModalBanner: {
@@ -2068,11 +2214,8 @@ const styles = StyleSheet.create({
   },
   detailCard: {
     marginTop: 10,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#e6e3da",
-    backgroundColor: "#ffffff",
-    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#d8e0e8",
     paddingVertical: 4,
   },
   detailRow: {
@@ -2084,10 +2227,8 @@ const styles = StyleSheet.create({
     borderBottomColor: "#f0e6da",
   },
   detailIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    backgroundColor: "#e4ece0",
+    width: 24,
+    height: 24,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -2238,7 +2379,7 @@ const styles = StyleSheet.create({
   },
   paymentSection: {
     marginTop: 18,
-    borderRadius: 20,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#d9d6cd",
     backgroundColor: "#ffffff",
@@ -2265,12 +2406,6 @@ const styles = StyleSheet.create({
     color: "#22312d",
     fontSize: 17,
     fontWeight: "900",
-  },
-  paymentSubtitle: {
-    color: "#62706b",
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 2,
   },
   paymentAmountRow: {
     flexDirection: "row",
@@ -2315,7 +2450,7 @@ const styles = StyleSheet.create({
   },
   paymentStatusPill: {
     alignSelf: "flex-start",
-    borderRadius: 999,
+    borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 6,
     marginTop: 12,
@@ -2438,7 +2573,7 @@ const styles = StyleSheet.create({
   paymentSuccessBadge: {
     width: 58,
     height: 58,
-    borderRadius: 20,
+    borderRadius: 12,
     backgroundColor: "#48c978",
     alignItems: "center",
     justifyContent: "center",
@@ -2569,7 +2704,7 @@ const styles = StyleSheet.create({
     marginTop: 28,
   },
   paymentSuccessTrackText: {
-    color: "#8d4aac",
+    color: "#315f50",
     fontSize: 14,
     fontWeight: "900",
   },
@@ -2595,7 +2730,7 @@ const styles = StyleSheet.create({
   },
   paymentDetailsAccordionBody: {
     gap: 12,
-    borderRadius: 14,
+    borderRadius: 10,
     backgroundColor: "#f7f8f7",
     padding: 14,
     marginTop: 6,
@@ -2663,7 +2798,7 @@ const styles = StyleSheet.create({
   qrZoomImage: {
     width: "100%",
     aspectRatio: 1,
-    borderRadius: 20,
+    borderRadius: 12,
     backgroundColor: "#ffffff",
   },
   qrZoomCaption: {
@@ -2690,7 +2825,7 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   receiptCard: {
-    borderRadius: 20,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#e6e3da",
     backgroundColor: "#ffffff",
@@ -2723,7 +2858,6 @@ const styles = StyleSheet.create({
     color: "#8b7255",
     fontSize: 10,
     fontWeight: "800",
-    letterSpacing: 0.8,
     marginTop: 1,
   },
   receiptTitle: {
