@@ -41,6 +41,8 @@ type ServiceRequestRecord = {
   deceasedFullName?: string | null;
   familyCoordinatorName?: string | null;
   wakeAddress?: string | null;
+  churchName?: string | null;
+  cemeteryName?: string | null;
   pickupAddress?: string | null;
   wakeStartDate?: string | null;
   wakeEndDate?: string | null;
@@ -205,7 +207,7 @@ const buildRequestScheduleItems = (requests: ServiceRequestRecord[]): ScheduleIt
         id: "burial-" + request.id, source: "request", dateKey: endDate,
         timeSort: timeMatch?.[1] || "12:00", timeLabel: formatServiceTime(request.burialTime),
         title: "Burial service · " + deceasedName, subtitle: requestSubtitle(request),
-        location: request.pickupAddress || request.wakeAddress || null,
+        location: request.cemeteryName || request.pickupAddress || request.wakeAddress || null,
         color: "#6a5278", background: "#f2edf5", icon: "flower-outline", milestone: "burial", request,
       });
     }
@@ -897,7 +899,7 @@ export default function FuneralShopScheduleScreen({ navigation }: any) {
                             <Text style={[styles.registerCell, styles.registerDateColumn]} numberOfLines={2}>{formatServiceDate(request.wakeStartDate, "Not scheduled")}</Text>
                             <Text style={[styles.registerCell, styles.registerCasketColumn]} numberOfLines={3}>{casket}</Text>
                             <Text style={[styles.registerCell, styles.registerBurialColumn]} numberOfLines={3}>{burial}</Text>
-                            <Text style={[styles.registerCell, styles.registerLocationColumn]} numberOfLines={3}>{request.pickupAddress || "Not recorded"}</Text>
+                            <Text style={[styles.registerCell, styles.registerLocationColumn]} numberOfLines={3}>{request.cemeteryName || "Not recorded"}</Text>
                             <Text style={[styles.registerRemarksText, styles.registerRemarksColumn]} numberOfLines={3}>{getRegisterRemarks(request.status)}</Text>
                           </TouchableOpacity>
                         );
@@ -933,7 +935,8 @@ export default function FuneralShopScheduleScreen({ navigation }: any) {
                             { label: "Address", value: request.wakeAddress || "Not provided" },
                             { label: "Casket", value: casket },
                             { label: "Burial date", value: burial },
-                            { label: "Cemetery / location", value: request.pickupAddress || "Not recorded" },
+                            { label: "Church / chapel", value: request.churchName || "Not recorded" },
+                            { label: "Cemetery / location", value: request.cemeteryName || "Not recorded" },
                             { label: "Remarks", value: getRegisterRemarks(request.status), remarks: true },
                           ].map((field) => (
                             <View key={field.label} style={[styles.registerMobileField, field.remarks ? styles.registerRemarksField : null]}>

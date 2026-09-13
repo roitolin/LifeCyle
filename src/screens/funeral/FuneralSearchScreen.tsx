@@ -569,11 +569,11 @@ const styles = StyleSheet.create({
   price: { marginTop: 2, color: colors.text, fontSize: 13, fontWeight: '800' },
   filterModalRoot: { flex: 1, justifyContent: 'flex-end' },
   filterBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(20, 29, 43, 0.38)',
   },
   filterBackdropPressable: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   filterSheet: {
     width: '100%',

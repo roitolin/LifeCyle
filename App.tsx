@@ -1,6 +1,8 @@
 import { isRunningInExpoGo } from 'expo';
+import { NavigationBar } from 'expo-navigation-bar';
 import { StyleSheet, View } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
 import { RootNavigator } from '@/navigation';
 import { AppProviders } from '@/providers';
 import { colors } from '@/theme';
@@ -19,6 +21,8 @@ if (!isRunningInExpoGo()) {
 export default function App() {
   return (
     <View style={styles.app}>
+      <StatusBar hidden={false} style="dark" />
+      <NavigationBar hidden={false} style="dark" />
       <AppProviders>
         <RootNavigator />
       </AppProviders>

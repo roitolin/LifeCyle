@@ -62,6 +62,8 @@ export default function FuneralCheckoutScreen({ navigation, route }: any) {
   const [tributeMessage, setTributeMessage] = useState("");
   const [familyCoordinatorName, setFamilyCoordinatorName] = useState("");
   const [wakeAddress, setWakeAddress] = useState("");
+  const [churchName, setChurchName] = useState("");
+  const [cemeteryName, setCemeteryName] = useState("");
   const [wakeStartDate, setWakeStartDate] = useState<Date | null>(null);
   const [wakeEndDate, setWakeEndDate] = useState<Date | null>(null);
   const [burialTime, setBurialTime] = useState<Date | null>(null);
@@ -193,6 +195,8 @@ export default function FuneralCheckoutScreen({ navigation, route }: any) {
     const safeTributeMessage = tributeMessage.trim();
     const safeFamilyCoordinatorName = familyCoordinatorName.trim();
     const safeWakeAddress = wakeAddress.trim();
+    const safeChurchName = churchName.trim();
+    const safeCemeteryName = cemeteryName.trim();
     const safePickupAddress = pickupAddress.trim();
     const safeContactNumber = contactNumber.trim();
     const resolvedAge =
@@ -211,6 +215,8 @@ export default function FuneralCheckoutScreen({ navigation, route }: any) {
       !safeTributeMessage ||
       !safeFamilyCoordinatorName ||
       !safeWakeAddress ||
+      !safeChurchName ||
+      !safeCemeteryName ||
       !wakeStartDate ||
       !wakeEndDate ||
       !burialTime ||
@@ -252,6 +258,7 @@ export default function FuneralCheckoutScreen({ navigation, route }: any) {
         productPrice: cartItem.price,
         productImageUrl: cartItem.imageUrl || null,
         variationName: cartItem.variationName || null,
+        packageItems: cartItem.packageItems || [],
         requestType: "catalog_product",
         customDesignNotes: null,
         memorialPhotoUrl,
@@ -263,6 +270,8 @@ export default function FuneralCheckoutScreen({ navigation, route }: any) {
         tributeMessage: safeTributeMessage,
         familyCoordinatorName: safeFamilyCoordinatorName,
         wakeAddress: safeWakeAddress,
+        churchName: safeChurchName,
+        cemeteryName: safeCemeteryName,
         wakeStartDate: serializeDateOnly(wakeStartDate),
         wakeEndDate: serializeDateOnly(wakeEndDate),
         burialTime: serializeTimeOnly(burialTime),
@@ -323,6 +332,8 @@ export default function FuneralCheckoutScreen({ navigation, route }: any) {
     shopContactNumber,
     tributeMessage,
     wakeAddress,
+    churchName,
+    cemeteryName,
     wakeStartDate,
     wakeEndDate,
     burialTime,
@@ -426,6 +437,9 @@ export default function FuneralCheckoutScreen({ navigation, route }: any) {
             <Text style={styles.summaryName}>{cartItem.name}</Text>
             <Text style={styles.summaryShop}>{cartItem.shopName}</Text>
             {cartItem.variationName ? <Text style={styles.summaryVariation}>Option: {cartItem.variationName}</Text> : null}
+            {cartItem.packageItems?.length ? (
+              <Text style={styles.summaryVariation}>Packages: {cartItem.packageItems.join(", ")}</Text>
+            ) : null}
           </View>
         </View>
 
@@ -558,6 +572,22 @@ export default function FuneralCheckoutScreen({ navigation, route }: any) {
             value={wakeAddress}
             onChangeText={setWakeAddress}
             multiline
+          />
+
+          <Text style={styles.label}>Church / Chapel</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Name of the church or chapel"
+            value={churchName}
+            onChangeText={setChurchName}
+          />
+
+          <Text style={styles.label}>Cemetery</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Name of the cemetery"
+            value={cemeteryName}
+            onChangeText={setCemeteryName}
           />
 
           <ServiceRequestScheduleFields

@@ -711,7 +711,7 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
     );
   }
 
-  const heroSource = heroImageUrl ? { uri: heroImageUrl } : require("../../../assets/Icon/AppICONTransparents.png");
+  const heroSource = heroImageUrl ? { uri: heroImageUrl } : require("../../../assets/Icon/IconTraparent.png");
 
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={styles.screen}>
@@ -852,7 +852,7 @@ const styles = StyleSheet.create({
   retryButtonText: { color: colors.surface, fontSize: 13, fontWeight: "900" },
   hero: { minHeight: 150, backgroundColor: "#d6e2d2", justifyContent: "flex-end" },
   heroImage: { resizeMode: "cover" },
-  heroOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(25, 25, 32, 0.45)" },
+  heroOverlay: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(25, 25, 32, 0.45)" },
   heroContent: { flex: 1, justifyContent: "space-between", paddingHorizontal: 10, paddingTop: 5, paddingBottom: 12 },
   topControls: { flexDirection: "row", alignItems: "center", gap: 8 },
   roundControl: { width: 28, height: 36, alignItems: "center", justifyContent: "center" },

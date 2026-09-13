@@ -34,34 +34,48 @@ export default function SimpleBarChart({
         {data.length === 0 ? (
           <Text style={styles.emptyText}>No data yet</Text>
         ) : (
-          data.map((d, index) => {
-            const ratio = d.value / max;
-            const barHeight = Math.max(2, Math.round(plotHeight * ratio));
+          <>
+            <View
+              pointerEvents="none"
+              style={[styles.grid, { top: showValues ? VALUE_LABEL_SPACE : 0, bottom: X_LABEL_SPACE }]}
+            >
+              {[0, 1, 2, 3].map((line) => <View key={line} style={styles.gridLine} />)}
+            </View>
+            {data.map((d, index) => {
+              const ratio = d.value / max;
+              const barHeight = Math.max(2, Math.round(plotHeight * ratio));
 
-            return (
-              <View key={`${d.label}-${index}`} style={styles.barColumn}>
-                {showValues ? (
-                  <Text style={styles.valueLabel} numberOfLines={1}>
-                    {formatValue ? formatValue(d.value) : String(d.value)}
+              return (
+                <View
+                  key={`${d.label}-${index}`}
+                  accessible
+                  accessibilityLabel={`${d.label}: ${formatValue ? formatValue(d.value) : d.value}`}
+                  style={styles.barColumn}
+                >
+                  {showValues ? (
+                    <Text style={styles.valueLabel} numberOfLines={1}>
+                      {formatValue ? formatValue(d.value) : String(d.value)}
+                    </Text>
+                  ) : null}
+                  <View style={styles.barTrack}>
+                    <View
+                      style={[
+                        styles.bar,
+                        {
+                          height: barHeight,
+                          backgroundColor: d.color || barColor,
+                          opacity: index === data.length - 1 ? 1 : 0.78,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={[styles.xLabel, index === data.length - 1 ? styles.xLabelCurrent : null]} numberOfLines={1}>
+                    {d.label}
                   </Text>
-                ) : null}
-                <View style={styles.barTrack}>
-                  <View
-                    style={[
-                      styles.bar,
-                      {
-                        height: barHeight,
-                        backgroundColor: d.color || barColor,
-                      },
-                    ]}
-                  />
                 </View>
-                <Text style={styles.xLabel} numberOfLines={1}>
-                  {d.label}
-                </Text>
-              </View>
-            );
-          })
+              );
+            })}
+          </>
         )}
       </View>
     </View>
@@ -73,13 +87,25 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   chartArea: {
+    position: "relative",
     flexDirection: "row",
     alignItems: "stretch",
     justifyContent: "space-around",
     gap: 6,
   },
+  grid: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    justifyContent: "space-between",
+  },
+  gridLine: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "#dfe5e1",
+  },
   barColumn: {
     flex: 1,
+    zIndex: 1,
     alignItems: "center",
     justifyContent: "flex-end",
   },
@@ -109,6 +135,10 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontWeight: "600",
     maxWidth: "100%",
+  },
+  xLabelCurrent: {
+    color: "#2f403a",
+    fontWeight: "800",
   },
   emptyText: {
     textAlign: "center",

@@ -25,6 +25,7 @@ type FuneralServiceRequest = {
   productPrice?: string;
   productImageUrl?: string | null;
   variationName?: string | null;
+  packageItems?: string[] | null;
   requestType?: string;
   customDesignNotes?: string | null;
   memorialPhotoUrl?: string | null;
@@ -36,6 +37,8 @@ type FuneralServiceRequest = {
   tributeMessage: string;
   familyCoordinatorName: string;
   wakeAddress: string;
+  churchName?: string | null;
+  cemeteryName?: string | null;
   wakeStartDate?: string | null;
   wakeEndDate?: string | null;
   burialTime?: string | null;
@@ -185,6 +188,11 @@ export default function FuneralServiceRequestsInboxScreen() {
 
                 <Text style={styles.requestMeta}>Coordinator: {item.familyCoordinatorName}</Text>
                 <Text style={styles.requestMeta}>Contact: {item.contactNumber}</Text>
+                {item.packageItems?.length ? (
+                  <Text style={styles.requestMeta}>Packages: {item.packageItems.join(", ")}</Text>
+                ) : null}
+                {item.churchName ? <Text style={styles.requestMeta}>Church / Chapel: {item.churchName}</Text> : null}
+                {item.cemeteryName ? <Text style={styles.requestMeta}>Cemetery: {item.cemeteryName}</Text> : null}
                 {item.wakeStartDate && item.wakeEndDate ? (
                   <Text style={styles.requestMeta}>
                     Wake: {formatServiceDate(item.wakeStartDate)} to {formatServiceDate(item.wakeEndDate)}

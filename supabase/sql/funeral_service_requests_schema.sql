@@ -17,6 +17,7 @@ create table if not exists public.funeral_service_requests (
   "productPrice" numeric,
   "productImageUrl" text,
   "variationName" text,
+  "packageItems" text[] not null default '{}'::text[],
   "requestType" text, -- 'catalog_product' | 'custom_casket'
   "customDesignNotes" text,
   "memorialPhotoUrl" text,
@@ -27,6 +28,8 @@ create table if not exists public.funeral_service_requests (
   "tributeMessage" text,
   "familyCoordinatorName" text,
   "wakeAddress" text,
+  "churchName" text,
+  "cemeteryName" text,
   "wakeStartDate" date,
   "wakeEndDate" date,
   "burialTime" time without time zone,

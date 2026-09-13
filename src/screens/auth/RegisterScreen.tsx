@@ -11,6 +11,8 @@ import {
   findNodeHandle,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { NavigationBar } from "expo-navigation-bar";
+import { StatusBar } from "expo-status-bar";
 import { Picker } from "@react-native-picker/picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Button as PaperButton } from "react-native-paper";
@@ -20,6 +22,8 @@ import { colors, radii, spacing } from "@/theme";
 import { supabase } from "../../services/supabaseClient";
 import { getSupabaseEmailRedirectTo } from "../../services/supabaseAuthRedirect";
 import { normalizeEmail } from "../../utils/inputSecurity";
+
+const PAGE_COLOR = colors.surfaceWarm;
 
 export default function RegisterScreen({ navigation }: any) {
   const [email, setEmail] = useState("");
@@ -111,20 +115,24 @@ export default function RegisterScreen({ navigation }: any) {
     : "Select your date of birth";
 
   return (
-    <SafeAreaView edges={["top", "bottom"]} style={styles.screen}>
-      <KeyboardAwareScrollView
-        ref={scrollRef}
-        style={styles.screen}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
+    <View style={styles.page}>
+      <NavigationBar hidden={false} style="dark" />
+      <StatusBar hidden={false} style="dark" />
+
+      <SafeAreaView edges={["top", "bottom"]} style={styles.screen}>
+        <KeyboardAwareScrollView
+          ref={scrollRef}
+          style={styles.screen}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
         <View style={styles.formShell}>
           {navigation.canGoBack?.() ? (
             <AppBackButton style={styles.backButton} onPress={() => navigation.goBack()} />
           ) : null}
 
           <View style={styles.brandRow}>
-            <Image source={require("../../../assets/Icon/AppICONTransparents.png")} style={styles.brandMark} resizeMode="contain" />
+            <Image source={require("../../../assets/Icon/IconTraparent.png")} style={styles.brandMark} resizeMode="contain" />
             <Text style={styles.brandName}>LifeCycle</Text>
           </View>
 
@@ -282,13 +290,15 @@ export default function RegisterScreen({ navigation }: any) {
             </TouchableOpacity>
           </View>
         </View>
-      </KeyboardAwareScrollView>
-    </SafeAreaView>
+        </KeyboardAwareScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.surfaceWarm },
+  page: { flex: 1, backgroundColor: PAGE_COLOR },
+  screen: { flex: 1, backgroundColor: PAGE_COLOR },
   scrollContent: { flexGrow: 1, paddingHorizontal: spacing.xl, paddingVertical: spacing.xxl },
   formShell: { width: "100%", maxWidth: 520, alignSelf: "center" },
   backButton: { alignSelf: "flex-start", marginBottom: spacing.xl, backgroundColor: "transparent", borderWidth: 0 },

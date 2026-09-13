@@ -43,6 +43,8 @@ type EditableServiceRequest = {
   tributeMessage?: string | null;
   familyCoordinatorName?: string | null;
   wakeAddress?: string | null;
+  churchName?: string | null;
+  cemeteryName?: string | null;
   wakeStartDate?: string | null;
   wakeEndDate?: string | null;
   burialTime?: string | null;
@@ -61,6 +63,8 @@ type EditForm = {
   tributeMessage: string;
   familyCoordinatorName: string;
   wakeAddress: string;
+  churchName: string;
+  cemeteryName: string;
   wakeStartDate: Date | null;
   wakeEndDate: Date | null;
   burialTime: Date | null;
@@ -166,6 +170,8 @@ export default function FuneralEditServiceRequestScreen({ navigation, route }: a
     tributeMessage: String(request?.tributeMessage || ""),
     familyCoordinatorName: String(request?.familyCoordinatorName || ""),
     wakeAddress: String(request?.wakeAddress || ""),
+    churchName: String(request?.churchName || ""),
+    cemeteryName: String(request?.cemeteryName || ""),
     wakeStartDate: parseDateOnly(request?.wakeStartDate),
     wakeEndDate: parseDateOnly(request?.wakeEndDate),
     burialTime: parseTimeOnly(request?.burialTime),
@@ -230,6 +236,8 @@ export default function FuneralEditServiceRequestScreen({ navigation, route }: a
       tributeMessage: form.tributeMessage.trim(),
       familyCoordinatorName: form.familyCoordinatorName.trim(),
       wakeAddress: form.wakeAddress.trim(),
+      churchName: form.churchName.trim(),
+      cemeteryName: form.cemeteryName.trim(),
       wakeStartDate: serializeDateOnly(form.wakeStartDate),
       wakeEndDate: serializeDateOnly(form.wakeEndDate),
       burialTime: serializeTimeOnly(form.burialTime),
@@ -269,6 +277,8 @@ export default function FuneralEditServiceRequestScreen({ navigation, route }: a
       !requiredValues.tributeMessage ||
       !requiredValues.familyCoordinatorName ||
       !requiredValues.wakeAddress ||
+      !requiredValues.churchName ||
+      !requiredValues.cemeteryName ||
       !requiredValues.wakeStartDate ||
       !requiredValues.wakeEndDate ||
       !requiredValues.burialTime ||
@@ -491,6 +501,22 @@ export default function FuneralEditServiceRequestScreen({ navigation, route }: a
             onChangeText={(value) => setField("wakeAddress", value)}
             placeholder="Complete address of the wake venue"
             multiline
+          />
+
+          <Text style={styles.label}>Church / chapel *</Text>
+          <TextInput
+            style={styles.input}
+            value={form.churchName}
+            onChangeText={(value) => setField("churchName", value)}
+            placeholder="Name of the church or chapel"
+          />
+
+          <Text style={styles.label}>Cemetery *</Text>
+          <TextInput
+            style={styles.input}
+            value={form.cemeteryName}
+            onChangeText={(value) => setField("cemeteryName", value)}
+            placeholder="Name of the cemetery"
           />
 
           <ServiceRequestScheduleFields

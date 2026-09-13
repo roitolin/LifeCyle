@@ -57,7 +57,7 @@ type UserInfoMap = Record<
   }
 >;
 
-const appLogo = require("../../../assets/Icon/AppICONTransparents.png");
+const appLogo = require("../../../assets/Icon/IconTraparent.png");
 
 type ConversationPreferenceField = "pinnedFor" | "archivedFor" | "unreadFor";
 
@@ -877,7 +877,7 @@ const styles = StyleSheet.create({
   emptyTitle: { color: "#35453f", fontSize: 14, fontWeight: "900", marginTop: 12 },
   emptyText: { color: "#7d8783", fontSize: 10, textAlign: "center", marginTop: 5 },
   actionSheetOverlay: { flex: 1, justifyContent: "flex-end" },
-  actionSheetBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0, 0, 0, 0.56)" },
+  actionSheetBackdrop: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(0, 0, 0, 0.56)" },
   actionSheet: {
     width: "100%",
     maxWidth: 620,

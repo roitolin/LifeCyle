@@ -6,4 +6,5 @@ export { default as EmergencyBroadcastBanner } from "./EmergencyBroadcastBanner"
 export { default as KeyboardAwareScrollView } from "./KeyboardAwareScrollView";
 export { default as NotificationBell } from "./NotificationBell";
 export { default as SimpleBarChart } from "./SimpleBarChart";
+export { default as StatusDonutChart } from "./StatusDonutChart";
 export { SidebarContent } from "./SidebarContent";

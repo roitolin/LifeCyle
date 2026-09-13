@@ -155,7 +155,7 @@ export default function ForgotPasswordScreen({ navigation, route }: any) {
           >
             <AppBackButton style={styles.backRow} onPress={() => navigation.goBack()} accessibilityLabel="Back to login" />
 
-            <Image source={require("../../../assets/Icon/AppICONTransparents.png")} style={styles.logo} resizeMode="contain" />
+            <Image source={require("../../../assets/Icon/IconTraparent.png")} style={styles.logo} resizeMode="contain" />
             <Text style={styles.title}>Reset Password</Text>
             <Text style={styles.subtitle}>
               Enter your email and we&apos;ll send a reset link so you can create a new password.

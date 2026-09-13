@@ -12,6 +12,8 @@ import {
   Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { NavigationBar } from "expo-navigation-bar";
+import { StatusBar } from "expo-status-bar";
 import { Button as PaperButton } from "react-native-paper";
 import { Ionicons } from "@expo/vector-icons";
 import { AppBackButton, KeyboardAwareScrollView } from "@/components";
@@ -24,6 +26,8 @@ import { normalizeEmail } from "../../utils/inputSecurity";
 import { recordAdminLoginActivity } from "../../utils/adminLoginActivity";
 
 import { recordAccountLoginActivity } from '../../utils/accountLoginActivity';
+
+const PAGE_COLOR = colors.surfaceWarm;
 
 export default function LoginScreen({ navigation, route }: any) {
   const [email, setEmail] = useState("");
@@ -184,8 +188,12 @@ export default function LoginScreen({ navigation, route }: any) {
   };
 
   return (
-    <SafeAreaView edges={["top", "bottom"]} style={styles.screen}>
-      <Modal visible={!!banDialog} transparent animationType="fade" onRequestClose={() => setBanDialog(null)}>
+    <View style={styles.page}>
+      <NavigationBar hidden={false} style="dark" />
+      <StatusBar hidden={false} style="dark" />
+
+      <SafeAreaView edges={["top", "bottom"]} style={styles.screen}>
+        <Modal visible={!!banDialog} transparent animationType="fade" onRequestClose={() => setBanDialog(null)}>
         <View style={styles.banOverlay}>
           <View style={styles.banDialog}>
             <View style={styles.banHeading}>
@@ -213,21 +221,21 @@ export default function LoginScreen({ navigation, route }: any) {
             </View>
           </View>
         </View>
-      </Modal>
+        </Modal>
 
-      <KeyboardAwareScrollView
-        ref={scrollRef}
-        style={styles.screen}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
+        <KeyboardAwareScrollView
+          ref={scrollRef}
+          style={styles.screen}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
         <View style={styles.formShell}>
           {navigation.canGoBack?.() ? (
             <AppBackButton style={styles.backButton} onPress={() => navigation.goBack()} />
           ) : null}
 
           <View style={styles.brandRow}>
-            <Image source={require("../../../assets/Icon/AppICONTransparents.png")} style={styles.brandMark} resizeMode="contain" />
+            <Image source={require("../../../assets/Icon/IconTraparent.png")} style={styles.brandMark} resizeMode="contain" />
             <Text style={styles.brandName}>LifeCycle</Text>
           </View>
 
@@ -340,13 +348,15 @@ export default function LoginScreen({ navigation, route }: any) {
             </View>
           </View>
         </View>
-      </KeyboardAwareScrollView>
-    </SafeAreaView>
+        </KeyboardAwareScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.surfaceWarm },
+  page: { flex: 1, backgroundColor: PAGE_COLOR },
+  screen: { flex: 1, backgroundColor: PAGE_COLOR },
   scrollContent: { flexGrow: 1, justifyContent: "center", paddingHorizontal: spacing.xl, paddingVertical: spacing.xxl },
   formShell: { width: "100%", maxWidth: 440, alignSelf: "center" },
   backButton: { alignSelf: "flex-start", marginBottom: spacing.xl, backgroundColor: "transparent", borderWidth: 0 },

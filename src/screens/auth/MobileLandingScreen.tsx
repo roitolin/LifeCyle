@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Asset } from 'expo-asset';
+import { NavigationBar } from 'expo-navigation-bar';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -7,6 +8,7 @@ import {
   ActivityIndicator,
   Easing,
   Image,
+  Platform,
   type ImageSourcePropType,
   Pressable,
   StyleSheet,
@@ -81,6 +83,9 @@ function springIn(value: Animated.Value) {
   });
 }
 
+const SCREEN_BG = '#d7d8d5';
+const NAVIGATION_BAR_BG = '#ffffff';
+
 export default function MobileLandingScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -98,6 +103,18 @@ export default function MobileLandingScreen({ navigation }: any) {
   const isLastStep = currentIndex === ONBOARDING_STEPS.length - 1;
   const isCompact = height < 720;
   const illustrationSize = Math.min(Math.max(width - 32, 1), 320);
+  const androidSystemBarSurfaces = Platform.OS === 'android' ? (
+    <>
+      <View
+        pointerEvents='none'
+        style={[styles.statusBarSurface, { height: insets.top }]}
+      />
+      <View
+        pointerEvents='none'
+        style={[styles.navigationBarSurface, { height: insets.bottom }]}
+      />
+    </>
+  ) : null;
 
   useEffect(() => {
     let active = true;
@@ -244,7 +261,9 @@ export default function MobileLandingScreen({ navigation }: any) {
   if (!assetsReady) {
     return (
       <SafeAreaView edges={['left', 'right']} style={styles.screen}>
-        <StatusBar style='dark' translucent backgroundColor='transparent' />
+        <NavigationBar hidden={false} style='dark' />
+        <StatusBar hidden={false} style='dark' />
+        {androidSystemBarSurfaces}
         <View style={styles.loadingState}>
           <ActivityIndicator color='#315f52' size='small' />
           <Text style={styles.loadingText}>Preparing LifeCycle</Text>
@@ -255,7 +274,9 @@ export default function MobileLandingScreen({ navigation }: any) {
 
   return (
     <SafeAreaView edges={['left', 'right']} style={styles.screen}>
-      <StatusBar style='dark' translucent backgroundColor='transparent' />
+      <NavigationBar hidden={false} style='dark' />
+      <StatusBar hidden={false} style='dark' />
+      {androidSystemBarSurfaces}
 
       <View style={[styles.floatingHeader, { paddingTop: insets.top + 10 }]}>
         <View style={styles.headerRow}>
@@ -263,7 +284,7 @@ export default function MobileLandingScreen({ navigation }: any) {
             <Image
               accessible={false}
               resizeMode='contain'
-              source={require('../../../assets/Icon/AppICONTransparents.png')}
+              source={require('../../../assets/Icon/IconTraparent.png')}
               style={styles.brandIcon}
             />
             <Text style={styles.brandName}>LifeCycle</Text>
@@ -471,7 +492,22 @@ export default function MobileLandingScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#d7d8d5',
+    backgroundColor: SCREEN_BG,
+  },
+  statusBarSurface: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: SCREEN_BG,
+  },
+  navigationBarSurface: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 20,
+    backgroundColor: NAVIGATION_BAR_BG,
   },
   loadingState: {
     flex: 1,
@@ -634,12 +670,17 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     flex: 1,
-    minHeight: 52,
+    minHeight: 54,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 22,
-    borderRadius: 26,
-    backgroundColor: '#244d42',
+    borderRadius: 27,
+    backgroundColor: '#1e4538',
+    shadowColor: '#1e4538',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 6,
   },
   primaryButtonContent: {
     flexDirection: 'row',
@@ -648,20 +689,21 @@ const styles = StyleSheet.create({
     gap: 9,
   },
   primaryButtonLabelStack: {
-    width: 130,
-    height: 24,
+    width: 148,
+    height: 26,
   },
   primaryButtonLabelLayer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   primaryButtonText: {
     color: '#ffffff',
     fontSize: 15,
     fontWeight: '900',
+    letterSpacing: 0.2,
   },
   primaryButtonPressed: {
-    opacity: 0.88,
-    transform: [{ scale: 0.99 }],
+    opacity: 0.85,
+    transform: [{ scale: 0.975 }],
   },
   signInSlot: {
     overflow: 'hidden',

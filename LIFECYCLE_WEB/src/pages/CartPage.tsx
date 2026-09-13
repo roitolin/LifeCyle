@@ -218,6 +218,9 @@ export default function CartPage() {
                         <div className="item-details">
                           <div className="item-name">{item.name}</div>
                           {item.variationName && <div className="item-variation">Variation: {item.variationName}</div>}
+                          {item.packageItems?.length ? (
+                            <div className="item-variation">Packages: {item.packageItems.join(', ')}</div>
+                          ) : null}
                         </div>
                       </div>
                       <div className="item-col-price">{formatPeso(item.price)}</div>

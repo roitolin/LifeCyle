@@ -969,7 +969,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   card: {
     width: "100%",

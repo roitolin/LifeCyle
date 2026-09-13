@@ -49,6 +49,7 @@ type FuneralServiceRequest = {
   productName: string;
   productImageUrl?: string | null;
   variationName?: string | null;
+  packageItems?: string[] | null;
   requestType?: string;
   customDesignNotes?: string | null;
   memorialPhotoUrl?: string | null;
@@ -59,6 +60,8 @@ type FuneralServiceRequest = {
   tributeMessage: string;
   familyCoordinatorName: string;
   wakeAddress: string;
+  churchName?: string | null;
+  cemeteryName?: string | null;
   wakeStartDate?: string | null;
   wakeEndDate?: string | null;
   burialTime?: string | null;
@@ -100,6 +103,8 @@ type RequestEditForm = {
   tributeMessage: string;
   familyCoordinatorName: string;
   wakeAddress: string;
+  churchName: string;
+  cemeteryName: string;
   wakeStartDate: Date | null;
   wakeEndDate: Date | null;
   burialTime: Date | null;
@@ -334,6 +339,8 @@ const buildEditForm = (request: FuneralServiceRequest): RequestEditForm => ({
   tributeMessage: String(request.tributeMessage || ""),
   familyCoordinatorName: String(request.familyCoordinatorName || ""),
   wakeAddress: String(request.wakeAddress || ""),
+  churchName: String(request.churchName || ""),
+  cemeteryName: String(request.cemeteryName || ""),
   wakeStartDate: parseDateOnly(request.wakeStartDate),
   wakeEndDate: parseDateOnly(request.wakeEndDate),
   burialTime: parseTimeOnly(request.burialTime),
@@ -394,6 +401,8 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
     tributeMessage: "",
     familyCoordinatorName: "",
     wakeAddress: "",
+    churchName: "",
+    cemeteryName: "",
     wakeStartDate: null,
     wakeEndDate: null,
     burialTime: null,
@@ -514,6 +523,8 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
     const safeTributeMessage = editForm.tributeMessage.trim();
     const safeFamilyCoordinatorName = editForm.familyCoordinatorName.trim();
     const safeWakeAddress = editForm.wakeAddress.trim();
+    const safeChurchName = editForm.churchName.trim();
+    const safeCemeteryName = editForm.cemeteryName.trim();
     const safePickupAddress = editForm.pickupAddress.trim();
     const safeContactNumber = editForm.contactNumber.trim();
 
@@ -545,6 +556,8 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
       !safeTributeMessage ||
       !safeFamilyCoordinatorName ||
       !safeWakeAddress ||
+      !safeChurchName ||
+      !safeCemeteryName ||
       !safePickupAddress ||
       !safeContactNumber
     ) {
@@ -559,6 +572,8 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
         tributeMessage: safeTributeMessage,
         familyCoordinatorName: safeFamilyCoordinatorName,
         wakeAddress: safeWakeAddress,
+        churchName: safeChurchName,
+        cemeteryName: safeCemeteryName,
         wakeStartDate,
         wakeEndDate,
         burialTime,
@@ -580,6 +595,8 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
               tributeMessage: safeTributeMessage,
               familyCoordinatorName: safeFamilyCoordinatorName,
               wakeAddress: safeWakeAddress,
+              churchName: safeChurchName,
+              cemeteryName: safeCemeteryName,
               wakeStartDate,
               wakeEndDate,
               burialTime,
@@ -1148,6 +1165,9 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                     label="Service"
                     value={selectedRequest.productName + (selectedRequest.variationName ? ` (${selectedRequest.variationName})` : "")}
                   />
+                  {selectedRequest.packageItems?.length ? (
+                    <DetailRow icon="gift-outline" label="Selected Packages" value={selectedRequest.packageItems.join(", ")} />
+                  ) : null}
                   {selectedRequest.requestType === "custom_casket" ? (
                     <DetailRow icon="pricetag-outline" label="Request Type" value="Custom Casket Request" />
                   ) : null}
@@ -1179,6 +1199,8 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                   <DetailRow icon="people-outline" label="Family Coordinator" value={selectedRequest.familyCoordinatorName} />
                   <DetailRow icon="call-outline" label="Contact Number" value={selectedRequest.contactNumber} />
                   <DetailRow icon="home-outline" label="Wake Venue" value={selectedRequest.wakeAddress} />
+                  <DetailRow icon="business-outline" label="Church / Chapel" value={selectedRequest.churchName || "Not provided"} />
+                  <DetailRow icon="location-outline" label="Cemetery" value={selectedRequest.cemeteryName || "Not provided"} />
                   <DetailRow icon="calendar-outline" label="Wake From" value={formatServiceDate(selectedRequest.wakeStartDate)} />
                   <DetailRow icon="calendar-outline" label="Wake To" value={formatServiceDate(selectedRequest.wakeEndDate)} />
                   <DetailRow
@@ -1468,6 +1490,22 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                   value={editForm.wakeAddress}
                   onChangeText={(value) => setEditForm((current) => ({ ...current, wakeAddress: value }))}
                   multiline
+                />
+
+                <Text style={styles.inputLabel}>Church / Chapel</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editForm.churchName}
+                  onChangeText={(value) => setEditForm((current) => ({ ...current, churchName: value }))}
+                  placeholder="Name of the church or chapel"
+                />
+
+                <Text style={styles.inputLabel}>Cemetery</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editForm.cemeteryName}
+                  onChangeText={(value) => setEditForm((current) => ({ ...current, cemeteryName: value }))}
+                  placeholder="Name of the cemetery"
                 />
 
                 <ServiceRequestScheduleFields

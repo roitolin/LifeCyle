@@ -60,6 +60,7 @@ type FuneralServiceRequest = {
   productPrice?: string;
   productImageUrl?: string | null;
   variationName?: string | null;
+  packageItems?: string[] | null;
   requestType?: string;
   customDesignNotes?: string | null;
   memorialPhotoUrl?: string | null;
@@ -71,6 +72,8 @@ type FuneralServiceRequest = {
   tributeMessage: string;
   familyCoordinatorName: string;
   wakeAddress: string;
+  churchName?: string | null;
+  cemeteryName?: string | null;
   wakeStartDate?: string | null;
   wakeEndDate?: string | null;
   burialTime?: string | null;
@@ -1545,6 +1548,9 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
           {request.variationName ? (
             <InfoRow icon="options-outline" label="Selected variation" value={request.variationName} />
           ) : null}
+          {request.packageItems?.length ? (
+            <InfoRow icon="gift-outline" label="Selected packages" value={request.packageItems.join(", ")} />
+          ) : null}
           <InfoRow
             icon="cash-outline"
             label="Service amount"
@@ -1651,6 +1657,8 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
           subtitle="Review the dates and service locations carefully"
         >
           <InfoRow icon="location-outline" label="Wake venue" value={request.wakeAddress || "Not provided"} />
+          <InfoRow icon="business-outline" label="Church / chapel" value={request.churchName || "Not provided"} />
+          <InfoRow icon="location-outline" label="Cemetery" value={request.cemeteryName || "Not provided"} />
           <View style={styles.datePairRow}>
             <View style={styles.datePairItem}>
               <Text style={styles.datePairLabel}>WAKE START</Text>

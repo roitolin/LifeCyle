@@ -66,6 +66,8 @@ export default function FuneralCustomCasketRequestScreen({ navigation, route }: 
   const [tributeMessage, setTributeMessage] = useState("");
   const [familyCoordinatorName, setFamilyCoordinatorName] = useState("");
   const [wakeAddress, setWakeAddress] = useState("");
+  const [churchName, setChurchName] = useState("");
+  const [cemeteryName, setCemeteryName] = useState("");
   const [wakeStartDate, setWakeStartDate] = useState<Date | null>(null);
   const [wakeEndDate, setWakeEndDate] = useState<Date | null>(null);
   const [burialTime, setBurialTime] = useState<Date | null>(null);
@@ -193,6 +195,8 @@ export default function FuneralCustomCasketRequestScreen({ navigation, route }: 
     const safeTributeMessage = tributeMessage.trim();
     const safeFamilyCoordinatorName = familyCoordinatorName.trim();
     const safeWakeAddress = wakeAddress.trim();
+    const safeChurchName = churchName.trim();
+    const safeCemeteryName = cemeteryName.trim();
     const safePickupAddress = pickupAddress.trim();
     const safeContactNumber = contactNumber.trim();
     const safeDesignNotes = designNotes.trim();
@@ -212,6 +216,8 @@ export default function FuneralCustomCasketRequestScreen({ navigation, route }: 
       !safeTributeMessage ||
       !safeFamilyCoordinatorName ||
       !safeWakeAddress ||
+      !safeChurchName ||
+      !safeCemeteryName ||
       !wakeStartDate ||
       !wakeEndDate ||
       !burialTime ||
@@ -265,6 +271,8 @@ export default function FuneralCustomCasketRequestScreen({ navigation, route }: 
         tributeMessage: safeTributeMessage,
         familyCoordinatorName: safeFamilyCoordinatorName,
         wakeAddress: safeWakeAddress,
+        churchName: safeChurchName,
+        cemeteryName: safeCemeteryName,
         wakeStartDate: serializeDateOnly(wakeStartDate),
         wakeEndDate: serializeDateOnly(wakeEndDate),
         burialTime: serializeTimeOnly(burialTime),
@@ -326,6 +334,8 @@ export default function FuneralCustomCasketRequestScreen({ navigation, route }: 
     shopName,
     tributeMessage,
     wakeAddress,
+    churchName,
+    cemeteryName,
     wakeStartDate,
     wakeEndDate,
     burialTime,
@@ -542,6 +552,22 @@ export default function FuneralCustomCasketRequestScreen({ navigation, route }: 
             value={wakeAddress}
             onChangeText={setWakeAddress}
             multiline
+          />
+
+          <Text style={styles.label}>Church / Chapel</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Name of the church or chapel"
+            value={churchName}
+            onChangeText={setChurchName}
+          />
+
+          <Text style={styles.label}>Cemetery</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Name of the cemetery"
+            value={cemeteryName}
+            onChangeText={setCemeteryName}
           />
 
           <ServiceRequestScheduleFields

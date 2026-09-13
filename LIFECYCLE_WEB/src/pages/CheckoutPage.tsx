@@ -70,6 +70,8 @@ export default function CheckoutPage() {
   const [tributeMessage, setTributeMessage] = useState('')
   const [familyCoordinatorName, setFamilyCoordinatorName] = useState('')
   const [wakeAddress, setWakeAddress] = useState('')
+  const [churchName, setChurchName] = useState('')
+  const [cemeteryName, setCemeteryName] = useState('')
   const [wakeStartDate, setWakeStartDate] = useState('')
   const [wakeEndDate, setWakeEndDate] = useState('')
   const [burialTime, setBurialTime] = useState('')
@@ -191,6 +193,8 @@ export default function CheckoutPage() {
     const safeTributeMessage = tributeMessage.trim()
     const safeFamilyCoordinatorName = familyCoordinatorName.trim()
     const safeWakeAddress = wakeAddress.trim()
+    const safeChurchName = churchName.trim()
+    const safeCemeteryName = cemeteryName.trim()
     const safePickupAddress = pickupAddress.trim()
     const safeContactNumber = contactNumber.trim()
     const resolvedAge =
@@ -209,6 +213,8 @@ export default function CheckoutPage() {
       !safeTributeMessage ||
       !safeFamilyCoordinatorName ||
       !safeWakeAddress ||
+      !safeChurchName ||
+      !safeCemeteryName ||
       !wakeStartDate ||
       !wakeEndDate ||
       !burialTime ||
@@ -260,6 +266,7 @@ export default function CheckoutPage() {
         productPrice: cartItem.price,
         productImageUrl: cartItem.imageUrl || null,
         variationName: cartItem.variationName || null,
+        packageItems: cartItem.packageItems || [],
         requestType: 'catalog_product',
         customDesignNotes: null,
         memorialPhotoUrl,
@@ -271,6 +278,8 @@ export default function CheckoutPage() {
         tributeMessage: safeTributeMessage,
         familyCoordinatorName: safeFamilyCoordinatorName,
         wakeAddress: safeWakeAddress,
+        churchName: safeChurchName,
+        cemeteryName: safeCemeteryName,
         wakeStartDate,
         wakeEndDate,
         burialTime,
@@ -326,7 +335,9 @@ export default function CheckoutPage() {
     deceasedAge,
     ageInputMode,
     burialTime,
+    cemeteryName,
     cartItem,
+    churchName,
     contactNumber,
     computedAge,
     openAlert,
@@ -414,6 +425,9 @@ export default function CheckoutPage() {
               <p className="checkout-summary-shop">{cartItem.shopName}</p>
               {cartItem.variationName ? (
                 <p className="checkout-summary-variation">Option: {cartItem.variationName}</p>
+              ) : null}
+              {cartItem.packageItems?.length ? (
+                <p className="checkout-summary-variation">Packages: {cartItem.packageItems.join(', ')}</p>
               ) : null}
               <p className="checkout-summary-note">
                 The shop will confirm availability before requesting payment.
@@ -578,6 +592,32 @@ export default function CheckoutPage() {
               placeholder="Complete address of the wake venue"
               value={wakeAddress}
               onChange={(e) => setWakeAddress(e.target.value)}
+            />
+          </div>
+
+          <div className="checkout-field">
+            <label className="checkout-label" htmlFor="checkout-church">Church / Chapel</label>
+            <input
+              id="checkout-church"
+              className="checkout-input"
+              type="text"
+              placeholder="Name of the church or chapel"
+              value={churchName}
+              onChange={(e) => setChurchName(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="checkout-field">
+            <label className="checkout-label" htmlFor="checkout-cemetery">Cemetery</label>
+            <input
+              id="checkout-cemetery"
+              className="checkout-input"
+              type="text"
+              placeholder="Name of the cemetery"
+              value={cemeteryName}
+              onChange={(e) => setCemeteryName(e.target.value)}
+              required
             />
           </div>
 

@@ -74,11 +74,17 @@ export function computeSalesOverview(requests: SalesRequest[]) {
 
   const monthlySales: { label: string; value: number }[] = [];
   const monthlyRevenue: { label: string; value: number }[] = [];
+  const monthlyRequests: { label: string; value: number }[] = [];
   for (let i = 5; i >= 0; i -= 1) {
     const cursor = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const key = monthKey(cursor);
     let salesCount = 0;
     let revenueSum = 0;
+    let requestCount = 0;
+    requests.forEach((r) => {
+      const date = toDate(r.createdAt);
+      if (date && monthKey(date) === key) requestCount += 1;
+    });
     paidRequests.forEach((r) => {
       const date = toDate(r.paymentVerifiedAt || r.completedAt || r.createdAt);
       if (date && monthKey(date) === key) {
@@ -88,16 +94,25 @@ export function computeSalesOverview(requests: SalesRequest[]) {
     });
     monthlySales.push({ label: monthLabel(key), value: salesCount });
     monthlyRevenue.push({ label: monthLabel(key), value: Math.round(revenueSum) });
+    monthlyRequests.push({ label: monthLabel(key), value: requestCount });
   }
 
   const breakdown: SalesBreakdown[] = [
-    { label: "Completed", value: paidRequests.length, color: "#16a34a" },
-    { label: "Payment Submitted", value: requests.filter((r) => String(r.status || "").toLowerCase() === "payment_submitted").length, color: "#2563eb" },
-    { label: "Awaiting Payment", value: requests.filter((r) => String(r.status || "").toLowerCase() === "awaiting_payment").length, color: "#a66b1f" },
-    { label: "Pending Acceptance", value: requests.filter((r) => String(r.status || "").toLowerCase() === "pending_shop_acceptance").length, color: "#f59e0b" },
-    { label: "Declined", value: requests.filter((r) => String(r.status || "").toLowerCase() === "declined_by_shop").length, color: "#ef4444" },
-    { label: "Cancelled", value: requests.filter((r) => String(r.status || "").toLowerCase() === "cancelled_by_requester").length, color: "#64748b" },
+    { label: "Completed", value: requests.filter((r) => String(r.status || "").toLowerCase() === "completed").length, color: "#2f6b55" },
+    { label: "Service confirmed", value: requests.filter((r) => String(r.status || "").toLowerCase() === "payment_verified").length, color: "#3b7f82" },
+    { label: "Receipt review", value: requests.filter((r) => String(r.status || "").toLowerCase() === "payment_submitted").length, color: "#3e6f9e" },
+    { label: "Awaiting payment", value: requests.filter((r) => String(r.status || "").toLowerCase() === "awaiting_payment").length, color: "#b57926" },
+    { label: "Pending review", value: requests.filter((r) => String(r.status || "").toLowerCase() === "pending_shop_acceptance").length, color: "#d1a23e" },
+    { label: "Declined", value: requests.filter((r) => String(r.status || "").toLowerCase() === "declined_by_shop").length, color: "#a84c48" },
+    { label: "Cancelled", value: requests.filter((r) => ["cancelled", "cancelled_by_requester"].includes(String(r.status || "").toLowerCase())).length, color: "#77827d" },
   ].filter((b) => b.value > 0);
+
+  const totalRequests = requests.length;
+  const completedRequests = requests.filter((r) => String(r.status || "").toLowerCase() === "completed").length;
+  const terminalStatuses = new Set(["completed", "declined_by_shop", "cancelled", "cancelled_by_requester"]);
+  const activeRequests = requests.filter((r) => !terminalStatuses.has(String(r.status || "").toLowerCase())).length;
+  const completionRate = totalRequests > 0 ? Math.round((completedRequests / totalRequests) * 100) : 0;
+  const collectionRate = totalRequests > 0 ? Math.round((totalSales / totalRequests) * 100) : 0;
 
   return {
     totalRevenue,
@@ -105,8 +120,14 @@ export function computeSalesOverview(requests: SalesRequest[]) {
     revenueThisMonth,
     salesThisMonth,
     avgOrderValue,
+    totalRequests,
+    completedRequests,
+    activeRequests,
+    completionRate,
+    collectionRate,
     monthlySales,
     monthlyRevenue,
+    monthlyRequests,
     breakdown,
   };
 }

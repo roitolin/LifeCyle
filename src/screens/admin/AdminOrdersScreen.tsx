@@ -31,6 +31,7 @@ type ServiceRequest = {
   productPrice?: string | null;
   productImageUrl?: string | null;
   variationName?: string | null;
+  packageItems?: string[] | null;
   requestType?: string;
   customDesignNotes?: string | null;
   memorialPhotoUrl?: string | null;
@@ -41,6 +42,8 @@ type ServiceRequest = {
   tributeMessage?: string | null;
   familyCoordinatorName?: string | null;
   wakeAddress?: string | null;
+  churchName?: string | null;
+  cemeteryName?: string | null;
   wakeStartDate?: string | null;
   wakeEndDate?: string | null;
   burialTime?: string | null;
@@ -307,6 +310,11 @@ export default function AdminOrdersScreen() {
                     {selectedItem.variationName ? ` (${selectedItem.variationName})` : ""}
                   </Text>
 
+                  <Text style={styles.detailLabel}>Selected Packages</Text>
+                  <Text style={styles.detailValue}>
+                    {selectedItem.packageItems?.length ? selectedItem.packageItems.join(", ") : "None selected"}
+                  </Text>
+
                   <Text style={styles.detailLabel}>Price</Text>
                   <Text style={styles.detailValue}>
                     {selectedItem.productPrice != null ? formatPhilippinePeso(selectedItem.productPrice) : "Custom pricing"}
@@ -386,6 +394,12 @@ export default function AdminOrdersScreen() {
 
                   <Text style={styles.detailLabel}>Wake Venue</Text>
                   <Text style={styles.detailValue}>{selectedItem.wakeAddress || "-"}</Text>
+
+                  <Text style={styles.detailLabel}>Church / Chapel</Text>
+                  <Text style={styles.detailValue}>{selectedItem.churchName || "Not provided"}</Text>
+
+                  <Text style={styles.detailLabel}>Cemetery</Text>
+                  <Text style={styles.detailValue}>{selectedItem.cemeteryName || "Not provided"}</Text>
 
                   <Text style={styles.detailLabel}>Wake From</Text>
                   <Text style={styles.detailValue}>{formatServiceDate(selectedItem.wakeStartDate)}</Text>

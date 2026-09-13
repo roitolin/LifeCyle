@@ -15,6 +15,7 @@ export type ServiceRequest = {
   productPrice?: string | null
   productImageUrl?: string | null
   variationName?: string | null
+  packageItems?: string[] | null
   requestType?: string
   customDesignNotes?: string | null
   memorialPhotoUrl?: string | null
@@ -26,6 +27,8 @@ export type ServiceRequest = {
   tributeMessage?: string | null
   familyCoordinatorName?: string | null
   wakeAddress?: string | null
+  churchName?: string | null
+  cemeteryName?: string | null
   wakeStartDate?: string | null
   wakeEndDate?: string | null
   burialTime?: string | null
@@ -155,6 +158,8 @@ function AdminOrdersPage() {
         item.shopName,
         item.familyCoordinatorName,
         item.contactNumber,
+        item.churchName,
+        item.cemeteryName,
         item.requesterName,
         item.requesterEmail,
       ].some((value) => normalize(value).includes(q)),
@@ -175,6 +180,7 @@ function AdminOrdersPage() {
       { header: 'Deceased Age', value: (row) => (row.deceasedAge == null ? '' : row.deceasedAge) },
       { header: 'Item', value: (row) => row.productName || 'Custom casket design' },
       { header: 'Variation', value: (row) => row.variationName || '' },
+      { header: 'Selected Packages', value: (row) => row.packageItems?.join(', ') || '' },
       { header: 'Item Price', value: (row) => (row.productPrice == null ? '' : row.productPrice) },
       { header: 'Payment Amount', value: (row) => (row.paymentAmount == null ? '' : row.paymentAmount) },
       { header: 'Payer Name', value: (row) => row.paymentPayerName || '' },
@@ -187,6 +193,8 @@ function AdminOrdersPage() {
       { header: 'Family Coordinator', value: (row) => row.familyCoordinatorName || '' },
       { header: 'Contact Number', value: (row) => row.contactNumber || '' },
       { header: 'Wake Address', value: (row) => row.wakeAddress || '' },
+      { header: 'Church / Chapel', value: (row) => row.churchName || '' },
+      { header: 'Cemetery', value: (row) => row.cemeteryName || '' },
       { header: 'Pickup Address', value: (row) => row.pickupAddress || '' },
       { header: 'Created At', value: (row) => csvTimestamp(row.createdAt || null) },
       { header: 'Accepted At', value: (row) => csvTimestamp(row.acceptedAt || null) },
@@ -215,7 +223,7 @@ function AdminOrdersPage() {
               id="admin-order-search"
               value={queryText}
               onChange={(event) => setQueryText(event.target.value)}
-              placeholder="Deceased, item, shop, requester, coordinator"
+              placeholder="Deceased, item, shop, church, cemetery"
             />
           </div>
           <div>

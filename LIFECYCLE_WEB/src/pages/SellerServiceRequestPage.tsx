@@ -22,6 +22,7 @@ type ServiceRequest = {
   productPrice?: string | number | null
   productImageUrl?: string | null
   variationName?: string | null
+  packageItems?: string[] | null
   requestType?: string | null
   customDesignNotes?: string | null
   deceasedFullName?: string | null
@@ -46,6 +47,8 @@ type ServiceRequest = {
   requesterName?: string | null
   familyCoordinatorName?: string | null
   wakeAddress?: string | null
+  churchName?: string | null
+  cemeteryName?: string | null
   wakeStartDate?: string | null
   wakeEndDate?: string | null
   burialTime?: string | null
@@ -569,7 +572,8 @@ export default function SellerServiceRequestPage() {
     tone: 'neutral',
   }
   const hasSchedule = Boolean(
-    request.wakeAddress || request.wakeStartDate || request.wakeEndDate || request.burialTime || request.pickupAddress,
+    request.wakeAddress || request.churchName || request.cemeteryName
+    || request.wakeStartDate || request.wakeEndDate || request.burialTime || request.pickupAddress,
   )
   const hasPayment = Boolean(
     request.paymentAmount
@@ -659,6 +663,7 @@ export default function SellerServiceRequestPage() {
                     <div>
                       <strong>{request.productName || 'Custom casket service'}</strong>
                       <small>{request.variationName || titleCase(request.requestType)}</small>
+                      {request.packageItems?.length ? <small>Packages: {request.packageItems.join(', ')}</small> : null}
                       <b>{formatPeso(request.productPrice)}</b>
                     </div>
                   </div>
@@ -703,6 +708,8 @@ export default function SellerServiceRequestPage() {
                 </div>
                 <DetailList>
                   <DetailRow label="Wake venue" value={request.wakeAddress || 'Not provided'} />
+                  <DetailRow label="Church / chapel" value={request.churchName || 'Not provided'} />
+                  <DetailRow label="Cemetery" value={request.cemeteryName || 'Not provided'} />
                   <DetailRow
                     label="Wake schedule"
                     value={request.wakeStartDate || request.wakeEndDate

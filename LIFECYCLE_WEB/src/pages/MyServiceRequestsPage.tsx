@@ -18,6 +18,7 @@ type ServiceRequest = {
   productImageUrl?: string | null
   productPrice?: number | string | null
   variationName?: string | null
+  packageItems?: string[] | null
   requestType?: string
   customDesignNotes?: string | null
   referencePhotoUrl?: string | null
@@ -27,6 +28,8 @@ type ServiceRequest = {
   deceasedDateOfPassing?: string | null
   deceasedAge?: number | null
   wakeAddress?: string | null
+  churchName?: string | null
+  cemeteryName?: string | null
   wakeStartDate?: string | null
   wakeEndDate?: string | null
   burialTime?: string | null
@@ -932,6 +935,7 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                       <div>
                         <strong>{detail.productName || 'Custom casket service'}</strong>
                         <small>{detail.variationName || 'Standard option'}</small>
+                        {detail.packageItems?.length ? <small>Packages: {detail.packageItems.join(', ')}</small> : null}
                         <b>{amount}</b>
                       </div>
                     </div>
@@ -980,6 +984,8 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                     <summary>Schedule and locations</summary>
                     <div className="requests-detail-grid">
                       <div><span>Wake venue</span><strong>{detail.wakeAddress || 'Not provided'}</strong></div>
+                      <div><span>Church / chapel</span><strong>{detail.churchName || 'Not provided'}</strong></div>
+                      <div><span>Cemetery</span><strong>{detail.cemeteryName || 'Not provided'}</strong></div>
                       <div><span>Pickup address</span><strong>{detail.pickupAddress || 'Not provided'}</strong></div>
                       <div><span>Wake start</span><strong>{formatScheduleDate(detail.wakeStartDate)}</strong></div>
                       <div><span>Wake end</span><strong>{formatScheduleDate(detail.wakeEndDate)}</strong></div>

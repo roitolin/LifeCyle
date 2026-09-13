@@ -86,7 +86,7 @@ type ChatProfile = {
   isShop: boolean;
 };
 
-const APP_LOGO = require("../../../assets/Icon/AppICONTransparents.png");
+const APP_LOGO = require("../../../assets/Icon/IconTraparent.png");
 const MESSAGE_LIMIT = 200;
 const ADMIN_ROLES = new Set(["admin", "super_admin", "funeral_admin"]);
 const MESSAGE_COLUMNS = "id, conversationId, senderId, text, timestamp, readBy";
@@ -1619,14 +1619,14 @@ export default function ChatScreen({ route, navigation }: any) {
         onRequestClose={closeMessageActions}
       >
         <View style={styles.messageActionOverlay} accessibilityViewIsModal>
-          <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { opacity: backdropOpacity }]}>
+          <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: backdropOpacity }]}>
             {messageBackdropUri ? (
               <Image
                 source={{ uri: messageBackdropUri }}
                 resizeMode="cover"
                 blurRadius={30}
                 fadeDuration={0}
-                style={StyleSheet.absoluteFillObject}
+                style={StyleSheet.absoluteFill}
               />
             ) : (
               <View style={styles.messageActionFallback} />
@@ -1635,7 +1635,7 @@ export default function ChatScreen({ route, navigation }: any) {
           </Animated.View>
           <Pressable
             accessibilityLabel="Close message actions"
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
             onPress={closeMessageActions}
           />
 
@@ -1844,8 +1844,8 @@ const styles = StyleSheet.create({
   sendButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#29483e", alignItems: "center", justifyContent: "center", marginBottom: 1 },
   sendButtonDisabled: { backgroundColor: "#c8ceca" },
   messageActionOverlay: { flex: 1 },
-  messageActionFallback: { ...StyleSheet.absoluteFillObject, backgroundColor: "#25262c" },
-  messageActionScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(8,9,16,0.48)" },
+  messageActionFallback: { ...StyleSheet.absoluteFill, backgroundColor: "#25262c" },
+  messageActionScrim: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(8,9,16,0.48)" },
   reactionBar: { position: "absolute", height: 58, flexDirection: "row", alignItems: "center", justifyContent: "space-around", backgroundColor: "rgba(39,39,42,0.96)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.1)", borderRadius: 29, paddingHorizontal: 7, shadowColor: "#000000", shadowOpacity: 0.34, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 12 },
   reactionButton: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   reactionButtonActive: { backgroundColor: "rgba(255,255,255,0.14)", borderWidth: 1, borderColor: "rgba(255,255,255,0.18)", transform: [{ scale: 1.1 }] },

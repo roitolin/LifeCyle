@@ -51,6 +51,7 @@ type ServiceRequest = {
   productPrice?: string
   productImageUrl?: string | null
   variationName?: string | null
+  packageItems?: string[] | null
   requestType?: string
   customDesignNotes?: string | null
   deceasedFullName: string
@@ -76,6 +77,8 @@ type ServiceRequest = {
   requesterName?: string | null
   familyCoordinatorName?: string | null
   wakeAddress?: string | null
+  churchName?: string | null
+  cemeteryName?: string | null
   wakeStartDate?: string | null
   wakeEndDate?: string | null
   burialTime?: string | null
@@ -3183,7 +3186,10 @@ export default function SellerCentrePage() {
         const showPayment = ['awaiting_payment', 'payment_submitted', 'payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(status) && (
           r.paymentAmount != null || r.paymentPayerName || r.paymentGcashName || r.paymentGcashNumber || r.paymentReferenceNumber || r.paymentProofImageUrl || r.paymentSubmittedAt
         )
-        const hasSchedule = Boolean(r.wakeAddress || r.wakeStartDate || r.wakeEndDate || r.burialTime || r.pickupAddress)
+        const hasSchedule = Boolean(
+          r.wakeAddress || r.churchName || r.cemeteryName
+          || r.wakeStartDate || r.wakeEndDate || r.burialTime || r.pickupAddress
+        )
         const timelineItems = [
           { label: 'Request created', value: r.createdAt },
           { label: 'Shop responded', value: r.shopRespondedAt },
@@ -3229,6 +3235,7 @@ export default function SellerCentrePage() {
                     <span className="sc-request-product-label">{requestTypeLabel}</span>
                     <h4>{r.productName || 'Custom Casket'}</h4>
                     {r.variationName && <div className="sc-request-variation">Variation: {r.variationName}</div>}
+                    {r.packageItems?.length ? <div className="sc-request-variation">Packages: {r.packageItems.join(', ')}</div> : null}
                     <div className="sc-product-detail-price">{formatPeso(r.productPrice)}</div>
                   </div>
                 </div>
@@ -3279,6 +3286,8 @@ export default function SellerCentrePage() {
                       </div>
                       <dl className="sc-request-data-list sc-request-data-columns">
                         {r.wakeAddress && <div><dt>Wake venue</dt><dd>{r.wakeAddress}</dd></div>}
+                        {r.churchName && <div><dt>Church / chapel</dt><dd>{r.churchName}</dd></div>}
+                        {r.cemeteryName && <div><dt>Cemetery</dt><dd>{r.cemeteryName}</dd></div>}
                         {(r.wakeStartDate || r.wakeEndDate) && <div><dt>Wake schedule</dt><dd>{formatScheduleDate(r.wakeStartDate)} to {formatScheduleDate(r.wakeEndDate)}</dd></div>}
                         {r.burialTime && <div><dt>Burial time</dt><dd>{formatScheduleTime(r.burialTime)}</dd></div>}
                         {r.pickupAddress && <div><dt>Pickup address</dt><dd>{r.pickupAddress}</dd></div>}

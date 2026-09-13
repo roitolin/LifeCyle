@@ -3,12 +3,12 @@ const notificationMode =
 
 module.exports = {
   expo: {
-    backgroundColor: '#17382f',
+    backgroundColor: '#d7d8d5',
     name: "LifeCycle",
     slug: "lifecycle",
     version: "1.0.0",
     orientation: "portrait",
-    icon: "./assets/Icon/AppICONs.png",
+    icon: "./assets/Icon/Icon.png",
     scheme: "lifecycle",
     userInterfaceStyle: "automatic",
     ios: {
@@ -16,31 +16,42 @@ module.exports = {
       bundleIdentifier: "com.Roi.lifecycle",
     },
     android: {
-      backgroundColor: '#17382f',
+      backgroundColor: '#d7d8d5',
       package: "com.Roi.lifecycle",
       googleServicesFile: "./google-services.json",
       softwareKeyboardLayoutMode: "resize",
       adaptiveIcon: {
-        foregroundImage: "./assets/Icon/AppICONTransparents.png",
+        foregroundImage: "./assets/Icon/IconTraparent.png",
         backgroundColor: "#607286",
       },
       permissions: [],
     },
-    androidNavigationBar: {
-      backgroundColor: '#f8f6f2',
-      barStyle: 'dark-content',
-      enforceContrast: false,
-    },
     plugins: [
+      [
+        'expo-navigation-bar',
+        {
+          style: 'dark',
+          hidden: false,
+          enforceContrast: false,
+        }
+      ],
       'expo-secure-store',
       "@react-native-community/datetimepicker",
+      "expo-asset",
       "expo-audio",
       "expo-font",
       "expo-sharing",
       [
+        "expo-status-bar",
+        {
+          "style": "dark",
+          "hidden": false,
+        }
+      ],
+      [
         "expo-splash-screen",
         {
-          image: "./assets/Icon/AppICONTransparents.png",
+          image: "./assets/Icon/IconTraparent.png",
           imageWidth: 188,
           resizeMode: "contain",
           backgroundColor: "#17382f",
@@ -49,7 +60,7 @@ module.exports = {
       [
         "expo-notifications",
         {
-          icon: "./assets/Icon/AppICONTransparents.png",
+          icon: "./assets/Icon/IconTraparent.png",
           color: "#17382f",
           defaultChannel: "lifecycle-alerts",
           mode: notificationMode,

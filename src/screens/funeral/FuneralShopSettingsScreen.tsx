@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
   rowDescription: { color: "#8a928d", fontSize: 10, lineHeight: 14, marginTop: 2 },
   rowValue: { maxWidth: 94, color: "#60706a", fontSize: 10, fontWeight: "800", textAlign: "right" },
   modalOverlay: { flex: 1, backgroundColor: "rgba(21, 30, 27, 0.48)", justifyContent: "flex-end" },
-  modalBackdrop: { ...StyleSheet.absoluteFillObject },
+  modalBackdrop: { ...StyleSheet.absoluteFill },
   modalCard: {
     maxHeight: "90%", borderTopLeftRadius: 28, borderTopRightRadius: 28, backgroundColor: "#f8f7f3", overflow: "hidden",
   },

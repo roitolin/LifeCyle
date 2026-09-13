@@ -1,21 +1,27 @@
-import { useCallback, useMemo, useState, type ComponentProps } from "react";
+import { useCallback, useEffect, useMemo, useState, type ComponentProps } from "react";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import LoadingBird from '@/components/LoadingBird';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  Easing,
   Image,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import { AppBackButton, AdminPaymentModal, KeyboardAwareScrollView, SimpleBarChart } from "@/components";
+import { LineChart, PieChart, type lineDataItem } from "react-native-gifted-charts";
+import { AppBackButton, AdminPaymentModal, KeyboardAwareScrollView } from "@/components";
 import { supabase } from "@/services/supabaseClient";
 import * as ImagePicker from "expo-image-picker";
 import { auth, uploadCertificate } from "@/services";
@@ -123,6 +129,179 @@ type ProductCardProps = {
   onDelete: () => void;
   onToggle: () => void;
 };
+
+type ShopTool = {
+  key: string;
+  label: string;
+  description: string;
+  icon: IoniconName;
+  badge: number;
+  urgent: boolean;
+  onPress: () => void;
+};
+
+type AnalyticsChartDatum = {
+  label: string;
+  value: number;
+};
+
+type PerformanceChartMetric = "revenue" | "cases";
+
+type AnalyticsAreaChartProps = {
+  data: AnalyticsChartDatum[];
+  width: number;
+  color: string;
+  fillColor: string;
+  accessibilityTitle: string;
+  formatValue?: (value: number) => string;
+};
+
+function AnalyticsAreaChart({
+  data,
+  width,
+  color,
+  fillColor,
+  accessibilityTitle,
+  formatValue = (value) => String(Math.round(value)),
+}: AnalyticsAreaChartProps) {
+  const chartData = useMemo<lineDataItem[]>(
+    () => data.map((item) => ({ label: item.label, value: item.value })),
+    [data]
+  );
+  const chartMax = useMemo(() => {
+    const highestValue = Math.max(1, ...data.map((item) => item.value));
+    if (highestValue <= 4) return 4;
+    const roughStep = highestValue / 4;
+    const magnitude = 10 ** Math.floor(Math.log10(roughStep));
+    return Math.ceil(roughStep / magnitude) * magnitude * 4;
+  }, [data]);
+  const accessibilitySummary = data
+    .map((item) => `${item.label} ${formatValue(item.value)}`)
+    .join(", ");
+
+  return (
+    <View
+      accessible
+      accessibilityRole="image"
+      accessibilityLabel={`${accessibilityTitle}. ${accessibilitySummary}`}
+      style={styles.giftedChartCanvas}
+    >
+      <LineChart
+        data={chartData}
+        width={width}
+        height={156}
+        maxValue={chartMax}
+        noOfSections={4}
+        adjustToWidth
+        disableScroll
+        areaChart
+        curved
+        curvature={0.2}
+        isAnimated
+        animateOnDataChange
+        animationDuration={650}
+        onDataChangeAnimationDuration={500}
+        color={color}
+        thickness={3}
+        dataPointsColor={color}
+        dataPointsRadius={3}
+        startFillColor={fillColor}
+        endFillColor="#ffffff"
+        startOpacity={0.28}
+        endOpacity={0.02}
+        yAxisThickness={0}
+        yAxisLabelWidth={44}
+        yAxisTextStyle={styles.chartAxisText}
+        formatYLabel={(label) => formatValue(Number(label))}
+        xAxisThickness={1}
+        xAxisColor="#dfe5e1"
+        xAxisLabelTextStyle={styles.chartAxisText}
+        rulesColor="#e4e9e6"
+        rulesType="dashed"
+        dashWidth={4}
+        dashGap={5}
+        initialSpacing={12}
+        endSpacing={12}
+        pointerConfig={{
+          pointerColor: color,
+          pointerStripColor: "#aab5b0",
+          pointerStripWidth: 1,
+          pointerStripUptoDataPoint: true,
+          radius: 5,
+          activatePointersOnLongPress: true,
+          activatePointersDelay: 120,
+          pointerVanishDelay: 1200,
+          pointerLabelWidth: 116,
+          pointerLabelHeight: 54,
+          autoAdjustPointerLabelPosition: true,
+          pointerLabelComponent: (items: lineDataItem[]) => {
+            const selectedPoint = items?.[0];
+            const selectedValue = Number(selectedPoint?.value || 0);
+            return (
+              <View style={styles.chartTooltip}>
+                <Text style={styles.chartTooltipLabel}>{selectedPoint?.label || "Month"}</Text>
+                <Text style={[styles.chartTooltipValue, { color }]}>{formatValue(selectedValue)}</Text>
+              </View>
+            );
+          },
+        }}
+      />
+    </View>
+  );
+}
+
+function AnalyticsDonutChart({
+  data,
+  radius,
+  total,
+  completionRate,
+}: {
+  data: { label: string; value: number; color: string }[];
+  radius: number;
+  total: number;
+  completionRate: number;
+}) {
+  const chartData = useMemo(
+    () => data.map((item) => ({
+      value: item.value,
+      color: item.color,
+      tooltipText: `${item.label}: ${item.value}`,
+    })),
+    [data]
+  );
+
+  return (
+    <View
+      accessible
+      accessibilityRole="image"
+      accessibilityLabel={`Case status. ${data.map((item) => `${item.label} ${item.value}`).join(", ")}`}
+      style={styles.giftedDonutCanvas}
+    >
+      <PieChart
+        data={chartData}
+        radius={radius}
+        donut
+        innerRadius={Math.round(radius * 0.66)}
+        innerCircleColor="#f5f7f4"
+        strokeWidth={3}
+        strokeColor="#f5f7f4"
+        showTooltip
+        focusOnPress
+        toggleFocusOnPress
+        extraRadius={3}
+        isAnimated
+        animationDuration={650}
+        centerLabelComponent={() => (
+          <View style={styles.donutCenterLabel}>
+            <Text style={styles.donutCenterValue}>{completionRate}%</Text>
+            <Text style={styles.donutCenterCaption}>completed</Text>
+            <Text style={styles.donutCenterDetail}>{total} cases</Text>
+          </View>
+        )}
+      />
+    </View>
+  );
+}
 
 function getProductState(item: ShopProduct): ProductTab {
   if (!item.active || (item.stock ?? 0) <= 0) return "soldout";
@@ -322,6 +501,15 @@ function DetailRow({ icon, label, value }: { icon: IoniconName; label: string; v
 }
 
 export default function FuneralShopCenterScreen({ navigation }: any) {
+  const { width: viewportWidth } = useWindowDimensions();
+  const usesSidebarMenu = Platform.OS !== "web" || viewportWidth < 768;
+  const analyticsChartWidth = Math.max(190, Math.min(viewportWidth - 88, 700));
+  const analyticsDonutRadius = viewportWidth < 360 ? 70 : 80;
+  const sidebarWidth = Math.min(Math.max(viewportWidth * 0.88, 280), 360);
+  const [sidebarTranslateX] = useState(() => new Animated.Value(sidebarWidth));
+  const [sidebarBackdropOpacity] = useState(() => new Animated.Value(0));
+  const [dashboardNow] = useState(() => Date.now());
+
   const [loading, setLoading] = useState(true);
   const [savingShop, setSavingShop] = useState(false);
   const [savingStatus, setSavingStatus] = useState(false);
@@ -352,8 +540,16 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
 
   const [productTab, setProductTab] = useState<ProductTab>("all");
   const [centerSection] = useState<CenterSection>("overview");
+  const [performanceChartMetric, setPerformanceChartMetric] = useState<PerformanceChartMetric>("revenue");
 
-  const [settingsVisible, setSettingsVisible] = useState(false);
+  // Revenue goal tracker
+  const GOAL_STORAGE_KEY = 'shop_monthly_revenue_goal';
+  const [goalAmount, setGoalAmount] = useState<number>(0);
+  const [goalModalVisible, setGoalModalVisible] = useState(false);
+  const [goalInput, setGoalInput] = useState('');
+  const [savingGoal, setSavingGoal] = useState(false);
+
+  const [sidebarVisible, setSidebarVisible] = useState(false);
   const [adminPaymentsVisible, setAdminPaymentsVisible] = useState(false);
   const [shopDetailsVisible, setShopDetailsVisible] = useState(false);
   const [shopDetailsEditable, setShopDetailsEditable] = useState(false);
@@ -506,10 +702,10 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
   const paymentVerified = payment?.status === "verified";
   const subscriptionEnd = shopInfo?.paidUntil || null;
   const subscriptionExpired = Boolean(
-    paymentVerified && subscriptionEnd && new Date(subscriptionEnd).getTime() <= Date.now()
+    paymentVerified && subscriptionEnd && new Date(subscriptionEnd).getTime() <= dashboardNow
   );
   const subscriptionActive = Boolean(
-    paymentVerified && subscriptionEnd && new Date(subscriptionEnd).getTime() > Date.now()
+    paymentVerified && subscriptionEnd && new Date(subscriptionEnd).getTime() > dashboardNow
   );
   const subscriptionDaysLeft = getDaysRemaining(subscriptionEnd);
   const paymentSubmissions = useMemo(
@@ -553,6 +749,145 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
   const shopContact = shopInfo?.shopPhoneNumber || "Add your contact number";
   const paymentDraftReady = Boolean(paymentQrDraftUrl && Number(paymentFeeInput) > 0);
 
+  // Computed: upcoming scheduled services (next 5, sorted by wake start)
+  const upcomingServices = useMemo(() => {
+    const terminal = new Set(["declined_by_shop", "cancelled", "cancelled_by_requester", "completed"]);
+    const now = dashboardNow;
+    return requests
+      .filter((r) => {
+        const status = String(r.status || "").toLowerCase();
+        if (terminal.has(status)) return false;
+        const wakeDate = r.wakeStartDate ? new Date(r.wakeStartDate).getTime() : null;
+        return Boolean(wakeDate && wakeDate >= now - 24 * 60 * 60 * 1000);
+      })
+      .sort((a, b) => {
+        const ta = a.wakeStartDate ? new Date(a.wakeStartDate).getTime() : 0;
+        const tb = b.wakeStartDate ? new Date(b.wakeStartDate).getTime() : 0;
+        return ta - tb;
+      })
+      .slice(0, 3);
+  }, [dashboardNow, requests]);
+
+  // Computed: recent activity feed (last 6 meaningful events)
+  const recentActivity = useMemo(() => {
+    type ActivityItem = { id: string; title: string; subtitle: string; time: Date; icon: IoniconName; tint: string };
+    const items: ActivityItem[] = [];
+    for (const r of requests) {
+      const status = String(r.status || "").toLowerCase();
+      const name = r.familyCoordinatorName || r.deceasedFullName || "A family";
+      const product = r.productName || "service";
+      if (status === "pending_shop_acceptance" && r.createdAt) {
+        items.push({ id: `${r.id}-req`, title: "New service request", subtitle: `${name} · ${product}`, time: new Date(r.createdAt), icon: "mail-outline", tint: "#d1a23e" });
+      } else if (status === "payment_submitted" && r.paymentSubmittedAt) {
+        items.push({ id: `${r.id}-pay`, title: "Payment submitted", subtitle: `${name} · ${product}`, time: new Date(r.paymentSubmittedAt), icon: "card-outline", tint: "#3e6f9e" });
+      } else if (status === "payment_verified" && r.paymentVerifiedAt) {
+        items.push({ id: `${r.id}-ver`, title: "Payment verified", subtitle: `${name} · ${product}`, time: new Date(r.paymentVerifiedAt), icon: "checkmark-circle-outline", tint: "#2f6b55" });
+      } else if (status === "completed" && r.completedAt) {
+        items.push({ id: `${r.id}-done`, title: "Service completed", subtitle: `${name} · ${product}`, time: new Date(r.completedAt), icon: "ribbon-outline", tint: "#22312d" });
+      } else if (status === "declined_by_shop" && r.declinedAt) {
+        items.push({ id: `${r.id}-dec`, title: "Request declined", subtitle: `${name} · ${product}`, time: new Date(r.declinedAt), icon: "close-circle-outline", tint: "#a84c48" });
+      }
+    }
+    return items.sort((a, b) => b.time.getTime() - a.time.getTime()).slice(0, 4);
+  }, [requests]);
+
+  // Computed: product health summary
+  const productHealth = useMemo(() => ({
+    total: products.length,
+    live: availableProducts.length,
+    lowStock: products.filter((p) => p.active && (p.stock ?? 0) > 0 && (p.stock ?? 0) <= 3).length,
+    unavailable: soldOutProducts.length,
+  }), [products, availableProducts, soldOutProducts]);
+
+  // Computed: today's revenue
+  const todayRevenue = useMemo(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    return requests
+      .filter((r) => {
+        const s = String(r.status || "").toLowerCase();
+        if (!["payment_verified", "completed"].includes(s)) return false;
+        const ts = r.paymentVerifiedAt || r.completedAt;
+        if (!ts) return false;
+        return new Date(ts).getTime() >= todayStart.getTime();
+      })
+      .reduce((sum, r) => sum + (Number(r.paymentAmount) || 0), 0);
+  }, [requests]);
+
+  // Monthly goal progress
+  const goalProgress = useMemo(() => {
+    if (!goalAmount || goalAmount <= 0 || !analytics) return null;
+    const pct = Math.min(100, Math.round((analytics.revenueThisMonth / goalAmount) * 100));
+    return { pct, current: analytics.revenueThisMonth, target: goalAmount };
+  }, [goalAmount, analytics]);
+  const revenueTrend = useMemo(() => {
+    if (!analytics || analytics.monthlyRevenue.length < 2) return { label: "No prior month", positive: true };
+    const current = analytics.monthlyRevenue.at(-1)?.value || 0;
+    const previous = analytics.monthlyRevenue.at(-2)?.value || 0;
+    if (previous === 0) {
+      return {
+        label: current > 0 ? "New revenue this month" : "No change from last month",
+        positive: true,
+      };
+    }
+    const change = Math.round(((current - previous) / previous) * 100);
+    return {
+      label: `${change >= 0 ? "+" : ""}${change}% from last month`,
+      positive: change >= 0,
+    };
+  }, [analytics]);
+
+  // Load stored revenue goal on mount
+  useEffect(() => {
+    AsyncStorage.getItem(GOAL_STORAGE_KEY).then((stored) => {
+      const parsed = Number(stored);
+      if (stored && Number.isFinite(parsed) && parsed > 0) {
+        setGoalAmount(parsed);
+      }
+    }).catch(() => {});
+  }, [GOAL_STORAGE_KEY]);
+
+  const openGoalModal = () => {
+    setGoalInput(goalAmount > 0 ? String(goalAmount) : '');
+    setGoalModalVisible(true);
+  };
+
+  const closeGoalModal = () => {
+    setGoalInput('');
+    setGoalModalVisible(false);
+  };
+
+  const saveGoal = async () => {
+    const parsed = Number(goalInput.trim().replace(/[^\d.]/g, ''));
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      Alert.alert('Invalid Amount', 'Enter a valid monthly revenue target.');
+      return;
+    }
+    setSavingGoal(true);
+    try {
+      await AsyncStorage.setItem(GOAL_STORAGE_KEY, String(parsed));
+      setGoalAmount(parsed);
+      setGoalModalVisible(false);
+    } catch {
+      Alert.alert('Error', 'Failed to save goal.');
+    } finally {
+      setSavingGoal(false);
+    }
+  };
+
+  const clearGoal = () => {
+    Alert.alert('Clear Goal?', 'The monthly revenue target will be removed.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Clear', style: 'destructive', onPress: async () => {
+          await AsyncStorage.removeItem(GOAL_STORAGE_KEY).catch(() => {});
+          setGoalAmount(0);
+          setGoalModalVisible(false);
+        },
+      },
+    ]);
+  };
+
   const handleBack = () => {
     if (typeof navigation?.canGoBack === "function" && navigation.canGoBack()) {
       navigation.goBack();
@@ -560,6 +895,56 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
     }
 
     navigation.navigate("ProfileMain");
+  };
+
+  const openShopSidebar = () => {
+    sidebarTranslateX.stopAnimation();
+    sidebarBackdropOpacity.stopAnimation();
+    sidebarTranslateX.setValue(sidebarWidth);
+    sidebarBackdropOpacity.setValue(0);
+    setSidebarVisible(true);
+    requestAnimationFrame(() => {
+      Animated.parallel([
+        Animated.timing(sidebarTranslateX, {
+          toValue: 0,
+          duration: 280,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(sidebarBackdropOpacity, {
+          toValue: 1,
+          duration: 240,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]).start();
+    });
+  };
+
+  const closeShopSidebar = (afterClose?: () => void) => {
+    sidebarTranslateX.stopAnimation();
+    sidebarBackdropOpacity.stopAnimation();
+    Animated.parallel([
+      Animated.timing(sidebarTranslateX, {
+        toValue: sidebarWidth,
+        duration: 240,
+        easing: Easing.inOut(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(sidebarBackdropOpacity, {
+        toValue: 0,
+        duration: 200,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setSidebarVisible(false);
+      afterClose?.();
+    });
+  };
+
+  const runFromShopSidebar = (action: () => void) => {
+    closeShopSidebar(action);
   };
 
   const resetShopDetailsDraft = () => {
@@ -589,7 +974,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
   };
 
   const returnToMarketplace = () => {
-    setSettingsVisible(false);
+    setSidebarVisible(false);
     const tabNavigator = navigation?.getParent?.();
 
     if (typeof tabNavigator?.navigate === "function") {
@@ -954,7 +1339,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
   };
 
   const openPaymentSettingsFromSettings = () => {
-    setSettingsVisible(false);
+    setSidebarVisible(false);
     resetPaymentSettingsDraft();
     setTimeout(() => setPaymentSettingsVisible(true), 180);
   };
@@ -1070,6 +1455,73 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
     ]);
   };
 
+  const shopTools: ShopTool[] = [
+    {
+      key: "products",
+      label: "Product catalog",
+      description: todoStats.soldOut > 0 ? `${todoStats.soldOut} unavailable listings` : `${sortedProducts.length} listings`,
+      icon: "cube-outline",
+      badge: todoStats.soldOut,
+      urgent: todoStats.soldOut > 0,
+      onPress: () => openVerifiedScreen("ShopCatalog", "the product catalog"),
+    },
+    {
+      key: "requests",
+      label: "Arrangement cases",
+      description: isVerified
+        ? todoStats.requestsToReview > 0
+          ? `${todoStats.requestsToReview} waiting for review`
+          : "Open the full inbox"
+        : "Available after approval",
+      icon: isVerified ? "mail-open-outline" : "lock-closed-outline",
+      badge: todoStats.requestsToReview,
+      urgent: todoStats.requestsToReview > 0,
+      onPress: () => openVerifiedScreen("ServiceRequestsInbox", "arrangement cases"),
+    },
+    {
+      key: "customers",
+      label: "Customers",
+      description: isVerified ? "Family contacts and case history" : "Available after approval",
+      icon: isVerified ? "people-outline" : "lock-closed-outline",
+      badge: 0,
+      urgent: false,
+      onPress: () => openVerifiedScreen("ShopCustomers", "customers"),
+    },
+    {
+      key: "payments",
+      label: "Family payments",
+      description: todoStats.paymentsToVerify > 0
+        ? `${todoStats.paymentsToVerify} receipts to verify`
+        : "Review payment history",
+      icon: isVerified ? "wallet-outline" : "lock-closed-outline",
+      badge: todoStats.paymentsToVerify,
+      urgent: todoStats.paymentsToVerify > 0,
+      onPress: () => openVerifiedScreen("ShopPayments", "family payments"),
+    },
+    {
+      key: "schedule",
+      label: "Service schedule",
+      description: isVerified
+        ? scheduledRequestCount > 0
+          ? `${scheduledRequestCount} services planned`
+          : "Plan services and events"
+        : "Available after approval",
+      icon: isVerified ? "calendar-clear-outline" : "lock-closed-outline",
+      badge: 0,
+      urgent: false,
+      onPress: () => openVerifiedScreen("ServiceSchedule", "the service schedule"),
+    },
+    {
+      key: "reports",
+      label: "Reports",
+      description: isVerified ? "Sales, cases, and inventory health" : "Available after approval",
+      icon: isVerified ? "bar-chart-outline" : "lock-closed-outline",
+      badge: 0,
+      urgent: false,
+      onPress: () => openVerifiedScreen("ShopReports", "shop reports"),
+    },
+  ];
+
   if (loading) {
     return (
       <SafeAreaView style={styles.screen}>
@@ -1087,8 +1539,6 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
               <Image source={{ uri: coverImageUrl || shopImageUrl || "" }} style={styles.heroImage} resizeMode="cover" />
             ) : null}
             <View style={styles.heroOverlay} />
-            <View style={styles.heroGlowTop} />
-            <View style={styles.heroGlowBottom} />
 
             <View style={styles.topBar}>
               <AppBackButton onPress={handleBack} />
@@ -1100,12 +1550,12 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
 
               <TouchableOpacity
                 accessibilityRole="button"
-                accessibilityLabel="Open shop settings"
+                accessibilityLabel={usesSidebarMenu ? "Open shop menu" : "Open shop settings"}
                 activeOpacity={0.85}
                 style={styles.settingsButton}
-                onPress={() => navigation.navigate("ShopSettings")}
+                onPress={usesSidebarMenu ? openShopSidebar : () => navigation.navigate("ShopSettings")}
               >
-                <Ionicons name="settings-outline" size={21} color="#22312d" />
+                <Ionicons name={usesSidebarMenu ? "menu-outline" : "settings-outline"} size={23} color="#22312d" />
               </TouchableOpacity>
              </View>
 
@@ -1140,7 +1590,108 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
              </View>
           </View>
 
-          <View style={styles.shopToolsSection}>
+          {/* ── QUICK STATS STRIP ── */}
+          {isVerified ? (
+            <View style={styles.quickStatsStrip}>
+              <View style={styles.quickStatsHeader}>
+                <View style={styles.dashboardHeaderIcon}>
+                  <Ionicons name="speedometer-outline" size={18} color="#3e7260" />
+                </View>
+                <View style={styles.sectionHeadingBlock}>
+                  <Text style={styles.quickStatsTitle}>Shop snapshot</Text>
+                  <Text style={styles.quickStatsSubtitle}>The numbers that matter right now</Text>
+                </View>
+              </View>
+              <View style={styles.quickStatsGrid}>
+                <View style={[styles.quickStatCell, styles.quickStatCellRightBorder, styles.quickStatCellBottomBorder]}>
+                  <Text style={styles.quickStatValue} numberOfLines={1}>
+                    {analytics ? formatCompactPeso(todayRevenue) : '\u2014'}
+                  </Text>
+                  <Text style={styles.quickStatLabel}>{"Today's revenue"}</Text>
+                </View>
+                <View style={[styles.quickStatCell, styles.quickStatCellBottomBorder]}>
+                  <Text style={styles.quickStatValue}>{analytics?.activeRequests ?? '\u2014'}</Text>
+                  <Text style={styles.quickStatLabel}>Active cases</Text>
+                </View>
+                <View style={[styles.quickStatCell, styles.quickStatCellRightBorder]}>
+                  <Text style={[styles.quickStatValue, attentionTotal > 0 ? styles.quickStatValueUrgent : null]}>
+                    {attentionTotal}
+                  </Text>
+                  <Text style={styles.quickStatLabel}>Need attention</Text>
+                </View>
+                <View style={styles.quickStatCell}>
+                  <Text style={styles.quickStatValue}>{products.length}</Text>
+                  <Text style={styles.quickStatLabel}>Products</Text>
+                </View>
+              </View>
+            </View>
+          ) : null}
+
+          {/* ── SUBSCRIPTION EXPIRY ALERT ── */}
+          {isVerified && subscriptionActive && subscriptionDaysLeft <= 7 ? (
+            <View style={styles.expiryAlert}>
+              <View style={styles.expiryAlertIcon}>
+                <Ionicons name="alert-circle-outline" size={18} color="#8f2525" />
+              </View>
+              <View style={styles.expiryAlertCopy}>
+                <Text style={styles.expiryAlertTitle}>
+                  Subscription expires in {subscriptionDaysLeft} day{subscriptionDaysLeft === 1 ? '' : 's'}
+                </Text>
+                <Text style={styles.expiryAlertText}>
+                  Renew before {formatSubscriptionDate(subscriptionEnd)} to keep your shop visible.
+                </Text>
+              </View>
+            </View>
+          ) : null}
+
+          {/* ── VERIFICATION PROGRESS STEPPER ── */}
+          {!isVerified ? (
+            <View style={styles.stepperCard}>
+              <Text style={styles.stepperTitle}>Shop registration steps</Text>
+              <Text style={styles.stepperSubtitle}>
+                Complete these steps to start receiving service requests.
+              </Text>
+              {(() => {
+                const s = shopStatus as string;
+                const steps = [
+                  {
+                    label: 'Submit shop profile',
+                    done: s !== 'none',
+                    desc: 'Fill in storefront and business details',
+                  },
+                  {
+                    label: 'Admin review',
+                    done: s === 'verified' || s === 'live' || s === 'offline',
+                    desc: 'Wait for admin verification (1\u20132 business days)',
+                  },
+                  {
+                    label: 'Go live',
+                    done: s === 'live',
+                    desc: 'Your storefront is visible to families',
+                  },
+                ];
+                return steps.map((step, i) => (
+                <View key={i} style={styles.stepRow}>
+                  <View style={[styles.stepCircle, step.done ? styles.stepCircleDone : null]}>
+                    {step.done ? (
+                      <Ionicons name="checkmark" size={12} color="#ffffff" />
+                    ) : (
+                      <Text style={styles.stepNumber}>{i + 1}</Text>
+                    )}
+                  </View>
+                  <View style={styles.stepCopy}>
+                    <Text style={[styles.stepLabel, step.done ? styles.stepLabelDone : null]}>
+                      {step.label}
+                    </Text>
+                    <Text style={styles.stepDesc}>{step.desc}</Text>
+                  </View>
+                </View>
+                ));
+              })()}
+            </View>
+          ) : null}
+
+          {!usesSidebarMenu ? <View style={styles.shopToolsSection}>
             <View style={styles.shopToolsHeader}>
               <View style={styles.sectionHeadingBlock}>
                 <Text style={styles.shopToolsTitle}>Manage your shop</Text>
@@ -1154,80 +1705,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
             </View>
 
             <View style={styles.shopToolsGrid}>
-              {([
-                {
-                  key: "products",
-                  label: "Product catalog",
-                  description:
-                    todoStats.soldOut > 0 ? `${todoStats.soldOut} unavailable listings` : `${sortedProducts.length} listings`,
-                  icon: "cube-outline",
-                  badge: todoStats.soldOut,
-                  urgent: todoStats.soldOut > 0,
-                  onPress: () => openVerifiedScreen("ShopCatalog", "the product catalog"),
-                },
-                {
-                  key: "requests",
-                  label: "Arrangement cases",
-                  description: isVerified
-                    ? todoStats.requestsToReview > 0
-                      ? `${todoStats.requestsToReview} waiting for review`
-                      : "Open the full inbox"
-                    : "Available after approval",
-                  icon: isVerified ? "mail-open-outline" : "lock-closed-outline",
-                  badge: todoStats.requestsToReview,
-                  urgent: todoStats.requestsToReview > 0,
-                  onPress: () => openVerifiedScreen("ServiceRequestsInbox", "arrangement cases"),
-                },
-                {
-                  key: "customers",
-                  label: "Customers",
-                  description: isVerified ? "Family contacts and case history" : "Available after approval",
-                  icon: isVerified ? "people-outline" : "lock-closed-outline",
-                  badge: 0,
-                  urgent: false,
-                  onPress: () => openVerifiedScreen("ShopCustomers", "customers"),
-                },
-                {
-                  key: "payments",
-                  label: "Family payments",
-                  description:
-                    todoStats.paymentsToVerify > 0 ? `${todoStats.paymentsToVerify} receipts to verify` : "Review payment history",
-                  icon: isVerified ? "wallet-outline" : "lock-closed-outline",
-                  badge: todoStats.paymentsToVerify,
-                  urgent: todoStats.paymentsToVerify > 0,
-                  onPress: () => openVerifiedScreen("ShopPayments", "family payments"),
-                },
-                {
-                  key: "schedule",
-                  label: "Service schedule",
-                  description: isVerified
-                    ? scheduledRequestCount > 0
-                      ? `${scheduledRequestCount} services planned`
-                      : "Plan services and events"
-                    : "Available after approval",
-                  icon: isVerified ? "calendar-clear-outline" : "lock-closed-outline",
-                  badge: 0,
-                  urgent: false,
-                  onPress: () => openVerifiedScreen("ServiceSchedule", "the service schedule"),
-                },
-                {
-                  key: "reports",
-                  label: "Reports",
-                  description: isVerified ? "Sales, cases, and inventory health" : "Available after approval",
-                  icon: isVerified ? "bar-chart-outline" : "lock-closed-outline",
-                  badge: 0,
-                  urgent: false,
-                  onPress: () => openVerifiedScreen("ShopReports", "shop reports"),
-                },
-              ] as {
-                key: string;
-                label: string;
-                description: string;
-                icon: IoniconName;
-                badge: number;
-                urgent: boolean;
-                onPress: () => void;
-              }[]).map((entry, index) => (
+              {shopTools.map((entry, index) => (
                 <View key={entry.key} style={styles.shopToolGroupEntry}>
                   {index === 0 || index === 1 ? (
                     <View style={styles.shopToolGroupHeader}>
@@ -1269,20 +1747,31 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
                 </View>
               ))}
             </View>
-          </View>
+          </View> : null}
 
           <View>
+          {centerSection === "overview" && isVerified ? (
+            <View style={styles.dashboardGroupHeader}>
+              <Text style={styles.dashboardGroupEyebrow}>OPERATIONS</Text>
+              <Text style={styles.dashboardGroupTitle}>Keep the shop moving</Text>
+              <Text style={styles.dashboardGroupSubtitle}>Review priorities, inventory, services, and recent updates.</Text>
+            </View>
+          ) : null}
+
           {centerSection === "overview" && attentionTotal > 0 ? (
-            <View style={styles.sectionCard}>
-              <View style={styles.attentionHeader}>
-                <View style={styles.attentionHeaderIcon}>
-                  <Ionicons name={attentionTotal > 0 ? "sparkles-outline" : "checkmark-circle-outline"} size={20} color="#ffffff" />
+            <View style={styles.actionSection}>
+              <View style={styles.actionSectionHeader}>
+                <View style={styles.dashboardHeaderLead}>
+                  <View style={[styles.dashboardHeaderIcon, styles.dashboardHeaderIconUrgent]}>
+                    <Ionicons name="alert-circle-outline" size={18} color="#8b3d2f" />
+                  </View>
+                  <View style={styles.sectionHeadingBlock}>
+                    <Text style={styles.sectionTitle}>Action required</Text>
+                    <Text style={styles.sectionSubtitle}>Items waiting for a shop decision or update</Text>
+                  </View>
                 </View>
-                <View style={styles.sectionHeadingBlock}>
-                  <Text style={styles.sectionTitle}>Needs your attention</Text>
-                  <Text style={styles.sectionSubtitle}>
-                    Start with these items. They are sorted by the action your shop needs to take.
-                  </Text>
+                <View style={styles.attentionCountBadge}>
+                  <Text style={styles.attentionCountBadgeText}>{attentionTotal}</Text>
                 </View>
               </View>
 
@@ -1342,84 +1831,332 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
             </View>
           ) : null}
 
-          {centerSection === "overview" && analytics ? (
-            <View style={styles.sectionCard}>
-              <View style={styles.sectionHeader}>
-                <View style={styles.sectionHeadingBlock}>
-                  <Text style={styles.sectionTitle}>Sales Analytics</Text>
-                  <Text style={styles.sectionSubtitle}>Last 6 months</Text>
+          {/* Product health summary */}
+          {isVerified && productHealth.total > 0 ? (
+            <View style={styles.productHealthCard}>
+              <View style={styles.productHealthHeader}>
+                <View style={styles.dashboardHeaderIcon}>
+                  <Ionicons name="cube-outline" size={18} color="#3e7260" />
+                </View>
+                <Text style={styles.productHealthTitle}>Product health</Text>
+                <TouchableOpacity
+                  onPress={() => openVerifiedScreen('ShopCatalog', 'catalog')}
+                  style={styles.productHealthLink}
+                >
+                  <Text style={styles.productHealthLinkText}>View all</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.productHealthRow}>
+                <View style={styles.productHealthStat}>
+                  <Text style={styles.productHealthStatValue}>{productHealth.total}</Text>
+                  <Text style={styles.productHealthStatLabel}>Total</Text>
+                </View>
+                <View style={styles.productHealthDivider} />
+                <View style={styles.productHealthStat}>
+                  <Text style={[styles.productHealthStatValue, { color: '#2f6b55' }]}>{productHealth.live}</Text>
+                  <Text style={styles.productHealthStatLabel}>Live</Text>
+                </View>
+                <View style={styles.productHealthDivider} />
+                <View style={styles.productHealthStat}>
+                  <Text style={[styles.productHealthStatValue, productHealth.lowStock > 0 ? { color: '#c17f1a' } : null]}>
+                    {productHealth.lowStock}
+                  </Text>
+                  <Text style={styles.productHealthStatLabel}>Low stock</Text>
+                </View>
+                <View style={styles.productHealthDivider} />
+                <View style={styles.productHealthStat}>
+                  <Text style={[styles.productHealthStatValue, productHealth.unavailable > 0 ? { color: '#a84c48' } : null]}>
+                    {productHealth.unavailable}
+                  </Text>
+                  <Text style={styles.productHealthStatLabel}>Unavailable</Text>
+                </View>
+              </View>
+            </View>
+          ) : null}
+
+          {/* Upcoming services */}
+          {isVerified && upcomingServices.length > 0 ? (
+            <View style={styles.upcomingSection}>
+              <View style={styles.upcomingSectionHeader}>
+                <View style={styles.dashboardCompactHeading}>
+                  <View style={styles.dashboardHeaderIcon}>
+                    <Ionicons name="calendar-clear-outline" size={18} color="#3e7260" />
                   </View>
-                <TouchableOpacity style={styles.refreshButton} onPress={() => void loadData()}>
+                  <Text style={styles.upcomingSectionTitle}>Upcoming services</Text>
+                </View>
+                <TouchableOpacity onPress={() => openVerifiedScreen('ServiceSchedule', 'schedule')}>
+                  <Text style={styles.upcomingSeeAll}>View schedule</Text>
+                </TouchableOpacity>
+              </View>
+              {upcomingServices.map((svc) => {
+                const wakeDate = svc.wakeStartDate ? new Date(svc.wakeStartDate) : null;
+                const isToday = Boolean(wakeDate && wakeDate.toDateString() === new Date().toDateString());
+                const dateLabel = wakeDate
+                  ? (isToday ? 'Today' : wakeDate.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }))
+                  : 'Date TBD';
+                return (
+                  <TouchableOpacity
+                    key={svc.id}
+                    style={styles.upcomingRow}
+                    onPress={() => openVerifiedScreen('ServiceRequestsInbox', 'inbox')}
+                    activeOpacity={0.82}
+                  >
+                    <View style={[styles.upcomingDateBadge, isToday ? styles.upcomingDateBadgeToday : null]}>
+                      <Text style={[styles.upcomingDateText, isToday ? styles.upcomingDateTextToday : null]}>
+                        {dateLabel}
+                      </Text>
+                    </View>
+                    <View style={styles.upcomingRowCopy}>
+                      <Text style={styles.upcomingRowTitle} numberOfLines={1}>
+                        {svc.deceasedFullName || svc.familyCoordinatorName || 'Service request'}
+                      </Text>
+                      <Text style={styles.upcomingRowSub} numberOfLines={1}>{svc.productName}</Text>
+                    </View>
+                    <View style={styles.upcomingStatusPill}>
+                      <Text style={styles.upcomingStatusText}>{getRequestStatusLabel(svc.status)}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={15} color="#929c97" />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ) : null}
+
+          {/* Recent activity feed */}
+          {isVerified && recentActivity.length > 0 ? (
+            <View style={styles.activitySection}>
+              <View style={styles.activityHeader}>
+                <View style={styles.dashboardCompactHeading}>
+                  <View style={styles.dashboardHeaderIcon}>
+                    <Ionicons name="pulse-outline" size={18} color="#3e7260" />
+                  </View>
+                  <Text style={styles.activityTitle}>Recent activity</Text>
+                </View>
+                <TouchableOpacity onPress={() => openVerifiedScreen('ServiceRequestsInbox', 'inbox')}>
+                  <Text style={styles.activitySeeAll}>View inbox</Text>
+                </TouchableOpacity>
+              </View>
+              {recentActivity.map((item) => (
+                <View key={item.id} style={styles.activityRow}>
+                  <View style={[styles.activityIcon, { backgroundColor: item.tint + '20' }]}>
+                    <Ionicons name={item.icon} size={16} color={item.tint} />
+                  </View>
+                  <View style={styles.activityCopy}>
+                    <Text style={styles.activityRowTitle}>{item.title}</Text>
+                    <Text style={styles.activityRowSub} numberOfLines={1}>{item.subtitle}</Text>
+                  </View>
+                  <Text style={styles.activityTime}>
+                    {item.time.toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          {centerSection === "overview" && isVerified && analytics ? (
+            <View style={styles.dashboardGroupHeader}>
+              <Text style={styles.dashboardGroupEyebrow}>INSIGHTS</Text>
+              <Text style={styles.dashboardGroupTitle}>Track progress</Text>
+              <Text style={styles.dashboardGroupSubtitle}>Set a target and review the latest business results.</Text>
+            </View>
+          ) : null}
+
+          {/* Revenue goal tracker */}
+          {isVerified && analytics ? (
+            <TouchableOpacity style={styles.goalCard} activeOpacity={0.9} onPress={openGoalModal}>
+              <View style={styles.goalCardHeader}>
+                <View style={styles.goalCardTitleRow}>
+                  <View style={styles.dashboardHeaderIcon}>
+                    <Ionicons name="flag-outline" size={18} color="#3e7260" />
+                  </View>
+                  <Text style={styles.goalCardTitle}>Monthly revenue goal</Text>
+                </View>
+                <Ionicons name="create-outline" size={15} color="#8a948f" />
+              </View>
+              {goalProgress ? (
+                <>
+                  <View style={styles.goalTrackRow}>
+                    <Text style={styles.goalCurrentAmount}>
+                      {formatCompactPeso(goalProgress.current)}
+                    </Text>
+                    <Text style={styles.goalTargetAmount}> / {formatCompactPeso(goalProgress.target)}</Text>
+                    <View style={{ flex: 1 }} />
+                    <Text style={[styles.goalPct, goalProgress.pct >= 100 ? styles.goalPctReached : null]}>
+                      {goalProgress.pct}%
+                    </Text>
+                  </View>
+                  <View style={styles.goalBar}>
+                    <View
+                      style={[
+                        styles.goalBarFill,
+                        { width: `${goalProgress.pct}%` as any },
+                        goalProgress.pct >= 100 ? styles.goalBarFillReached : null,
+                      ]}
+                    />
+                  </View>
+                  {goalProgress.pct >= 100 ? (
+                    <Text style={styles.goalReachedText}>Goal reached this month!</Text>
+                  ) : (
+                    <Text style={styles.goalRemainingText}>
+                      {formatCompactPeso(goalProgress.target - goalProgress.current)} remaining
+                    </Text>
+                  )}
+                </>
+              ) : (
+                <Text style={styles.goalEmptyText}>Tap to set a monthly revenue target</Text>
+              )}
+            </TouchableOpacity>
+          ) : null}
+
+          {centerSection === "overview" && analytics ? (
+            <View style={styles.analyticsSection}>
+              <View style={styles.analyticsSectionHeader}>
+                <View style={styles.dashboardHeaderLead}>
+                  <View style={styles.dashboardHeaderIcon}>
+                    <Ionicons name="bar-chart-outline" size={18} color="#3e7260" />
+                  </View>
+                  <View style={styles.sectionHeadingBlock}>
+                    <Text style={styles.sectionTitle}>Business performance</Text>
+                    <Text style={styles.sectionSubtitle}>Rolling six-month results</Text>
+                  </View>
+                </View>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Refresh business performance" style={styles.refreshButton} onPress={() => void loadData()}>
                   <Ionicons name="refresh-outline" size={16} color="#22312d" />
                 </TouchableOpacity>
-                </View>
+              </View>
 
               <View style={styles.analyticsGrid}>
-                <View style={styles.analyticsItem}>
+                <View style={[styles.analyticsItem, styles.analyticsItemRightBorder, styles.analyticsItemBottomBorder]}>
                   <Text style={styles.analyticsValue}>{formatPhilippinePeso(analytics.totalRevenue)}</Text>
-                  <Text style={styles.analyticsLabel}>Total Revenue</Text>
+                  <Text style={styles.analyticsLabel}>Six-month revenue</Text>
+                  <Text style={styles.analyticsDetail}>{analytics.totalSales} paid cases</Text>
                 </View>
-                <View style={styles.analyticsItem}>
+                <View style={[styles.analyticsItem, styles.analyticsItemBottomBorder]}>
                   <Text style={styles.analyticsValue}>{formatPhilippinePeso(analytics.revenueThisMonth)}</Text>
-                  <Text style={styles.analyticsLabel}>This Month ({analytics.salesThisMonth})</Text>
+                  <Text style={styles.analyticsLabel}>This month</Text>
+                  <Text style={[styles.analyticsDetail, revenueTrend.positive ? styles.analyticsTrendPositive : styles.analyticsTrendNegative]}>{revenueTrend.label}</Text>
+                </View>
+                <View style={[styles.analyticsItem, styles.analyticsItemRightBorder]}>
+                  <Text style={styles.analyticsValue}>{analytics.totalRequests}</Text>
+                  <Text style={styles.analyticsLabel}>Cases received</Text>
+                  <Text style={styles.analyticsDetail}>{analytics.activeRequests} active</Text>
                 </View>
                 <View style={styles.analyticsItem}>
-                  <Text style={styles.analyticsValue}>{analytics.totalSales}</Text>
-                  <Text style={styles.analyticsLabel}>Confirmed Sales</Text>
-                </View>
-                <View style={styles.analyticsItem}>
-                  <Text style={styles.analyticsValue}>{formatPhilippinePeso(analytics.avgOrderValue)}</Text>
-                  <Text style={styles.analyticsLabel}>Avg. Order Value</Text>
+                  <Text style={styles.analyticsValue}>{analytics.completionRate}%</Text>
+                  <Text style={styles.analyticsLabel}>Completion rate</Text>
+                  <Text style={styles.analyticsDetail}>{analytics.completedRequests} completed</Text>
                 </View>
               </View>
 
               <View style={styles.analyticsChartBlock}>
-                <Text style={styles.analyticsChartTitle}>Revenue — Last 6 Months</Text>
-                <SimpleBarChart
-                  data={analytics.monthlyRevenue}
-                  formatValue={formatCompactPeso}
-                  showValues
-                  barColor="#0958d9"
-                  height={150}
-                />
-              </View>
-
-              <View style={styles.analyticsChartBlock}>
-                <Text style={styles.analyticsChartTitle}>Confirmed Sales — Last 6 Months</Text>
-                <SimpleBarChart
-                  data={analytics.monthlySales}
-                  showValues
-                  barColor="#166534"
-                  height={150}
-                />
-              </View>
-
-              {analytics.breakdown.length > 0 ? (
-                <View style={styles.analyticsChartBlock}>
-                  <Text style={styles.analyticsChartTitle}>Request Status</Text>
-                  {analytics.breakdown.map((item) => {
-                    const max = analytics.breakdown.reduce((m, b) => Math.max(m, b.value), 1);
-                    const ratio = item.value / max;
-                    return (
-                      <View key={item.label} style={styles.analyticsRow}>
-                        <Text style={styles.analyticsRowLabel}>{item.label}</Text>
-                        <View style={styles.analyticsTrack}>
-                          <View
-                            style={[
-                              styles.analyticsFill,
-                              {
-                                width: `${Math.max(2, Math.round(ratio * 100))}%`,
-                                backgroundColor: item.color,
-                              },
-                            ]}
-                          />
-                        </View>
-                        <Text style={styles.analyticsRowValue}>{item.value}</Text>
-                      </View>
-                    );
-                  })}
+                <View style={styles.chartHeadingRow}>
+                  <View style={styles.chartHeadingCopy}>
+                    <Text style={styles.analyticsChartTitle}>Six-month trend</Text>
+                    <Text style={styles.analyticsChartCaption}>
+                      {performanceChartMetric === "revenue"
+                        ? "Verified and completed payments"
+                        : "Arrangement requests received"}
+                    </Text>
+                  </View>
+                  <View style={styles.chartMetricSwitch}>
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: performanceChartMetric === "revenue" }}
+                      style={[styles.chartMetricButton, performanceChartMetric === "revenue" ? styles.chartMetricButtonActive : null]}
+                      onPress={() => setPerformanceChartMetric("revenue")}
+                    >
+                      <Text style={[styles.chartMetricButtonText, performanceChartMetric === "revenue" ? styles.chartMetricButtonTextActive : null]}>Revenue</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: performanceChartMetric === "cases" }}
+                      style={[styles.chartMetricButton, performanceChartMetric === "cases" ? styles.chartMetricButtonActive : null]}
+                      onPress={() => setPerformanceChartMetric("cases")}
+                    >
+                      <Text style={[styles.chartMetricButtonText, performanceChartMetric === "cases" ? styles.chartMetricButtonTextActive : null]}>Cases</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              ) : null}
+                <AnalyticsAreaChart
+                  data={performanceChartMetric === "revenue" ? analytics.monthlyRevenue : analytics.monthlyRequests}
+                  width={analyticsChartWidth}
+                  color={performanceChartMetric === "revenue" ? "#3f7161" : "#446c8a"}
+                  fillColor={performanceChartMetric === "revenue" ? "#87b9a7" : "#91b9d6"}
+                  accessibilityTitle={performanceChartMetric === "revenue"
+                    ? "Monthly revenue for the last six months"
+                    : "Monthly case volume for the last six months"}
+                  formatValue={performanceChartMetric === "revenue"
+                    ? formatCompactPeso
+                    : (value) => `${Math.round(value)} cases`}
+                />
+              </View>
+
+              <View style={styles.analyticsStatusBlock}>
+                <View style={styles.chartHeading}>
+                  <Text style={styles.analyticsChartTitle}>Case status</Text>
+                  <Text style={styles.analyticsChartCaption}>Current six-month case distribution</Text>
+                </View>
+                {analytics.breakdown.length > 0 ? (
+                  <View style={styles.statusChartLayout}>
+                    <AnalyticsDonutChart
+                      data={analytics.breakdown}
+                      radius={analyticsDonutRadius}
+                      total={analytics.totalRequests}
+                      completionRate={analytics.completionRate}
+                    />
+                    <View style={styles.statusLegend}>
+                      {analytics.breakdown.map((item) => {
+                        const percentage = analytics.totalRequests > 0
+                          ? Math.round((item.value / analytics.totalRequests) * 100)
+                          : 0;
+                        return (
+                          <View key={item.label} style={styles.statusLegendRow}>
+                            <View style={[styles.statusLegendDot, { backgroundColor: item.color }]} />
+                            <Text style={styles.statusLegendLabel} numberOfLines={1}>{item.label}</Text>
+                            <Text style={styles.statusLegendPercent}>{percentage}%</Text>
+                            <Text style={styles.statusLegendValue}>{item.value}</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.chartEmptyState}>
+                    <Ionicons name="pie-chart-outline" size={24} color="#87928d" />
+                    <Text style={styles.chartEmptyText}>No cases in this reporting period</Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.operationalSummary}>
+                  <View style={styles.operationalMetric}>
+                    <Text style={styles.operationalValue}>{analytics.activeRequests}</Text>
+                    <Text style={styles.operationalLabel}>Active cases</Text>
+                  </View>
+                  <View style={styles.operationalDivider} />
+                  <View style={styles.operationalMetric}>
+                    <Text style={styles.operationalValue}>{analytics.collectionRate}%</Text>
+                    <Text style={styles.operationalLabel}>Payment confirmed</Text>
+                  </View>
+                  <View style={styles.operationalDivider} />
+                  <View style={styles.operationalMetric}>
+                    <Text style={styles.operationalValue}>{formatPhilippinePeso(analytics.avgOrderValue)}</Text>
+                    <Text style={styles.operationalLabel}>Average paid case</Text>
+                  </View>
+                </View>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Open detailed shop reports"
+                activeOpacity={0.78}
+                style={styles.reportsLink}
+                onPress={() => openVerifiedScreen("ShopReports", "shop reports")}
+              >
+                <View style={styles.reportsLinkCopy}>
+                  <Text style={styles.reportsLinkTitle}>View detailed reports</Text>
+                  <Text style={styles.reportsLinkText}>Case volume, status breakdown, and inventory insights</Text>
+                </View>
+                <Ionicons name="arrow-forward" size={18} color="#3e7260" />
+              </TouchableOpacity>
             </View>
           ) : null}
 
@@ -1600,87 +2337,123 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
         </ScrollView>
       </View>
 
-      <Modal visible={settingsVisible} transparent animationType="fade" onRequestClose={() => setSettingsVisible(false)}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setSettingsVisible(false)}>
-          <TouchableOpacity activeOpacity={1} style={styles.settingsCard}>
-            <View style={styles.settingsHeader}>
-              <View style={styles.settingsTitleRow}>
-                <View style={styles.settingsTitleIcon}>
-                  <Ionicons name="settings-outline" size={20} color="#22312d" />
+      <Modal
+        visible={sidebarVisible}
+        transparent
+        animationType="none"
+        statusBarTranslucent
+        onRequestClose={() => closeShopSidebar()}
+      >
+        <View style={styles.sidebarOverlay}>
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.sidebarBackdrop, { opacity: sidebarBackdropOpacity }]}
+          />
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Close shop menu"
+            activeOpacity={1}
+            style={styles.sidebarDismissArea}
+            onPress={() => closeShopSidebar()}
+          />
+          <Animated.View
+            accessibilityViewIsModal
+            style={[
+              styles.shopSidebar,
+              { width: sidebarWidth, transform: [{ translateX: sidebarTranslateX }] },
+            ]}
+          >
+            <SafeAreaView edges={["top", "bottom", "right"]} style={styles.sidebarSafeArea}>
+              <View style={styles.sidebarHeader}>
+                <View style={styles.sidebarIdentity}>
+                  <View style={styles.sidebarAvatar}>
+                    {shopImageUrl ? (
+                      <Image source={{ uri: shopImageUrl }} style={styles.sidebarAvatarImage} resizeMode="cover" />
+                    ) : (
+                      <Ionicons name="storefront-outline" size={23} color="#33443e" />
+                    )}
                   </View>
-                <View style={styles.settingsTitleCopy}>
-                  <Text style={styles.modalTitle}>Settings</Text>
-                  <Text style={styles.settingsCaption}>Manage payment preferences or return to the marketplace.</Text>
+                  <View style={styles.sidebarIdentityCopy}>
+                    <Text style={styles.sidebarEyebrow}>SHOP CENTER</Text>
+                    <Text style={styles.sidebarShopName} numberOfLines={1}>{shopDisplayName}</Text>
                   </View>
                 </View>
-              <TouchableOpacity
-                accessibilityRole="button"
-                accessibilityLabel="Close settings"
-                style={styles.settingsCloseButton}
-                onPress={() => setSettingsVisible(false)}
-              >
-                <Ionicons name="close" size={21} color="#53615d" />
-              </TouchableOpacity>
-             </View>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel="Close shop menu"
+                  style={styles.sidebarCloseButton}
+                  onPress={() => closeShopSidebar()}
+                >
+                  <Ionicons name="close" size={22} color="#52615c" />
+                </TouchableOpacity>
+              </View>
 
+              <ScrollView contentContainerStyle={styles.sidebarContent} showsVerticalScrollIndicator={false}>
+                {shopTools.map((entry, index) => (
+                  <View key={entry.key}>
+                    {index === 0 || index === 1 ? (
+                      <Text style={styles.sidebarSectionLabel}>{index === 0 ? "STORE MANAGEMENT" : "OPERATIONS"}</Text>
+                    ) : null}
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      accessibilityLabel={`${entry.label}. ${entry.description}`}
+                      activeOpacity={0.72}
+                      style={styles.sidebarRow}
+                      onPress={() => runFromShopSidebar(entry.onPress)}
+                    >
+                      <View style={styles.sidebarRowIcon}>
+                        <Ionicons name={entry.icon} size={21} color="#33443e" />
+                      </View>
+                      <View style={styles.sidebarRowCopy}>
+                        <Text style={styles.sidebarRowLabel}>{entry.label}</Text>
+                        <Text style={styles.sidebarRowDescription} numberOfLines={1}>{entry.description}</Text>
+                      </View>
+                      {entry.badge > 0 ? (
+                        <View style={styles.sidebarBadge}>
+                          <Text style={styles.sidebarBadgeText}>{entry.badge > 99 ? "99+" : entry.badge}</Text>
+                        </View>
+                      ) : null}
+                      <Ionicons name="chevron-forward" size={18} color="#929c97" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
 
-            <TouchableOpacity
-              activeOpacity={0.85}
-              style={[styles.settingsRow, !isVerified ? styles.settingsRowDisabled : null]}
-              onPress={openPaymentSettingsFromSettings}
-              disabled={!isVerified}
-            >
-              <View style={styles.settingsRowIcon}>
-                <Ionicons name="qr-code-outline" size={20} color={isVerified ? "#7f6653" : "#9ba19d"} />
-                </View>
-              <View style={styles.settingsRowCopy}>
-                <Text style={[styles.settingsRowTitle, !isVerified ? styles.settingsRowTextDisabled : null]}>
-                  Payment QR & Amount
-                </Text>
-                <Text style={styles.settingsRowDescription}>
-                  {shopInfo?.paymentQrUrl
-                    ? "Set the QR code and fee families send you after you accept a request."
-                    : "Add the QR code and fee families send after you accept a request."}
-                </Text>
-                </View>
-              <Ionicons name="chevron-forward" size={18} color="#9aa39d" />
-            </TouchableOpacity>
+                <Text style={styles.sidebarSectionLabel}>SHOP & ACCOUNT</Text>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  activeOpacity={0.72}
+                  style={styles.sidebarRow}
+                  onPress={() => runFromShopSidebar(() => navigation.navigate("ShopSettings"))}
+                >
+                  <View style={styles.sidebarRowIcon}>
+                    <Ionicons name="settings-outline" size={21} color="#33443e" />
+                  </View>
+                  <View style={styles.sidebarRowCopy}>
+                    <Text style={styles.sidebarRowLabel}>Shop settings</Text>
+                    <Text style={styles.sidebarRowDescription} numberOfLines={1}>Profile, payments, and preferences</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#929c97" />
+                </TouchableOpacity>
 
-            <TouchableOpacity
-              activeOpacity={0.85}
-              style={[styles.settingsRow, !isVerified ? styles.settingsRowDisabled : null]}
-              onPress={() => {
-                setSettingsVisible(false);
-                setTimeout(() => setAdminPaymentsVisible(true), 180);
-              }}
-              disabled={!isVerified}
-            >
-              <View style={styles.settingsRowIcon}>
-                <Ionicons name="card-outline" size={20} color={isVerified ? "#7f6653" : "#9ba19d"} />
-                </View>
-              <View style={styles.settingsRowCopy}>
-                <Text style={[styles.settingsRowTitle, !isVerified ? styles.settingsRowTextDisabled : null]}>
-                  Payments to Admin
-                </Text>
-                <Text style={styles.settingsRowDescription}>
-                  View your registration payments to LifeCycle and submit a new payment or renewal.
-                </Text>
-                </View>
-              <Ionicons name="chevron-forward" size={18} color="#9aa39d" />
-            </TouchableOpacity>
-
-            <TouchableOpacity activeOpacity={0.85} style={styles.settingsRow} onPress={returnToMarketplace}>
-              <View style={styles.settingsRowIcon}>
-                <Ionicons name="arrow-back-outline" size={20} color="#7f6653" />
-                </View>
-              <View style={styles.settingsRowCopy}>
-                <Text style={styles.settingsRowTitle}>Back to Marketplace</Text>
-                <Text style={styles.settingsRowDescription}>Leave Shop Center and browse the funeral marketplace.</Text>
-                </View>
-              <Ionicons name="chevron-forward" size={18} color="#9aa39d" />
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </TouchableOpacity>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  activeOpacity={0.72}
+                  style={styles.sidebarRow}
+                  onPress={() => runFromShopSidebar(returnToMarketplace)}
+                >
+                  <View style={styles.sidebarRowIcon}>
+                    <Ionicons name="storefront-outline" size={21} color="#33443e" />
+                  </View>
+                  <View style={styles.sidebarRowCopy}>
+                    <Text style={styles.sidebarRowLabel}>Back to Marketplace</Text>
+                    <Text style={styles.sidebarRowDescription} numberOfLines={1}>Browse funeral products and shops</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#929c97" />
+                </TouchableOpacity>
+              </ScrollView>
+            </SafeAreaView>
+          </Animated.View>
+        </View>
       </Modal>
 
       <AdminPaymentModal
@@ -1949,7 +2722,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
                   </View>
                 </View>
 
-              <Text style={styles.inputLabel}>Amount Requesters Must Send (₱)</Text>
+              <Text style={styles.inputLabel}>Amount Requesters Must Send (â‚±)</Text>
               <TextInput
                 style={[styles.input, styles.paymentAmountInput]}
                 value={paymentFeeInput}
@@ -2111,6 +2884,45 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
         </TouchableOpacity>
       </Modal>
 
+      {/* ── REVENUE GOAL MODAL ── */}
+      <Modal visible={goalModalVisible} transparent animationType="fade" onRequestClose={closeGoalModal}>
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={closeGoalModal} />
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Monthly Revenue Goal</Text>
+            <Text style={styles.modalCaption}>
+              Set a personal target to track your progress each month. Only you can see this.
+            </Text>
+            <Text style={styles.inputLabel}>Target amount (PHP)</Text>
+            <TextInput
+              style={[styles.input, styles.paymentAmountInput]}
+              value={goalInput}
+              onChangeText={setGoalInput}
+              placeholder="e.g. 50000"
+              placeholderTextColor="#9aa39d"
+              keyboardType="decimal-pad"
+            />
+            <View style={styles.modalActionStack}>
+              <TouchableOpacity
+                style={[styles.modalPrimaryButton, savingGoal ? styles.heroButtonDisabled : null]}
+                onPress={() => void saveGoal()}
+                disabled={savingGoal}
+              >
+                <Text style={styles.modalPrimaryButtonText}>{savingGoal ? 'Saving...' : 'Save Goal'}</Text>
+              </TouchableOpacity>
+              {goalAmount > 0 ? (
+                <TouchableOpacity style={styles.modalDangerButton} onPress={clearGoal}>
+                  <Text style={styles.modalDangerButtonText}>Clear Goal</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity style={styles.modalGhostButton} onPress={closeGoalModal}>
+                <Text style={styles.modalGhostButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -2118,7 +2930,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#eef1ec",
+    backgroundColor: "#f5f7f4",
   },
   screenBody: {
     flex: 1,
@@ -2140,38 +2952,20 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   heroSection: {
-    minHeight: 244,
+    minHeight: 214,
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 34,
+    paddingBottom: 28,
     backgroundColor: "#d6e2d2",
     overflow: "hidden",
   },
   heroImage: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     opacity: 0.52,
   },
   heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(214, 226, 210, 0.62)",
-  },
-  heroGlowTop: {
-    position: "absolute",
-    top: -50,
-    right: -30,
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    backgroundColor: "rgba(255, 255, 255, 0.34)",
-  },
-  heroGlowBottom: {
-    position: "absolute",
-    bottom: -90,
-    left: -40,
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    backgroundColor: "rgba(126, 144, 128, 0.18)",
   },
   topBar: {
     zIndex: 2,
@@ -2225,24 +3019,24 @@ const styles = StyleSheet.create({
     zIndex: 2,
     flexDirection: "row",
     alignItems: "center",
-    gap: 18,
-    marginTop: 24,
+    gap: 14,
+    marginTop: 18,
   },
   heroAvatarWrap: {
     flexShrink: 0,
     alignSelf: "center",
   },
   heroAvatarImage: {
-    width: 92,
-    height: 92,
-    borderRadius: 28,
+    width: 76,
+    height: 76,
+    borderRadius: 22,
     borderWidth: 3,
     borderColor: "rgba(255, 255, 255, 0.68)",
   },
   heroAvatarFallback: {
-    width: 92,
-    height: 92,
-    borderRadius: 28,
+    width: 76,
+    height: 76,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(255, 255, 255, 0.44)",
@@ -2256,10 +3050,10 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
     color: "#22312d",
-    fontSize: 30,
-    lineHeight: 34,
+    fontSize: 25,
+    lineHeight: 30,
     fontWeight: "900",
-    marginTop: 6,
+    marginTop: 3,
   },
   heroSubtitle: {
     color: "#53615d",
@@ -2491,19 +3285,76 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 6,
   },
-  attentionHeader: {
+  dashboardGroupHeader: {
+    marginHorizontal: 20,
+    marginTop: 24,
+    marginBottom: 4,
+  },
+  dashboardGroupEyebrow: {
+    color: "#668078",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1.1,
+  },
+  dashboardGroupTitle: {
+    color: "#22312d",
+    fontSize: 21,
+    lineHeight: 27,
+    fontWeight: "900",
+    marginTop: 4,
+  },
+  dashboardGroupSubtitle: {
+    color: "#73807b",
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 3,
+  },
+  actionSection: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderRadius: 20,
+    borderColor: "#d9e1dc",
+    shadowColor: "#16241f",
+    shadowOpacity: 0.04,
+    shadowRadius: 9,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 1,
+  },
+  actionSectionHeader: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 11,
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
     marginBottom: 12,
   },
-  attentionHeaderIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    backgroundColor: "#516961",
+  dashboardHeaderLead: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  dashboardCompactHeading: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  dashboardHeaderIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#e9f1ed",
+  },
+  dashboardHeaderIconUrgent: {
+    backgroundColor: "#f7e8e1",
   },
   attentionRow: {
     minHeight: 68,
@@ -2563,71 +3414,300 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: "center",
   },
+  analyticsSection: {
+    marginHorizontal: 20,
+    marginTop: 5,
+    backgroundColor: "transparent",
+    borderTopWidth: 1,
+    borderTopColor: "#d8dfdb",
+    paddingBottom: 4,
+  },
+  analyticsSectionHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    paddingHorizontal: 0,
+    paddingTop: 24,
+    paddingBottom: 16,
+  },
   analyticsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
-    marginTop: 14,
+    marginHorizontal: 0,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: "#dde4e0",
+    backgroundColor: "transparent",
   },
   analyticsItem: {
-    flexBasis: "45%",
-    flexGrow: 1,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#d9d6cd",
-    backgroundColor: "#ffffff",
+    width: "50%",
+    minHeight: 100,
+    justifyContent: "center",
     paddingVertical: 14,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
+  },
+  analyticsItemRightBorder: {
+    borderRightWidth: 1,
+    borderRightColor: "#e3e7e4",
+  },
+  analyticsItemBottomBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#e3e7e4",
   },
   analyticsValue: {
     color: "#22312d",
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "900",
   },
   analyticsLabel: {
     color: "#62706b",
     fontSize: 11,
     fontWeight: "700",
+    marginTop: 4,
+  },
+  analyticsDetail: {
+    color: "#88928e",
+    fontSize: 10,
+    lineHeight: 14,
     marginTop: 3,
   },
+  analyticsTrendPositive: {
+    color: "#2f6b55",
+  },
+  analyticsTrendNegative: {
+    color: "#a84c48",
+  },
   analyticsChartBlock: {
-    marginTop: 18,
+    marginHorizontal: 0,
+    marginTop: 0,
+    paddingHorizontal: 0,
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#dde4e0",
+    backgroundColor: "transparent",
+  },
+  chartHeading: {
+    marginBottom: 12,
+  },
+  chartHeadingRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 14,
+  },
+  chartHeadingCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  chartMetricSwitch: {
+    flexDirection: "row",
+    padding: 3,
+    borderRadius: 10,
+    backgroundColor: "#e7ece9",
+  },
+  chartMetricButton: {
+    minHeight: 30,
+    justifyContent: "center",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+  },
+  chartMetricButtonActive: {
+    backgroundColor: "#ffffff",
+    shadowColor: "#16241f",
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  chartMetricButtonText: {
+    color: "#7a8580",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  chartMetricButtonTextActive: {
+    color: "#315f50",
   },
   analyticsChartTitle: {
     color: "#22312d",
-    fontSize: 14,
-    fontWeight: "800",
-    marginBottom: 10,
+    fontSize: 16,
+    fontWeight: "900",
   },
-  analyticsRow: {
+  analyticsChartCaption: {
+    color: "#78837e",
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 3,
+  },
+  giftedChartCanvas: {
+    width: "100%",
+    paddingTop: 6,
+  },
+  chartAxisText: {
+    color: "#7c8984",
+    fontSize: 9,
+    fontWeight: "600",
+  },
+  chartTooltip: {
+    width: 108,
+    minHeight: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#dce3df",
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    shadowColor: "#16241f",
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  chartTooltipLabel: {
+    color: "#7c8984",
+    fontSize: 9,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  chartTooltipValue: {
+    fontSize: 13,
+    fontWeight: "900",
+    marginTop: 2,
+  },
+  analyticsStatusBlock: {
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#dde4e0",
+  },
+  giftedDonutCanvas: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 4,
+  },
+  donutCenterLabel: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  donutCenterValue: {
+    color: "#22312d",
+    fontSize: 24,
+    fontWeight: "900",
+  },
+  donutCenterCaption: {
+    color: "#53645e",
+    fontSize: 10,
+    fontWeight: "800",
+    marginTop: 1,
+  },
+  donutCenterDetail: {
+    color: "#8a948f",
+    fontSize: 9,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  statusChartLayout: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    marginVertical: 4,
+    gap: 18,
   },
-  analyticsRowLabel: {
-    width: 118,
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#334155",
-  },
-  analyticsTrack: {
+  statusLegend: {
     flex: 1,
-    height: 11,
-    borderRadius: 999,
-    backgroundColor: "#e8e5dd",
-    overflow: "hidden",
+    minWidth: 0,
   },
-  analyticsFill: {
-    height: "100%",
-    borderRadius: 999,
+  statusLegendRow: {
+    minHeight: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#e1e6e3",
   },
-  analyticsRowValue: {
-    width: 32,
+  statusLegendDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    marginRight: 8,
+  },
+  statusLegendLabel: {
+    flex: 1,
+    color: "#40504a",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  statusLegendPercent: {
+    width: 36,
     textAlign: "right",
+    color: "#7a8580",
+    fontSize: 10,
+  },
+  statusLegendValue: {
+    width: 28,
+    textAlign: "right",
+    color: "#22312d",
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  chartEmptyState: {
+    minHeight: 120,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  chartEmptyText: {
+    color: "#78837e",
     fontSize: 12,
-    fontWeight: "800",
-    color: "#0f172a",
+  },
+  operationalSummary: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    borderBottomWidth: 1,
+    borderBottomColor: "#dde4e0",
+    paddingVertical: 18,
+  },
+  operationalMetric: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "flex-start",
+    paddingHorizontal: 5,
+  },
+  operationalDivider: {
+    width: 1,
+    backgroundColor: "#dfe4e1",
+  },
+  operationalValue: {
+    color: "#22312d",
+    fontSize: 15,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+  operationalLabel: {
+    color: "#78837e",
+    fontSize: 9,
+    lineHeight: 13,
+    textAlign: "center",
+    marginTop: 4,
+  },
+  reportsLink: {
+    minHeight: 68,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 14,
+  },
+  reportsLinkCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  reportsLinkTitle: {
+    color: "#315f50",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  reportsLinkText: {
+    color: "#7a8580",
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 2,
   },
   statusControlExpired: {
     borderColor: "#efb8b8",
@@ -3104,7 +4184,7 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   modalBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   modalCard: {
     width: "100%",
@@ -3119,94 +4199,146 @@ const styles = StyleSheet.create({
   shopDetailsModalCard: {
     height: "84%",
   },
-  settingsCard: {
-    width: "100%",
-    maxWidth: 460,
-    borderRadius: 24,
-    backgroundColor: "#f8f6f2",
-    borderWidth: 1,
-    borderColor: "#d9d6cd",
-    padding: 18,
-    gap: 10,
+  sidebarOverlay: {
+    flex: 1,
+    backgroundColor: "transparent",
   },
-  settingsHeader: {
+  sidebarBackdrop: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "rgba(20, 27, 24, 0.48)",
+  },
+  sidebarDismissArea: {
+    ...StyleSheet.absoluteFill,
+  },
+  shopSidebar: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    height: "100%",
+    backgroundColor: "#ffffff",
+    borderLeftWidth: 1,
+    borderLeftColor: "#dfe4e1",
+    shadowColor: "#000000",
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    shadowOffset: { width: -5, height: 0 },
+    elevation: 18,
+  },
+  sidebarSafeArea: {
+    flex: 1,
+  },
+  sidebarHeader: {
+    minHeight: 82,
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
-    marginBottom: 6,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e7ebe8",
   },
-  settingsTitleRow: {
+  sidebarIdentity: {
     flex: 1,
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
+    alignItems: "center",
+    gap: 11,
+    minWidth: 0,
   },
-  settingsTitleIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 15,
+  sidebarAvatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#dfe8db",
+    backgroundColor: "#e4ece1",
+    overflow: "hidden",
   },
-  settingsTitleCopy: {
+  sidebarAvatarImage: {
+    width: "100%",
+    height: "100%",
+  },
+  sidebarIdentityCopy: {
     flex: 1,
+    minWidth: 0,
   },
-  settingsCaption: {
-    color: "#62706b",
-    fontSize: 13,
-    lineHeight: 19,
-    marginTop: 4,
+  sidebarEyebrow: {
+    color: "#7f6653",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.7,
   },
-  settingsCloseButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#ece9e3",
+  sidebarShopName: {
+    color: "#22312d",
+    fontSize: 17,
+    fontWeight: "900",
+    marginTop: 3,
   },
-  settingsRow: {
-    minHeight: 76,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#d9d6cd",
-    backgroundColor: "#ffffff",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  settingsRowDisabled: {
-    backgroundColor: "#f0efeb",
-    opacity: 0.72,
-  },
-  settingsRowIcon: {
+  sidebarCloseButton: {
     width: 40,
     height: 40,
-    borderRadius: 14,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#f1ebe4",
+    backgroundColor: "#f0f3f1",
   },
-  settingsRowCopy: {
+  sidebarContent: {
+    paddingBottom: 28,
+  },
+  sidebarSectionLabel: {
+    color: "#7e8984",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    paddingHorizontal: 18,
+    paddingTop: 20,
+    paddingBottom: 7,
+  },
+  sidebarRow: {
+    minHeight: 66,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: "#edf0ee",
+  },
+  sidebarRowIcon: {
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sidebarRowCopy: {
     flex: 1,
+    minWidth: 0,
   },
-  settingsRowTitle: {
+  sidebarRowLabel: {
     color: "#22312d",
     fontSize: 15,
+    fontWeight: "800",
+  },
+  sidebarRowDescription: {
+    color: "#77817d",
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 2,
+  },
+  sidebarBadge: {
+    minWidth: 24,
+    height: 24,
+    borderRadius: 12,
+    paddingHorizontal: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#9f2f2f",
+  },
+  sidebarBadgeText: {
+    color: "#ffffff",
+    fontSize: 10,
     fontWeight: "900",
-  },
-  settingsRowTextDisabled: {
-    color: "#777f7a",
-  },
-  settingsRowDescription: {
-    color: "#62706b",
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 4,
   },
   modalScroll: {
     flex: 1,
@@ -3825,6 +4957,231 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     marginTop: 4,
   },
+  // â”€â”€â”€ Dashboard Widget Styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  quickStatsStrip: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#d9e1dc',
+    backgroundColor: '#ffffff',
+    overflow: 'hidden',
+    shadowColor: '#000000',
+    shadowOpacity: 0.04,
+    shadowRadius: 9,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 1,
+  },
+  quickStatsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5eae7',
+  },
+  quickStatsTitle: { color: '#22312d', fontSize: 15, fontWeight: '900' },
+  quickStatsSubtitle: { color: '#7a8580', fontSize: 11, lineHeight: 15, marginTop: 2 },
+  quickStatsGrid: { flexDirection: 'row', flexWrap: 'wrap', backgroundColor: '#fbfcfb' },
+  quickStatCell: { width: '50%', minHeight: 78, justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 12 },
+  quickStatCellRightBorder: { borderRightWidth: 1, borderRightColor: '#e5eae7' },
+  quickStatCellBottomBorder: { borderBottomWidth: 1, borderBottomColor: '#e5eae7' },
+  quickStatValue: { color: '#22312d', fontSize: 20, fontWeight: '900' },
+  quickStatValueUrgent: { color: '#9f2f2f' },
+  quickStatLabel: { color: '#7a8580', fontSize: 10, fontWeight: '700', marginTop: 3, textAlign: 'center' },
+  expiryAlert: {
+    marginHorizontal: 20,
+    marginTop: 7,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#f3c2c2',
+    backgroundColor: '#fdecec',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  expiryAlertIcon: { marginTop: 1 },
+  expiryAlertCopy: { flex: 1 },
+  expiryAlertTitle: { color: '#8f2525', fontSize: 13, fontWeight: '900' },
+  expiryAlertText: { color: '#8f2525', fontSize: 11, lineHeight: 16, marginTop: 2 },
+  stepperCard: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#d9d6cd',
+    backgroundColor: '#ffffff',
+    padding: 16,
+    shadowColor: '#000000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
+  },
+  stepperTitle: { color: '#22312d', fontSize: 16, fontWeight: '900', marginBottom: 2 },
+  stepperSubtitle: { color: '#62706b', fontSize: 12, lineHeight: 18, marginBottom: 14 },
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0ece5',
+  },
+  stepCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#e7eee4',
+    borderWidth: 1,
+    borderColor: '#c8d5c3',
+  },
+  stepCircleDone: { backgroundColor: '#22312d', borderColor: '#22312d' },
+  stepNumber: { color: '#53615d', fontSize: 11, fontWeight: '900' },
+  stepCopy: { flex: 1 },
+  stepLabel: { color: '#4a5b56', fontSize: 13, fontWeight: '800' },
+  stepLabelDone: { color: '#22312d' },
+  stepDesc: { color: '#7a8580', fontSize: 11, lineHeight: 16, marginTop: 2 },
+  productHealthCard: {
+    marginHorizontal: 20,
+    marginTop: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#d8dfdb',
+    backgroundColor: 'transparent',
+    paddingHorizontal: 0,
+    paddingVertical: 20,
+  },
+  productHealthHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
+  productHealthTitle: { flex: 1, color: '#22312d', fontSize: 15, fontWeight: '900' },
+  productHealthLink: { paddingHorizontal: 8, paddingVertical: 4 },
+  productHealthLinkText: { color: '#3e7260', fontSize: 12, fontWeight: '900' },
+  productHealthRow: { flexDirection: 'row', alignItems: 'center' },
+  productHealthStat: { flex: 1, alignItems: 'center', paddingVertical: 6 },
+  productHealthDivider: { width: 1, height: 40, backgroundColor: '#e4e9e6' },
+  productHealthStatValue: { color: '#22312d', fontSize: 20, fontWeight: '900' },
+  productHealthStatLabel: { color: '#7a8580', fontSize: 10, fontWeight: '700', marginTop: 3 },
+  upcomingSection: {
+    marginHorizontal: 20,
+    marginTop: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: '#d8dfdb',
+    backgroundColor: 'transparent',
+    paddingHorizontal: 0,
+    paddingTop: 20,
+    paddingBottom: 12,
+  },
+  upcomingSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  upcomingSectionTitle: { color: '#22312d', fontSize: 15, fontWeight: '900' },
+  upcomingSeeAll: { color: '#3e7260', fontSize: 12, fontWeight: '900' },
+  upcomingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#f0ece5',
+  },
+  upcomingDateBadge: {
+    minWidth: 60,
+    borderRadius: 10,
+    backgroundColor: '#edf1ec',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    alignItems: 'center',
+  },
+  upcomingDateBadgeToday: { backgroundColor: '#22312d' },
+  upcomingDateText: { color: '#42534d', fontSize: 10, fontWeight: '900', textAlign: 'center' },
+  upcomingDateTextToday: { color: '#ffffff' },
+  upcomingRowCopy: { flex: 1, minWidth: 0 },
+  upcomingRowTitle: { color: '#22312d', fontSize: 13, fontWeight: '800' },
+  upcomingRowSub: { color: '#7a8580', fontSize: 11, marginTop: 2 },
+  upcomingStatusPill: {
+    borderRadius: 999,
+    backgroundColor: '#f0ece5',
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+  },
+  upcomingStatusText: { color: '#6c7772', fontSize: 9, fontWeight: '900' },
+  goalCard: {
+    marginHorizontal: 20,
+    marginTop: 16,
+    borderRadius: 20,
+    borderWidth: 0,
+    backgroundColor: '#e8f0ec',
+    padding: 16,
+  },
+  goalCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  goalCardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  goalCardTitle: { color: '#22312d', fontSize: 15, fontWeight: '900' },
+  goalTrackRow: { flexDirection: 'row', alignItems: 'baseline', marginBottom: 8 },
+  goalCurrentAmount: { color: '#22312d', fontSize: 18, fontWeight: '900' },
+  goalTargetAmount: { color: '#7a8580', fontSize: 13, fontWeight: '700' },
+  goalPct: { color: '#3e7260', fontSize: 16, fontWeight: '900' },
+  goalPctReached: { color: '#1e5b3a' },
+  goalBar: {
+    height: 7,
+    borderRadius: 999,
+    backgroundColor: '#e7eee4',
+    overflow: 'hidden',
+    marginBottom: 6,
+  },
+  goalBarFill: { height: '100%', borderRadius: 999, backgroundColor: '#3e7260' },
+  goalBarFillReached: { backgroundColor: '#1e5b3a' },
+  goalReachedText: { color: '#1e5b3a', fontSize: 11, fontWeight: '800' },
+  goalRemainingText: { color: '#7a8580', fontSize: 11, fontWeight: '700' },
+  goalEmptyText: { color: '#9aa39d', fontSize: 12, fontWeight: '700', marginTop: 4 },
+  activitySection: {
+    marginHorizontal: 20,
+    marginTop: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#d8dfdb',
+    backgroundColor: 'transparent',
+    paddingHorizontal: 0,
+    paddingTop: 20,
+    paddingBottom: 12,
+  },
+  activityHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  activityTitle: { color: '#22312d', fontSize: 15, fontWeight: '900' },
+  activitySeeAll: { color: '#3e7260', fontSize: 12, fontWeight: '900' },
+  activityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 9,
+    borderTopWidth: 1,
+    borderTopColor: '#f0ece5',
+  },
+  activityIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activityCopy: { flex: 1, minWidth: 0 },
+  activityRowTitle: { color: '#22312d', fontSize: 13, fontWeight: '800' },
+  activityRowSub: { color: '#7a8580', fontSize: 11, marginTop: 2 },
+  activityTime: { color: '#9aa39d', fontSize: 10, fontWeight: '700' },
   paymentSetupReasonInput: {
     minHeight: 96,
     textAlignVertical: "top",

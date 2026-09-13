@@ -66,6 +66,8 @@ export default function CustomCasketRequestPage() {
   const [tributeMessage, setTributeMessage] = useState('')
   const [familyCoordinatorName, setFamilyCoordinatorName] = useState('')
   const [wakeAddress, setWakeAddress] = useState('')
+  const [churchName, setChurchName] = useState('')
+  const [cemeteryName, setCemeteryName] = useState('')
   const [wakeStartDate, setWakeStartDate] = useState('')
   const [wakeEndDate, setWakeEndDate] = useState('')
   const [burialTime, setBurialTime] = useState('')
@@ -191,6 +193,8 @@ export default function CustomCasketRequestPage() {
     const safeTributeMessage = tributeMessage.trim()
     const safeFamilyCoordinatorName = familyCoordinatorName.trim()
     const safeWakeAddress = wakeAddress.trim()
+    const safeChurchName = churchName.trim()
+    const safeCemeteryName = cemeteryName.trim()
     const safePickupAddress = pickupAddress.trim()
     const safeContactNumber = contactNumber.trim()
     const safeDesignNotes = designNotes.trim()
@@ -210,6 +214,8 @@ export default function CustomCasketRequestPage() {
       !safeTributeMessage ||
       !safeFamilyCoordinatorName ||
       !safeWakeAddress ||
+      !safeChurchName ||
+      !safeCemeteryName ||
       !wakeStartDate ||
       !wakeEndDate ||
       !burialTime ||
@@ -273,6 +279,8 @@ export default function CustomCasketRequestPage() {
         tributeMessage: safeTributeMessage,
         familyCoordinatorName: safeFamilyCoordinatorName,
         wakeAddress: safeWakeAddress,
+        churchName: safeChurchName,
+        cemeteryName: safeCemeteryName,
         wakeStartDate,
         wakeEndDate,
         burialTime,
@@ -321,7 +329,7 @@ export default function CustomCasketRequestPage() {
       setSubmitting(false)
     }
   }, [
-    deceasedAge, ageInputMode, burialTime, contactNumber, computedAge, openAlert,
+    cemeteryName, churchName, deceasedAge, ageInputMode, burialTime, contactNumber, computedAge, openAlert,
     dateOfBirth, dateOfPassing, deceasedFullName, familyCoordinatorName, memorialPhotoUrl,
     pickupAddress, shopAddress, shopContactNumber, tributeMessage, viewer, wakeAddress,
     wakeEndDate, wakeStartDate, designNotes, referencePhotoUrl, shopId, shopName
@@ -590,6 +598,32 @@ export default function CustomCasketRequestPage() {
               placeholder="Complete address of the wake venue"
               value={wakeAddress}
               onChange={(e) => setWakeAddress(e.target.value)}
+            />
+          </div>
+
+          <div className="checkout-field">
+            <label className="checkout-label" htmlFor="checkout-church">Church / Chapel</label>
+            <input
+              id="checkout-church"
+              className="checkout-input"
+              type="text"
+              placeholder="Name of the church or chapel"
+              value={churchName}
+              onChange={(e) => setChurchName(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="checkout-field">
+            <label className="checkout-label" htmlFor="checkout-cemetery">Cemetery</label>
+            <input
+              id="checkout-cemetery"
+              className="checkout-input"
+              type="text"
+              placeholder="Name of the cemetery"
+              value={cemeteryName}
+              onChange={(e) => setCemeteryName(e.target.value)}
+              required
             />
           </div>
 

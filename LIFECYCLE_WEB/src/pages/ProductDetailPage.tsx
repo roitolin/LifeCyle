@@ -31,6 +31,11 @@ type RelatedProduct = {
   imageUrl: string | null
 }
 
+const PACKAGE_OPTIONS = [
+  { name: 'Flowers', description: 'Floral arrangements for the funeral service' },
+  { name: 'Candles', description: 'Memorial candles for the funeral service' },
+] as const
+
 function readStoredFavorites(): Record<string, boolean> {
   try {
     const stored = JSON.parse(localStorage.getItem('lifecycle_favorites') || '{}')
@@ -82,6 +87,7 @@ export default function ProductDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [galleryIndex, setGalleryIndex] = useState(0)
   const [selectedVariation, setSelectedVariation] = useState<string | null>(null)
+  const [selectedPackageItems, setSelectedPackageItems] = useState<string[]>([])
   const [cartCount, setCartCount] = useState(0)
   const [userProfile, setUserProfile] = useState<any>(null)
   const [queryText, setQueryText] = useState('')
@@ -302,6 +308,7 @@ export default function ProductDetailPage() {
       price: product.price,
       imageUrl: varItem?.imageUrl ?? product.imageUrl,
       variationName: varItem?.name ?? null,
+      packageItems: selectedPackageItems,
       quantity: 1,
     })
     
@@ -332,6 +339,7 @@ export default function ProductDetailPage() {
       price: product.price,
       imageUrl: varItem?.imageUrl ?? product.imageUrl,
       variationName: varItem?.name ?? null,
+      packageItems: selectedPackageItems,
       quantity: 1,
     })
     navigate('/user/cart')
@@ -563,6 +571,37 @@ export default function ProductDetailPage() {
                 {showVariationToast && <p className="pd-variation-error">Choose an option before continuing.</p>}
               </div>
             )}
+
+            <div className="pd-option-row align-start">
+              <div className="pd-option-label">Select packages</div>
+              <div className="pd-option-content pd-package-options">
+                {PACKAGE_OPTIONS.map(option => {
+                  const selected = selectedPackageItems.includes(option.name)
+                  return (
+                    <button
+                      type="button"
+                      key={option.name}
+                      className={`pd-package-btn${selected ? ' selected' : ''}`}
+                      onClick={() => {
+                        setSelectedPackageItems(current =>
+                          current.includes(option.name)
+                            ? current.filter(item => item !== option.name)
+                            : [...current, option.name],
+                        )
+                      }}
+                      aria-pressed={selected}
+                    >
+                      <span className="pd-package-check" aria-hidden="true">{selected ? '\u2713' : '+'}</span>
+                      <span>
+                        <strong>{option.name}</strong>
+                        <small>{option.description}</small>
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="pd-package-hint">Optional. Choose Flowers, Candles, or both for this service request.</p>
+            </div>
 
             <div className="pd-option-row">
               <div className="pd-option-label">Service request</div>

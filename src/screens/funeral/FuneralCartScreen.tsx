@@ -230,6 +230,9 @@ export default function FuneralCartScreen({ navigation }: any) {
                     <Text style={styles.itemName}>{item.name}</Text>
                     <Text style={styles.itemShop}>{item.shopName}</Text>
                     {item.variationName ? <Text style={styles.itemVariation}>Variation: {item.variationName}</Text> : null}
+                    {item.packageItems?.length ? (
+                      <Text style={styles.itemVariation}>Packages: {item.packageItems.join(", ")}</Text>
+                    ) : null}
                     <Text style={styles.itemPrice}>{formatPhilippinePeso(item.price)}</Text>
 
                     {!selectionMode ? (

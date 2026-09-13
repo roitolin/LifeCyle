@@ -1583,6 +1583,77 @@
   display: none;
 }
 
+.pd-package-options {
+  align-items: stretch;
+}
+
+.pd-package-btn {
+  min-width: min(100%, 240px);
+  flex: 1 1 220px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 14px;
+  border: 1px solid #dce2e4;
+  border-radius: 7px;
+  background: #fff;
+  color: #3e4b56;
+  cursor: pointer;
+  text-align: left;
+}
+
+.pd-package-btn:hover {
+  border-color: #9daab2;
+  background: #f8f9f9;
+}
+
+.pd-package-btn.selected {
+  border-color: var(--pd-brand);
+  background: #eef2f5;
+  box-shadow: inset 0 0 0 1px var(--pd-brand);
+}
+
+.pd-package-check {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #eef2f5;
+  color: var(--pd-brand);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.pd-package-btn.selected .pd-package-check {
+  background: var(--pd-brand);
+  color: #fff;
+}
+
+.pd-package-btn strong,
+.pd-package-btn small {
+  display: block;
+}
+
+.pd-package-btn strong {
+  margin-bottom: 3px;
+  font-size: 13px;
+}
+
+.pd-package-btn small {
+  color: #75818a;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.pd-package-hint {
+  margin: 8px 0 0;
+  color: #75818a;
+  font-size: 11px;
+}
+
 .pd-variation-img {
   width: 28px;
   height: 28px;

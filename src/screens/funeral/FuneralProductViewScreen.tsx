@@ -145,6 +145,18 @@ function formatTimestamp(timestamp: any) {
 
 const RATING_VALUES = [1, 2, 3, 4, 5];
 const REVIEW_ELIGIBLE_ORDER_STATUSES = ["payment_verified", "awaiting_customer_confirmation", "completed"];
+const PACKAGE_OPTIONS = [
+  {
+    name: "Flowers",
+    description: "Floral arrangements for the funeral service",
+    icon: "flower-outline",
+  },
+  {
+    name: "Candles",
+    description: "Memorial candles for the funeral service",
+    icon: "flame-outline",
+  },
+] as const;
 type VariationSheetMode = "browse" | "cart" | "buy";
 type VariationPreviewState = {
   name: string;
@@ -166,6 +178,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
   const [previewVariation, setPreviewVariation] = useState<VariationPreviewState>(null);
   const [reviewsVisible, setReviewsVisible] = useState(false);
   const [selectedVariationName, setSelectedVariationName] = useState<string | null>(null);
+  const [selectedPackageItems, setSelectedPackageItems] = useState<string[]>([]);
   const [rating, setRating] = useState(0);
   const [savingRating, setSavingRating] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
@@ -733,7 +746,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
 
     navigation.navigate("FuneralCheckout", {
       cartItem: {
-        cartId: `buy_now_${product.shopId}_${product.id}_${selectedVariationName || "standard"}_${Date.now()}`,
+        cartId: `buy_now_${product.shopId}_${product.id}_${selectedVariationName || "standard"}_${selectedPackageItems.join("-") || "no-package"}_${Date.now()}`,
         productId: product.id,
         shopId: product.shopId,
         shopName: product.shopName || "Funeral shop",
@@ -741,6 +754,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
         price: String(product.price || ""),
         imageUrl: selectedVariation?.imageUrl || gallery[0] || product.imageUrl || null,
         variationName: selectedVariationName,
+        packageItems: selectedPackageItems,
         quantity: 1,
       },
     });
@@ -771,6 +785,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
         price: String(product.price || ""),
         imageUrl: selectedVariation?.imageUrl || gallery[0] || product.imageUrl || null,
         variationName: selectedVariationName,
+        packageItems: selectedPackageItems,
       });
 
       setAddedToCartVisible(true);
@@ -911,6 +926,49 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
               </ScrollView>
             </View>
           ) : null}
+
+          <View style={styles.packageSection}>
+            <View style={styles.marketSectionHeadingRow}>
+              <Text style={styles.marketSectionLabel}>Select packages</Text>
+              <Text style={styles.packageOptionalLabel}>Optional</Text>
+            </View>
+            <Text style={styles.packageIntro}>Choose Flowers, Candles, or both to include with your service request.</Text>
+            <View style={styles.packageOptions}>
+              {PACKAGE_OPTIONS.map((option) => {
+                const selected = selectedPackageItems.includes(option.name);
+                return (
+                  <TouchableOpacity
+                    key={option.name}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: selected }}
+                    accessibilityLabel={`Add ${option.name} package`}
+                    activeOpacity={0.86}
+                    style={[styles.packageCard, selected ? styles.packageCardActive : null]}
+                    onPress={() => {
+                      setSelectedPackageItems((current) =>
+                        current.includes(option.name)
+                          ? current.filter((item) => item !== option.name)
+                          : [...current, option.name]
+                      );
+                    }}
+                  >
+                    <View style={[styles.packageIcon, selected ? styles.packageIconActive : null]}>
+                      <Ionicons name={option.icon} size={20} color={selected ? "#ffffff" : colors.primary} />
+                    </View>
+                    <View style={styles.packageCopy}>
+                      <Text style={styles.packageName}>{option.name}</Text>
+                      <Text style={styles.packageDescription}>{option.description}</Text>
+                    </View>
+                    <Ionicons
+                      name={selected ? "checkmark-circle" : "ellipse-outline"}
+                      size={21}
+                      color={selected ? colors.primary : colors.textMuted}
+                    />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
         </View>
 
         <View style={styles.detailSection}>
@@ -1398,6 +1456,9 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
               <View style={styles.confirmBody}>
                 <Text style={styles.confirmProductName} numberOfLines={2}>{product.name}</Text>
                 {selectedVariationName ? <Text style={styles.confirmVariation}>Variation: {selectedVariationName}</Text> : null}
+                {selectedPackageItems.length > 0 ? (
+                  <Text style={styles.confirmVariation}>Packages: {selectedPackageItems.join(", ")}</Text>
+                ) : null}
                 <Text style={styles.confirmPrice}>{formatPhilippinePeso(priceValue || product.price)}</Text>
               </View>
             </View>
@@ -2020,11 +2081,11 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   variationBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(20, 29, 43, 0.38)",
   },
   variationBackdropPressable: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   sheetBackdrop: {
     flex: 1,
@@ -2139,11 +2200,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   confirmBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(20, 29, 43, 0.38)",
   },
   confirmBackdropPressable: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   addedOverlay: {
     flex: 1,
@@ -2388,6 +2449,67 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textAlign: "center",
     marginTop: 4,
+  },
+  packageSection: {
+    marginTop: spacing.xl,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderWarm,
+    paddingTop: spacing.lg,
+  },
+  packageOptionalLabel: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  packageIntro: {
+    color: colors.textMuted,
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: spacing.md,
+  },
+  packageOptions: {
+    gap: spacing.sm,
+  },
+  packageCard: {
+    minHeight: 68,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  packageCardActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.surfaceMuted,
+  },
+  packageIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.surfaceMuted,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  packageIconActive: {
+    backgroundColor: colors.primary,
+  },
+  packageCopy: {
+    flex: 1,
+  },
+  packageName: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  packageDescription: {
+    color: colors.textMuted,
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 2,
   },
   marketPanel: {
     marginHorizontal: spacing.lg,

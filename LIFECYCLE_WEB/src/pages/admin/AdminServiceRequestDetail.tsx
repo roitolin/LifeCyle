@@ -93,7 +93,8 @@ function AdminServiceRequestDetail({ request, onClose }: Props) {
     tone: 'neutral' as const,
   }
   const hasSchedule = Boolean(
-    request.wakeAddress || request.wakeStartDate || request.wakeEndDate || request.burialTime || request.pickupAddress,
+    request.wakeAddress || request.churchName || request.cemeteryName
+    || request.wakeStartDate || request.wakeEndDate || request.burialTime || request.pickupAddress,
   )
   const hasPayment = Boolean(
     request.paymentAmount
@@ -197,6 +198,7 @@ function AdminServiceRequestDetail({ request, onClose }: Props) {
                         <div>
                           <strong>{request.productName || 'Custom casket service'}</strong>
                           <small>{request.variationName || titleCase(request.requestType)}</small>
+                          {request.packageItems?.length ? <small>Packages: {request.packageItems.join(', ')}</small> : null}
                           <b>{request.productPrice != null ? formatPeso(request.productPrice) : 'Custom pricing'}</b>
                         </div>
                       </div>
@@ -232,6 +234,8 @@ function AdminServiceRequestDetail({ request, onClose }: Props) {
                     <div className="sr-section-heading"><h2>Schedule and logistics</h2></div>
                     <DetailList>
                       <DetailRow label="Wake venue" value={request.wakeAddress || 'Not provided'} />
+                      <DetailRow label="Church / chapel" value={request.churchName || 'Not provided'} />
+                      <DetailRow label="Cemetery" value={request.cemeteryName || 'Not provided'} />
                       <DetailRow
                         label="Wake schedule"
                         value={request.wakeStartDate || request.wakeEndDate

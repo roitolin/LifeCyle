@@ -12,7 +12,7 @@ import { formatPhilippinePeso } from "@/utils/funeralCatalog";
 import { getHomeHeroContent, type HomeHeroContent } from '@/utils/homeHero';
 import { subscribeTabRefresh } from "@/utils/tabRefresh";
 
-const appLogo = require("../../../assets/Icon/AppICONTransparents.png");
+const appLogo = require("../../../assets/Icon/IconTraparent.png");
 
 type ProductVariation = {
   name: string;
@@ -895,11 +895,11 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   filterBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(20, 29, 43, 0.38)',
   },
   filterBackdropPressable: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   filterSheet: {
     width: '100%',
