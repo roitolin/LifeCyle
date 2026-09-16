@@ -43,6 +43,8 @@ type Props = {
 function AdminShopPaymentReceipt({ payment, busy, onClose, onVerify, onReject }: Props) {
   const [proofOpen, setProofOpen] = useState(false)
   const normalizedStatus = String(payment.status || 'pending').toLowerCase()
+  const isXendit = payment.paymentProvider === 'xendit'
+  const isHostedCheckout = isXendit || payment.paymentProvider === 'paymongo'
   const receiptMeta = normalizedStatus === 'verified'
     ? {
         title: 'Payment verified',
@@ -58,8 +60,12 @@ function AdminShopPaymentReceipt({ payment, busy, onClose, onVerify, onReject }:
           amountLabel: 'Amount',
         }
       : {
-          title: 'Payment under review',
-          message: 'Check the seller information and submitted proof before verifying it.',
+          title: isXendit ? 'Xendit checkout pending' : isHostedCheckout ? 'Legacy checkout pending' : 'Payment under review',
+          message: isXendit
+            ? 'Xendit will confirm this test transaction automatically after checkout.'
+            : isHostedCheckout
+              ? 'The legacy payment provider will confirm this transaction automatically.'
+              : 'Check the seller information and submitted proof before verifying it.',
           tone: 'review',
           amountLabel: 'Amount',
         }
@@ -125,7 +131,7 @@ function AdminShopPaymentReceipt({ payment, busy, onClose, onVerify, onReject }:
               <section className="sr-receipt-section sr-receipt-info">
                 <h3>Receipt information</h3>
                 <dl className="sr-detail-list">
-                  <DetailRow label="Payment method" value="GCash / E-wallet" />
+                  <DetailRow label="Payment method" value={isXendit ? `Xendit${payment.providerPaymentMethod ? ` - ${payment.providerPaymentMethod.replace(/_/g, ' ')}` : ''}` : payment.paymentProvider === 'paymongo' ? `Legacy PayMongo${payment.providerPaymentMethod ? ` - ${payment.providerPaymentMethod.replace(/_/g, ' ')}` : ''}` : 'GCash / E-wallet'} />
                   <DetailRow label="Payer" value={payment.payerName || 'Not provided'} />
                   <DetailRow label="GCash account name" value={payment.gcashName || 'Not provided'} />
                   <DetailRow label="GCash number" value={payment.gcashNumber || 'Not provided'} />
@@ -146,7 +152,7 @@ function AdminShopPaymentReceipt({ payment, busy, onClose, onVerify, onReject }:
                 </div>
               ) : null}
 
-              <section className="sr-receipt-proof">
+              {!isHostedCheckout ? <section className="sr-receipt-proof">
                 <div>
                   <h3>Submitted receipt</h3>
                   <span>{payment.proofImageUrl ? 'Select the image to view it full size.' : 'No receipt was attached.'}</span>
@@ -161,11 +167,11 @@ function AdminShopPaymentReceipt({ payment, busy, onClose, onVerify, onReject }:
                     <span>No payment proof is attached to this submission.</span>
                   </div>
                 )}
-              </section>
+              </section> : null}
 
               <footer className="admin-shop-receipt-actions">
                 <button type="button" className="ghost-btn" onClick={onClose}>Close</button>
-                {normalizedStatus === 'pending' ? (
+                {normalizedStatus === 'pending' && !isHostedCheckout ? (
                   <>
                     <button type="button" className="ghost-btn admin-shop-receipt-reject" disabled={busy} onClick={onReject}>Reject</button>
                     <button type="button" className="solid-btn" disabled={busy} onClick={onVerify}>

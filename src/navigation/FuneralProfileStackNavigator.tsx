@@ -29,6 +29,7 @@ import FuneralShopScheduleScreen from "@/screens/funeral/FuneralShopScheduleScre
 import FuneralShopPaymentsScreen from "@/screens/funeral/FuneralShopPaymentsScreen";
 import FuneralShopPaymentReceiptScreen from "@/screens/funeral/FuneralShopPaymentReceiptScreen";
 import FuneralShopCatalogScreen from "@/screens/funeral/FuneralShopCatalogScreen";
+import FuneralShopPackagesScreen from "@/screens/funeral/FuneralShopPackagesScreen";
 import FuneralShopSettingsScreen from "@/screens/funeral/FuneralShopSettingsScreen";
 import FuneralShopCenterScreen from "@/screens/funeral/FuneralShopCenterScreen";
 import FuneralShopInformationScreen from "@/screens/funeral/FuneralShopInformationScreen";
@@ -56,6 +57,7 @@ const SHOP_CENTER_ROUTES = new Set([
   "ProductEditor",
   "ProductDetails",
   "ShopCatalog",
+  "ShopPackages",
   "ShopSettings",
   "ServiceRequestsInbox",
   "ServiceRequestDetails",
@@ -114,6 +116,7 @@ export default function FuneralProfileStackNavigator() {
       <Stack.Screen name="ProductEditor" component={FuneralProductEditorScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ProductDetails" component={FuneralProductDetailsScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ShopCatalog" component={FuneralShopCatalogScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ShopPackages" component={FuneralShopPackagesScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ShopSettings" component={FuneralShopSettingsScreen} options={{ headerShown: false }} />
       <Stack.Screen
         name="ServiceRequestsInbox"

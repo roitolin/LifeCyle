@@ -27,6 +27,8 @@ import BlockedAccountsScreen from '@/screens/shared/BlockedAccountsScreen';
 import UserPaymentsScreen from '@/screens/user/UserPaymentsScreen';
 import FuneralMyServiceRequestsScreen from '@/screens/funeral/FuneralMyServiceRequestsScreen';
 import FuneralShopCenterScreen from '@/screens/funeral/FuneralShopCenterScreen';
+import FuneralShopInformationScreen from '@/screens/funeral/FuneralShopInformationScreen';
+import FuneralBusinessInformationScreen from '@/screens/funeral/FuneralBusinessInformationScreen';
 import FuneralShopCustomersScreen from '@/screens/funeral/FuneralShopCustomersScreen';
 import FuneralShopReportsScreen from '@/screens/funeral/FuneralShopReportsScreen';
 import FuneralProductEditorScreen from '@/screens/funeral/FuneralProductEditorScreen';
@@ -35,6 +37,7 @@ import FuneralServiceRequestsInboxScreen from '@/screens/funeral/FuneralServiceR
 import FuneralServiceRequestDetailsScreen from '@/screens/funeral/FuneralServiceRequestDetailsScreen';
 import FuneralEditServiceRequestScreen from '@/screens/funeral/FuneralEditServiceRequestScreen';
 import FuneralShopCatalogScreen from '@/screens/funeral/FuneralShopCatalogScreen';
+import FuneralShopPackagesScreen from '@/screens/funeral/FuneralShopPackagesScreen';
 import FuneralShopPaymentsScreen from '@/screens/funeral/FuneralShopPaymentsScreen';
 import FuneralShopScheduleScreen from '@/screens/funeral/FuneralShopScheduleScreen';
 import FuneralShopSettingsScreen from '@/screens/funeral/FuneralShopSettingsScreen';
@@ -67,8 +70,11 @@ export default function ProfileStackNavigator() {
       <Stack.Screen name="Contact" component={ContactScreen} options={{ title: "Contact Support" }} />
       <Stack.Screen name="SupportChat" component={ChatScreen} options={{ title: "Support Chat" }} />
       <Stack.Screen name='ManageProfile' component={AccountSettingsScreen} options={{ title: 'Personal Information' }} />
+      <Stack.Screen name='ShopInformation' component={FuneralShopInformationScreen} options={{ title: 'Shop Information' }} />
+      <Stack.Screen name='BusinessInformation' component={FuneralBusinessInformationScreen} options={{ title: 'Business Information' }} />
       <Stack.Screen name='ShopCenter' component={FuneralShopCenterScreen} options={{ headerShown: false }} />
       <Stack.Screen name='ShopCatalog' component={FuneralShopCatalogScreen} options={{ headerShown: false }} />
+      <Stack.Screen name='ShopPackages' component={FuneralShopPackagesScreen} options={{ headerShown: false }} />
       <Stack.Screen name='ShopSettings' component={FuneralShopSettingsScreen} options={{ headerShown: false }} />
       <Stack.Screen name='ProductEditor' component={FuneralProductEditorScreen} options={{ headerShown: false }} />
       <Stack.Screen name='ProductDetails' component={FuneralProductDetailsScreen} options={{ headerShown: false }} />

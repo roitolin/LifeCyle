@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Alert, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Card, Button as PaperButton } from "react-native-paper";
+import { Button as PaperButton } from "react-native-paper";
 import { Picker } from "@react-native-picker/picker";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
@@ -172,56 +172,174 @@ export default function FuneralBusinessInformationScreen({ navigation, route }: 
   return (
     <SafeAreaView style={styles.screen}>
       <KeyboardAwareScrollView style={styles.screen} contentContainerStyle={styles.content}>
-        <Card style={styles.card}>
-          <Card.Content>
-            <Text style={styles.stepLabel}>Step 2 of 2</Text>
-            <Text style={styles.title}>Business Information</Text>
+        <View style={styles.pageContent}>
+          <View style={styles.stepRow}>
+            <Text style={styles.stepLabel}>SHOP REGISTRATION</Text>
+            <Text style={styles.stepCount}>2 of 2</Text>
+          </View>
+          <View style={styles.progressTrack}>
+            <View style={styles.progressFull} />
+          </View>
 
-            <Text style={styles.label}>Individual Registered Name *</Text>
-            <TextInput style={styles.input} value={individualRegisteredName} onChangeText={setIndividualRegisteredName} />
+          <View style={styles.heading}>
+            <Text style={styles.title}>Business information</Text>
+            <Text style={styles.subtitle}>Provide the registered business and tax details used for verification.</Text>
+          </View>
 
-            <Text style={styles.label}>Business Name *</Text>
-            <TextInput style={styles.input} value={businessName} onChangeText={setBusinessName} />
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Registered business</Text>
 
-            <Text style={styles.label}>General Location *</Text>
-            <TextInput style={styles.input} value={generalLocation} onChangeText={setGeneralLocation} />
-
-            <Text style={styles.label}>Registered Address *</Text>
-            <TextInput style={[styles.input, styles.multilineInput]} value={registeredAddress} onChangeText={setRegisteredAddress} multiline />
-
-            <Text style={styles.label}>Zip Code *</Text>
-            <TextInput style={styles.input} value={zipCode} onChangeText={setZipCode} keyboardType="number-pad" />
-
-            <Text style={styles.label}>Taxpayer Identification Number (TIN) *</Text>
-            <TextInput style={styles.input} value={tin} onChangeText={setTin} />
-
-            <Text style={styles.label}>Value Added Tax Registration Status *</Text>
-            <View style={styles.pickerContainer}>
-              <Picker selectedValue={vatRegistrationStatus} onValueChange={(value) => setVatRegistrationStatus(value)}>
-                {VAT_OPTIONS.map((option) => (
-                  <Picker.Item key={option} label={option} value={option} />
-                ))}
-              </Picker>
+            <View style={styles.field}>
+              <Text style={styles.label}>Individual registered name <Text style={styles.required}>*</Text></Text>
+              <TextInput
+                style={styles.input}
+                value={individualRegisteredName}
+                onChangeText={setIndividualRegisteredName}
+                placeholder="Enter the registered owner's name"
+                placeholderTextColor="#8b948f"
+              />
             </View>
 
-            <Text style={styles.label}>BIR Certificate of Registration *</Text>
-            <TouchableOpacity style={styles.uploadButton} onPress={pickBirCertificate} disabled={uploading}>
-              <Ionicons name="cloud-upload-outline" size={18} color="#5a6b64" />
-              <Text style={styles.uploadButtonText}>{uploading ? "Uploading..." : "Upload Certificate"}</Text>
+            <View style={styles.field}>
+              <Text style={styles.label}>Business name <Text style={styles.required}>*</Text></Text>
+              <TextInput
+                style={styles.input}
+                value={businessName}
+                onChangeText={setBusinessName}
+                placeholder="Enter the registered business name"
+                placeholderTextColor="#8b948f"
+              />
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>General location <Text style={styles.required}>*</Text></Text>
+              <TextInput
+                style={styles.input}
+                value={generalLocation}
+                onChangeText={setGeneralLocation}
+                placeholder="City or municipality"
+                placeholderTextColor="#8b948f"
+              />
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Registered address <Text style={styles.required}>*</Text></Text>
+              <TextInput
+                style={[styles.input, styles.multilineInput]}
+                value={registeredAddress}
+                onChangeText={setRegisteredAddress}
+                placeholder="Enter the complete registered address"
+                placeholderTextColor="#8b948f"
+                multiline
+              />
+            </View>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Tax details</Text>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Zip code <Text style={styles.required}>*</Text></Text>
+              <TextInput
+                style={styles.input}
+                value={zipCode}
+                onChangeText={setZipCode}
+                placeholder="Enter the zip code"
+                placeholderTextColor="#8b948f"
+                keyboardType="number-pad"
+              />
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Taxpayer Identification Number (TIN) <Text style={styles.required}>*</Text></Text>
+              <TextInput
+                style={styles.input}
+                value={tin}
+                onChangeText={setTin}
+                placeholder="Enter the TIN"
+                placeholderTextColor="#8b948f"
+              />
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>VAT registration status <Text style={styles.required}>*</Text></Text>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={vatRegistrationStatus}
+                  onValueChange={(value) => setVatRegistrationStatus(value)}
+                  style={styles.picker}
+                  dropdownIconColor="#405b52"
+                >
+                  {VAT_OPTIONS.map((option) => (
+                    <Picker.Item key={option} label={option} value={option} />
+                  ))}
+                </Picker>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Registration document</Text>
+            <Text style={styles.sectionDescription}>Upload a clear image of the BIR Certificate of Registration.</Text>
+
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel={birCertificateUrl ? "Replace certificate image" : "Choose certificate image"}
+              style={styles.uploadButton}
+              onPress={pickBirCertificate}
+              disabled={uploading}
+              activeOpacity={0.75}
+            >
+              <View style={styles.uploadIcon}>
+                <Ionicons name={birCertificateUrl ? "refresh-outline" : "cloud-upload-outline"} size={22} color="#405b52" />
+              </View>
+              <View style={styles.uploadCopy}>
+                <Text style={styles.uploadButtonText}>
+                  {uploading ? "Uploading..." : birCertificateUrl ? "Replace certificate image" : "Choose certificate image"}
+                </Text>
+                <Text style={styles.uploadHint}>
+                  {birCertificateUrl ? "Select another image if this one is incorrect" : "Use a readable, uncropped photo"}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#7a8782" />
             </TouchableOpacity>
 
             {birCertificateUrl ? (
-              <View style={styles.previewCard}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Certificate uploaded. Tap to replace the image"
+                style={styles.preview}
+                onPress={pickBirCertificate}
+                disabled={uploading}
+                activeOpacity={0.75}
+              >
                 <Image source={{ uri: birCertificateUrl }} style={styles.previewImage} resizeMode="cover" />
-                <Text style={styles.previewText}>BIR certificate ready</Text>
-              </View>
+                <View style={styles.previewCopy}>
+                  <Text style={styles.previewText}>Certificate uploaded</Text>
+                  <Text style={styles.previewHint}>Tap to replace this image</Text>
+                </View>
+                <Ionicons name="create-outline" size={21} color="#405b52" />
+              </TouchableOpacity>
             ) : null}
+          </View>
 
-            <PaperButton mode="contained" buttonColor="#5a6b64" onPress={handleSubmit} loading={submitting} disabled={submitting || uploading} style={styles.primaryButton}>
-              Submit
-            </PaperButton>
-          </Card.Content>
-        </Card>
+          <PaperButton
+            mode="contained"
+            buttonColor="#405b52"
+            onPress={handleSubmit}
+            loading={submitting}
+            disabled={submitting || uploading}
+            style={styles.primaryButton}
+            contentStyle={styles.primaryButtonContent}
+            labelStyle={styles.primaryButtonLabel}
+          >
+            Submit
+          </PaperButton>
+        </View>
       </KeyboardAwareScrollView>
     </SafeAreaView>
   );
@@ -230,93 +348,192 @@ export default function FuneralBusinessInformationScreen({ navigation, route }: 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#eef1ec",
+    backgroundColor: "#f7f8f5",
   },
   content: {
-    padding: 16,
-    paddingBottom: 120,
+    flexGrow: 1,
+    paddingHorizontal: 22,
+    paddingTop: 24,
+    paddingBottom: 48,
   },
-  card: {
-    borderRadius: 14,
+  pageContent: {
+    width: "100%",
+    maxWidth: 640,
+    alignSelf: "center",
+  },
+  stepRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   stepLabel: {
-    color: "#75807b",
+    color: "#5c6f68",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.1,
+  },
+  stepCount: {
+    color: "#b6463d",
     fontSize: 12,
-    fontWeight: "700",
-    marginBottom: 8,
+    fontWeight: "800",
+  },
+  progressTrack: {
+    height: 3,
+    marginTop: 10,
+    overflow: "hidden",
+    borderRadius: 2,
+    backgroundColor: "#dce2dd",
+  },
+  progressFull: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#405b52",
+  },
+  heading: {
+    marginTop: 34,
+    marginBottom: 30,
   },
   title: {
-    color: "#0f172a",
-    fontSize: 28,
-    fontWeight: "900",
-    marginBottom: 8,
+    color: "#1f2d29",
+    fontSize: 30,
+    fontWeight: "800",
+    letterSpacing: -0.6,
+  },
+  subtitle: {
+    maxWidth: 520,
+    marginTop: 9,
+    color: "#66736e",
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  section: {
+    gap: 20,
+  },
+  sectionTitle: {
+    color: "#263832",
+    fontSize: 17,
+    fontWeight: "800",
+  },
+  sectionDescription: {
+    marginTop: -12,
+    color: "#6e7a75",
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  divider: {
+    height: 1,
+    marginVertical: 30,
+    backgroundColor: "#dce2dd",
+  },
+  field: {
+    gap: 8,
   },
   label: {
-    color: "#4c5b57",
+    color: "#30433d",
     fontSize: 14,
     fontWeight: "700",
-    marginTop: 12,
-    marginBottom: 6,
+  },
+  required: {
+    color: "#b6463d",
   },
   input: {
     borderWidth: 1,
-    borderColor: "#cbd2cb",
-    borderRadius: 10,
-    padding: 12,
+    borderColor: "#c7d0ca",
+    borderRadius: 12,
+    minHeight: 52,
+    paddingHorizontal: 15,
+    paddingVertical: 13,
     backgroundColor: "#ffffff",
-    color: "#22312d",
-    fontSize: 15,
+    color: "#1f2d29",
+    fontSize: 16,
   },
   multilineInput: {
-    minHeight: 92,
+    minHeight: 108,
     textAlignVertical: "top",
   },
   pickerContainer: {
     borderWidth: 1,
-    borderColor: "#cbd2cb",
-    borderRadius: 10,
+    borderColor: "#c7d0ca",
+    borderRadius: 12,
     overflow: "hidden",
     backgroundColor: "#ffffff",
+  },
+  picker: {
+    color: "#1f2d29",
+    minHeight: 52,
   },
   uploadButton: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
+    gap: 12,
     borderWidth: 1,
-    borderColor: "#cad5cc",
+    borderStyle: "dashed",
+    borderColor: "#aab9b1",
+    borderRadius: 12,
+    padding: 14,
+    backgroundColor: "#ffffff",
+  },
+  uploadIcon: {
+    width: 40,
+    height: 40,
     borderRadius: 10,
-    paddingVertical: 14,
-    backgroundColor: "#fbfcf8",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#e8eeea",
+  },
+  uploadCopy: {
+    flex: 1,
   },
   uploadButtonText: {
-    color: "#5a6b64",
+    color: "#30433d",
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "800",
   },
-  previewCard: {
-    marginTop: 12,
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#d8ddd7",
+  uploadHint: {
+    marginTop: 3,
+    color: "#7a8782",
+    fontSize: 12,
+  },
+  preview: {
+    flexDirection: "row",
     alignItems: "center",
+    gap: 12,
+    minHeight: 78,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#cbd6cf",
+    borderRadius: 12,
+    backgroundColor: "#eef3ef",
   },
   previewImage: {
-    width: "100%",
-    height: 180,
-    borderRadius: 10,
-    marginBottom: 10,
+    width: 58,
+    height: 58,
+    borderRadius: 9,
+    backgroundColor: "#e8ece8",
+  },
+  previewCopy: {
+    flex: 1,
   },
   previewText: {
-    color: "#5a6b64",
+    color: "#30433d",
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "800",
+  },
+  previewHint: {
+    marginTop: 3,
+    color: "#6e7a75",
+    fontSize: 12,
   },
   primaryButton: {
-    marginTop: 20,
-    borderRadius: 10,
+    marginTop: 34,
+    borderRadius: 12,
+  },
+  primaryButtonContent: {
+    minHeight: 52,
+  },
+  primaryButtonLabel: {
+    fontSize: 15,
+    fontWeight: "800",
   },
 });
 

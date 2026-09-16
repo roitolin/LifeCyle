@@ -47,6 +47,9 @@ export type PaymentSubmission = {
   shopName: string
   ownerEmail: string
   ownerFullName: string
+  paymentProvider: 'manual' | 'paymongo' | 'xendit'
+  providerPaymentId: string | null
+  providerPaymentMethod: string | null
 }
 
 export default function AdminPaymentsPage() {
@@ -57,7 +60,7 @@ export default function AdminPaymentsPage() {
   const [qrUrl, setQrUrl] = useState<string | null>(null)
   const [feeAmount, setFeeAmount] = useState('')
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
-  const [file, setFile] = useState<File | null>(null)
+  const [, setFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -128,6 +131,13 @@ export default function AdminPaymentsPage() {
         shopName: row.users?.funeral_shops?.shopName || '',
         ownerEmail: row.users?.email || '',
         ownerFullName: row.users?.fullName || '',
+        paymentProvider: row.paymentProvider === 'xendit'
+          ? 'xendit'
+          : row.paymentProvider === 'paymongo'
+            ? 'paymongo'
+            : 'manual',
+        providerPaymentId: row.providerPaymentId || null,
+        providerPaymentMethod: row.providerPaymentMethod || null,
       }))
       setPayments(list)
     } catch {
@@ -312,30 +322,18 @@ export default function AdminPaymentsPage() {
     setSaving(true)
     setError('')
     try {
-      let finalQrUrl = qrUrl
-
-      if (file) {
-        const ext = file.name.split('.').pop() || 'png'
-        const path = `payment-qr/payment_qr_${Date.now()}.${ext}`
-        const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
-        if (uploadError) throw uploadError
-
-        const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
-        finalQrUrl = urlData.publicUrl
-      }
-
       await savePaymentQrDetails({
-        imageUrl: finalQrUrl,
+        imageUrl: null,
         feeAmount: parsedFee,
       })
 
-      setQrUrl(finalQrUrl)
+      setQrUrl(null)
       setUpdatedAt(new Date().toISOString())
       clearSelection()
 
       openAlert({
         title: 'Payments Updated',
-        message: 'Payment settings saved. Verified shops will see the QR code and the registration fee.',
+        message: 'Payment settings saved. Verified shops can now pay this fee through Xendit Test Mode.',
         tone: 'info',
         okLabel: 'Done',
       })
@@ -380,8 +378,7 @@ export default function AdminPaymentsPage() {
   }
 
   const shownQrUrl = previewUrl || qrUrl
-  const isPublishing = Boolean(file)
-  const pendingPaymentCount = payments.filter((entry) => entry.status === 'pending').length
+  const pendingPaymentCount = payments.filter((entry) => entry.status === 'pending' && entry.paymentProvider === 'manual').length
   const verifiedPayments = payments.filter((entry) => entry.status === 'verified')
   const verifiedPaymentTotal = verifiedPayments.reduce((total, entry) => total + Number(entry.amount || 0), 0)
 
@@ -394,9 +391,9 @@ export default function AdminPaymentsPage() {
             Review shop registration payments and manage the payment instructions shown to sellers.
           </p>
         </div>
-        <span className={`payments-status-pill${qrUrl ? ' is-live' : ' is-empty'}`}>
+        <span className={`payments-status-pill${Number(feeAmount) > 0 ? ' is-live' : ' is-empty'}`}>
           <span className="payments-status-dot" aria-hidden="true" />
-          {qrUrl ? 'QR Published' : 'No QR Yet'}
+          {Number(feeAmount) > 0 ? 'Xendit Ready' : 'Fee Required'}
         </span>
       </header>
 
@@ -478,18 +475,22 @@ export default function AdminPaymentsPage() {
                       onChange={(event) => setFeeAmount(event.target.value)}
                     />
                   </div>
-                  <span className="payments-field-hint">Sellers scan the QR code below and pay this amount.</span>
+                  <span className="payments-field-hint">Xendit charges this exact test amount through secure hosted checkout.</span>
                 </div>
               </div>
             </section>
 
             <section className="payments-card">
               <div className="payments-card-head">
-                <h3>Payment QR Code</h3>
-                <p>Sellers scan this to complete their payment.</p>
+                <h3>Xendit Test Checkout</h3>
+                <p>Enabled Xendit test channels are confirmed automatically. No real money is used.</p>
               </div>
 
-              <div className="payments-qr-layout">
+              <div className='payments-paymongo-live'>
+                <strong>Secure checkout enabled</strong>
+                <p>No QR image or payment screenshot is required. Xendit sends the verified result directly to LifeCycle.</p>
+              </div>
+              <div className="payments-qr-layout" style={{ display: 'none' }}>
                 <div className={`payments-qr-preview${shownQrUrl ? ' has-image' : ''}`}>
                   {shownQrUrl ? (
                     <img src={shownQrUrl} alt={previewUrl ? 'New payment QR preview' : 'Current payment QR code'} />
@@ -552,7 +553,7 @@ export default function AdminPaymentsPage() {
               Discard Changes
             </button>
             <button type="button" className="solid-btn" onClick={() => void handleSave()} disabled={saving}>
-              {saving ? 'Saving...' : isPublishing ? 'Publish QR & Save' : 'Save Payment Settings'}
+              {saving ? 'Saving...' : 'Save Xendit Fee'}
             </button>
           </footer>
         </>
@@ -628,7 +629,7 @@ export default function AdminPaymentsPage() {
                             >
                               View receipt
                             </button>
-                            {entry.status === 'pending' ? (
+                            {entry.status === 'pending' && entry.paymentProvider === 'manual' ? (
                               <>
                                 <button
                                   type="button"

@@ -1,0 +1,419 @@
+Create a professional PowerPoint presentation (PPT) report about the Authentication System of our mobile app called "LifeCycle". The app is built with React Native + Expo + TypeScript and uses Supabase as the backend (auth + database). The report should cover: Login, Logout, Registration, and Authentication.
+
+Use a clean, modern, and professional design. Use dark or neutral tones. Include diagrams, flowcharts, tables, and code snippets where appropriate.
+
+Here is the full content for each slide:
+
+---
+
+SLIDE 1: TITLE SLIDE
+Title: LifeCycle Authentication System - Technical Report
+Subtitle: Login - Logout - Registration - Authentication
+Footer: React Native | Supabase Auth | Expo | TypeScript
+
+---
+
+SLIDE 2: TABLE OF CONTENTS
+1. System Overview - Architecture, tech stack, and design decisions
+2. Registration Module - Sign-up flow, email verification, input validation
+3. Login Module - Credential authentication, brute-force protection, ban detection
+4. Logout Module - Single-device logout, global logout, account switching
+5. Authentication and Session Management - AuthContext, JWT lifecycle, session persistence
+6. Email Verification and Password Reset - Post-registration verification, password recovery
+7. Security Measures - Input sanitization, rate limiting, activity logging, device tracking
+8. Source File Map - Complete file reference
+
+---
+
+SLIDE 3: SYSTEM OVERVIEW
+
+Technology Stack:
+- Frontend: React Native + Expo
+- Language: TypeScript
+- Auth Provider: Supabase Auth
+- Database: Supabase PostgreSQL with Row-Level Security (RLS)
+- Session Storage: AsyncStorage (React Native)
+- Secure Storage: expo-secure-store (for tokens)
+- Navigation: React Navigation v6
+- UI Framework: React Native Paper
+
+Architecture Layers (top to bottom):
+1. Presentation Layer - LoginScreen, RegisterScreen, VerificationScreen, ForgotPasswordScreen
+2. State and Context Layer - AuthContext (AuthProvider), RootNavigator
+3. Service Layer - supabaseClient, supabaseAuth, userProfile, deviceAccounts
+4. Backend (Supabase) - Auth Service, PostgreSQL DB, RLS Policies, RPC Functions
+
+User Roles: super_admin, admin, funeral_admin, user
+- Roles are stored in the public.users table and enforced via Supabase RLS policies
+- The client never assigns roles - a SECURITY DEFINER RPC function "ensure_my_user_profile" handles profile creation server-side
+
+Key Stats:
+- 7 Auth Screens
+- 4 User Roles
+- 10+ Services and Utility Files
+- Row-Level Security enforced
+
+---
+
+SLIDE 4: REGISTRATION MODULE
+
+Registration Flow (make a flowchart):
+Fill Form -> Validate Input -> Supabase Sign-Up -> Email Verification Sent -> Profile Created on First Login
+
+Registration Form Fields:
+| Field         | Type    | Validation                        |
+|---------------|---------|-----------------------------------|
+| Full Name     | Text    | Required, auto-capitalized        |
+| Email Address | Email   | Required, normalized to lowercase |
+| Password      | Secure  | Required, minimum 6 characters    |
+| Gender        | Picker  | Required (Male / Female / Other)  |
+| Date of Birth | Date    | Required, max = today             |
+
+Key Implementation Details:
+- Email is normalized via normalizeEmail() - trimmed and lowercased
+- User metadata (fullName, gender, dateOfBirth) is stored in Supabase auth user_metadata
+- The profile row in public.users is NOT created at sign-up (RLS would fail for unauthenticated inserts)
+- Profile is created on first login via ensure_my_user_profile RPC function (SECURITY DEFINER)
+- Duplicate email detection with user-friendly messaging
+
+Core Sign-Up Code:
+const { data, error } = await supabase.auth.signUp({
+  email: normalizedEmail,
+  password,
+  options: {
+    emailRedirectTo: getSupabaseEmailRedirectTo(),
+    data: {
+      fullName: fullName.trim(),
+      gender,
+      dateOfBirth: dateOfBirth.toISOString(),
+    },
+  },
+});
+
+After successful registration, users navigate to VerifyEmailScreen with:
+- Step-by-step verification instructions
+- "Open Email App" button
+- "Back to Login" navigation
+
+Error Handling:
+| Error               | User Message                     |
+|---------------------|----------------------------------|
+| Already registered  | "Email already in use"           |
+| Password too short  | "At least 6 characters"          |
+| Network failure     | "Check your internet connection" |
+
+---
+
+SLIDE 5: LOGIN MODULE
+
+Login Flow (make a flowchart):
+Enter Credentials -> Rate Limit Check -> Supabase Auth -> Ban Check -> Log Activity -> Navigate Home
+
+Core Login Code:
+// 1. Normalize email
+const normalizedEmail = normalizeEmail(email);
+
+// 2. Check brute-force guard
+const blockState = await getLoginBlockState(normalizedEmail);
+if (blockState.blocked) { /* show retry timer */ }
+
+// 3. Authenticate with Supabase
+const { data, error } = await supabase.auth.signInWithPassword({
+  email: normalizedEmail,
+  password,
+});
+
+// 4. Load and verify user profile
+const profile = await ensureOwnUserProfile(user);
+
+// 5. Check ban/disabled status
+if (profile.disabled) { /* sign out and show ban dialog */ }
+
+// 6. Record login activity
+await recordAccountLoginActivity('login_success');
+await recordAdminLoginActivity('login_success', role);
+
+Brute-Force Protection (authAttemptGuard.ts):
+- Window: 10 minutes
+- Max Failed Attempts: 5 per window
+- Block Duration: 10 minutes
+- Storage: AsyncStorage (per email)
+
+Ban/Disabled Account Handling:
+- User is immediately signed out if flagged as disabled
+- A modal dialog shows the ban reason and expiration date
+- Temporary bans are auto-lifted once bannedUntil passes
+- Permanent bans show "No end date"
+- "Contact Support" button provided via SMS/Email
+
+Login Error Handling:
+| Error Code                  | User Message                  |
+|-----------------------------|-------------------------------|
+| invalid_credentials         | "Incorrect email or password" |
+| auth/user-not-found         | "No account found"            |
+| auth/wrong-password         | "Incorrect password"          |
+| auth/user-disabled          | "Account disabled"            |
+| auth/too-many-requests      | "Wait and try again"          |
+| auth/network-request-failed | "Check internet connection"   |
+
+Login UI Features:
+- Email field with autofill support
+- Password field with show/hide toggle
+- "Forgot password?" link
+- "Create an account" link to registration
+- Support links (SMS and email)
+- Loading state with "Logging in..." text
+
+---
+
+SLIDE 6: LOGOUT MODULE
+
+Three Logout Methods:
+
+1. logout() - Single Device
+   - Signs out only the current device session
+   - Scope: 'local'
+
+2. logoutEverywhere() - All Sessions
+   - Revokes every active session across all devices globally
+   - Scope: 'global'
+
+3. switchAccount(accountId) - Account Switching
+   - Seamlessly switch between remembered accounts stored on the device
+
+Logout Code:
+const logout = async () => {
+  await unregisterCurrentDevicePushToken();
+  await markCurrentAccountSessionSignedOut('signed_out');
+  await recordAccountLoginActivity('logout');
+  await recordAdminLoginActivity('logout', role);
+  await supabase.auth.signOut({ scope: 'local' });
+  await forgetRememberedAccount(accountId);
+};
+
+Logout Everywhere Code:
+const logoutEverywhere = async () => {
+  await unregisterCurrentDevicePushToken();
+  await recordAccountActivity('all_sessions_signed_out');
+  await markCurrentAccountSessionSignedOut('all_sessions_signed_out');
+  await supabase.auth.signOut({ scope: 'global' });
+};
+
+Account Switch Flow:
+1. Save current session to device SecureStore
+2. Mark current session as "account_switched"
+3. Record logout activity for current account
+4. Restore target account session from SecureStore
+5. Verify target user ID matches
+6. Record login activity for target account
+7. On failure -> restore original session (rollback)
+
+Logout Confirmation:
+Alert.alert("Logout", "Are you sure you want to log out?", [
+  { text: "Cancel", style: "cancel" },
+  { text: "Log Out", style: "destructive", onPress: async () => await logout() },
+]);
+
+Cleanup Operations on Logout:
+- Unregister device push notification token
+- Mark server-side session as signed out
+- Record logout activity in audit log
+- Record admin-specific logout activity (if admin role)
+- Remove remembered account credentials from SecureStore
+- Clear local auth state (user, role, termsAccepted)
+
+---
+
+SLIDE 7: AUTHENTICATION AND SESSION MANAGEMENT
+
+AuthContext Provider (AuthContext.tsx - 505 lines):
+The AuthProvider wraps the entire app and exposes authentication state to all components via React Context.
+
+Exposed State and Methods:
+| Property             | Type              | Purpose                          |
+|----------------------|-------------------|----------------------------------|
+| user                 | AppUser or null   | Current authenticated user       |
+| role                 | Role              | User role (admin, user, etc.)    |
+| termsAccepted        | boolean           | Terms and conditions agreement   |
+| banNotice            | BanNotice or null | Ban reason and end date          |
+| loading              | boolean           | Auth state loading flag          |
+| logout()             | Function          | Sign out (local scope)           |
+| logoutEverywhere()   | Function          | Sign out (global scope)          |
+| switchAccount()      | Function          | Switch between saved accounts    |
+| acceptTerms()        | Function          | Accept terms and conditions      |
+| refreshUserProfile() | Function          | Reload user data from DB         |
+
+State-Driven Navigation (RootNavigator.tsx):
+The RootNavigator uses auth state to determine which navigator stack is rendered:
+- No user -> AuthNavigator (Login/Register)
+- User but email not verified -> VerificationStackNavigator
+- User, email verified, terms not accepted -> TermsNavigator
+- User, email verified, terms accepted, admin role -> AdminStackNavigator
+- User, email verified, terms accepted, regular user -> FuneralNavigator
+
+JWT Token Lifecycle:
+- Sessions persisted via AsyncStorage (persistSession: true)
+- Auto-refresh enabled (autoRefreshToken: true), managed by AppState (active/background)
+- Deep-link auth handling: supports verification links via code exchange or token injection
+- Session health verification: polls every 120 seconds + on app foreground
+- Revoked sessions: auto-signed out if server revokes session
+
+Supabase Client Configuration:
+createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    storage: ReactNativeAsyncStorage,
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: false,
+  },
+});
+
+---
+
+SLIDE 8: EMAIL VERIFICATION AND PASSWORD RESET
+
+Email Verification (Post-Login - VerificationScreen.tsx):
+When a user logs in with an unverified email, VerificationScreen is displayed:
+- 30-minute countdown timer - auto-logout on expiry
+- Resend email with 60-second cooldown between resends
+- Rate-limit handling: 120-second cooldown if Supabase rate-limits
+- "I've Verified My Email" button - calls supabase.auth.getUser() then refreshSession()
+- "Logout Now" button - allows the user to exit immediately
+
+Resend Verification Code:
+const { error } = await supabase.auth.resend({
+  type: "signup",
+  email: user.email,
+  options: {
+    emailRedirectTo: getSupabaseEmailRedirectTo(),
+  },
+});
+
+Password Reset Flow (ForgotPasswordScreen.tsx):
+Enter Email -> Send Reset Link -> Click Link in Email -> Set New Password
+
+const { error } = await supabase.auth.resetPasswordForEmail(
+  email.trim(),
+  { redirectTo: getSupabaseEmailRedirectTo() }
+);
+
+Reset Error Handling:
+| Error Code                  | Message                       |
+|-----------------------------|-------------------------------|
+| auth/invalid-email          | "Enter a valid email address" |
+| auth/user-not-found         | "No account found"            |
+| auth/too-many-requests      | "Wait and try again"          |
+| auth/network-request-failed | "Check internet connection"   |
+
+Deep Link Auth Handling:
+The AuthContext listens for incoming URLs (deep links) and handles two patterns:
+1. Authorization Code: exchangeCodeForSession(code)
+2. Token Pair: setSession({ access_token, refresh_token })
+
+---
+
+SLIDE 9: SECURITY MEASURES
+
+1. Input Sanitization (inputSecurity.ts):
+   - Strips control characters from user text
+   - Normalizes whitespace
+   - Detects SQL injection and XSS patterns
+   - Blocked patterns: select, union, drop, insert, delete, update, alter, truncate, script tags, javascript:
+
+2. Rate Limiting:
+   - Client-side brute force guard (authAttemptGuard.ts): 5 attempts per 10-min window, 10-min lockout
+   - Server-side Supabase rate limits
+   - Chat/support/report rate limiter (rateLimiter.ts)
+
+3. Activity Logging (accountLoginActivity.ts):
+   - Every login/logout event recorded via RPC (record_account_login_activity)
+   - Device metadata captured: device_id, device_name, device_type, platform, os_version, browser, screen_size, user_agent
+   - Admin-specific audit log (adminLoginActivity.ts)
+
+4. Device Tracking:
+   - Each device gets a persistent UUID stored in AsyncStorage
+   - Sessions registered server-side with full device info
+   - Friendly device name resolution (e.g., "Samsung Galaxy S24" instead of "SM-S921B")
+
+5. Secure Token Storage (deviceAccounts.ts):
+   - Access and refresh tokens stored in expo-secure-store
+   - Access level: WHEN_UNLOCKED_THIS_DEVICE_ONLY
+   - Max 6 remembered accounts per device
+
+6. Account Banning:
+   - Admin-configurable ban with reason and expiration
+   - Temporary bans auto-lifted once bannedUntil passes
+   - Permanent bans show "No end date"
+   - Forced sign-out on ban detection during login
+
+7. Session Health Monitoring (accountSessions.ts):
+   - Polls every 120 seconds + on app foreground
+   - Three possible states: active, revoked, unavailable
+   - Revoked sessions trigger automatic local sign-out
+
+---
+
+SLIDE 10: SOURCE FILE MAP
+
+Screens (UI Layer):
+| File                         | Purpose                              |
+|------------------------------|--------------------------------------|
+| MobileLandingScreen.tsx      | Onboarding carousel / landing page   |
+| LoginScreen.tsx              | Email + password login form          |
+| RegisterScreen.tsx           | New account registration form        |
+| VerifyEmailScreen.tsx        | Post-registration email verification |
+| VerificationScreen.tsx       | Post-login email verification gate   |
+| ForgotPasswordScreen.tsx     | Password reset email request         |
+| TermsAndConditionsScreen.tsx | Terms acceptance gate                |
+
+Services:
+| File                 | Purpose                                   |
+|----------------------|-------------------------------------------|
+| supabaseClient.ts    | Supabase client initialization            |
+| supabaseAuth.ts      | Auth compatibility layer                  |
+| userProfile.ts       | Profile read/create ensureOwnUserProfile  |
+| deviceAccounts.ts    | Multi-account session storage             |
+| pushNotifications.ts | Push token registration/unregistration    |
+
+Context and Navigation:
+| File                           | Purpose                         |
+|--------------------------------|---------------------------------|
+| AuthContext.tsx                 | Global auth state provider      |
+| RootNavigator.tsx              | State-driven navigator selector |
+| AuthNavigator.tsx              | Login/Register stack navigator  |
+| VerificationStackNavigator.tsx | Email verification navigator    |
+| TermsNavigator.tsx             | Terms and conditions navigator  |
+
+Security Utils:
+| File                    | Purpose                                   |
+|-------------------------|-------------------------------------------|
+| authAttemptGuard.ts     | Brute-force login rate limiter            |
+| inputSecurity.ts        | Text sanitization and injection detection |
+| accountSessions.ts      | Server-side session CRUD via RPC          |
+| accountLoginActivity.ts | Login/logout event audit trail            |
+| adminLoginActivity.ts   | Admin-specific login audit                |
+| logoutConfirmation.ts   | Logout confirmation dialog                |
+| accountActivity.ts      | General account activity logging          |
+
+---
+
+SLIDE 11: SUMMARY
+
+The LifeCycle authentication system implements a comprehensive, multi-layered security architecture:
+
+- SECURE: Input sanitization, rate limiting, RLS policies, secure token storage, session health monitoring
+- AUDITABLE: Full login/logout activity trail, device tracking, admin audit logs, server-side session registry
+- USER-FRIENDLY: Clear error messages, ban explanation dialogs, account switching, password recovery, support links
+
+Key Metrics:
+- 7 Auth Screens
+- 5 Services
+- 7 Security Utils
+- 3 Logout Methods (local, global, switch)
+
+---
+
+SLIDE 12: THANK YOU
+Title: Thank You
+Subtitle: LifeCycle Authentication System - Technical Report
+Tags: React Native | Supabase | Expo | TypeScript

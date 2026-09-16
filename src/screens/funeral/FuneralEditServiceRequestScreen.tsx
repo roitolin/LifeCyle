@@ -420,10 +420,11 @@ export default function FuneralEditServiceRequestScreen({ navigation, route }: a
               mode="date"
               display="default"
               maximumDate={form.deceasedDateOfPassing || new Date()}
-              onChange={(_event, selectedDate) => {
+              onValueChange={(_event, selectedDate) => {
                 if (Platform.OS !== "ios") setShowDateOfBirthPicker(false);
-                if (selectedDate) setField("deceasedDateOfBirth", selectedDate);
+                setField("deceasedDateOfBirth", selectedDate);
               }}
+              onDismiss={() => setShowDateOfBirthPicker(false)}
             />
           ) : null}
 
@@ -439,10 +440,11 @@ export default function FuneralEditServiceRequestScreen({ navigation, route }: a
               display="default"
               minimumDate={form.deceasedDateOfBirth || undefined}
               maximumDate={new Date()}
-              onChange={(_event, selectedDate) => {
+              onValueChange={(_event, selectedDate) => {
                 if (Platform.OS !== "ios") setShowDateOfPassingPicker(false);
-                if (selectedDate) setField("deceasedDateOfPassing", selectedDate);
+                setField("deceasedDateOfPassing", selectedDate);
               }}
+              onDismiss={() => setShowDateOfPassingPicker(false)}
             />
           ) : null}
 

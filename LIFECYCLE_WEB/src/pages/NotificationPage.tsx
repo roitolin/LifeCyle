@@ -118,6 +118,7 @@ function notificationDestination(notification: Notification, role?: string | nul
   const data = notification.data
   const isAdmin = ['admin', 'super_admin', 'funeral_admin'].includes(String(role || '').toLowerCase())
   if (isAdmin) {
+    if (type === 'shop_payment_account_registered') return '/admin/payments'
     if (type.includes('request') || type.includes('order') || type.includes('payment')) return '/admin/orders'
     if (type === 'abuse_report') return '/admin/moderation'
     if (type === 'feedback_new' || type === 'rating_update') return '/admin/feedback'

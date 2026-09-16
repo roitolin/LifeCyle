@@ -218,7 +218,8 @@ export default function AccountSettingsScreen({ navigation }: any) {
                 value={dateOfBirth || new Date()}
                 mode="date"
                 display="default"
-                onChange={onDateChange}
+                onValueChange={onDateChange}
+                onDismiss={() => setShowDatePicker(false)}
                 maximumDate={new Date()}
               />
             ) : null}

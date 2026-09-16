@@ -180,7 +180,7 @@ function AdminOrdersPage() {
       { header: 'Deceased Age', value: (row) => (row.deceasedAge == null ? '' : row.deceasedAge) },
       { header: 'Item', value: (row) => row.productName || 'Custom casket design' },
       { header: 'Variation', value: (row) => row.variationName || '' },
-      { header: 'Selected Packages', value: (row) => row.packageItems?.join(', ') || '' },
+      { header: 'Package Inclusions', value: (row) => row.packageItems?.join(', ') || '' },
       { header: 'Item Price', value: (row) => (row.productPrice == null ? '' : row.productPrice) },
       { header: 'Payment Amount', value: (row) => (row.paymentAmount == null ? '' : row.paymentAmount) },
       { header: 'Payer Name', value: (row) => row.paymentPayerName || '' },

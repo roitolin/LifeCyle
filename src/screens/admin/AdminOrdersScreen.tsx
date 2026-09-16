@@ -88,6 +88,12 @@ const getStatusMeta = (status: string) => {
   if (normalized === "payment_submitted") {
     return { label: "Payment Submitted", background: "#e0eefa", text: "#1c4f7e" };
   }
+  if (normalized === "paid_waiting_for_split") {
+    return { label: "Waiting for Commission", background: "#fef3c7", text: "#86654a" };
+  }
+  if (normalized === "commission_failed") {
+    return { label: "Commission Failed", background: "#fde8e8", text: "#991b1b" };
+  }
   if (normalized === "payment_verified") {
     return { label: "Payment Confirmed", background: "#e7f5ec", text: "#166534" };
   }
@@ -107,7 +113,7 @@ const matchesFilter = (status: string, filter: FilterType) => {
   if (filter === "all") return true;
   const normalized = String(status || "").toLowerCase();
   if (filter === "waiting") return normalized === "pending_shop_acceptance";
-  if (filter === "accepted") return ["accepted_by_shop", "awaiting_payment", "payment_submitted", "payment_verified", "completed"].includes(normalized);
+  if (filter === "accepted") return ["accepted_by_shop", "awaiting_payment", "payment_submitted", "paid_waiting_for_split", "commission_failed", "payment_verified", "completed"].includes(normalized);
   if (filter === "declined") return normalized === "declined_by_shop";
   if (filter === "cancelled") return normalized === "cancelled_by_requester";
   return true;
@@ -310,9 +316,9 @@ export default function AdminOrdersScreen() {
                     {selectedItem.variationName ? ` (${selectedItem.variationName})` : ""}
                   </Text>
 
-                  <Text style={styles.detailLabel}>Selected Packages</Text>
+                  <Text style={styles.detailLabel}>Package Inclusions</Text>
                   <Text style={styles.detailValue}>
-                    {selectedItem.packageItems?.length ? selectedItem.packageItems.join(", ") : "None selected"}
+                    {selectedItem.packageItems?.length ? selectedItem.packageItems.join(", ") : "None included"}
                   </Text>
 
                   <Text style={styles.detailLabel}>Price</Text>
@@ -320,7 +326,7 @@ export default function AdminOrdersScreen() {
                     {selectedItem.productPrice != null ? formatPhilippinePeso(selectedItem.productPrice) : "Custom pricing"}
                   </Text>
 
-                  {["awaiting_payment", "payment_submitted", "payment_verified", "completed"].includes(
+                  {["awaiting_payment", "payment_submitted", "paid_waiting_for_split", "commission_failed", "payment_verified", "completed"].includes(
                     String(selectedItem.status || "").toLowerCase()
                   ) ? (
                     <>

@@ -21,6 +21,22 @@ type ActionRowProps = {
   showChevron?: boolean;
 };
 
+type ShopStatus = "none" | "pending" | "verified" | "live" | "offline" | "rejected";
+
+const hasShopCenterAccess = (status: ShopStatus) =>
+  status === "verified" || status === "live" || status === "offline";
+
+const getShopStatus = (shop: { status?: string | null } | null): ShopStatus => {
+  if (!shop) return "none";
+
+  const status = String(shop.status || "pending").toLowerCase();
+  if (["pending", "verified", "live", "offline", "rejected"].includes(status)) {
+    return status as ShopStatus;
+  }
+
+  return "pending";
+};
+
 export default function ProfileScreen({ navigation }: any) {
   const { isDesktop } = useResponsive();
   const { logout, user } = useAuth();
@@ -28,6 +44,8 @@ export default function ProfileScreen({ navigation }: any) {
   const [email, setEmail] = useState("");
   const [photoURL, setPhotoURL] = useState<string | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
+  const [shopStatus, setShopStatus] = useState<ShopStatus>("none");
+  const [checkingShopAccess, setCheckingShopAccess] = useState(false);
 
   const loadProfile = useCallback(async () => {
     const user = auth.currentUser;
@@ -43,6 +61,14 @@ export default function ProfileScreen({ navigation }: any) {
       setFullName(String(data.fullName || ""));
       setEmail(String(data.email || user.email || ""));
       setPhotoURL(data.photoURL || null);
+
+      const { data: shopData, error: shopError } = await supabase
+        .from("funeral_shops")
+        .select("status")
+        .eq("id", user.uid)
+        .maybeSingle();
+      if (shopError) throw shopError;
+      setShopStatus(getShopStatus(shopData));
     } catch {
       setFullName(user.displayName || "");
       setEmail(user.email || "");
@@ -54,6 +80,73 @@ export default function ProfileScreen({ navigation }: any) {
   useFocusEffect(useCallback(() => {
     void loadProfile();
   }, [loadProfile]));
+
+  const handleShopCenterPress = async () => {
+    if (checkingShopAccess) return;
+
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      Alert.alert("Sign In Required", "Please sign in before registering or managing a shop.");
+      return;
+    }
+
+    setCheckingShopAccess(true);
+    try {
+      const { data: shopData, error } = await supabase
+        .from("funeral_shops")
+        .select("*")
+        .eq("id", currentUser.uid)
+        .maybeSingle();
+      if (error) throw error;
+
+      const currentStatus = getShopStatus(shopData);
+      setShopStatus(currentStatus);
+
+      if (currentStatus === "none") {
+        navigation.navigate("ShopInformation");
+        return;
+      }
+
+      if (currentStatus === "rejected") {
+        Alert.alert(
+          "Registration Needs Changes",
+          shopData?.rejectionReason || "Update your shop information and submit it again for admin verification.",
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Update Registration",
+              onPress: () => navigation.navigate("ShopInformation", { draft: shopData }),
+            },
+          ],
+        );
+        return;
+      }
+
+      if (!hasShopCenterAccess(currentStatus)) {
+        Alert.alert(
+          "Registration Under Review",
+          "Your shop registration must be verified by an administrator before you can access Shop Center.",
+        );
+        return;
+      }
+
+      navigation.navigate("ShopCenter");
+    } catch (error) {
+      console.error("Failed to check shop access:", error);
+      Alert.alert("Unable to Check Shop", "Please check your connection and try again.");
+    } finally {
+      setCheckingShopAccess(false);
+    }
+  };
+
+  const shopActionDescription =
+    shopStatus === "pending"
+      ? "Registration awaiting admin verification"
+      : shopStatus === "rejected"
+        ? "Update and resubmit your registration"
+        : hasShopCenterAccess(shopStatus)
+          ? "Manage your verified funeral shop"
+          : "Register your funeral shop";
 
   const confirmLogout = () => {
     Alert.alert("Log out", "Are you sure you want to log out?", [
@@ -103,9 +196,9 @@ export default function ProfileScreen({ navigation }: any) {
       <SettingsSection label='Services & Payments'>
         <ActionRow
           icon='storefront-outline'
-          label='Shop Management'
-          description='Register or manage a funeral shop'
-          onPress={() => navigation.navigate('ShopCenter')}
+          label='Shop Center'
+          description={checkingShopAccess ? 'Checking shop access...' : shopActionDescription}
+          onPress={() => void handleShopCenterPress()}
         />
         <ActionRow
           icon='document-text-outline'

@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Alert, StyleSheet, Text, TextInput } from "react-native";
+import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Card, Button as PaperButton } from "react-native-paper";
+import { Button as PaperButton } from "react-native-paper";
 import { KeyboardAwareScrollView } from "@/components";
 import { sanitizePlainText } from "@/utils/inputSecurity";
 
@@ -38,26 +38,68 @@ export default function FuneralShopInformationScreen({ navigation, route }: any)
   return (
     <SafeAreaView style={styles.screen}>
       <KeyboardAwareScrollView style={styles.screen} contentContainerStyle={styles.content}>
-        <Card style={styles.card}>
-          <Card.Content>
-            <Text style={styles.stepLabel}>Step 1 of 2</Text>
-            <Text style={styles.title}>Shop Information</Text>
-            <Text style={styles.subtitle}>Customers will see these details.</Text>
+        <View style={styles.pageContent}>
+          <View style={styles.stepRow}>
+            <Text style={styles.stepLabel}>SHOP REGISTRATION</Text>
+            <Text style={styles.stepCount}>1 of 2</Text>
+          </View>
+          <View style={styles.progressTrack}>
+            <View style={styles.progressHalf} />
+          </View>
 
-            <Text style={styles.label}>Shop Name *</Text>
-            <TextInput style={styles.input} value={shopName} onChangeText={setShopName} />
+          <View style={styles.heading}>
+            <Text style={styles.title}>Shop information</Text>
+            <Text style={styles.subtitle}>Enter the public details customers will use to identify and contact your shop.</Text>
+          </View>
 
-            <Text style={styles.label}>Shop Address *</Text>
-            <TextInput style={[styles.input, styles.multilineInput]} value={shopAddress} onChangeText={setShopAddress} multiline />
+          <View style={styles.form}>
+            <View style={styles.field}>
+              <Text style={styles.label}>Shop name <Text style={styles.required}>*</Text></Text>
+              <TextInput
+                style={styles.input}
+                value={shopName}
+                onChangeText={setShopName}
+                placeholder="Enter the registered shop name"
+                placeholderTextColor="#8b948f"
+              />
+            </View>
 
-            <Text style={styles.label}>Phone Number *</Text>
-            <TextInput style={styles.input} value={shopPhoneNumber} onChangeText={setShopPhoneNumber} keyboardType="phone-pad" />
+            <View style={styles.field}>
+              <Text style={styles.label}>Shop address <Text style={styles.required}>*</Text></Text>
+              <TextInput
+                style={[styles.input, styles.multilineInput]}
+                value={shopAddress}
+                onChangeText={setShopAddress}
+                placeholder="Enter the complete shop address"
+                placeholderTextColor="#8b948f"
+                multiline
+              />
+            </View>
 
-            <PaperButton mode="contained" buttonColor="#5a6b64" onPress={handleNext} style={styles.primaryButton}>
-              Next
-            </PaperButton>
-          </Card.Content>
-        </Card>
+            <View style={styles.field}>
+              <Text style={styles.label}>Phone number <Text style={styles.required}>*</Text></Text>
+              <TextInput
+                style={styles.input}
+                value={shopPhoneNumber}
+                onChangeText={setShopPhoneNumber}
+                placeholder="Enter a customer contact number"
+                placeholderTextColor="#8b948f"
+                keyboardType="phone-pad"
+              />
+            </View>
+          </View>
+
+          <PaperButton
+            mode="contained"
+            buttonColor="#405b52"
+            onPress={handleNext}
+            style={styles.primaryButton}
+            contentStyle={styles.primaryButtonContent}
+            labelStyle={styles.primaryButtonLabel}
+          >
+            Next
+          </PaperButton>
+        </View>
       </KeyboardAwareScrollView>
     </SafeAreaView>
   );
@@ -66,55 +108,102 @@ export default function FuneralShopInformationScreen({ navigation, route }: any)
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#eef1ec",
+    backgroundColor: "#f7f8f5",
   },
   content: {
-    padding: 16,
-    paddingBottom: 120,
+    flexGrow: 1,
+    paddingHorizontal: 22,
+    paddingTop: 24,
+    paddingBottom: 48,
   },
-  card: {
-    borderRadius: 14,
+  pageContent: {
+    width: "100%",
+    maxWidth: 640,
+    alignSelf: "center",
+  },
+  stepRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   stepLabel: {
-    color: "#75807b",
+    color: "#5c6f68",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.1,
+  },
+  stepCount: {
+    color: "#b6463d",
     fontSize: 12,
-    fontWeight: "700",
-    marginBottom: 8,
+    fontWeight: "800",
+  },
+  progressTrack: {
+    height: 3,
+    marginTop: 10,
+    overflow: "hidden",
+    borderRadius: 2,
+    backgroundColor: "#dce2dd",
+  },
+  progressHalf: {
+    width: "50%",
+    height: "100%",
+    backgroundColor: "#405b52",
+  },
+  heading: {
+    marginTop: 34,
+    marginBottom: 28,
   },
   title: {
-    color: "#0f172a",
-    fontSize: 28,
-    fontWeight: "900",
-    marginBottom: 8,
+    color: "#1f2d29",
+    fontSize: 30,
+    fontWeight: "800",
+    letterSpacing: -0.6,
   },
   subtitle: {
-    color: "#66746f",
-    fontSize: 14,
-    lineHeight: 21,
-    marginBottom: 18,
+    maxWidth: 520,
+    marginTop: 9,
+    color: "#66736e",
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  form: {
+    gap: 20,
+  },
+  field: {
+    gap: 8,
   },
   label: {
-    color: "#4c5b57",
+    color: "#30433d",
     fontSize: 14,
     fontWeight: "700",
-    marginTop: 12,
-    marginBottom: 6,
+  },
+  required: {
+    color: "#b6463d",
   },
   input: {
     borderWidth: 1,
-    borderColor: "#cbd2cb",
-    borderRadius: 10,
-    padding: 12,
+    borderColor: "#c7d0ca",
+    borderRadius: 12,
+    minHeight: 52,
+    paddingHorizontal: 15,
+    paddingVertical: 13,
     backgroundColor: "#ffffff",
-    color: "#22312d",
-    fontSize: 15,
+    color: "#1f2d29",
+    fontSize: 16,
   },
   multilineInput: {
-    minHeight: 92,
+    minHeight: 108,
     textAlignVertical: "top",
   },
   primaryButton: {
-    marginTop: 20,
-    borderRadius: 10,
+    marginTop: 32,
+    borderRadius: 12,
+  },
+  primaryButtonContent: {
+    minHeight: 52,
+  },
+  primaryButtonLabel: {
+    fontSize: 15,
+    fontWeight: "800",
   },
 });

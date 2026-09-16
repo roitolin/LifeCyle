@@ -1,5 +1,5 @@
 export { default as AnnouncementsBanner } from "./AnnouncementsBanner";
-export { default as AdminPaymentModal } from "./AdminPaymentModal";
+export { default as AdminPaymentModal } from "./XenditShopPaymentModal";
 export { default as AppBackButton } from "./AppBackButton";
 export { default as AppHeaderBackButton } from "./AppHeaderBackButton";
 export { default as EmergencyBroadcastBanner } from "./EmergencyBroadcastBanner";

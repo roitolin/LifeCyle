@@ -34,6 +34,9 @@ import {
 import { hapticSuccess } from "@/utils/haptics";
 
 type ShopStatus = "none" | "pending" | "verified" | "live" | "offline" | "rejected";
+
+const hasShopCenterAccess = (status: ShopStatus) =>
+  status === "verified" || status === "live" || status === "offline";
 type ProductTab = "all" | "available" | "soldout";
 type CenterSection = "overview" | "payments" | "products";
 type IoniconName = ComponentProps<typeof Ionicons>["name"];
@@ -56,6 +59,7 @@ type ShopPayment = {
   createdAt: string;
   verifiedAt?: string | null;
   expiresAt?: string | null;
+  paymentProvider?: "manual" | "paymongo" | "xendit";
 };
 
 type ServiceRequest = {
@@ -582,11 +586,37 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
         return;
       }
 
-      const { data: shopData } = await supabase
+      const { data: shopData, error: shopError } = await supabase
         .from("funeral_shops")
         .select("*")
         .eq("id", userId)
         .maybeSingle();
+      if (shopError) throw shopError;
+
+      const currentShopStatus = (shopData?.status || "none") as ShopStatus;
+
+      if (!shopData) {
+        navigation.replace("ShopInformation");
+        return;
+      }
+
+      if (currentShopStatus === "rejected") {
+        navigation.replace("ShopInformation", { draft: shopData });
+        Alert.alert(
+          "Registration Needs Changes",
+          shopData.rejectionReason || "Update your shop information and submit it again for admin verification.",
+        );
+        return;
+      }
+
+      if (!hasShopCenterAccess(currentShopStatus)) {
+        navigation.replace("ProfileMain");
+        Alert.alert(
+          "Registration Under Review",
+          "Your shop registration must be verified by an administrator before you can access Shop Center.",
+        );
+        return;
+      }
 
       const nextShopInfo: ShopInfo | null = shopData
         ? {
@@ -613,7 +643,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
           }
         : null;
 
-      setShopStatus((shopData?.status || "none") as ShopStatus);
+      setShopStatus(currentShopStatus);
       setRejectionReason(shopData?.rejectionReason || null);
       setShopInfo(nextShopInfo);
       setBusinessInfo(nextBusinessInfo);
@@ -671,7 +701,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
 
       const { data: paymentData } = await supabase
         .from("shop_payments")
-        .select('id, status, amount, "createdAt", "verifiedAt", "expiresAt"')
+        .select('id, status, amount, "createdAt", "verifiedAt", "expiresAt", "paymentProvider"')
         .eq("shopId", userId)
         .order("createdAt", { ascending: false })
         .limit(1)
@@ -689,7 +719,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [navigation]);
 
   useFocusEffect(
     useCallback(() => {
@@ -697,12 +727,18 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
     }, [loadData])
   );
 
-  const isVerified = shopStatus === "verified" || shopStatus === "live" || shopStatus === "offline";
+  const isVerified = hasShopCenterAccess(shopStatus);
   const statusMeta = getShopStatusMeta(shopStatus, rejectionReason);
   const paymentVerified = payment?.status === "verified";
   const subscriptionEnd = shopInfo?.paidUntil || null;
+  const renewalPaymentReady = Boolean(
+    paymentVerified
+      && payment?.verifiedAt
+      && subscriptionEnd
+      && new Date(payment.verifiedAt).getTime() > new Date(subscriptionEnd).getTime()
+  );
   const subscriptionExpired = Boolean(
-    paymentVerified && subscriptionEnd && new Date(subscriptionEnd).getTime() <= dashboardNow
+    paymentVerified && subscriptionEnd && new Date(subscriptionEnd).getTime() <= dashboardNow && !renewalPaymentReady
   );
   const subscriptionActive = Boolean(
     paymentVerified && subscriptionEnd && new Date(subscriptionEnd).getTime() > dashboardNow
@@ -747,7 +783,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
   const shopDisplayName = shopInfo?.shopName || businessInfo?.businessName || "My Shop";
   const shopLocation = shopInfo?.shopAddress || businessInfo?.generalLocation || "Add your storefront location";
   const shopContact = shopInfo?.shopPhoneNumber || "Add your contact number";
-  const paymentDraftReady = Boolean(paymentQrDraftUrl && Number(paymentFeeInput) > 0);
+  const paymentDraftReady = Number(paymentFeeInput) > 0;
 
   // Computed: upcoming scheduled services (next 5, sorted by wake start)
   const upcomingServices = useMemo(() => {
@@ -956,7 +992,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
   };
 
   const openVerifiedScreen = (
-    routeName: "ServiceRequestsInbox" | "ServiceSchedule" | "ShopPayments" | "ShopCatalog" | "ShopCustomers" | "ShopReports",
+    routeName: "ServiceRequestsInbox" | "ServiceSchedule" | "ShopPayments" | "ShopCatalog" | "ShopPackages" | "ShopCustomers" | "ShopReports",
     featureName: string
   ) => {
     if (!isVerified) {
@@ -992,9 +1028,15 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
     if (!paymentVerified) {
       Alert.alert(
         "Payment Required",
-        payment?.status === "pending"
-          ? "Your registration payment is still under review. You can go live after an administrator verifies it."
-          : "A verified registration payment is required before your shop can go live."
+        payment?.status === "pending" && payment.paymentProvider === "xendit"
+          ? "Complete your Xendit checkout before your shop can go live."
+          : payment?.status === "pending"
+            ? "Your legacy payment is still under admin review."
+            : "Pay the LifeCycle registration fee securely through Xendit Test Mode before going live.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Open Xendit", onPress: () => setAdminPaymentsVisible(true) },
+        ]
       );
       return;
     }
@@ -1002,7 +1044,11 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
     if (subscriptionExpired) {
       Alert.alert(
         "Subscription Expired",
-        "Your subscription expired on " + formatSubscriptionDate(subscriptionEnd) + ". Renew your registration payment before going live again."
+        "Your subscription expired on " + formatSubscriptionDate(subscriptionEnd) + ". Renew securely through Xendit Test Mode before going live again.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Renew with Xendit", onPress: () => setAdminPaymentsVisible(true) },
+        ]
       );
       return;
     }
@@ -1334,7 +1380,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
     setPaymentFeeInput(
       shopInfo?.serviceFeeAmount != null && Number(shopInfo.serviceFeeAmount) > 0
         ? String(Number(shopInfo.serviceFeeAmount))
-        : ""
+        : "100"
     );
   };
 
@@ -1378,17 +1424,12 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
       Alert.alert("Invalid Amount", "Enter a valid service fee amount your requesters must send.");
       return;
     }
-    if (!paymentQrDraftUrl) {
-      Alert.alert("QR Required", "Upload the QR code requesters will scan to pay you.");
-      return;
-    }
-
     setSavingPayment(true);
     try {
       const { error } = await supabase
         .from("funeral_shops")
         .update({
-          paymentQrUrl: paymentQrDraftUrl,
+          paymentQrUrl: "xendit://hosted",
           serviceFeeAmount: parsedFee,
           updatedAt: new Date().toISOString(),
         })
@@ -1397,14 +1438,14 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
 
       setShopInfo((prev) => ({
         ...(prev || {}),
-        paymentQrUrl: paymentQrDraftUrl,
+        paymentQrUrl: "xendit://hosted",
         serviceFeeAmount: parsedFee,
       }));
       await loadData();
       setPaymentSettingsVisible(false);
       Alert.alert(
         "Payment Settings Saved",
-        "When you accept a service request, the family will be shown this QR code and the amount to send you."
+        "When you accept a service request, customers can pay with 1-click via Xendit. 30% commission goes to LifeCycle admin and 70% goes to your shop account."
       );
     } catch (error: any) {
       Alert.alert("Error", error?.message || "Failed to save payment settings.");
@@ -1464,6 +1505,15 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
       badge: todoStats.soldOut,
       urgent: todoStats.soldOut > 0,
       onPress: () => openVerifiedScreen("ShopCatalog", "the product catalog"),
+    },
+    {
+      key: "packages",
+      label: "Packages",
+      description: isVerified ? "Candle and flower sets" : "Available after approval",
+      icon: isVerified ? "gift-outline" : "lock-closed-outline",
+      badge: 0,
+      urgent: false,
+      onPress: () => openVerifiedScreen("ShopPackages", "packages"),
     },
     {
       key: "requests",
@@ -1707,7 +1757,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
             <View style={styles.shopToolsGrid}>
               {shopTools.map((entry, index) => (
                 <View key={entry.key} style={styles.shopToolGroupEntry}>
-                  {index === 0 || index === 1 ? (
+                  {index === 0 || index === 2 ? (
                     <View style={styles.shopToolGroupHeader}>
                       <Text style={styles.shopToolGroupLabel}>{index === 0 ? "STORE MANAGEMENT" : "OPERATIONS"}</Text>
                       <Text style={styles.shopToolGroupDescription}>
@@ -2041,7 +2091,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
                   <Text style={styles.analyticsLabel}>Cases received</Text>
                   <Text style={styles.analyticsDetail}>{analytics.activeRequests} active</Text>
                 </View>
-                <View style={styles.analyticsItem}>
+                <View style={[styles.analyticsItem]}>
                   <Text style={styles.analyticsValue}>{analytics.completionRate}%</Text>
                   <Text style={styles.analyticsLabel}>Completion rate</Text>
                   <Text style={styles.analyticsDetail}>{analytics.completedRequests} completed</Text>
@@ -2391,7 +2441,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
               <ScrollView contentContainerStyle={styles.sidebarContent} showsVerticalScrollIndicator={false}>
                 {shopTools.map((entry, index) => (
                   <View key={entry.key}>
-                    {index === 0 || index === 1 ? (
+                    {index === 0 || index === 2 ? (
                       <Text style={styles.sidebarSectionLabel}>{index === 0 ? "STORE MANAGEMENT" : "OPERATIONS"}</Text>
                     ) : null}
                     <TouchableOpacity
@@ -2419,6 +2469,22 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
                 ))}
 
                 <Text style={styles.sidebarSectionLabel}>SHOP & ACCOUNT</Text>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel="LifeCycle shop payment and renewal"
+                  activeOpacity={0.72}
+                  style={styles.sidebarRow}
+                  onPress={() => runFromShopSidebar(() => setAdminPaymentsVisible(true))}
+                >
+                  <View style={styles.sidebarRowIcon}>
+                    <Ionicons name="shield-checkmark-outline" size={21} color="#0f766e" />
+                  </View>
+                  <View style={styles.sidebarRowCopy}>
+                    <Text style={styles.sidebarRowLabel}>LifeCycle Xendit</Text>
+                    <Text style={styles.sidebarRowDescription} numberOfLines={1}>Registration fee, renewal, and payment history</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#929c97" />
+                </TouchableOpacity>
                 <TouchableOpacity
                   accessibilityRole="button"
                   activeOpacity={0.72}
@@ -2518,6 +2584,20 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
                         Expired on {formatSubscriptionDate(subscriptionEnd)}
                       </Text>
                       </View>
+                  ) : null}
+
+                  {!paymentVerified || subscriptionExpired ? (
+                    <TouchableOpacity
+                      style={[styles.statusControlButton, { backgroundColor: "#0f766e", marginBottom: 10 }]}
+                      onPress={() => setAdminPaymentsVisible(true)}
+                    >
+                      <Ionicons name="shield-checkmark-outline" size={18} color="#ffffff" />
+                      <Text style={styles.statusControlButtonText}>
+                        {payment?.status === "pending" && payment.paymentProvider === "xendit"
+                          ? "Continue Xendit Checkout"
+                          : subscriptionExpired ? "Renew with Xendit" : "Pay with Xendit"}
+                      </Text>
+                    </TouchableOpacity>
                   ) : null}
 
                   <TouchableOpacity
@@ -2652,7 +2732,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
                   <Ionicons name="qr-code-outline" size={22} color="#22312d" />
                 </View>
                 <View style={styles.paymentSettingsHeaderCopy}>
-                  <Text style={styles.modalTitle}>Payment QR & Amount</Text>
+                  <Text style={styles.modalTitle}>Customer QR Ph Payments</Text>
                   <Text style={styles.paymentSettingsHeaderCaption}>Set how families pay after you accept a request.</Text>
                 </View>
                 <TouchableOpacity style={styles.paymentSettingsClose} onPress={closePaymentSettings} accessibilityLabel="Close payment settings">
@@ -2666,78 +2746,38 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
                   <Text style={styles.paymentSetupSummaryTitle}>{paymentDraftReady ? "Ready to receive payments" : "Finish payment setup"}</Text>
                   <Text style={styles.paymentSetupSummaryText}>
                     {paymentDraftReady
-                      ? "Your QR code and default amount are ready for accepted requests."
-                      : "Add both a QR code and an amount before saving."}
+                      ? "Xendit checkout and your default amount are ready for customer 1-click payments."
+                      : "Add a valid customer payment amount before saving."}
                   </Text>
                 </View>
               </View>
+
 
               <View style={styles.paymentSetupSection}>
                 <View style={styles.paymentSetupSectionHeader}>
                   <View style={styles.paymentSetupStep}><Text style={styles.paymentSetupStepText}>1</Text></View>
-                  <View style={styles.paymentSetupSectionCopy}>
-                    <Text style={styles.paymentSetupSectionTitle}>Payment QR Code</Text>
-                    <Text style={styles.paymentSetupSectionText}>Upload the GCash or e-wallet QR families will scan.</Text>
-                  </View>
-                </View>
-              {paymentQrDraftUrl ? (
-                <View style={styles.paymentQrPreviewWrap}>
-                  <Image source={{ uri: paymentQrDraftUrl }} style={styles.paymentQrPreview} resizeMode="contain" />
-                  <View style={styles.paymentQrPreviewActions}>
-                    <TouchableOpacity
-                      style={[styles.modalOutlineButton, styles.paymentQrInlineButton]}
-                      onPress={pickAndUploadPaymentQr}
-                      disabled={uploadingPaymentQr}
-                    >
-                      {uploadingPaymentQr ? <ActivityIndicator size="small" color="#7f6653" /> : <Ionicons name="image-outline" size={18} color="#7f6653" />}
-                      <Text style={styles.modalOutlineButtonText}>Replace QR</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.modalOutlineButton, styles.paymentQrInlineButton]} onPress={removePaymentQr} disabled={savingPayment}>
-                      <Ionicons name="trash-outline" size={18} color="#912929" />
-                      <Text style={[styles.modalOutlineButtonText, styles.paymentQrRemoveText]}>Remove QR</Text>
-                    </TouchableOpacity>
-                    </View>
-                  </View>
-              ) : (
-                <TouchableOpacity style={styles.paymentQrEmpty} onPress={pickAndUploadPaymentQr} disabled={uploadingPaymentQr}>
-                  {uploadingPaymentQr ? (
-                    <ActivityIndicator size="small" color="#7f6653" />
-                  ) : (
-                    <Ionicons name="qr-code-outline" size={34} color="#c2c9c3" />
-                  )}
-                  <Text style={styles.paymentQrEmptyText}>
-                    {uploadingPaymentQr ? "Uploading..." : "Tap to upload your QR code image"}
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-              </View>
-
-              <View style={styles.paymentSetupSection}>
-                <View style={styles.paymentSetupSectionHeader}>
-                  <View style={styles.paymentSetupStep}><Text style={styles.paymentSetupStepText}>2</Text></View>
                   <View style={styles.paymentSetupSectionCopy}>
                     <Text style={styles.paymentSetupSectionTitle}>Default Payment Amount</Text>
                     <Text style={styles.paymentSetupSectionText}>This amount is shown when a service request is accepted.</Text>
                   </View>
                 </View>
 
-              <Text style={styles.inputLabel}>Amount Requesters Must Send (â‚±)</Text>
-              <TextInput
-                style={[styles.input, styles.paymentAmountInput]}
-                value={paymentFeeInput}
-                onChangeText={setPaymentFeeInput}
-                placeholder="e.g. 2000"
-                keyboardType="decimal-pad"
-              />
+                <Text style={styles.inputLabel}>Amount Requesters Must Send (₱)</Text>
+                <TextInput
+                  style={[styles.input, styles.paymentAmountInput]}
+                  value={paymentFeeInput}
+                  onChangeText={setPaymentFeeInput}
+                  placeholder="e.g. 2000"
+                  keyboardType="decimal-pad"
+                />
               </View>
 
               <View style={styles.paymentQrInfoCard}>
                 <Ionicons name="information-circle-outline" size={18} color="#7f6653" />
                 <Text style={styles.paymentQrInfoText}>
-                  Families will only see this QR code and amount after you accept their request.
+                  Xendit handles customer payments with automatic split: 30% commission to LifeCycle Admin and 70% directly to your shop.
                 </Text>
-                </View>
+              </View>
 
               <View style={styles.modalActionStack}>
                 <TouchableOpacity

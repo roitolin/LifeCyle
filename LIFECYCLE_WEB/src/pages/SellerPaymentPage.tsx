@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
-import PaymentQrCard from '@/components/PaymentQrCard'
+import XenditShopPaymentCard from '@/components/XenditShopPaymentCard'
 import './SellerCentrePage.css'
 
 export default function SellerPaymentPage() {
@@ -84,7 +84,7 @@ export default function SellerPaymentPage() {
             </div>
           ) : (
             <div className="sc-payment-layout">
-              <PaymentQrCard onSuccess={() => navigate('/seller')} />
+              <XenditShopPaymentCard onSuccess={() => navigate('/seller')} />
             </div>
           )}
         </main>

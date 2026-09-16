@@ -61,14 +61,14 @@ export default function ServiceRequestScheduleFields({
           mode="date"
           display="default"
           minimumDate={minimumWakeDate || undefined}
-          onChange={(_event, selectedDate) => {
+          onValueChange={(_event, selectedDate) => {
             closeAndroidPicker();
-            if (!selectedDate) return;
             onWakeStartDateChange(selectedDate);
             const selectedKey = serializeDateOnly(selectedDate);
             const endKey = serializeDateOnly(wakeEndDate);
             if (selectedKey && endKey && endKey < selectedKey) onWakeEndDateChange(selectedDate);
           }}
+          onDismiss={closeAndroidPicker}
         />
       ) : null}
 
@@ -90,10 +90,11 @@ export default function ServiceRequestScheduleFields({
           mode="date"
           display="default"
           minimumDate={wakeStartDate || minimumWakeDate || undefined}
-          onChange={(_event, selectedDate) => {
+          onValueChange={(_event, selectedDate) => {
             closeAndroidPicker();
-            if (selectedDate) onWakeEndDateChange(selectedDate);
+            onWakeEndDateChange(selectedDate);
           }}
+          onDismiss={closeAndroidPicker}
         />
       ) : null}
 
@@ -112,10 +113,11 @@ export default function ServiceRequestScheduleFields({
           value={burialTime || new Date()}
           mode="time"
           display="default"
-          onChange={(_event, selectedTime) => {
+          onValueChange={(_event, selectedTime) => {
             closeAndroidPicker();
-            if (selectedTime) onBurialTimeChange(selectedTime);
+            onBurialTimeChange(selectedTime);
           }}
+          onDismiss={closeAndroidPicker}
         />
       ) : null}
     </View>

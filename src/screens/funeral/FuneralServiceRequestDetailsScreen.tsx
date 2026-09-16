@@ -27,6 +27,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect } from "@react-navigation/native";
 import { AppBackButton } from "@/components";
 import DeathCertificateRequestCard from "@/components/DeathCertificateRequestCard";
+import ServiceXenditSheet from "@/components/ServiceXenditSheet";
 import { supabase } from "@/services/supabaseClient";
 import { auth, uploadCertificate } from "@/services";
 import { acceptFuneralServiceRequest } from '@/utils/serviceRequestFlow';
@@ -84,6 +85,8 @@ type FuneralServiceRequest = {
   status: string;
   paymentQrUrl?: string | null;
   paymentAmount?: number | string | null;
+  paymentProvider?: "manual" | "paymongo" | "xendit";
+  providerPaymentMethod?: string | null;
   paymentPayerName?: string | null;
   paymentGcashName?: string | null;
   paymentGcashNumber?: string | null;
@@ -124,7 +127,7 @@ const isCancellable = (status: string) =>
   );
 
 const hasPaymentSetup = (request: FuneralServiceRequest) =>
-  Boolean(request.paymentQrUrl) && Number(request.paymentAmount) > 0;
+  Number(request.paymentAmount) > 0;
 
 const getStatusMeta = (status: string) => {
   const normalized = String(status || "").toLowerCase();
@@ -135,7 +138,7 @@ const getStatusMeta = (status: string) => {
       text: "#166534",
       icon: "checkmark-circle-outline" as IoniconName,
       message: "The shop accepted this request and is preparing its payment details.",
-      shopMessage: "You accepted this request. Confirm that your payment QR and amount are ready for the family.",
+      shopMessage: "You accepted this request. The secure casket checkout will use its saved order price.",
     };
   }
   if (normalized === "awaiting_payment") {
@@ -144,8 +147,8 @@ const getStatusMeta = (status: string) => {
       background: "#e0eefa",
       text: "#1c4f7e",
       icon: "wallet-outline" as IoniconName,
-      message: "Pay the shop using the QR code below, then submit your payment proof.",
-      shopMessage: "The payment instructions are ready. Waiting for the family to submit payment proof.",
+      message: "Open the secure Xendit test checkout to pay for the selected casket.",
+      shopMessage: "The Xendit checkout is ready. Waiting for the family to complete payment.",
     };
   }
   if (normalized === "payment_submitted") {
@@ -156,6 +159,26 @@ const getStatusMeta = (status: string) => {
       icon: "receipt-outline" as IoniconName,
       message: "Your payment proof is being reviewed by the shop.",
       shopMessage: "Payment proof is ready for review. Verify its details before accepting it.",
+    };
+  }
+  if (normalized === "paid_waiting_for_split") {
+    return {
+      label: "Waiting for Commission Split",
+      background: "#fef3c7",
+      text: "#86654a",
+      icon: "git-branch-outline" as IoniconName,
+      message: "Xendit received your payment. The order will continue after the 30% admin commission is confirmed.",
+      shopMessage: "Payment succeeded. Waiting for Xendit to confirm the 30% admin commission.",
+    };
+  }
+  if (normalized === "commission_failed") {
+    return {
+      label: "Commission Needs Review",
+      background: "#fde8e8",
+      text: "#991b1b",
+      icon: "warning-outline" as IoniconName,
+      message: "Payment was received, but the commission split needs administrator review before the order can continue.",
+      shopMessage: "Payment was received, but Xendit reported a commission split problem. Do not fulfill this order yet.",
     };
   }
   if (normalized === "payment_verified") {
@@ -334,6 +357,8 @@ const getRequestProgressIndex = (status: string) => {
       return 1;
     case "awaiting_payment":
     case "payment_submitted":
+    case "paid_waiting_for_split":
+    case "commission_failed":
       return 2;
     case "payment_verified":
     case "awaiting_customer_confirmation":
@@ -502,6 +527,7 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
       ["awaiting_payment", "payment_submitted"].includes(String(initialRequest.status || "").toLowerCase())
   );
   const [paymentSuccessRequest, setPaymentSuccessRequest] = useState<FuneralServiceRequest | null>(null);
+  const [xenditVisible, setXenditVisible] = useState(false);
   const [completionProofUrl, setCompletionProofUrl] = useState<string | null>(initialRequest.completionProofImageUrl || null);
   const [uploadingCompletionProof, setUploadingCompletionProof] = useState(false);
   const [rejectReasonVisible, setRejectReasonVisible] = useState(false);
@@ -1310,6 +1336,24 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
         disabled: true,
         onPress: () => undefined,
       };
+    } else if (normalizedRequestStatus === "paid_waiting_for_split") {
+      stickyAction = {
+        context: "Payment status",
+        label: "Confirming commission split",
+        helper: "Xendit received the payment. Waiting for the 30% admin route.",
+        icon: "git-branch-outline",
+        disabled: true,
+        onPress: () => undefined,
+      };
+    } else if (normalizedRequestStatus === "commission_failed") {
+      stickyAction = {
+        context: "Payment status",
+        label: "Commission review required",
+        helper: "Support must resolve the Xendit split before fulfillment.",
+        icon: "warning-outline",
+        disabled: true,
+        onPress: () => undefined,
+      };
     } else if (normalizedRequestStatus === "payment_verified") {
       stickyAction = {
         context: "Next update",
@@ -1368,6 +1412,24 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
       helper: "Check the account and reference before verifying.",
       icon: "shield-checkmark-outline",
       onPress: () => scrollToSection(paymentSectionY.current),
+    };
+  } else if (normalizedRequestStatus === "paid_waiting_for_split") {
+    stickyAction = {
+      context: "Payment status",
+      label: "Waiting for commission split",
+      helper: "Do not fulfill yet. Xendit is confirming the admin commission.",
+      icon: "git-branch-outline",
+      disabled: true,
+      onPress: () => undefined,
+    };
+  } else if (normalizedRequestStatus === "commission_failed") {
+    stickyAction = {
+      context: "Payment status",
+      label: "Commission review required",
+      helper: "Do not fulfill until an administrator resolves the failed split.",
+      icon: "warning-outline",
+      disabled: true,
+      onPress: () => undefined,
     };
   } else if (normalizedRequestStatus === "payment_verified") {
     stickyAction = {
@@ -1549,7 +1611,7 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
             <InfoRow icon="options-outline" label="Selected variation" value={request.variationName} />
           ) : null}
           {request.packageItems?.length ? (
-            <InfoRow icon="gift-outline" label="Selected packages" value={request.packageItems.join(", ")} />
+            <InfoRow icon="gift-outline" label="Package inclusions" value={request.packageItems.join(", ")} />
           ) : null}
           <InfoRow
             icon="cash-outline"
@@ -1840,17 +1902,17 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
 
             {paymentExpanded ? (
               <>
-            {isRequestOwner && request.paymentQrUrl ? (
-              <PhotoFrame
-                uri={request.paymentQrUrl}
-                ratio={photoRatios[request.paymentQrUrl]}
-                fallbackHeight={200}
-                wrapperStyle={styles.photoFrameWhite}
-                onPress={() => setPhotoViewerUrl(request.paymentQrUrl!)}
-              />
+            {isRequestOwner && String(request.status || "").toLowerCase() === "awaiting_payment" ? (
+              <TouchableOpacity
+                style={styles.acceptButton}
+                onPress={() => setXenditVisible(true)}
+              >
+                <Ionicons name="flash" size={19} color="#ffffff" />
+                <Text style={styles.acceptButtonText}>1-Click Pay with Xendit</Text>
+              </TouchableOpacity>
             ) : null}
 
-            {isRequestOwner && String(request.status || "").toLowerCase() === "awaiting_payment" ? (
+            {false && isRequestOwner && String(request.status || "").toLowerCase() === "awaiting_payment" ? (
               <>
                 {request.paymentRejectionReason ? (
                   <View style={styles.rejectReasonCard}>
@@ -1901,9 +1963,9 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
                 {paymentForm.proofImageUrl ? (
                   <>
                     <PhotoFrame
-                      uri={paymentForm.proofImageUrl}
+                      uri={paymentForm.proofImageUrl!}
                       fallbackHeight={190}
-                      onPress={() => setPhotoViewerUrl(paymentForm.proofImageUrl)}
+                      onPress={() => setPhotoViewerUrl(paymentForm.proofImageUrl!)}
                     />
                     <TouchableOpacity
                       style={styles.removeProofButton}
@@ -2178,9 +2240,9 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
           </View>
         ) : String(request.status || "").toLowerCase() === "accepted_by_shop" ? (
           <View style={styles.readonlyStatusCard}>
-            <Text style={styles.readonlyStatusTitle}>Shop Payment Setup Required</Text>
+            <Text style={styles.readonlyStatusTitle}>Xendit Setup Required</Text>
             <Text style={styles.readonlyStatusText}>
-              Save the shop QR code and default amount in Shop Center settings. They will be applied automatically to this legacy request.
+              An administrator must finish this shop’s Xendit test sub-account before customer checkout can open.
             </Text>
           </View>
         ) : String(request.status || "").toLowerCase() === "payment_verified" ? (
@@ -2499,6 +2561,24 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
           ) : null}
         </View>
       </Modal>
+      <ServiceXenditSheet
+        visible={xenditVisible}
+        request={xenditVisible ? request : null}
+        onClose={() => setXenditVisible(false)}
+        onChanged={async () => {
+          const { data } = await supabase
+            .from("funeral_service_requests")
+            .select("*")
+            .eq("id", request.id)
+            .maybeSingle();
+          if (!data) return;
+          const latest = data as FuneralServiceRequest;
+          setRequest(latest);
+          if (String(latest.status || "").toLowerCase() === "payment_verified") {
+            setXenditVisible(false);
+          }
+        }}
+      />
       </SafeAreaView>
     </View>
   );

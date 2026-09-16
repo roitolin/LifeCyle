@@ -170,6 +170,7 @@ function FuneralTabs() {
                 nestedRoute === "ProductEditor" ||
                 nestedRoute === "ProductDetails" ||
                 nestedRoute === "ShopCatalog" ||
+                nestedRoute === "ShopPackages" ||
                 nestedRoute === "ShopCustomers" ||
                 nestedRoute === "ShopReports" ||
                 nestedRoute === "ShopSettings" ||

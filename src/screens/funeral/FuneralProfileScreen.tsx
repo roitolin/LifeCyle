@@ -170,6 +170,14 @@ export default function FuneralProfileScreen({ navigation }: any) {
       return;
     }
 
+    if (shopStatus === "pending") {
+      Alert.alert(
+        "Registration Under Review",
+        "Your shop registration must be verified by an administrator before you can access Shop Center.",
+      );
+      return;
+    }
+
     navigation.navigate("ShopCenter");
   };
 
@@ -250,7 +258,7 @@ export default function FuneralProfileScreen({ navigation }: any) {
             <View style={styles.infoBanner}>
               <Ionicons name="hourglass-outline" size={20} color="#9a7c5d" />
               <Text style={styles.infoBannerText}>
-                Your shop registration is under review. Open the shop center to review the details you submitted.
+                Your shop registration is under review. Shop Center will unlock after an administrator verifies it.
               </Text>
             </View>
           ) : null}

@@ -8,7 +8,7 @@ import { useAlertDialog } from '@/hooks/useAlertDialog'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import { addMonths, daysRemaining, formatSubscriptionDate, SUBSCRIPTION_MONTHS } from '@/utils/subscription'
 import { fetchNotificationsForUser } from '@/utils/supabaseNotifications'
-import PaymentQrCard from '@/components/PaymentQrCard'
+import XenditShopPaymentCard from '@/components/XenditShopPaymentCard'
 import BrandLogo from '@/components/BrandLogo'
 
 type ShopInfo = {
@@ -42,6 +42,27 @@ type ShopProduct = {
   createdAt: string
   updatedAt: string
 }
+
+type ShopPackage = {
+  id?: string
+  shopId?: string
+  flowersImageUrl?: string | null
+  candlesImageUrl?: string | null
+  curtainsImageUrl?: string | null
+  vehicleImageUrl?: string | null
+  active: boolean
+  createdAt?: string | null
+  updatedAt?: string | null
+}
+
+type PackageField = 'flowersImageUrl' | 'candlesImageUrl' | 'curtainsImageUrl' | 'vehicleImageUrl'
+
+const SHOP_PACKAGE_ITEMS: { key: string; label: string; field: PackageField }[] = [
+  { key: 'flowers', label: 'Flowers', field: 'flowersImageUrl' },
+  { key: 'candles', label: 'Candles', field: 'candlesImageUrl' },
+  { key: 'curtains', label: 'Curtains', field: 'curtainsImageUrl' },
+  { key: 'vehicle', label: 'Vehicle', field: 'vehicleImageUrl' },
+]
 
 type ServiceRequest = {
   id: string
@@ -331,8 +352,9 @@ export default function SellerCentrePage() {
   const [authReady, setAuthReady] = useState(false)
   const [shop, setShop] = useState<ShopInfo | null>(null)
   const [products, setProducts] = useState<ShopProduct[]>([])
+  const [packages, setPackages] = useState<ShopPackage[]>([])
   const [requests, setRequests] = useState<ServiceRequest[]>([])
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'orders' | 'customers' | 'calendar' | 'reports' | 'payments' | 'admin_payments' | 'shop' | 'payment_setup' | 'product_editor'>(() => (
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'packages' | 'orders' | 'customers' | 'calendar' | 'reports' | 'payments' | 'admin_payments' | 'shop' | 'payment_setup' | 'product_editor'>(() => (
     searchParams.get('tab') === 'orders' ? 'orders' : 'dashboard'
   ))
   const [loading, setLoading] = useState(true)
@@ -387,6 +409,8 @@ export default function SellerCentrePage() {
   const [editorDescription, setEditorDescription] = useState("")
   const [editorImages, setEditorImages] = useState<(string | null)[]>(Array(5).fill(null))
   const [editorUploadingIndex, setEditorUploadingIndex] = useState<number | null>(null)
+  const [packageSaving, setPackageSaving] = useState(false)
+  const [uploadingPackageField, setUploadingPackageField] = useState<PackageField | null>(null)
 
   const openProductEditor = async (productId: string | null) => {
     setEditingProductId(productId)
@@ -771,6 +795,63 @@ export default function SellerCentrePage() {
     }
   }
 
+  const handlePackageImageUpload = async (field: PackageField, event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file || !user) return
+    if (!file.type.startsWith('image/')) {
+      openAlert({ title: 'Invalid File', message: 'Please choose an image file.', tone: 'warning', okLabel: 'Got It' })
+      return
+    }
+
+    setUploadingPackageField(field)
+    try {
+      const ext = file.name.split('.').pop()
+      const path = `packages/${user.id}_${field}_${Date.now()}.${ext}`
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
+      if (uploadError) throw uploadError
+      const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
+      const current = packages[0] || { shopId: user.id, active: true }
+      setPackages([{ ...current, shopId: user.id, active: true, [field]: urlData.publicUrl }])
+    } catch (err: any) {
+      openAlert({ title: 'Upload Failed', message: err?.message || 'Unable to upload package picture.', tone: 'danger', okLabel: 'Dismiss' })
+    } finally {
+      setUploadingPackageField(null)
+      event.target.value = ''
+    }
+  }
+
+  const handleSavePackage = async () => {
+    if (!user || packageSaving) return
+    const current = packages[0]
+    const missing = SHOP_PACKAGE_ITEMS.find(item => !current?.[item.field])
+    if (missing) {
+      openAlert({ title: 'Picture Required', message: `Add a picture for ${missing.label}.`, tone: 'warning', okLabel: 'Got It' })
+      return
+    }
+
+    setPackageSaving(true)
+    try {
+      const payload: ShopPackage = {
+        id: current.id,
+        shopId: user.id,
+        flowersImageUrl: current.flowersImageUrl || null,
+        candlesImageUrl: current.candlesImageUrl || null,
+        curtainsImageUrl: current.curtainsImageUrl || null,
+        vehicleImageUrl: current.vehicleImageUrl || null,
+        active: true,
+        updatedAt: new Date().toISOString(),
+      }
+      const { error } = await supabase.from('funeral_shop_packages').upsert(payload, { onConflict: 'shopId' })
+      if (error) throw error
+      await loadData()
+      openAlert({ title: 'Package Saved', message: 'Your package will appear automatically on your products.', tone: 'info', okLabel: 'Done' })
+    } catch (err: any) {
+      openAlert({ title: 'Save Failed', message: err?.message || 'Unable to save this package.', tone: 'danger', okLabel: 'Dismiss' })
+    } finally {
+      setPackageSaving(false)
+    }
+  }
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setUser(data.session?.user ?? null)
@@ -878,6 +959,24 @@ export default function SellerCentrePage() {
         updatedAt: row.updatedAt ?? '',
       }))
       setProducts(prods)
+
+      const { data: packagesData, error: packagesErr } = await supabase
+        .from('funeral_shop_packages')
+        .select('id, "shopId", "flowersImageUrl", "candlesImageUrl", "curtainsImageUrl", "vehicleImageUrl", active, "createdAt", "updatedAt"')
+        .eq('shopId', user.id)
+        .maybeSingle()
+      if (packagesErr) throw packagesErr
+      setPackages(packagesData ? [{
+        id: String((packagesData as any).id),
+        shopId: String((packagesData as any).shopId || user.id),
+        flowersImageUrl: (packagesData as any).flowersImageUrl ?? null,
+        candlesImageUrl: (packagesData as any).candlesImageUrl ?? null,
+        curtainsImageUrl: (packagesData as any).curtainsImageUrl ?? null,
+        vehicleImageUrl: (packagesData as any).vehicleImageUrl ?? null,
+        active: Boolean((packagesData as any).active),
+        createdAt: (packagesData as any).createdAt ?? null,
+        updatedAt: (packagesData as any).updatedAt ?? null,
+      }] : [])
 
       const [reqData] = await Promise.all([
         supabase
@@ -1550,6 +1649,8 @@ export default function SellerCentrePage() {
     return products.filter(p => !p.active || p.stock <= 0)
   }, [products, productTab])
 
+  const shopPackage = packages[0] || null
+
   const galleryImages = useMemo(() => {
     if (!selectedProduct) return []
     const imgs = [
@@ -1774,6 +1875,7 @@ export default function SellerCentrePage() {
               {sidebarExpanded.product && (
                 <div className="sc-sidebar-sub">
                   <div className={`sc-sidebar-sub-item${activeTab === 'products' ? ' active' : ''}`} onClick={() => setActiveTab('products')}>Product Catalog</div>
+                  <div className={`sc-sidebar-sub-item${activeTab === 'packages' ? ' active' : ''}`} onClick={() => setActiveTab('packages')}>Packages</div>
                 </div>
               )}
             </div>
@@ -2269,6 +2371,49 @@ export default function SellerCentrePage() {
                 </div>
               )}
 
+              {/* PACKAGES VIEW */}
+              {activeTab === 'packages' && (
+                <div className="sc-packages-layout">
+                  <div className="sc-section-head">
+                    <div>
+                      <h2>Packages</h2>
+                      <p className="sc-card-subtitle">One shop package appears automatically on every product.</p>
+                    </div>
+                    <button className="sc-primary-btn" disabled={packageSaving || Boolean(uploadingPackageField)} onClick={() => void handleSavePackage()}>
+                      {packageSaving ? 'Saving...' : 'Save Package'}
+                    </button>
+                  </div>
+
+                  <div className="sc-package-grid">
+                    {SHOP_PACKAGE_ITEMS.map(item => {
+                      const imageUrl = shopPackage?.[item.field] || null
+                      const uploading = uploadingPackageField === item.field
+                      return (
+                        <section className="sc-package-tile" key={item.key}>
+                          <div className="sc-package-tile-head">
+                            <h3>{item.label}</h3>
+                            {imageUrl ? <span>Ready</span> : <span className="is-missing">Needs picture</span>}
+                          </div>
+                          <div className="sc-package-image-box">
+                            {imageUrl ? <img src={imageUrl} alt={item.label} /> : uploading ? <div className="sc-spinner" /> : <span>No picture added</span>}
+                          </div>
+                          <label className="sc-btn sc-btn-secondary sc-package-upload">
+                            {imageUrl ? 'Replace Picture' : 'Upload Picture'}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              style={{ display: 'none' }}
+                              disabled={uploadingPackageField !== null || packageSaving}
+                              onChange={(event) => void handlePackageImageUpload(item.field, event)}
+                            />
+                          </label>
+                        </section>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* ORDERS VIEW */}
               {activeTab === 'orders' && (
                 <div className="sc-orders-layout">
@@ -2687,7 +2832,7 @@ export default function SellerCentrePage() {
               {/* PAYMENTS TO ADMIN VIEW */}
               {activeTab === 'admin_payments' && (
                 <div className="sc-payment-layout sc-admin-payments-layout">
-                  <PaymentQrCard
+                  <XenditShopPaymentCard
                     className="sc-lifecycle-payment-card"
                     title="LifeCycle billing"
                     description="Submit your shop registration or renewal payment and review its approval status."
@@ -2918,6 +3063,31 @@ export default function SellerCentrePage() {
                                 + Add Variation
                               </button>
                             </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Packages */}
+                      <div className="sc-editor-section">
+                        <label className="sc-editor-section-title">
+                          Packages
+                          <span className="sc-editor-section-desc">Your saved shop package appears automatically after buyers choose a variation.</span>
+                        </label>
+                        {shopPackage ? (
+                          <div className="sc-editor-package-preview">
+                            {SHOP_PACKAGE_ITEMS.map(item => {
+                              const imageUrl = shopPackage[item.field] || null
+                              return (
+                                <div className="sc-editor-package-item" key={item.key}>
+                                  {imageUrl ? <img src={imageUrl} alt={item.label} /> : <div className="sc-editor-package-empty">No image</div>}
+                                  <span>{item.label}</span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          <div className="sc-editor-package-note">
+                            Add package pictures in the Packages tab to show Flowers, Candles, Curtains, and Vehicle on every product.
                           </div>
                         )}
                       </div>

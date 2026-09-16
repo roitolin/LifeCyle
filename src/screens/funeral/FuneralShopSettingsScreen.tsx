@@ -20,7 +20,6 @@ import { AdminPaymentModal, AppBackButton, KeyboardAwareScrollView } from "@/com
 import LoadingBird from "@/components/LoadingBird";
 import { auth, uploadCertificate } from "@/services";
 import { supabase } from "@/services/supabaseClient";
-import { formatPhilippinePeso } from "@/utils/funeralCatalog";
 import { sanitizePlainText } from "@/utils/inputSecurity";
 
 type IoniconName = ComponentProps<typeof Ionicons>["name"];
@@ -34,6 +33,7 @@ type ShopRecord = {
   coverImageUrl?: string | null;
   paymentQrUrl?: string | null;
   serviceFeeAmount?: number | string | null;
+  xenditAccountId?: string | null;
   paidUntil?: string | null;
   status?: ShopStatus | null;
   rejectionReason?: string | null;
@@ -45,7 +45,12 @@ type ShopRecord = {
   tin?: string | null;
   vatRegistrationStatus?: boolean | null;
 };
-type ShopPayment = { status?: string | null; expiresAt?: string | null };
+type ShopPayment = {
+  status?: string | null;
+  expiresAt?: string | null;
+  verifiedAt?: string | null;
+  paymentProvider?: "manual" | "paymongo" | "xendit";
+};
 type SettingRowProps = {
   icon: IoniconName;
   label: string;
@@ -257,14 +262,10 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
   const [savingAvailability, setSavingAvailability] = useState(false);
   const [profileVisible, setProfileVisible] = useState(false);
   const [businessVisible, setBusinessVisible] = useState(false);
-  const [paymentVisible, setPaymentVisible] = useState(false);
   const [adminPaymentsVisible, setAdminPaymentsVisible] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [uploadingImage, setUploadingImage] = useState<"logo" | "cover" | null>(null);
-  const [savingPayment, setSavingPayment] = useState(false);
-  const [uploadingQr, setUploadingQr] = useState(false);
   const [profileDraft, setProfileDraft] = useState({ name: "", address: "", phone: "", logo: null as string | null, cover: null as string | null });
-  const [paymentDraft, setPaymentDraft] = useState({ qr: null as string | null, amount: "" });
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
@@ -278,7 +279,7 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
       if (!shopId) { setShop(null); return; }
       const [{ data: shopData, error: shopError }, { data: paymentData, error: paymentError }] = await Promise.all([
         supabase.from("funeral_shops").select("*").eq("id", shopId).maybeSingle(),
-        supabase.from("shop_payments").select('status, "expiresAt"').eq("shopId", shopId)
+        supabase.from("shop_payments").select('status, "expiresAt", "verifiedAt", "paymentProvider"').eq("shopId", shopId)
           .order("createdAt", { ascending: false }).limit(1).maybeSingle(),
       ]);
       if (shopError) throw shopError;
@@ -297,9 +298,17 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
   const status = (shop?.status || "none") as ShopStatus;
   const statusMeta = getStatusMeta(status);
   const isVerified = ["verified", "live", "offline"].includes(status);
-  const paymentReady = Boolean(shop?.paymentQrUrl && Number(shop?.serviceFeeAmount) > 0);
+  const customerCheckoutReady = Boolean(shop?.xenditAccountId);
   const latestPaymentVerified = String(payment?.status || "").toLowerCase() === "verified";
-  const subscriptionExpired = Boolean(shop?.paidUntil && new Date(shop.paidUntil).getTime() <= Date.now());
+  const renewalPaymentReady = Boolean(
+    latestPaymentVerified
+      && payment?.verifiedAt
+      && shop?.paidUntil
+      && new Date(payment.verifiedAt).getTime() > new Date(shop.paidUntil).getTime()
+  );
+  const subscriptionExpired = Boolean(
+    shop?.paidUntil && new Date(shop.paidUntil).getTime() <= Date.now() && !renewalPaymentReady
+  );
 
   const handleBack = () => navigation.canGoBack?.() ? navigation.goBack() : navigation.navigate("ShopCenter");
   const openProfile = () => {
@@ -312,18 +321,6 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
     });
     setProfileVisible(true);
   };
-  const openPayment = () => {
-    if (!isVerified) {
-      Alert.alert("Shop Approval Required", "Your shop must be approved before family payment settings can be changed.");
-      return;
-    }
-    setPaymentDraft({
-      qr: shop?.paymentQrUrl || null,
-      amount: Number(shop?.serviceFeeAmount) > 0 ? String(Number(shop?.serviceFeeAmount)) : "",
-    });
-    setPaymentVisible(true);
-  };
-
   const pickProfileImage = async (kind: "logo" | "cover") => {
     const picker = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], allowsEditing: true, quality: 0.82 });
     if (picker.canceled || !picker.assets[0]) return;
@@ -360,45 +357,34 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
     } finally { setSavingProfile(false); }
   };
 
-  const pickPaymentQr = async () => {
-    const picker = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], allowsEditing: true, quality: 0.9 });
-    if (picker.canceled || !picker.assets[0]) return;
-    setUploadingQr(true);
-    try {
-      const url = await uploadCertificate(picker.assets[0].uri);
-      setPaymentDraft((current) => ({ ...current, qr: url }));
-    } catch (error: any) {
-      Alert.alert("Upload failed", error?.message || "Unable to upload the payment QR.");
-    } finally { setUploadingQr(false); }
-  };
-
-  const saveFamilyPayment = async () => {
-    const user = auth.currentUser;
-    if (!user) return;
-    const amount = Number(paymentDraft.amount.trim().replace(/[^\d.]/g, ""));
-    if (!paymentDraft.qr || !Number.isFinite(amount) || amount <= 0) {
-      Alert.alert("Complete payment setup", "Upload a QR code and enter a valid amount.");
-      return;
-    }
-    setSavingPayment(true);
-    try {
-      const update = { paymentQrUrl: paymentDraft.qr, serviceFeeAmount: amount, updatedAt: new Date().toISOString() };
-      const { error } = await supabase.from("funeral_shops").update(update).eq("id", user.uid);
-      if (error) throw error;
-      setShop((current) => current ? { ...current, ...update } : current);
-      setPaymentVisible(false);
-      Alert.alert("Payment settings saved", "Families will use this QR and amount after you accept their request.");
-    } catch (error: any) {
-      Alert.alert("Save failed", error?.message || "Unable to update family payment settings.");
-    } finally { setSavingPayment(false); }
-  };
-
   const toggleAvailability = (nextLive: boolean) => {
     const user = auth.currentUser;
     if (!user || savingAvailability) return;
     if (!isVerified) { Alert.alert("Shop Approval Required", "Your shop must be approved before it can go live."); return; }
-    if (nextLive && !latestPaymentVerified) { Alert.alert("Payment Required", "A verified LifeCycle registration payment is required before your shop can go live."); return; }
-    if (nextLive && subscriptionExpired) { Alert.alert("Subscription Expired", "Renew your LifeCycle registration payment before making the shop live."); return; }
+    if (nextLive && !latestPaymentVerified) {
+      Alert.alert(
+        "Payment Required",
+        payment?.status === "pending" && payment.paymentProvider === "xendit"
+          ? "Complete your Xendit checkout before making the shop live."
+          : "Pay the LifeCycle registration fee securely through Xendit Test Mode before making the shop live.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Open Xendit", onPress: () => setAdminPaymentsVisible(true) },
+        ],
+      );
+      return;
+    }
+    if (nextLive && subscriptionExpired) {
+      Alert.alert(
+        "Subscription Expired",
+        "Renew your LifeCycle registration through Xendit Test Mode before making the shop live.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Renew with Xendit", onPress: () => setAdminPaymentsVisible(true) },
+        ],
+      );
+      return;
+    }
     Alert.alert(nextLive ? "Make shop live?" : "Take shop offline?",
       nextLive ? "Families will be able to find your storefront and available products." : "Your storefront will be hidden, but your subscription time will continue.", [
       { text: "Cancel", style: "cancel" },
@@ -406,7 +392,11 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
         setSavingAvailability(true);
         try {
           let paidUntil = shop?.paidUntil || null;
-          if (nextLive && !paidUntil) { const nextEnd = new Date(); nextEnd.setMonth(nextEnd.getMonth() + 1); paidUntil = nextEnd.toISOString(); }
+          if (nextLive && (!paidUntil || new Date(paidUntil).getTime() <= Date.now())) {
+            const nextEnd = new Date();
+            nextEnd.setMonth(nextEnd.getMonth() + 1);
+            paidUntil = nextEnd.toISOString();
+          }
           const update = { status: nextLive ? "live" : "offline", paidUntil, updatedAt: new Date().toISOString() };
           const { error } = await supabase.from("funeral_shops").update(update).eq("id", user.uid);
           if (error) throw error;
@@ -480,12 +470,16 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
           </SettingsSection>
 
           <SettingsSection label="Payments & Billing">
-            <SettingRow icon="qr-code-outline" label="Family Payment Setup"
-              description={paymentReady ? "QR code and default amount are ready" : "Add the QR and amount shown after acceptance"}
-              value={paymentReady ? formatPhilippinePeso(String(shop?.serviceFeeAmount)) : "Incomplete"}
-              onPress={openPayment} disabled={!isVerified} />
+            <SettingRow icon="card-outline" label="Customer Casket Checkout"
+              description={customerCheckoutReady
+                ? "Xendit test checkout is ready with automatic 30% LifeCycle commission"
+                : isVerified
+                  ? "Waiting for the admin to finish this shop's Xendit test account"
+                  : "Available after shop approval"}
+              value={customerCheckoutReady ? "Ready" : "Setup required"}
+              disabled={!isVerified} />
             <SettingRow icon="card-outline" label="LifeCycle Payments"
-              description="Registration payment, renewal, and payment history"
+              description="Pay securely with Xendit Test Mode, renew, and view payment history"
               onPress={() => setAdminPaymentsVisible(true)} />
             <SettingRow icon="calendar-outline" label="Subscription"
               description={subscriptionExpired ? "Renewal is required before going live" : "Storefront access period"}
@@ -599,54 +593,6 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
                 <Text style={styles.outlineWideButtonText}>Request a correction</Text>
               </TouchableOpacity>
             </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={paymentVisible} transparent animationType="fade" onRequestClose={() => setPaymentVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setPaymentVisible(false)} />
-          <View style={styles.modalCard}>
-            <KeyboardAwareScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
-              <View style={styles.modalHeader}>
-                <View>
-                  <Text style={styles.modalTitle}>Payment Setup</Text>
-                </View>
-                <TouchableOpacity style={styles.closeButton} onPress={() => setPaymentVisible(false)}>
-                  <Ionicons name="close" size={20} color="#53615d" />
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.modalDescription}>Set the QR and default amount families see only after your shop accepts a request.</Text>
-              {paymentDraft.qr ? (
-                <View style={styles.qrPreviewWrap}>
-                  <Image source={{ uri: paymentDraft.qr }} style={styles.qrPreview} resizeMode="contain" />
-                </View>
-              ) : (
-                <TouchableOpacity style={styles.qrEmpty} onPress={() => void pickPaymentQr()} disabled={uploadingQr}>
-                  {uploadingQr ? <ActivityIndicator color="#765f49" /> : <Ionicons name="qr-code-outline" size={36} color="#9ca59f" />}
-                  <Text style={styles.qrEmptyText}>{uploadingQr ? "Uploading..." : "Upload payment QR"}</Text>
-                </TouchableOpacity>
-              )}
-              {paymentDraft.qr ? (
-                <TouchableOpacity style={styles.outlineWideButton} onPress={() => void pickPaymentQr()} disabled={uploadingQr}>
-                  {uploadingQr ? <ActivityIndicator size="small" color="#52635d" /> : <Ionicons name="image-outline" size={18} color="#52635d" />}
-                  <Text style={styles.outlineWideButtonText}>Replace QR image</Text>
-                </TouchableOpacity>
-              ) : null}
-              <Text style={styles.inputLabel}>Default Amount</Text>
-              <TextInput style={styles.input} value={paymentDraft.amount}
-                onChangeText={(amount) => setPaymentDraft((current) => ({ ...current, amount }))}
-                placeholder="e.g. 5000" keyboardType="decimal-pad" />
-              <View style={styles.infoNote}>
-                <Ionicons name="information-circle-outline" size={18} color="#765f49" />
-                <Text style={styles.infoNoteText}>This does not change payments already submitted for existing requests.</Text>
-              </View>
-              <TouchableOpacity style={[styles.primaryButton, savingPayment || !paymentDraft.qr ? styles.buttonDisabled : null]}
-                onPress={() => void saveFamilyPayment()} disabled={savingPayment || uploadingQr || !paymentDraft.qr}>
-                {savingPayment ? <ActivityIndicator size="small" color="#ffffff" /> : <Ionicons name="checkmark-circle-outline" size={18} color="#ffffff" />}
-                <Text style={styles.primaryButtonText}>{savingPayment ? "Saving..." : "Save Payment Setup"}</Text>
-              </TouchableOpacity>
-            </KeyboardAwareScrollView>
           </View>
         </View>
       </Modal>

@@ -781,7 +781,7 @@
 }
 
 /* ── Products & Orders View ──────────── */
-.sc-products-layout, .sc-orders-layout, .sc-shop-layout, .sc-payment-layout {
+.sc-products-layout, .sc-orders-layout, .sc-shop-layout, .sc-payment-layout, .sc-packages-layout {
   background: transparent;
   padding: 0;
   border-radius: 0;
@@ -789,7 +789,7 @@
   box-shadow: none;
 }
 
-.sc-products-layout h2, .sc-orders-layout h2, .sc-shop-layout h2, .sc-payment-layout h2 {
+.sc-products-layout h2, .sc-orders-layout h2, .sc-shop-layout h2, .sc-payment-layout h2, .sc-packages-layout h2 {
   font-size: 18px;
   font-weight: 600;
   margin-bottom: 16px;
@@ -1007,6 +1007,69 @@
 
 .sc-primary-btn:hover {
   background: #1e293b;
+}
+
+.sc-package-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.sc-package-tile {
+  background: var(--sc-white);
+  border: 1px solid var(--sc-border);
+  border-radius: 8px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sc-package-tile-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sc-package-tile-head h3 {
+  margin: 0;
+  font-size: 14px;
+  color: var(--sc-text);
+}
+
+.sc-package-tile-head span {
+  font-size: 11px;
+  font-weight: 700;
+  color: #23784f;
+}
+
+.sc-package-tile-head span.is-missing {
+  color: #b35a10;
+}
+
+.sc-package-image-box {
+  aspect-ratio: 4 / 3;
+  border: 1px dashed var(--sc-border);
+  border-radius: 8px;
+  background: #fafafa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: var(--sc-muted);
+  font-size: 12px;
+}
+
+.sc-package-image-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sc-package-upload {
+  text-align: center;
+  cursor: pointer;
 }
 
 .sc-link-btn {
@@ -2189,6 +2252,49 @@ select.sc-form-input {
   padding: 14px;
 }
 
+.sc-editor-package-preview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sc-editor-package-item {
+  border: 1px solid var(--sc-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.sc-editor-package-item img,
+.sc-editor-package-empty {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8fafc;
+  color: var(--sc-muted);
+  font-size: 12px;
+}
+
+.sc-editor-package-item span {
+  display: block;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--sc-text);
+}
+
+.sc-editor-package-note {
+  border: 1px dashed var(--sc-border);
+  border-radius: 8px;
+  padding: 14px;
+  color: var(--sc-muted);
+  background: #fafafa;
+  font-size: 13px;
+}
+
 .sc-var-image-box {
   width: 80px;
   height: 80px;
@@ -2297,6 +2403,11 @@ select.sc-form-input {
 
   .sc-variation-grid {
     grid-template-columns: 1fr;
+  }
+
+  .sc-package-grid,
+  .sc-editor-package-preview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .sc-variation-card {

@@ -1587,7 +1587,7 @@
   align-items: stretch;
 }
 
-.pd-package-btn {
+.pd-package-item {
   min-width: min(100%, 240px);
   flex: 1 1 220px;
   display: flex;
@@ -1598,19 +1598,7 @@
   border-radius: 7px;
   background: #fff;
   color: #3e4b56;
-  cursor: pointer;
   text-align: left;
-}
-
-.pd-package-btn:hover {
-  border-color: #9daab2;
-  background: #f8f9f9;
-}
-
-.pd-package-btn.selected {
-  border-color: var(--pd-brand);
-  background: #eef2f5;
-  box-shadow: inset 0 0 0 1px var(--pd-brand);
 }
 
 .pd-package-check {
@@ -1621,28 +1609,32 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: #eef2f5;
-  color: var(--pd-brand);
+  background: var(--pd-brand);
+  color: #fff;
   font-size: 16px;
   font-weight: 800;
 }
 
-.pd-package-btn.selected .pd-package-check {
-  background: var(--pd-brand);
-  color: #fff;
+.pd-package-img {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex: 0 0 44px;
+  background: #f1f5f9;
 }
 
-.pd-package-btn strong,
-.pd-package-btn small {
+.pd-package-item strong,
+.pd-package-item small {
   display: block;
 }
 
-.pd-package-btn strong {
+.pd-package-item strong {
   margin-bottom: 3px;
   font-size: 13px;
 }
 
-.pd-package-btn small {
+.pd-package-item small {
   color: #75818a;
   font-size: 11px;
   line-height: 1.4;

@@ -43,6 +43,14 @@ type ShopProduct = {
   updatedAt: string;
 };
 
+type ShopPackage = {
+  flowersImageUrl?: string | null;
+  candlesImageUrl?: string | null;
+  curtainsImageUrl?: string | null;
+  vehicleImageUrl?: string | null;
+  active: boolean;
+};
+
 function normalizeProductImages(item?: ShopProduct | null) {
   if (!item) return Array<string | null>(PHOTO_SLOT_COUNT).fill(null);
   const source = item.galleryImageUrls?.length ? item.galleryImageUrls : item.imageUrl ? [item.imageUrl] : [];
@@ -88,6 +96,13 @@ async function notifyShopFollowersOnNewProduct(
   }
 }
 
+const SHOP_PACKAGE_ITEMS: { label: string; field: keyof ShopPackage; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { label: "Flowers", field: "flowersImageUrl", icon: "flower-outline" },
+  { label: "Candles", field: "candlesImageUrl", icon: "flame-outline" },
+  { label: "Curtains", field: "curtainsImageUrl", icon: "albums-outline" },
+  { label: "Vehicle", field: "vehicleImageUrl", icon: "car-outline" },
+];
+
 export default function FuneralProductEditorScreen({ navigation, route }: any) {
   const productId = typeof route?.params?.productId === "string" ? route.params.productId : null;
   const isEditing = Boolean(productId);
@@ -101,6 +116,7 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
   const [hasVariations, setHasVariations] = useState(false);
   const [variationCount, setVariationCount] = useState(1);
   const [variationEntries, setVariationEntries] = useState<ProductVariation[]>([]);
+  const [shopPackage, setShopPackage] = useState<ShopPackage | null>(null);
   const [productDescription, setProductDescription] = useState("");
   const [productImages, setProductImages] = useState<(string | null)[]>((Array<string | null>(PHOTO_SLOT_COUNT).fill(null)));
 
@@ -114,16 +130,29 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
 
       setLoading(true);
       try {
-        const { data: productRows } = await supabase
-          .from("funeral_products")
-          .select(`
-            *,
-            funeral_product_variations ( id, name, imageUrl ),
-            funeral_product_images ( id, imageUrl, displayOrder )
-          `)
-          .eq("shopId", user.uid);
+        const [productsResult, packagesResult] = await Promise.all([
+          supabase
+            .from("funeral_products")
+            .select(`
+              *,
+              funeral_product_variations ( id, name, imageUrl ),
+              funeral_product_images ( id, imageUrl, displayOrder )
+            `)
+            .eq("shopId", user.uid),
+          supabase
+            .from("funeral_shop_packages")
+            .select("flowersImageUrl, candlesImageUrl, curtainsImageUrl, vehicleImageUrl, active")
+            .eq("shopId", user.uid)
+            .eq("active", true)
+            .maybeSingle(),
+        ]);
 
-        const nextProducts: ShopProduct[] = (productRows || []).map((row: any) => ({
+        if (productsResult.error) throw productsResult.error;
+        if (packagesResult.error) throw packagesResult.error;
+
+        setShopPackage((packagesResult.data as ShopPackage | null) || null);
+
+        const nextProducts: ShopProduct[] = (productsResult.data || []).map((row: any) => ({
           id: row.id,
           name: row.name,
           description: row.description || "",
@@ -483,6 +512,35 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
             </View>
           ) : null}
 
+          <View style={styles.packageSection}>
+            <Text style={styles.variationHeading}>Packages</Text>
+            <Text style={styles.variationSubheading}>Your saved shop package will appear automatically on this product.</Text>
+            {!shopPackage ? (
+              <View style={styles.packageEmptyBox}>
+                <Ionicons name="gift-outline" size={22} color="#87928d" />
+                <Text style={styles.packageEmptyText}>Add package pictures from Shop Center so buyers can see Flowers, Candles, Curtains, and Vehicle.</Text>
+              </View>
+            ) : (
+              <View style={styles.packageList}>
+                {SHOP_PACKAGE_ITEMS.map((item) => {
+                  const imageUrl = shopPackage[item.field] as string | null | undefined;
+                  return (
+                    <View key={item.label} style={styles.packageOption}>
+                      <View style={styles.packageOptionIcon}>
+                        <Ionicons name={item.icon} size={18} color="#22312d" />
+                      </View>
+                      <View style={styles.packageOptionCopy}>
+                        <Text style={styles.packageOptionName}>{item.label}</Text>
+                        <Text style={styles.packageOptionDescription}>{imageUrl ? "Picture added" : "No picture yet"}</Text>
+                      </View>
+                      <Ionicons name={imageUrl ? "checkmark-circle" : "ellipse-outline"} size={21} color={imageUrl ? "#22312d" : "#9aa39e"} />
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+
           <Text style={styles.inputLabel}>Product Description</Text>
           <TextInput
             style={[styles.input, styles.multilineInput]}
@@ -770,6 +828,69 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginTop: 12,
+  },
+  packageSection: {
+    marginTop: 18,
+    gap: 12,
+  },
+  packageEmptyBox: {
+    minHeight: 92,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "#d2d9d5",
+    borderRadius: 8,
+    backgroundColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    padding: 14,
+  },
+  packageEmptyText: {
+    color: "#66736d",
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 19,
+  },
+  packageList: {
+    gap: 10,
+  },
+  packageOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderWidth: 1,
+    borderColor: "#d5ddd9",
+    borderRadius: 8,
+    backgroundColor: "#ffffff",
+    padding: 12,
+  },
+  packageOptionActive: {
+    borderColor: "#22312d",
+    backgroundColor: "#f4f7f5",
+  },
+  packageOptionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: "#edf1ef",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  packageOptionIconActive: {
+    backgroundColor: "#22312d",
+  },
+  packageOptionCopy: {
+    flex: 1,
+  },
+  packageOptionName: {
+    color: "#22312d",
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  packageOptionDescription: {
+    color: "#69766f",
+    fontSize: 12,
+    marginTop: 3,
   },
   actionStack: {
     gap: 10,

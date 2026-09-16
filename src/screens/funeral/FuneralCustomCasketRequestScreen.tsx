@@ -459,7 +459,8 @@ export default function FuneralCustomCasketRequestScreen({ navigation, route }: 
               mode="date"
               display="default"
               maximumDate={new Date()}
-              onChange={onDateChange}
+              onValueChange={onDateChange}
+              onDismiss={() => setShowDatePicker(false)}
             />
           ) : null}
 
@@ -474,7 +475,8 @@ export default function FuneralCustomCasketRequestScreen({ navigation, route }: 
               mode="date"
               display="default"
               maximumDate={new Date()}
-              onChange={onDateOfPassingChange}
+              onValueChange={onDateOfPassingChange}
+              onDismiss={() => setShowDateOfPassingPicker(false)}
             />
           ) : null}
 

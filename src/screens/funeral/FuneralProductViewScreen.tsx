@@ -34,6 +34,20 @@ type ProductVariation = {
   imageUrl?: string | null;
 };
 
+type ShopPackage = {
+  flowersImageUrl?: string | null;
+  candlesImageUrl?: string | null;
+  curtainsImageUrl?: string | null;
+  vehicleImageUrl?: string | null;
+  active?: boolean;
+};
+
+type PackageDisplayItem = {
+  name: string;
+  imageUrl?: string | null;
+  icon: keyof typeof Ionicons.glyphMap;
+};
+
 type ProductReview = {
   id?: string;
   reviewerName?: string;
@@ -143,20 +157,19 @@ function formatTimestamp(timestamp: any) {
   return date.toLocaleDateString();
 }
 
+function getPackageItems(row?: ShopPackage | null): PackageDisplayItem[] {
+  if (!row || row.active === false) return [];
+  const items: PackageDisplayItem[] = [
+    { name: "Flowers", imageUrl: row.flowersImageUrl, icon: "flower-outline" },
+    { name: "Candles", imageUrl: row.candlesImageUrl, icon: "flame-outline" },
+    { name: "Curtains", imageUrl: row.curtainsImageUrl, icon: "albums-outline" },
+    { name: "Vehicle", imageUrl: row.vehicleImageUrl, icon: "car-outline" },
+  ];
+  return items.filter((item) => Boolean(item.imageUrl));
+}
+
 const RATING_VALUES = [1, 2, 3, 4, 5];
 const REVIEW_ELIGIBLE_ORDER_STATUSES = ["payment_verified", "awaiting_customer_confirmation", "completed"];
-const PACKAGE_OPTIONS = [
-  {
-    name: "Flowers",
-    description: "Floral arrangements for the funeral service",
-    icon: "flower-outline",
-  },
-  {
-    name: "Candles",
-    description: "Memorial candles for the funeral service",
-    icon: "flame-outline",
-  },
-] as const;
 type VariationSheetMode = "browse" | "cart" | "buy";
 type VariationPreviewState = {
   name: string;
@@ -178,7 +191,6 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
   const [previewVariation, setPreviewVariation] = useState<VariationPreviewState>(null);
   const [reviewsVisible, setReviewsVisible] = useState(false);
   const [selectedVariationName, setSelectedVariationName] = useState<string | null>(null);
-  const [selectedPackageItems, setSelectedPackageItems] = useState<string[]>([]);
   const [rating, setRating] = useState(0);
   const [savingRating, setSavingRating] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
@@ -193,6 +205,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
   const [relatedProducts, setRelatedProducts] = useState<ProductViewItem[]>([]);
   const [relatedFavoriteIds, setRelatedFavoriteIds] = useState<Set<string>>(() => new Set());
   const [recommendedProducts, setRecommendedProducts] = useState<ProductViewItem[]>([]);
+  const [shopPackage, setShopPackage] = useState<ShopPackage | null>(null);
   const [shopProductCount, setShopProductCount] = useState(1);
   const variationBackdropOpacity = useRef(new Animated.Value(0)).current;
   const variationSheetProgress = useRef(new Animated.Value(0)).current;
@@ -216,6 +229,8 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
   const selectedVariation = variations.find((item) => item.name === selectedVariationName) || null;
   const fallbackItemLabel = variations[0]?.name ? `Item: ${variations[0].name}` : "Item: Standard";
   const productKey = product ? `${product.shopId || "shop"}:${product.id}` : "";
+  const availablePackages = getPackageItems(shopPackage);
+  const includedPackageItems = availablePackages.map((item) => item.name);
 
   const getIdentity = useCallback(async () => {
     const currentUser = auth.currentUser;
@@ -305,10 +320,11 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
         setShopDetails(null);
         setRelatedProducts([]);
         setRecommendedProducts([]);
+        setShopPackage(null);
         return;
       }
 
-      const [shopResult, relatedResult, recommendationsResult] = await Promise.all([
+      const [shopResult, relatedResult, recommendationsResult, packagesResult] = await Promise.all([
         supabase
           .from("funeral_shops")
           .select("shopName, shopAddress, generalLocation, shopImageUrl, status")
@@ -341,6 +357,12 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
           .neq("shopId", product.shopId)
           .order("createdAt", { ascending: false })
           .limit(8),
+        supabase
+          .from("funeral_shop_packages")
+          .select("flowersImageUrl, candlesImageUrl, curtainsImageUrl, vehicleImageUrl, active")
+          .eq("shopId", product.shopId)
+          .eq("active", true)
+          .maybeSingle(),
       ]);
 
       if (cancelled) return;
@@ -354,6 +376,11 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
       }
       if (!recommendationsResult.error) {
         setRecommendedProducts((recommendationsResult.data || []).map((row: any) => mapCatalogProduct(row)));
+      }
+      if (!packagesResult.error) {
+        setShopPackage((packagesResult.data as ShopPackage | null) || null);
+      } else {
+        setShopPackage(null);
       }
     };
 
@@ -746,7 +773,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
 
     navigation.navigate("FuneralCheckout", {
       cartItem: {
-        cartId: `buy_now_${product.shopId}_${product.id}_${selectedVariationName || "standard"}_${selectedPackageItems.join("-") || "no-package"}_${Date.now()}`,
+        cartId: `buy_now_${product.shopId}_${product.id}_${selectedVariationName || "standard"}_${Date.now()}`,
         productId: product.id,
         shopId: product.shopId,
         shopName: product.shopName || "Funeral shop",
@@ -754,7 +781,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
         price: String(product.price || ""),
         imageUrl: selectedVariation?.imageUrl || gallery[0] || product.imageUrl || null,
         variationName: selectedVariationName,
-        packageItems: selectedPackageItems,
+        packageItems: includedPackageItems,
         quantity: 1,
       },
     });
@@ -785,7 +812,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
         price: String(product.price || ""),
         imageUrl: selectedVariation?.imageUrl || gallery[0] || product.imageUrl || null,
         variationName: selectedVariationName,
-        packageItems: selectedPackageItems,
+        packageItems: includedPackageItems,
       });
 
       setAddedToCartVisible(true);
@@ -927,48 +954,41 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
             </View>
           ) : null}
 
+          {availablePackages.length > 0 ? (
           <View style={styles.packageSection}>
             <View style={styles.marketSectionHeadingRow}>
-              <Text style={styles.marketSectionLabel}>Select packages</Text>
-              <Text style={styles.packageOptionalLabel}>Optional</Text>
+              <Text style={styles.marketSectionLabel}>Package inclusions</Text>
+              <Text style={styles.packageIncludedLabel}>Included</Text>
             </View>
-            <Text style={styles.packageIntro}>Choose Flowers, Candles, or both to include with your service request.</Text>
+            <Text style={styles.packageIntro}>These items are already included in the casket price.</Text>
             <View style={styles.packageOptions}>
-              {PACKAGE_OPTIONS.map((option) => {
-                const selected = selectedPackageItems.includes(option.name);
-                return (
-                  <TouchableOpacity
+              {availablePackages.map((option) => (
+                  <View
                     key={option.name}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: selected }}
-                    accessibilityLabel={`Add ${option.name} package`}
-                    activeOpacity={0.86}
-                    style={[styles.packageCard, selected ? styles.packageCardActive : null]}
-                    onPress={() => {
-                      setSelectedPackageItems((current) =>
-                        current.includes(option.name)
-                          ? current.filter((item) => item !== option.name)
-                          : [...current, option.name]
-                      );
-                    }}
+                    accessibilityLabel={`${option.name}, included in the casket price`}
+                    style={styles.packageCard}
                   >
-                    <View style={[styles.packageIcon, selected ? styles.packageIconActive : null]}>
-                      <Ionicons name={option.icon} size={20} color={selected ? "#ffffff" : colors.primary} />
-                    </View>
+                    {option.imageUrl ? (
+                      <Image source={{ uri: option.imageUrl }} style={styles.packageImage} resizeMode="cover" />
+                    ) : (
+                      <View style={styles.packageIcon}>
+                        <Ionicons name={option.icon} size={20} color={colors.primary} />
+                      </View>
+                    )}
                     <View style={styles.packageCopy}>
                       <Text style={styles.packageName}>{option.name}</Text>
-                      <Text style={styles.packageDescription}>{option.description}</Text>
+                      <Text style={styles.packageDescription}>Included with this casket</Text>
                     </View>
                     <Ionicons
-                      name={selected ? "checkmark-circle" : "ellipse-outline"}
+                      name="checkmark-circle"
                       size={21}
-                      color={selected ? colors.primary : colors.textMuted}
+                      color={colors.primary}
                     />
-                  </TouchableOpacity>
-                );
-              })}
+                  </View>
+              ))}
             </View>
           </View>
+          ) : null}
         </View>
 
         <View style={styles.detailSection}>
@@ -1456,8 +1476,8 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
               <View style={styles.confirmBody}>
                 <Text style={styles.confirmProductName} numberOfLines={2}>{product.name}</Text>
                 {selectedVariationName ? <Text style={styles.confirmVariation}>Variation: {selectedVariationName}</Text> : null}
-                {selectedPackageItems.length > 0 ? (
-                  <Text style={styles.confirmVariation}>Packages: {selectedPackageItems.join(", ")}</Text>
+                {includedPackageItems.length > 0 ? (
+                  <Text style={styles.confirmVariation}>Included: {includedPackageItems.join(", ")}</Text>
                 ) : null}
                 <Text style={styles.confirmPrice}>{formatPhilippinePeso(priceValue || product.price)}</Text>
               </View>
@@ -2456,10 +2476,10 @@ const styles = StyleSheet.create({
     borderTopColor: colors.borderWarm,
     paddingTop: spacing.lg,
   },
-  packageOptionalLabel: {
-    color: colors.textMuted,
+  packageIncludedLabel: {
+    color: colors.primary,
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: "800",
   },
   packageIntro: {
     color: colors.textMuted,
@@ -2482,10 +2502,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.md,
   },
-  packageCardActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.surfaceMuted,
-  },
   packageIcon: {
     width: 38,
     height: 38,
@@ -2494,8 +2510,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  packageIconActive: {
-    backgroundColor: colors.primary,
+  packageImage: {
+    width: 46,
+    height: 46,
+    borderRadius: radii.md,
+    backgroundColor: colors.surfaceMuted,
   },
   packageCopy: {
     flex: 1,

@@ -236,6 +236,11 @@ export default function NotificationsScreen({ navigation, route }: any) {
   const navigateAdminNotification = (notification: Notification) => {
     const data = notification.data || {};
 
+    if (notification.type === 'shop_payment_account_registered') {
+      navigation.navigate('AdminTabs', { screen: 'Payments' });
+      return;
+    }
+
     if (isChatNotification(notification.type)) {
       if (data.conversationId && data.otherUserId) {
         navigation.navigate("Chat", {

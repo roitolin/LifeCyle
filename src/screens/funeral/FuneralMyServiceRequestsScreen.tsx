@@ -22,6 +22,7 @@ import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import { KeyboardAwareScrollView } from "@/components";
 import ServiceRequestScheduleFields from "@/components/ServiceRequestScheduleFields";
+import ServiceXenditSheet from "@/components/ServiceXenditSheet";
 import { supabase } from "@/services/supabaseClient";
 import { auth, uploadCertificate } from "@/services";
 import { hapticMedium, hapticSuccess } from "@/utils/haptics";
@@ -47,6 +48,7 @@ type FuneralServiceRequest = {
   shopContactNumber?: string | null;
   shopAddress?: string | null;
   productName: string;
+  productPrice?: number | string | null;
   productImageUrl?: string | null;
   variationName?: string | null;
   packageItems?: string[] | null;
@@ -78,6 +80,8 @@ type FuneralServiceRequest = {
   paymentSubmittedAt?: any;
   paymentVerifiedAt?: any;
   paymentRejectionReason?: string | null;
+  paymentProvider?: "manual" | "paymongo" | "xendit";
+  providerPaymentMethod?: string | null;
   completionProofImageUrl?: string | null;
   shopMarkedCompletedAt?: any;
   completionProofSeenAt?: any;
@@ -123,7 +127,7 @@ const isCancellable = (status: string) => {
 };
 
 const hasPaymentSetup = (request: FuneralServiceRequest) =>
-  Boolean(request.paymentQrUrl) && Number(request.paymentAmount) > 0;
+  Number(request.paymentAmount) > 0;
 
 const needsPayment = (request: FuneralServiceRequest) =>
   !request.sharedWithMe &&
@@ -280,6 +284,22 @@ const getStatusMeta = (status: string) => {
       message: "Your payment details are under review by the shop.",
     };
   }
+  if (normalized === "paid_waiting_for_split") {
+    return {
+      label: "Payment Received",
+      background: "#fef3c7",
+      text: "#86654a",
+      message: "Xendit received your payment. The order will continue after the 30% admin commission is confirmed.",
+    };
+  }
+  if (normalized === "commission_failed") {
+    return {
+      label: "Commission Needs Review",
+      background: "#fde8e8",
+      text: "#991b1b",
+      message: "Your payment was received, but Xendit could not confirm the commission split. Support must review it before the order continues.",
+    };
+  }
   if (normalized === "payment_verified") {
     return {
       label: "Payment Confirmed",
@@ -363,6 +383,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
   const [requests, setRequests] = useState<FuneralServiceRequest[]>([]);
   const [requestFilter, setRequestFilter] = useState<RequestFilter>("all");
   const [selectedRequest, setSelectedRequest] = useState<FuneralServiceRequest | null>(null);
+  const [xenditRequest, setXenditRequest] = useState<FuneralServiceRequest | null>(null);
   const markedSeenRef = useRef<Record<string, boolean>>({});
   useEffect(() => {
     if (!selectedRequest) return;
@@ -993,7 +1014,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                       }}
                     >
                       <Ionicons name="receipt-outline" size={15} color="#7f6653" />
-                      <Text style={styles.cardPaymentButtonText}>View receipt</Text>
+                      <Text style={styles.cardPaymentButtonText}>{paymentRequired ? "Pay now" : "View receipt"}</Text>
                     </TouchableOpacity>
                   ) : null}
                   {paymentRequired ? (
@@ -1166,7 +1187,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                     value={selectedRequest.productName + (selectedRequest.variationName ? ` (${selectedRequest.variationName})` : "")}
                   />
                   {selectedRequest.packageItems?.length ? (
-                    <DetailRow icon="gift-outline" label="Selected Packages" value={selectedRequest.packageItems.join(", ")} />
+                    <DetailRow icon="gift-outline" label="Package inclusions" value={selectedRequest.packageItems.join(", ")} />
                   ) : null}
                   {selectedRequest.requestType === "custom_casket" ? (
                     <DetailRow icon="pricetag-outline" label="Request Type" value="Custom Casket Request" />
@@ -1325,16 +1346,6 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                       </View>
                     ) : null}
 
-                    {selectedRequest.paymentQrUrl ? (
-                      <>
-                        <Text style={styles.inputLabel}>Scan the shop&apos;s QR code</Text>
-                        <TouchableOpacity activeOpacity={0.9} onPress={() => setPaymentViewerUrl(selectedRequest.paymentQrUrl || null)}>
-                          <Image source={{ uri: selectedRequest.paymentQrUrl }} style={styles.paymentQrImage} resizeMode="contain" />
-                        </TouchableOpacity>
-                        <Text style={styles.paymentQrHint}>Tap the QR code to enlarge it.</Text>
-                      </>
-                    ) : null}
-
                     <View style={[styles.paymentStatusPill, { backgroundColor: getStatusMeta(selectedRequest.status).background }]}>
                       <Text style={[styles.paymentStatusText, { color: getStatusMeta(selectedRequest.status).text }]}>
                         {getStatusMeta(selectedRequest.status).label}
@@ -1370,6 +1381,16 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                     ) : null}
 
                     {String(selectedRequest.status || "").toLowerCase() === "awaiting_payment" ? (
+                      <TouchableOpacity
+                        style={styles.submitPaymentButton}
+                        onPress={() => setXenditRequest(selectedRequest)}
+                      >
+                        <Ionicons name="flash" size={19} color="#ffffff" />
+                        <Text style={styles.submitPaymentButtonText}>1-Click Pay with Xendit</Text>
+                      </TouchableOpacity>
+                    ) : null}
+
+                    {false && String(selectedRequest!.status || "").toLowerCase() === "awaiting_payment" ? (
                       <>
                         <Text style={styles.inputLabel}>Sender Name *</Text>
                         <TextInput
@@ -1412,7 +1433,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                         <Text style={styles.inputLabel}>Proof of Payment *</Text>
                         {paymentForm.proofImageUrl ? (
                           <View style={styles.proofPreviewWrap}>
-                            <Image source={{ uri: paymentForm.proofImageUrl }} style={styles.proofPreview} resizeMode="cover" />
+                            <Image source={{ uri: paymentForm.proofImageUrl! }} style={styles.proofPreview} resizeMode="cover" />
                             <TouchableOpacity style={styles.proofRemoveButton} onPress={() => setPaymentForm((current) => ({ ...current, proofImageUrl: null }))}>
                               <Text style={styles.proofRemoveText}>Remove</Text>
                             </TouchableOpacity>
@@ -1432,7 +1453,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
 
                         <TouchableOpacity
                           style={[styles.submitPaymentButton, submittingPayment ? styles.buttonDisabled : null]}
-                          onPress={() => void submitPayment(selectedRequest)}
+                          onPress={() => void submitPayment(selectedRequest!)}
                           disabled={submittingPayment}
                         >
                           {submittingPayment ? <ActivityIndicator size="small" color="#ffffff" /> : null}
@@ -1664,7 +1685,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                   <View style={styles.paymentDetailsAccordionBody}>
                     <View style={styles.paymentSuccessDetailRow}>
                       <Text style={styles.paymentSuccessDetailLabel}>Payment Method</Text>
-                      <Text style={styles.paymentSuccessDetailValue}>GCash / E-wallet</Text>
+                      <Text style={styles.paymentSuccessDetailValue}>{paymentRequest.paymentProvider === "xendit" ? "Xendit 1-Click Pay" : paymentRequest.paymentProvider === "paymongo" ? "Online Payment" : "GCash / E-wallet"}</Text>
                     </View>
                     {paymentRequest.paymentPayerName ? (
                       <View style={styles.paymentSuccessDetailRow}>
@@ -1740,6 +1761,16 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                   <Text style={styles.paymentSuccessTotalLabel}>Order Total</Text>
                   <Text style={styles.paymentSuccessTotalValue}>{formatPeso(paymentRequest.paymentAmount)}</Text>
                 </View>
+
+                {String(paymentRequest.status || "").toLowerCase() === "awaiting_payment" ? (
+                  <TouchableOpacity
+                    style={[styles.receiptActionButtonPrimary, { marginTop: 18 }]}
+                    onPress={() => setXenditRequest(paymentRequest)}
+                  >
+                    <Ionicons name="flash" size={18} color="#ffffff" />
+                    <Text style={styles.receiptActionButtonPrimaryText}>1-Click Pay with Xendit</Text>
+                  </TouchableOpacity>
+                ) : null}
 
               </View>
             </ScrollView>
@@ -1906,6 +1937,25 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      <ServiceXenditSheet
+        visible={Boolean(xenditRequest)}
+        request={xenditRequest}
+        onClose={() => setXenditRequest(null)}
+        onChanged={async () => {
+          await loadRequests();
+          if (!xenditRequest) return;
+          const { data } = await supabase
+            .from("funeral_service_requests")
+            .select('status, "paymentProvider", "providerPaymentMethod"')
+            .eq("id", xenditRequest.id)
+            .maybeSingle();
+          if (data?.status === "payment_verified") {
+            setXenditRequest(null);
+            setPaymentRequest((current) => current?.id === xenditRequest.id ? { ...current, ...data } : current);
+          }
+        }}
+      />
     </SafeAreaView>
   );
 }

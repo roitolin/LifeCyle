@@ -12,10 +12,8 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import * as ImagePicker from "expo-image-picker";
 import { Button, Card, SegmentedButtons, Text } from "react-native-paper";
 import { supabase } from "@/services/supabaseClient";
-import { uploadCertificate } from "@/services";
 import { createNotification } from "@/utils/supabaseNotifications";
 import { formatPhilippinePeso } from "@/utils/funeralCatalog";
 import { useResponsive } from "@/utils/responsive";
@@ -39,6 +37,9 @@ type PaymentSubmission = {
   shopName: string;
   ownerName: string;
   ownerEmail: string;
+  paymentProvider: "manual" | "paymongo" | "xendit";
+  providerPaymentId: string | null;
+  providerPaymentMethod: string | null;
 };
 
 const PAYMENT_SETTING_KEY = "payment_qr_code";
@@ -75,8 +76,6 @@ export default function AdminPaymentsScreen() {
   const [selected, setSelected] = useState<PaymentSubmission | null>(null);
   const [rejecting, setRejecting] = useState<PaymentSubmission | null>(null);
   const [rejectReason, setRejectReason] = useState("");
-  const [qrUrl, setQrUrl] = useState<string | null>(null);
-  const [qrDraftUri, setQrDraftUri] = useState<string | null>(null);
   const [feeAmount, setFeeAmount] = useState("");
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
 
@@ -99,8 +98,6 @@ export default function AdminPaymentsScreen() {
       if (paymentsResult.error) throw paymentsResult.error;
 
       const setting = (settingResult.data?.value || {}) as { imageUrl?: string; feeAmount?: number };
-      setQrUrl(setting.imageUrl?.trim() || null);
-      setQrDraftUri(null);
       setFeeAmount(Number(setting.feeAmount) > 0 ? String(setting.feeAmount) : "");
       setUpdatedAt(settingResult.data?.updatedAt || null);
 
@@ -124,6 +121,13 @@ export default function AdminPaymentsScreen() {
           shopName: shop?.shopName || "Unnamed shop",
           ownerName: owner?.fullName || "",
           ownerEmail: owner?.email || "",
+          paymentProvider: row.paymentProvider === "xendit"
+            ? "xendit"
+            : row.paymentProvider === "paymongo"
+              ? "paymongo"
+              : "manual",
+          providerPaymentId: row.providerPaymentId || null,
+          providerPaymentMethod: row.providerPaymentMethod || null,
         };
       }));
     } catch (error: any) {
@@ -143,16 +147,11 @@ export default function AdminPaymentsScreen() {
     return () => { void supabase.removeChannel(channel); };
   }, [loadData]);
 
-  const pendingCount = useMemo(() => payments.filter((item) => item.status === "pending").length, [payments]);
+  const pendingCount = useMemo(() => payments.filter((item) => item.status === "pending" && item.paymentProvider === "manual").length, [payments]);
   const shownPayments = useMemo(
     () => [...payments].sort((a, b) => (a.status === "pending" ? -1 : b.status === "pending" ? 1 : 0)),
     [payments]
   );
-
-  const chooseQr = async () => {
-    const picker = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], allowsEditing: true, quality: 0.85 });
-    if (!picker.canceled && picker.assets[0]) setQrDraftUri(picker.assets[0].uri);
-  };
 
   const saveSettings = async () => {
     const parsedFee = Number(String(feeAmount).replace(/[^\d.]/g, ""));
@@ -160,23 +159,16 @@ export default function AdminPaymentsScreen() {
       Alert.alert("Invalid Amount", "Enter a registration fee greater than zero.");
       return;
     }
-    if (!qrDraftUri && !qrUrl) {
-      Alert.alert("QR Code Required", "Attach the admin payment QR code before saving.");
-      return;
-    }
     setSaving(true);
     try {
-      const finalQrUrl = qrDraftUri ? await uploadCertificate(qrDraftUri) : qrUrl;
       const now = new Date().toISOString();
       const { error } = await supabase.from("settings").upsert(
-        { key: PAYMENT_SETTING_KEY, value: { imageUrl: finalQrUrl, feeAmount: parsedFee }, updatedAt: now },
+        { key: PAYMENT_SETTING_KEY, value: { imageUrl: null, feeAmount: parsedFee }, updatedAt: now },
         { onConflict: "key" }
       );
       if (error) throw error;
-      setQrUrl(finalQrUrl);
-      setQrDraftUri(null);
       setUpdatedAt(now);
-      Alert.alert("Payment Settings Saved", "Verified shops can now use this QR code to submit payments.");
+      Alert.alert("Payment Settings Saved", "Verified shops can now pay this fee securely through Xendit Test Mode.");
     } catch (error: any) {
       Alert.alert("Save Failed", error?.message || "Unable to save payment settings.");
     } finally {
@@ -304,7 +296,7 @@ export default function AdminPaymentsScreen() {
               <View style={styles.heroIcon}><Ionicons name="wallet-outline" size={24} color="#991b1b" /></View>
               <View style={styles.flex}>
                 <Text variant="titleLarge" style={styles.title}>Shop Payments</Text>
-                <Text style={styles.muted}>Manage the QR code and review registration payments from funeral shops.</Text>
+                <Text style={styles.muted}>Set the registration fee and monitor automatic Xendit test payments.</Text>
               </View>
               <View style={styles.countBadge}><Text style={styles.countText}>{pendingCount}</Text></View>
             </View>
@@ -316,13 +308,13 @@ export default function AdminPaymentsScreen() {
           onValueChange={(value) => setTab(value as "submissions" | "setup")}
           buttons={[
             { value: "submissions", label: `Submissions (${pendingCount})`, icon: "receipt" },
-            { value: "setup", label: "Payment Setup", icon: "qrcode" },
+            { value: "setup", label: "Payment Setup", icon: "shield-checkmark" },
           ]}
         />
 
         {tab === "setup" ? (
           <Card style={styles.card} mode="outlined">
-            <Card.Title title="Admin Payment Details" subtitle={`Last updated: ${formatDate(updatedAt)}`} />
+            <Card.Title title="Xendit Payment Details" subtitle={`Last updated: ${formatDate(updatedAt)}`} />
             <Card.Content>
               <Text style={styles.label}>Registration fee (₱)</Text>
               <TextInput
@@ -331,20 +323,13 @@ export default function AdminPaymentsScreen() {
                 onChangeText={setFeeAmount}
                 keyboardType="decimal-pad"
               />
-              <Text style={styles.label}>Payment QR code</Text>
-              <TouchableOpacity style={styles.qrPicker} onPress={chooseQr} disabled={saving}>
-                {qrDraftUri || qrUrl ? (
-                  <Image source={{ uri: qrDraftUri || qrUrl || "" }} style={styles.qrImage} resizeMode="contain" />
-                ) : (
-                  <View style={styles.qrEmpty}>
-                    <Ionicons name="qr-code-outline" size={46} color="#9ca3af" />
-                    <Text style={styles.muted}>Tap to attach a QR code</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-              <Button mode="outlined" icon="image" onPress={chooseQr} disabled={saving} style={styles.actionButton}>
-                {qrDraftUri || qrUrl ? "Replace QR Code" : "Choose QR Code"}
-              </Button>
+              <View style={styles.qrPicker}>
+                <View style={styles.qrEmpty}>
+                  <Ionicons name="shield-checkmark-outline" size={46} color="#0f766e" />
+                  <Text variant="titleMedium">Xendit Test Mode checkout</Text>
+                  <Text style={styles.muted}>Enabled Xendit test channels are confirmed automatically. No real money is used.</Text>
+                </View>
+              </View>
               <Button mode="contained" icon="content-save" onPress={saveSettings} loading={saving} disabled={saving} buttonColor="#b91c1c">
                 Save Payment Settings
               </Button>
@@ -355,7 +340,7 @@ export default function AdminPaymentsScreen() {
             <Card.Content style={styles.emptyState}>
               <Ionicons name="receipt-outline" size={40} color="#9ca3af" />
               <Text variant="titleMedium">No payment submissions yet</Text>
-              <Text style={styles.muted}>Shop payment proofs will appear here for review.</Text>
+              <Text style={styles.muted}>Xendit transactions and legacy payment records will appear here.</Text>
             </Card.Content>
           </Card>
         ) : (
@@ -401,6 +386,7 @@ export default function AdminPaymentsScreen() {
               {selected ? (
                 <>
                   <Text style={styles.detailLabel}>Shop</Text><Text style={styles.detailValue}>{selected.shopName}</Text>
+                  <Text style={styles.detailLabel}>Provider</Text><Text style={styles.detailValue}>{selected.paymentProvider === "xendit" ? `Xendit${selected.providerPaymentMethod ? ` - ${selected.providerPaymentMethod}` : ""}` : selected.paymentProvider === "paymongo" ? `Legacy PayMongo${selected.providerPaymentMethod ? ` - ${selected.providerPaymentMethod}` : ""}` : "Legacy manual payment"}</Text>
                   <Text style={styles.detailLabel}>Sender name</Text><Text style={styles.detailValue}>{selected.payerName || "—"}</Text>
                   <Text style={styles.detailLabel}>GCash account name</Text><Text style={styles.detailValue}>{selected.gcashName || "—"}</Text>
                   <Text style={styles.detailLabel}>GCash number</Text><Text style={styles.detailValue}>{selected.gcashNumber || "—"}</Text>
@@ -408,11 +394,11 @@ export default function AdminPaymentsScreen() {
                   <Text style={styles.detailLabel}>Amount</Text><Text style={styles.detailValue}>{formatPhilippinePeso(String(selected.amount))}</Text>
                   <Text style={styles.detailLabel}>Submitted</Text><Text style={styles.detailValue}>{formatDate(selected.createdAt)}</Text>
                   {selected.rejectionReason ? <Text style={styles.rejectionText}>Reason: {selected.rejectionReason}</Text> : null}
-                  <Text style={styles.detailLabel}>Proof of payment</Text>
-                  {selected.proofImageUrl ? (
+                  {selected.paymentProvider === "manual" ? <Text style={styles.detailLabel}>Proof of payment</Text> : null}
+                  {selected.paymentProvider === "manual" && selected.proofImageUrl ? (
                     <Image source={{ uri: selected.proofImageUrl }} style={styles.proofImage} resizeMode="contain" />
                   ) : <Text style={styles.muted}>No proof image attached.</Text>}
-                  {selected.status === "pending" ? (
+                  {selected.status === "pending" && selected.paymentProvider === "manual" ? (
                     <View style={styles.reviewActions}>
                       <Button
                         mode="outlined"

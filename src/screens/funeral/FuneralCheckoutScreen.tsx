@@ -479,7 +479,8 @@ export default function FuneralCheckoutScreen({ navigation, route }: any) {
               mode="date"
               display="default"
               maximumDate={new Date()}
-              onChange={onDateChange}
+              onValueChange={onDateChange}
+              onDismiss={() => setShowDatePicker(false)}
             />
           ) : null}
 
@@ -494,7 +495,8 @@ export default function FuneralCheckoutScreen({ navigation, route }: any) {
               mode="date"
               display="default"
               maximumDate={new Date()}
-              onChange={onDateOfPassingChange}
+              onValueChange={onDateOfPassingChange}
+              onDismiss={() => setShowDateOfPassingPicker(false)}
             />
           ) : null}
 
