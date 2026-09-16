@@ -2729,10 +2729,10 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
             >
               <View style={styles.paymentSettingsHeader}>
                 <View style={styles.paymentSettingsHeaderIcon}>
-                  <Ionicons name="qr-code-outline" size={22} color="#22312d" />
+                  <Ionicons name="card-outline" size={22} color="#22312d" />
                 </View>
                 <View style={styles.paymentSettingsHeaderCopy}>
-                  <Text style={styles.modalTitle}>Customer QR Ph Payments</Text>
+                  <Text style={styles.modalTitle}>Customer Payments Setup (Xendit)</Text>
                   <Text style={styles.paymentSettingsHeaderCaption}>Set how families pay after you accept a request.</Text>
                 </View>
                 <TouchableOpacity style={styles.paymentSettingsClose} onPress={closePaymentSettings} accessibilityLabel="Close payment settings">
