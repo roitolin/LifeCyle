@@ -212,20 +212,18 @@ export default function AdminPayoutAccountsPage() {
       payoutAccountNumber: number,
       payoutVerifiedByAdmin: true,
       payoutVerifiedAt: nowIso,
-      xenditProvisioningStatus: 'provisioned',
-      xenditProvisioningError: null,
-      xenditProvisioningUpdatedAt: nowIso,
       updatedAt: nowIso,
     }
 
     try {
-      // 1. Direct update in Supabase
+      // 1. Direct update in Supabase (allowed for admins by protect_shop_payout_fields)
       const { error: directErr } = await supabase
         .from('funeral_shops')
         .update(updatePayload)
         .eq('id', modalShop.id)
 
       if (directErr) {
+        console.warn('Direct update failed, falling back to provision-xendit-shop:', directErr)
         // Fallback to provision-xendit-shop edge function
         const { error: fnErr } = await supabase.functions.invoke('provision-xendit-shop', {
           body: {
@@ -236,7 +234,19 @@ export default function AdminPayoutAccountsPage() {
             payoutAccountNumber: number,
           },
         })
-        if (fnErr) throw fnErr
+        if (fnErr) {
+          let errorMsg = fnErr.message || 'Unable to verify payout account.'
+          const context = (fnErr as any)?.context
+          if (context && typeof context.json === 'function') {
+            try {
+              const body = await context.json()
+              if (typeof body?.error === 'string') errorMsg = body.error
+            } catch {
+              // keep fallback message
+            }
+          }
+          throw new Error(errorMsg)
+        }
       }
 
       // Log admin activity
@@ -359,7 +369,7 @@ export default function AdminPayoutAccountsPage() {
           <h2>Shop Payout Accounts</h2>
           <p className="payout-header-sub">
             Verify and manage GCash, Maya, and bank payout details for partner funeral shops.
-            Verified accounts receive 70% of each customer order automatically via Xendit Payouts API.
+            Verified accounts receive direct payouts for completed customer service orders.
           </p>
         </div>
         <div className="payout-header-actions">
@@ -508,7 +518,7 @@ export default function AdminPayoutAccountsPage() {
             <h4>No Payout Accounts Found</h4>
             <p>
               {activeFilter === 'pending'
-                ? 'Great news! There are no partner shops currently awaiting payout account verification.'
+                ? 'No partner shops are currently awaiting payout account verification.'
                 : 'No shop records matched your current filter criteria.'}
             </p>
           </div>
@@ -700,9 +710,9 @@ export default function AdminPayoutAccountsPage() {
                   <line x1="12" y1="8" x2="12.01" y2="8" />
                 </svg>
                 <p>
-                  <strong>Direct Xendit Payout Rule:</strong> Once verified, <strong>70%</strong> of customer order
-                  payments will be automatically sent to this account. The remaining <strong>30%</strong> platform
-                  commission stays in LifeCycle’s account.
+                  <strong>Payout Rule:</strong> Once verified, <strong>70%</strong> of customer order
+                  payments are routed to this account, and <strong>30%</strong> platform
+                  commission is retained by LifeCycle.
                 </p>
               </div>
 

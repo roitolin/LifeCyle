@@ -1,46 +1,68 @@
 import { Navigate, Outlet } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { doc, onSnapshot } from '@/lib/supabaseDbCompat'
-import { auth, db } from '@/lib/supabaseAuth'
+import { supabase } from '@/lib/supabase'
 
 type AdminRoleGuardProps = {
   allowedRoles: string[]
   redirectTo?: string
 }
 
-function AdminRoleGuard({ allowedRoles, redirectTo = '/admin' }: AdminRoleGuardProps) {
-  const [role, setRole] = useState('')
+function AdminRoleGuard({ allowedRoles, redirectTo = '/admin/dashboard' }: AdminRoleGuardProps) {
+  const [role, setRole] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const currentUser = auth.currentUser
-    if (!currentUser) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setRole('')
-      setLoading(false)
-      return
+    let active = true
+
+    const resolveRole = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const user = session?.user
+        if (!user) {
+          if (active) {
+            setRole('user')
+            setLoading(false)
+          }
+          return
+        }
+
+        const { data } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', user.id)
+          .maybeSingle()
+
+        if (!active) return
+        const normalizedRole = String(data?.role || 'user').toLowerCase().trim()
+        setRole(normalizedRole)
+      } catch {
+        if (active) setRole('user')
+      } finally {
+        if (active) setLoading(false)
+      }
     }
 
-    const unsubscribe = onSnapshot(
-      doc(db, 'users', currentUser.uid),
-      (snapshot) => {
-        setRole(String(snapshot.data()?.role || 'user').toLowerCase())
-        setLoading(false)
-      },
-      () => {
-        setRole('user')
-        setLoading(false)
-      },
-    )
+    void resolveRole()
 
-    return () => unsubscribe()
+    const { data: listener } = supabase.auth.onAuthStateChange(() => {
+      void resolveRole()
+    })
+
+    return () => {
+      active = false
+      listener.subscription.unsubscribe()
+    }
   }, [])
 
   if (loading) {
-    return <section className="panel"><p className="panel-sub">Checking permissions...</p></section>
+    return (
+      <section className="panel">
+        <p className="panel-sub">Checking permissions...</p>
+      </section>
+    )
   }
 
-  if (!allowedRoles.includes(role)) {
+  if (!role || !allowedRoles.includes(role)) {
     return <Navigate to={redirectTo} replace />
   }
 
@@ -48,4 +70,3 @@ function AdminRoleGuard({ allowedRoles, redirectTo = '/admin' }: AdminRoleGuardP
 }
 
 export default AdminRoleGuard
-

@@ -239,13 +239,14 @@ export default function SellerServiceRequestPage() {
   const updateRequestStatus = (nextStatus: 'accepted_by_shop' | 'declined_by_shop') => {
     if (!request || actionBusy) return
     const accepting = nextStatus === 'accepted_by_shop'
-    const paymentQrUrl = String(shop?.paymentQrUrl || '').trim()
     const serviceFee = Number(shop?.serviceFeeAmount) || 0
+    const requestProductPrice = Number(request.productPrice) || 0
+    const finalAmount = requestProductPrice > 0 ? requestProductPrice : serviceFee
 
-    if (accepting && (!paymentQrUrl || serviceFee <= 0)) {
+    if (accepting && finalAmount <= 0) {
       openAlert({
         title: 'Payment setup required',
-        message: 'Save your payment QR code and default service amount before accepting this request.',
+        message: 'Configure the casket product price or shop default amount before accepting this request.',
         tone: 'warning',
         okLabel: 'Got it',
       })
@@ -259,7 +260,7 @@ export default function SellerServiceRequestPage() {
         : 'The family will be notified that your shop cannot take this case.',
       details: accepting
         ? [
-            `Payment amount: ${formatPeso(serviceFee)}.`,
+            `Payment amount: ${formatPeso(finalAmount)}. The customer can complete payment securely via Xendit.`,
             request.productId === 'custom_casket_design'
               ? 'This custom design request will not change product stock.'
               : 'One item will be reserved from the product stock.',
@@ -293,7 +294,7 @@ export default function SellerServiceRequestPage() {
               type: accepting ? 'funeral_payment_ready' : 'funeral_request_updated',
               title: accepting ? 'Request Accepted - Payment Ready' : 'Request Declined',
               body: accepting
-                ? `${shop?.shopName || 'The shop'} accepted your request. Please pay ${formatPeso(serviceFee)} using the payment details in your request.`
+                ? `${shop?.shopName || 'The shop'} accepted your request. Please pay ${formatPeso(finalAmount)} using the payment options in your request.`
                 : `${shop?.shopName || 'The shop'} declined your service request.`,
             })
           } catch {

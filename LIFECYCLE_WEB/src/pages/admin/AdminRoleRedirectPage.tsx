@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { doc, getDoc } from '@/lib/supabaseDbCompat'
-import { auth, db } from '@/lib/supabaseAuth'
+import { supabase } from '@/lib/supabase'
 
 function getAdminTarget(role: string) {
   if (role === 'super_admin' || role === 'admin') return '/admin/dashboard'
@@ -13,23 +12,36 @@ function AdminRoleRedirectPage() {
   const [target, setTarget] = useState('')
 
   useEffect(() => {
-    const loadRole = async () => {
-      const currentUser = auth.currentUser
-      if (!currentUser) {
-        setTarget('/')
-        return
-      }
+    let active = true
 
+    const loadRole = async () => {
       try {
-        const snapshot = await getDoc(doc(db, 'users', currentUser.uid))
-        const role = String(snapshot.data()?.role || 'user').toLowerCase()
+        const { data: { session } } = await supabase.auth.getSession()
+        const user = session?.user
+        if (!user) {
+          if (active) setTarget('/login')
+          return
+        }
+
+        const { data } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', user.id)
+          .maybeSingle()
+
+        if (!active) return
+        const role = String(data?.role || 'user').toLowerCase()
         setTarget(getAdminTarget(role))
       } catch {
-        setTarget('/admin/dashboard')
+        if (active) setTarget('/admin/dashboard')
       }
     }
 
     void loadRole()
+
+    return () => {
+      active = false
+    }
   }, [])
 
   if (!target) {
@@ -40,4 +52,3 @@ function AdminRoleRedirectPage() {
 }
 
 export default AdminRoleRedirectPage
-

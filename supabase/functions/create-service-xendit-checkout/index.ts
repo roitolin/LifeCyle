@@ -2,6 +2,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const CREATE_SESSION_URL = 'https://api.xendit.co/sessions';
+const XENDIT_PAYOUTS_URL = 'https://api.xendit.co/v2/payouts';
 const MAX_BODY_BYTES = 16 * 1024;
 
 function corsHeaders(request: Request) {
@@ -33,7 +34,7 @@ function isObviouslyLiveKey(secretKey: string) {
 }
 
 function isUuid(value: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
 function validProviderId(value: string) {
@@ -88,6 +89,146 @@ async function xenditRequest(secretKey: string, init: RequestInit) {
   });
 }
 
+async function getXenditSession(secretKey: string, checkoutId: string) {
+  return fetch(`${CREATE_SESSION_URL}/${encodeURIComponent(checkoutId)}`, {
+    method: 'GET',
+    headers: {
+      Authorization: basicAuth(secretKey),
+      Accept: 'application/json',
+    },
+  });
+}
+
+async function syncAndReconcileSession(
+  admin: any,
+  xenditSecretKey: string,
+  checkoutId: string,
+  requestId: string,
+  serviceRequest: any,
+  claim?: any
+) {
+  const sessionResponse = await getXenditSession(xenditSecretKey, checkoutId).catch(() => null);
+  const session = sessionResponse ? await sessionResponse.json().catch(() => null) : null;
+  const sessionStatus = String(session?.status || '').toUpperCase();
+
+  if (sessionStatus === 'COMPLETED') {
+    const paymentId = String(session?.payment_id || '').trim();
+    const sessionAmount = Number(session?.amount);
+    const paymentMethod = String(
+      session?.payment_method ||
+      session?.payment_channel ||
+      session?.channel_code ||
+      'gcash'
+    ).toLowerCase();
+
+    const referenceId = String(claim?.referenceId || serviceRequest.providerReferenceId || session?.reference_id || '').trim();
+    const grossAmount = sessionAmount || Number(claim?.amount || serviceRequest.paymentAmount);
+
+    const { data: syncData, error: syncError } = await admin.rpc('reconcile_xendit_service_event', {
+      p_event_id: `xendit:sync:${checkoutId}:${paymentId || 'completed'}`,
+      p_event_type: 'payment_session.status_sync',
+      p_event_kind: 'payment_completed',
+      p_checkout_id: checkoutId,
+      p_reference_id: referenceId,
+      p_provider_payment_id: paymentId || null,
+      p_provider_split_payment_id: null,
+      p_split_rule_id: null,
+      p_shop_account_id: String(serviceRequest.shopId || ''),
+      p_destination_account_id: null,
+      p_currency: 'PHP',
+      p_gross_amount: grossAmount,
+      p_split_amount: null,
+      p_livemode: false,
+      p_payload: session || {},
+      p_payment_method: paymentMethod,
+    });
+
+    if (syncError) {
+      console.error('Unable to reconcile completed Xendit session:', syncError);
+    }
+
+    // Auto-trigger 70% shop payout if configured
+    const shopNetAmount = Number(claim?.shopNetAmount || serviceRequest.shopNetAmount || (grossAmount * 0.7));
+    if (requestId && shopNetAmount > 0) {
+      try {
+        const payoutRefId = `lifecycle-payout-${requestId}`;
+        const { data: payoutData } = await admin.rpc('initiate_shop_payout', {
+          p_request_id: requestId,
+          p_payout_reference_id: payoutRefId,
+        });
+        const payoutInfo = firstRpcRow<any>(payoutData);
+        if (payoutInfo && !payoutInfo.alreadyInitiated && payoutInfo.payoutAmount > 0) {
+          const payoutBody = {
+            reference_id: payoutRefId,
+            channel_code: payoutInfo.payoutChannelCode,
+            channel_properties: {
+              account_holder_name: payoutInfo.payoutAccountName,
+              account_number: payoutInfo.payoutAccountNumber,
+            },
+            amount: payoutInfo.payoutAmount,
+            currency: 'PHP',
+            description: `LifeCycle shop payout (70%) for order ${requestId}`.slice(0, 200),
+            metadata: {
+              purpose: 'lifecycle_shop_payout',
+              request_id: requestId,
+              commission_percent: '30',
+            },
+          };
+          fetch(XENDIT_PAYOUTS_URL, {
+            method: 'POST',
+            headers: {
+              Authorization: basicAuth(xenditSecretKey),
+              Accept: 'application/json',
+              'Content-Type': 'application/json',
+              'Idempotency-key': payoutRefId,
+            },
+            body: JSON.stringify(payoutBody),
+          }).catch((err) => console.error('Auto-payout dispatch error:', err));
+        }
+      } catch (payoutErr) {
+        console.error('Error initiating payout in sync:', payoutErr);
+      }
+    }
+
+    return {
+      paid: true,
+      status: 'payment_verified',
+      paymentId,
+      paymentMethod,
+    };
+  }
+
+  if (sessionStatus === 'EXPIRED') {
+    const referenceId = String(claim?.referenceId || serviceRequest.providerReferenceId || session?.reference_id || '').trim();
+    await admin.rpc('reconcile_xendit_service_event', {
+      p_event_id: `xendit:sync:${checkoutId}:expired`,
+      p_event_type: 'payment_session.status_sync',
+      p_event_kind: 'payment_expired',
+      p_checkout_id: checkoutId,
+      p_reference_id: referenceId,
+      p_provider_payment_id: null,
+      p_provider_split_payment_id: null,
+      p_split_rule_id: null,
+      p_shop_account_id: String(serviceRequest.shopId || ''),
+      p_destination_account_id: null,
+      p_currency: 'PHP',
+      p_gross_amount: null,
+      p_split_amount: null,
+      p_livemode: false,
+      p_payload: session || {},
+    });
+    return {
+      paid: false,
+      status: 'expired',
+    };
+  }
+
+  return {
+    paid: false,
+    status: sessionStatus || 'pending',
+  };
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders(request) });
   if (request.method !== 'POST') return jsonResponse(request, { error: 'Method not allowed.' }, 405);
@@ -95,7 +236,6 @@ Deno.serve(async (request) => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   const xenditSecretKey = Deno.env.get('XENDIT_SECRET_KEY')?.trim();
-  // No longer need XENDIT_SPLIT_RULE_ID or XENDIT_MASTER_BUSINESS_ID
   if (!supabaseUrl || !serviceRoleKey || !xenditSecretKey) {
     return jsonResponse(request, { error: 'Xendit test checkout configuration is incomplete.' }, 503);
   }
@@ -114,7 +254,7 @@ Deno.serve(async (request) => {
     return jsonResponse(request, { error: 'Your session is invalid or expired.' }, 401);
   }
 
-  let input: { requestId?: unknown };
+  let input: { requestId?: unknown; action?: unknown };
   try {
     input = await readJson(request);
   } catch (error) {
@@ -122,26 +262,69 @@ Deno.serve(async (request) => {
     return jsonResponse(request, { error: 'Invalid checkout request.' }, status);
   }
   const requestId = String(input?.requestId || '').trim().toLowerCase();
+  const isSyncAction = String(input?.action || '').trim().toLowerCase() === 'sync';
   if (!isUuid(requestId)) return jsonResponse(request, { error: 'A valid service request is required.' }, 400);
 
   const { data: serviceRequest, error: requestError } = await admin
     .from('funeral_service_requests')
-    .select('id, requesterId, shopId, productName, status, providerStatus')
+    .select('id, requesterId, shopId, productName, status, providerStatus, providerCheckoutId, providerCheckoutUrl, providerReferenceId, paymentAmount, shopNetAmount, commissionAmount')
     .eq('id', requestId)
     .maybeSingle();
   if (requestError) return jsonResponse(request, { error: 'Unable to load the service request.' }, 500);
-  if (!serviceRequest || serviceRequest.requesterId !== userData.user.id) {
+
+  const isOwner = serviceRequest?.requesterId === userData.user.id;
+  const isShopOwner = serviceRequest?.shopId === userData.user.id;
+  if (!serviceRequest || (!isOwner && !isShopOwner)) {
     return jsonResponse(request, { error: 'This service request is not available to your account.' }, 403);
   }
 
   if (serviceRequest.status === 'payment_verified') {
-    return jsonResponse(request, { paid: true, requestId, testMode: true, livemode: false });
+    return jsonResponse(request, { paid: true, status: 'payment_verified', requestId, testMode: true, livemode: false });
   }
+
+  // Active sync on any existing checkout session ID
+  const existingProviderCheckoutId = String(serviceRequest.providerCheckoutId || '').trim();
+  if (validProviderId(existingProviderCheckoutId) && existingProviderCheckoutId.startsWith('ps-')) {
+    const syncRes = await syncAndReconcileSession(
+      admin,
+      xenditSecretKey,
+      existingProviderCheckoutId,
+      requestId,
+      serviceRequest
+    );
+    if (syncRes.paid) {
+      return jsonResponse(request, {
+        paid: true,
+        status: 'payment_verified',
+        requestId,
+        testMode: true,
+        livemode: false,
+      });
+    }
+    if (isSyncAction) {
+      return jsonResponse(request, {
+        paid: false,
+        status: syncRes.status,
+        requestId,
+        testMode: true,
+        livemode: false,
+      });
+    }
+  } else if (isSyncAction) {
+    return jsonResponse(request, {
+      paid: false,
+      status: serviceRequest.status,
+      requestId,
+      testMode: true,
+      livemode: false,
+    });
+  }
+
   if (serviceRequest.status !== 'awaiting_payment') {
     return jsonResponse(request, { error: 'This service request is not awaiting payment.' }, 409);
   }
 
-  // Direct payout model: no sub-account or split rule needed
+  // Direct payout model: claim checkout
   const idempotencyKey = `lifecycle-service-${requestId}`;
   const { data: claimData, error: claimError } = await admin.rpc('claim_xendit_service_checkout', {
     p_request_id: requestId,
@@ -162,11 +345,30 @@ Deno.serve(async (request) => {
   const existingCheckoutId = String(claim.checkoutId || '').trim();
   const existingCheckoutUrl = String(claim.checkoutUrl || '').trim();
   if (!claim.shouldCreate && validProviderId(existingCheckoutId) && isTestCheckoutUrl(existingCheckoutUrl)) {
+    // Check if user completed the payment before giving back the URL
+    const syncResult = await syncAndReconcileSession(
+      admin,
+      xenditSecretKey,
+      existingCheckoutId,
+      requestId,
+      serviceRequest,
+      claim
+    );
+    if (syncResult.paid) {
+      return jsonResponse(request, {
+        paid: true,
+        status: 'payment_verified',
+        requestId,
+        testMode: true,
+        livemode: false,
+      });
+    }
     return jsonResponse(request, {
       checkoutUrl: existingCheckoutUrl,
       paymentSessionId: existingCheckoutId,
       requestId,
       reused: true,
+      paid: false,
       testMode: true,
       livemode: false,
     });
@@ -205,7 +407,6 @@ Deno.serve(async (request) => {
     currency: 'PHP',
     country: 'PH',
     capture_method: 'AUTOMATIC',
-    allowed_payment_channels: ['CARDS'],
     locale: 'en',
     description: `LifeCycle casket payment - ${productName}`.slice(0, 200),
     metadata: {

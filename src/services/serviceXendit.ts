@@ -6,6 +6,7 @@ export type ServiceXenditCheckoutResult = {
   requestId: string;
   reused?: boolean;
   paid?: boolean;
+  status?: string;
   testMode?: boolean;
   livemode?: boolean;
 };
@@ -48,3 +49,14 @@ export async function createServiceXenditCheckout(requestId: string): Promise<Se
 
   return data as ServiceXenditCheckoutResult;
 }
+
+export async function syncServiceXenditCheckout(requestId: string): Promise<ServiceXenditCheckoutResult> {
+  const { data, error } = await supabase.functions.invoke('create-service-xendit-checkout', {
+    body: { requestId, action: 'sync', platform: 'mobile' },
+  });
+
+  if (error) throw new Error(await getFunctionErrorMessage(error));
+
+  return data as ServiceXenditCheckoutResult;
+}
+

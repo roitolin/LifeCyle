@@ -2,7 +2,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const ADMIN_ROLES = new Set(['admin', 'super_admin', 'funeral_admin']);
-const ELIGIBLE_SHOP_STATUSES = new Set(['verified', 'live', 'offline']);
+const ELIGIBLE_SHOP_STATUSES = new Set(['verified', 'live', 'offline', 'pending']);
 const MAX_BODY_BYTES = 16 * 1024;
 
 const VALID_PAYOUT_CHANNELS = new Set([
@@ -30,7 +30,7 @@ function jsonResponse(request: Request, body: unknown, status = 200) {
 }
 
 function isUuid(value: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
 async function readJson(request: Request) {

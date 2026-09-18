@@ -1251,13 +1251,14 @@ export default function SellerCentrePage() {
 
   const handleUpdateStatus = async (request: ServiceRequest, nextStatus: 'accepted_by_shop' | 'declined_by_shop') => {
     const accepting = nextStatus === 'accepted_by_shop'
-    const savedPaymentQr = String(paymentQrUrl || '').trim()
     const savedPaymentAmount = Number(paymentFeeInput) || 0
+    const requestProductPrice = Number(request.productPrice) || 0
+    const finalAmount = requestProductPrice > 0 ? requestProductPrice : savedPaymentAmount
 
-    if (accepting && (!savedPaymentQr || savedPaymentAmount <= 0)) {
+    if (accepting && finalAmount <= 0) {
       openAlert({
         title: 'Payment Setup Required',
-        message: 'Save your shop payment QR code and default amount before accepting requests. They are applied automatically to every accepted request.',
+        message: 'Configure the casket product price or shop default amount before accepting requests.',
         tone: 'warning',
         okLabel: 'Got It',
       })
@@ -1269,7 +1270,7 @@ export default function SellerCentrePage() {
       message: `Are you sure you want to ${nextStatus === 'accepted_by_shop' ? 'accept' : 'decline'} this request?`,
       details: nextStatus === 'accepted_by_shop'
         ? [
-            'The buyer will immediately see your saved QR code and default payment amount.',
+            `Payment amount: ${formatPeso(finalAmount)}. The customer can complete payment securely via Xendit.`,
             request.productId !== 'custom_casket_design'
               ? 'If this is a product order, its stock will be reduced by 1.'
               : 'This is a custom casket design request — no stock will be deducted.',
@@ -1308,7 +1309,7 @@ export default function SellerCentrePage() {
               title: accepting ? 'Request Accepted - Payment Ready' : 'Request Declined',
               body:
                 accepting
-                  ? (shop?.shopName || 'The shop') + ' accepted your request. Please pay ' + formatPeso(savedPaymentAmount) + ' using the QR code now shown in your request.'
+                  ? (shop?.shopName || 'The shop') + ' accepted your request. Please pay ' + formatPeso(finalAmount) + ' using the checkout now available in your request.'
                   : `${request.productName || 'The shop'} declined your service request.`,
               data: { requestId: request.id, shopId: user?.id },
               read: false,

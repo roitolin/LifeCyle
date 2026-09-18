@@ -500,20 +500,14 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
           </SettingsSection>
 
           <SettingsSection label="Payments & Billing">
-            <SettingRow icon="card-outline" label="Customer Casket Checkout"
-              description={customerCheckoutReady
-                ? "Xendit test checkout is ready with automatic 30/70 commission split"
-                : isVerified
-                  ? "Set up your payout account so you can receive the 70% shop payout"
-                  : "Available after shop approval"}
-              value={customerCheckoutReady ? "Ready" : "Setup required"}
-              disabled={!isVerified} />
-            <SettingRow icon="wallet-outline" label="Payout Account"
+            <SettingRow
+              icon="wallet-outline"
+              label="Payout Account"
               description={shop?.payoutVerifiedByAdmin
                 ? `Verified: ${getChannelLabel(shop?.payoutChannelCode)} — ${shop?.payoutAccountName || ""}`
                 : shop?.payoutChannelCode
                   ? "Submitted — waiting for admin verification"
-                  : "Set up your GCash or bank account to receive 70% of each sale"}
+                  : "Set up your GCash or bank account to receive customer payouts"}
               value={shop?.payoutVerifiedByAdmin ? "Verified" : shop?.payoutChannelCode ? "Pending" : "Not set"}
               onPress={() => {
                 setPayoutDraft({
@@ -523,13 +517,18 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
                 });
                 setPayoutVisible(true);
               }}
-              disabled={!isVerified} />
-            <SettingRow icon="card-outline" label="LifeCycle Payments"
-              description="Pay securely with Xendit Test Mode, renew, and view payment history"
-              onPress={() => setAdminPaymentsVisible(true)} />
-            <SettingRow icon="calendar-outline" label="Subscription"
-              description={subscriptionExpired ? "Renewal is required before going live" : "Storefront access period"}
-              value={formatDate(shop?.paidUntil)} onPress={() => setAdminPaymentsVisible(true)} last />
+              disabled={!isVerified}
+            />
+            <SettingRow
+              icon="shield-checkmark-outline"
+              label="LifeCycle Subscription"
+              description={subscriptionExpired
+                ? "Subscription expired — tap to renew storefront access"
+                : "Registration fee, renewal, and payment receipts"}
+              value={formatDate(shop?.paidUntil)}
+              onPress={() => setAdminPaymentsVisible(true)}
+              last
+            />
           </SettingsSection>
 
           <SettingsSection label="Store Preferences">

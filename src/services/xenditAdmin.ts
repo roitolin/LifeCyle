@@ -49,9 +49,6 @@ export async function verifyShopPayout(
     payoutAccountNumber,
     payoutVerifiedByAdmin: true,
     payoutVerifiedAt: new Date().toISOString(),
-    xenditProvisioningStatus: 'provisioned',
-    xenditProvisioningError: null,
-    xenditProvisioningUpdatedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
 

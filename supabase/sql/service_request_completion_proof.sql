@@ -69,8 +69,8 @@ begin
     actor_is_requester := actor_id = old."requesterId";
   end if;
 
-  -- Old clients may still request accepted_by_shop. Convert it to the
-  -- automatic buyer-payment state and use only the saved shop settings.
+  -- Acceptance transition: pending_shop_acceptance -> awaiting_payment
+  -- (or legacy transitional accepted_by_shop)
   if old.status = 'pending_shop_acceptance'
      and new.status in ('accepted_by_shop', 'awaiting_payment') then
     if actor_id is not null and not actor_is_shop and not actor_is_admin then
@@ -84,40 +84,51 @@ begin
     from public.funeral_shops
     where id = old."shopId";
 
-    if shop_qr is null or coalesce(shop_amount, 0) <= 0 then
-      raise exception 'Configure the shop payment QR code and default amount before accepting requests.';
-    end if;
-
-    -- Keep stock handling inside the transition trigger so current,
-    -- legacy, and direct API clients all follow the same atomic rule.
-    if old."productId" is not null
-       and old."productId" <> 'custom_casket_design' then
-      update public.funeral_products
-      set
-        stock = greatest(coalesce(stock, 0) - 1, 0),
-        "updatedAt" = now()
-      where id::text = old."productId"
-        and "shopId" = old."shopId"
-        and coalesce(stock, 0) > 0;
-
-      if not found then
-        raise exception 'This product is out of stock.';
+    declare
+      final_amount numeric := coalesce(
+        nullif(new."paymentAmount", 0),
+        nullif(old."productPrice", 0),
+        shop_amount,
+        0
+      );
+    begin
+      if final_amount <= 0 then
+        raise exception 'Configure the casket product price or shop default amount before accepting requests.';
       end if;
-    end if;
 
-    new.status := 'awaiting_payment';
-    new."paymentQrUrl" := shop_qr;
-    new."paymentAmount" := shop_amount;
-    new."paymentPayerName" := null;
-    new."paymentGcashName" := null;
-    new."paymentGcashNumber" := null;
-    new."paymentReferenceNumber" := null;
-    new."paymentProofImageUrl" := null;
-    new."paymentSubmittedAt" := null;
-    new."paymentVerifiedAt" := null;
-    new."paymentRejectionReason" := null;
-    new."acceptedAt" := coalesce(new."acceptedAt", now());
-    new."shopRespondedAt" := coalesce(new."shopRespondedAt", now());
+      -- Keep stock handling inside the transition trigger so current,
+      -- legacy, and direct API clients all follow the same atomic rule.
+      if old."productId" is not null
+         and old."productId" <> 'custom_casket_design' then
+        update public.funeral_products
+        set
+          stock = greatest(coalesce(stock, 0) - 1, 0),
+          "updatedAt" = now()
+        where id::text = old."productId"
+          and "shopId" = old."shopId"
+          and coalesce(stock, 0) > 0;
+
+        if not found then
+          raise exception 'This product is out of stock.';
+        end if;
+      end if;
+
+      new.status := 'awaiting_payment';
+      new."paymentProvider" := coalesce(new."paymentProvider", 'xendit');
+      new."paymentQrUrl" := coalesce(nullif(trim(new."paymentQrUrl"), ''), shop_qr, 'xendit://hosted');
+      new."paymentAmount" := final_amount;
+      new."paymentPayerName" := null;
+      new."paymentGcashName" := null;
+      new."paymentGcashNumber" := null;
+      new."paymentReferenceNumber" := null;
+      new."paymentProofImageUrl" := null;
+      new."paymentSubmittedAt" := null;
+      new."paymentVerifiedAt" := null;
+      new."paymentRejectionReason" := null;
+      new."acceptedAt" := coalesce(new."acceptedAt", now());
+      new."shopRespondedAt" := coalesce(new."shopRespondedAt", now());
+      new."handledByShopId" := coalesce(new."handledByShopId", actor_id);
+    end;
   end if;
 
   if old.status is distinct from new.status and actor_id is not null and not actor_is_admin then

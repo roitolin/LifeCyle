@@ -20,7 +20,7 @@ function isObviouslyLiveKey(secretKey: string) {
 }
 
 function isUuid(value: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
 function validProviderId(value: string) {
@@ -401,6 +401,7 @@ Deno.serve(async (request) => {
     p_split_amount: null,
     p_livemode: false,
     p_payload: event.payload,
+    p_payment_method: String(event.payload.channelCode || ''),
   });
   if (error) {
     console.error('Unable to reconcile Xendit webhook:', error.code || 'unknown');

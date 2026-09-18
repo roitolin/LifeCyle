@@ -6,6 +6,8 @@
     ".expo",
     "dist",
     "LIFECYCLE_WEB",
-    "LIFECYCLE_WEB/**"
+    "LIFECYCLE_WEB/**",
+    "supabase",
+    "supabase/**"
   ]
 }

@@ -28,6 +28,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { AppBackButton } from "@/components";
 import DeathCertificateRequestCard from "@/components/DeathCertificateRequestCard";
 import ServiceXenditSheet from "@/components/ServiceXenditSheet";
+import { syncServiceXenditCheckout } from "@/services/serviceXendit";
 import { supabase } from "@/services/supabaseClient";
 import { auth, uploadCertificate } from "@/services";
 import { acceptFuneralServiceRequest } from '@/utils/serviceRequestFlow';
@@ -559,6 +560,16 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
     useCallback(() => {
       let active = true;
       void (async () => {
+        if (
+          String(request.status || "").toLowerCase() === "awaiting_payment" &&
+          (request.paymentProvider === "xendit" || Boolean((request as any)?.providerCheckoutId))
+        ) {
+          try {
+            await syncServiceXenditCheckout(request.id);
+          } catch {
+            // ignore error and proceed to query
+          }
+        }
         const { data, error } = await supabase
           .from("funeral_service_requests")
           .select("*")
@@ -572,7 +583,7 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
       return () => {
         active = false;
       };
-    }, [request.id])
+    }, [request.id, request.status, request.paymentProvider])
   );
 
   const scrollToSection = useCallback((position: number) => {
@@ -655,6 +666,19 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
     const text = refundDialogText.trim();
     if (!user || !refundDialog || refundUpdating) return;
 
+    const isDeliveryComplete =
+      String(request.status || '').toLowerCase() === 'completed' ||
+      (String(request.status || '').toLowerCase() === 'awaiting_customer_confirmation' && Boolean(request.shopMarkedCompletedAt));
+
+    if (refundDialog === 'request' && !isDeliveryComplete) {
+      Alert.alert('Complete Delivery Required', 'Under LifeCycle policy, refunds can only be requested after the complete delivery of your arrangement.');
+      return;
+    }
+    if (refundDialog === 'refunded' && !isDeliveryComplete) {
+      Alert.alert('Complete Delivery Required', 'Refunds can only be issued after complete delivery.');
+      return;
+    }
+
     if ((refundDialog === 'request' || refundDialog === 'reject') && text.length < 10) {
       Alert.alert('More Detail Needed', 'Please enter at least 10 characters.');
       return;
@@ -691,10 +715,17 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
     } finally {
       setRefundUpdating(false);
     }
-  }, [refundDialog, refundDialogText, refundRequest, refundUpdating, request.id, request.shopId]);
+  }, [refundDialog, refundDialogText, refundRequest, refundUpdating, request.id, request.shopId, request.status, request.shopMarkedCompletedAt]);
 
   const approveRefund = useCallback(() => {
     if (!refundRequest || refundUpdating) return;
+    const isDeliveryComplete =
+      String(request.status || '').toLowerCase() === 'completed' ||
+      (String(request.status || '').toLowerCase() === 'awaiting_customer_confirmation' && Boolean(request.shopMarkedCompletedAt));
+    if (!isDeliveryComplete) {
+      Alert.alert('Complete Delivery Required', 'Refunds can only be approved after complete delivery of the service.');
+      return;
+    }
     Alert.alert('Approve Refund', 'Approve this request? Record the refund reference after you send the money.', [
       { text: 'Not Yet', style: 'cancel' },
       {
@@ -713,7 +744,7 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
         },
       },
     ]);
-  }, [refundRequest, refundUpdating]);
+  }, [refundRequest, refundUpdating, request.status, request.shopMarkedCompletedAt]);
 
   const cancelRefund = useCallback(() => {
     if (!refundRequest || refundUpdating) return;
@@ -1258,12 +1289,11 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
     ["awaiting_payment", "payment_submitted", "payment_verified", "awaiting_customer_confirmation", "completed"].includes(
       normalizedRequestStatus
     ) && hasPaymentSetup(request);
-  const refundEligible = [
-    'payment_submitted',
-    'payment_verified',
-    'awaiting_customer_confirmation',
-    'completed',
-  ].includes(normalizedRequestStatus);
+  const isDeliveryComplete =
+    normalizedRequestStatus === 'completed' ||
+    (normalizedRequestStatus === 'awaiting_customer_confirmation' && Boolean(request.shopMarkedCompletedAt));
+  const hasPaid = ['payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(normalizedRequestStatus);
+  const refundEligible = isDeliveryComplete;
   const refundMeta = refundRequest ? refundStatusCopy(refundRequest.status) : null;
   const canCreateRefund =
     isRequestOwner &&
@@ -2114,7 +2144,7 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
           </View>
         ) : null}
 
-        {!refundLoading && (refundRequest || canCreateRefund) ? (
+        {!refundLoading && (refundRequest || canCreateRefund || (isRequestOwner && hasPaid)) ? (
           <View
             style={styles.refundCard}
             onLayout={(event) => {
@@ -2128,7 +2158,9 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
               <View style={styles.refundHeaderCopy}>
                 <Text style={styles.refundTitle}>Cancellation & Refund</Text>
                 <Text style={styles.refundSubtitle}>
-                  Paid requests use a tracked refund review instead of changing the payment record.
+                  {isDeliveryComplete
+                    ? 'Service is delivered. Tracked refund review is available below.'
+                    : 'Refund policy: Refunds can only be requested after complete delivery of your arrangement.'}
                 </Text>
               </View>
               {refundMeta ? (
@@ -2162,6 +2194,15 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
               <TouchableOpacity style={styles.declineButton} onPress={() => openRefundDialog('request')}>
                 <Text style={styles.declineButtonText}>Request a Refund</Text>
               </TouchableOpacity>
+            ) : !isDeliveryComplete && !refundRequest && isRequestOwner && hasPaid ? (
+              <View style={{ backgroundColor: '#fffbeb', borderRadius: 8, padding: 12, marginTop: 8, borderWidth: 1, borderColor: '#fef3c7' }}>
+                <Text style={{ fontSize: 13, color: '#92400e', fontWeight: '700' }}>
+                  ⏳ Refund Locked Until Complete Delivery
+                </Text>
+                <Text style={{ fontSize: 12, color: '#78350f', marginTop: 4, lineHeight: 16 }}>
+                  Under LifeCycle policy, refund requests become available once the funeral shop attaches delivery proof and marks this service as delivered.
+                </Text>
+              </View>
             ) : null}
 
             {isRequestOwner && refundRequest?.status === 'pending' ? (

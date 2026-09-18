@@ -134,6 +134,9 @@ function App() {
               <Route path="moderation" element={<AdminModerationPage />} />
               <Route path="feedback" element={<AdminFeedbackPage />} />
               <Route path="support" element={<AdminSupportPage />} />
+              <Route path="payout-accounts" element={<AdminPayoutAccountsPage />} />
+              <Route path="payouts" element={<Navigate to="/admin/payout-accounts" replace />} />
+              <Route path="shop-payouts" element={<Navigate to="/admin/payout-accounts" replace />} />
               <Route path="activity-logs" element={<AdminAuditLogsPage />} />
               <Route path="login-security" element={<AdminLoginSecurityPage />} />
               <Route path="audit-logs" element={<Navigate to="/admin/activity-logs" replace />} />

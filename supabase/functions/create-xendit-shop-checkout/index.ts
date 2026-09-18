@@ -1,3 +1,4 @@
+/// <reference path="../deno.d.ts" />
 // eslint-disable-next-line import/no-unresolved
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
@@ -207,7 +208,7 @@ async function rejectPending(
   if (error) throw error;
 }
 
-Deno.serve(async (request) => {
+Deno.serve(async (request: Request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders(request) });
   if (request.method !== 'POST') return jsonResponse(request, { error: 'Method not allowed.' }, 405);
 
@@ -243,7 +244,7 @@ Deno.serve(async (request) => {
   }
 
   const [shopResult, ownerResult, settingResult] = await Promise.all([
-    admin.from('funeral_shops').select('id, shopName, status').eq('id', user.id).maybeSingle(),
+    admin.from('funeral_shops').select('id, shopName, status, paidUntil').eq('id', user.id).maybeSingle(),
     admin.from('users').select('fullName, email').eq('id', user.id).maybeSingle(),
     admin.from('settings').select('value').eq('key', SHOP_PAYMENT_SETTING_KEY).maybeSingle(),
   ]);
@@ -254,6 +255,15 @@ Deno.serve(async (request) => {
   const shop = shopResult.data;
   if (!shop || !['verified', 'live', 'offline'].includes(String(shop.status || '').toLowerCase())) {
     return jsonResponse(request, { error: 'Your shop must be verified before payment.' }, 403);
+  }
+
+  if (payload.action !== 'sync') {
+    const paidUntilMs = shop.paidUntil ? new Date(shop.paidUntil).getTime() : 0;
+    if (Number.isFinite(paidUntilMs) && paidUntilMs > Date.now()) {
+      return jsonResponse(request, {
+        error: 'Your shop subscription is already active. Payment is only available once your current period expires.',
+      }, 409);
+    }
   }
 
   const selectedPaymentMethod = String(payload.paymentMethod || 'all').trim().toLowerCase();

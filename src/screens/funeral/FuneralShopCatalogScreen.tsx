@@ -221,14 +221,7 @@ export default function FuneralShopCatalogScreen({ navigation, route }: any) {
           <View style={styles.headerCopy}>
             <Text style={styles.headerTitle}>Product Catalog</Text>
           </View>
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel="Add a new product"
-            style={styles.headerAddButton}
-            onPress={() => navigation.navigate("ProductEditor")}
-          >
-            <Ionicons name="add" size={22} color="#ffffff" />
-          </TouchableOpacity>
+          <View style={{ width: 42 }} />
         </View>
       </SafeAreaView>
 

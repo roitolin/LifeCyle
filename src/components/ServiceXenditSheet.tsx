@@ -6,8 +6,10 @@ import {
   AppState,
   Easing,
   Image,
+  ImageStyle,
   Linking,
   Modal,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -15,7 +17,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { createServiceXenditCheckout } from '@/services/serviceXendit';
+import { createServiceXenditCheckout, syncServiceXenditCheckout } from '@/services/serviceXendit';
 import { formatPhilippinePeso } from '@/utils/funeralCatalog';
 
 export type XenditServiceRequest = {
@@ -47,7 +49,7 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const sheetProgress = useRef(new Animated.Value(0)).current;
 
-  // Spring animation matching the Google Play / Product Filter style
+  // Spring animation for bottom sheet presentation
   useEffect(() => {
     if (visible) {
       backdropOpacity.setValue(0);
@@ -92,32 +94,49 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
 
   // Listen for AppState changes when user returns from Xendit checkout
   useEffect(() => {
-    if (!visible) return;
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void onChanged?.();
+    if (!visible || !request) return;
+    const targetRequestId = String(request.id || (request as any)?.requestId || (request as any)?._id || '').trim();
+    if (!targetRequestId) return;
+
+    const subscription = AppState.addEventListener('change', async (state) => {
+      if (state === 'active') {
+        try {
+          const syncResult = await syncServiceXenditCheckout(targetRequestId);
+          if (syncResult?.paid) {
+            await onChanged?.();
+            Alert.alert('Payment Confirmed', 'Payment succeeded! The order has been verified.');
+            handleClose();
+            return;
+          }
+        } catch {
+          // ignore error and fallback to onChanged
+        }
+        void onChanged?.();
+      }
     });
     return () => subscription.remove();
-  }, [onChanged, visible]);
+  }, [onChanged, visible, request]);
 
-  // Compute 30% admin commission and 70% shop payout strictly
-  const { totalAmount, adminCommission, shopPayout } = useMemo(() => {
+  // Compute clean full price only
+  const totalAmount = useMemo(() => {
     const raw = request?.paymentAmount ?? request?.productPrice ?? 0;
     const num = typeof raw === 'number' ? raw : Number(String(raw).replace(/[^\d.]/g, ''));
-    const safeAmount = Number.isFinite(num) && num > 0 ? num : 0;
-    const commission = Math.round(safeAmount * 0.30 * 100) / 100;
-    const net = Math.round((safeAmount - commission) * 100) / 100;
-    return {
-      totalAmount: safeAmount,
-      adminCommission: commission,
-      shopPayout: net,
-    };
+    return Number.isFinite(num) && num > 0 ? num : 0;
   }, [request?.paymentAmount, request?.productPrice]);
 
   const handleOneClickPay = async () => {
     if (!request || starting) return;
+    const targetRequestId = String(request.id || (request as any)?.requestId || (request as any)?._id || '').trim();
+    if (!targetRequestId) {
+      Alert.alert(
+        'Unable to complete checkout',
+        'Could not identify this service request. Please reopen the request details and try again.',
+      );
+      return;
+    }
     setStarting(true);
     try {
-      const result = await createServiceXenditCheckout(request.id);
+      const result = await createServiceXenditCheckout(targetRequestId);
       if (result.paid) {
         await onChanged?.();
         Alert.alert(
@@ -130,7 +149,7 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
       if (!result.checkoutUrl) {
         throw new Error('The secure Xendit checkout link is unavailable.');
       }
-      // Instant 1-click launch of Xendit checkout
+      // Instant launch of Xendit checkout
       await Linking.openURL(result.checkoutUrl);
     } catch (error) {
       Alert.alert(
@@ -144,8 +163,19 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
 
   if (!visible) return null;
 
+  const bottomPadding = Math.max(
+    insets.bottom + 16,
+    Platform.OS === 'android' ? 44 : 24
+  );
+
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose} statusBarTranslucent>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="none"
+      onRequestClose={handleClose}
+      statusBarTranslucent={false}
+    >
       <View style={styles.overlay}>
         {/* Animated backdrop */}
         <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
@@ -162,7 +192,7 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
           style={[
             styles.sheet,
             {
-              paddingBottom: Math.max(insets.bottom, 20),
+              paddingBottom: bottomPadding,
               transform: [
                 {
                   translateY: sheetProgress.interpolate({
@@ -188,8 +218,8 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
             <View style={styles.brandRow}>
               <Text style={styles.brandText}>LifeCycle</Text>
               <View style={styles.secureBadge}>
-                <Ionicons name="shield-checkmark" size={12} color="#4ade80" />
-                <Text style={styles.secureBadgeText}>1-CLICK CHECKOUT</Text>
+                <Ionicons name="shield-checkmark" size={13} color="#059669" />
+                <Text style={styles.secureBadgeText}>SECURE CHECKOUT</Text>
               </View>
             </View>
             <TouchableOpacity
@@ -197,18 +227,19 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
               onPress={handleClose}
               disabled={starting}
               accessibilityLabel="Close"
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons name="close" size={20} color="#94a3b8" />
+              <Ionicons name="close" size={20} color="#64748b" />
             </TouchableOpacity>
           </View>
 
           {/* Product Summary Row */}
           <View style={styles.productRow}>
             {request?.productImageUrl ? (
-              <Image source={{ uri: request.productImageUrl }} style={styles.productThumbnail} resizeMode="cover" />
+              <Image source={{ uri: request.productImageUrl }} style={styles.productThumbnail as ImageStyle} resizeMode="cover" />
             ) : (
               <View style={styles.productIconFallback}>
-                <Ionicons name="cube-outline" size={26} color="#93c5fd" />
+                <Ionicons name="cube-outline" size={26} color="#3b82f6" />
               </View>
             )}
             <View style={styles.productInfo}>
@@ -216,7 +247,7 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
                 {request?.productName || 'Funeral Casket / Product'}
               </Text>
               <View style={styles.shopMetaRow}>
-                <Ionicons name="storefront-outline" size={13} color="#94a3b8" />
+                <Ionicons name="storefront-outline" size={13} color="#64748b" />
                 <Text style={styles.shopName} numberOfLines={1}>
                   {request?.shopName || 'Funeral Shop'}
                 </Text>
@@ -229,90 +260,55 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
             </View>
           </View>
 
-          {/* 30% Admin & 70% Shop Split Breakdown Card */}
-          <View style={styles.splitCard}>
-            <View style={styles.splitCardHeader}>
-              <Ionicons name="git-branch-outline" size={16} color="#86efac" />
-              <Text style={styles.splitCardTitle}>Automatic Split Breakdown (Xendit)</Text>
+          {/* Clean Order Total Summary Card */}
+          <View style={styles.summaryCard}>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Order Subtotal</Text>
+              <Text style={styles.summaryValue}>{formatPhilippinePeso(totalAmount)}</Text>
             </View>
-
-            <View style={styles.splitRow}>
-              <View style={styles.splitTargetCol}>
-                <View style={styles.splitIconWrapAdmin}>
-                  <Ionicons name="business" size={14} color="#60a5fa" />
-                </View>
-                <View>
-                  <Text style={styles.splitTargetName}>LifeCycle Admin (30%)</Text>
-                  <Text style={styles.splitTargetNote}>Platform commission</Text>
-                </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Packages & Services</Text>
+              <Text style={styles.summaryFreeValue}>Included</Text>
+            </View>
+            <View style={styles.summaryDivider} />
+            <View style={styles.totalRow}>
+              <View>
+                <Text style={styles.totalMainLabel}>Total Amount</Text>
+                <Text style={styles.totalSubNotice}>Authorized & encrypted</Text>
               </View>
-              <Text style={styles.splitAmountAdmin}>
-                {formatPhilippinePeso(adminCommission)}
-              </Text>
-            </View>
-
-            <View style={styles.splitDivider} />
-
-            <View style={styles.splitRow}>
-              <View style={styles.splitTargetCol}>
-                <View style={styles.splitIconWrapShop}>
-                  <Ionicons name="storefront" size={14} color="#4ade80" />
-                </View>
-                <View>
-                  <Text style={styles.splitTargetName}>Shop Payout (70%)</Text>
-                  <Text style={styles.splitTargetNote}>Direct net earnings</Text>
-                </View>
-              </View>
-              <Text style={styles.splitAmountShop}>
-                {formatPhilippinePeso(shopPayout)}
-              </Text>
-            </View>
-
-            <View style={styles.splitNoticeBox}>
-              <Ionicons name="information-circle-outline" size={14} color="#86efac" />
-              <Text style={styles.splitNoticeText}>
-                Xendit XenPlatform automatically sends 30% commission to admin and 70% to the shop in one transaction.
-              </Text>
+              <Text style={styles.totalMainValue}>{formatPhilippinePeso(totalAmount)}</Text>
             </View>
           </View>
 
-          {/* Payment Method Badge */}
+          {/* Payment Method Info Badge */}
           <View style={styles.methodRow}>
             <View style={styles.methodIcon}>
-              <Ionicons name="card-outline" size={20} color="#60a5fa" />
+              <Ionicons name="card-outline" size={18} color="#059669" />
             </View>
             <View style={styles.methodInfo}>
               <Text style={styles.methodTitle}>Xendit Payment Gateway</Text>
-              <Text style={styles.methodSubtitle}>Cards, GCash, Maya, QR Ph • Test Mode Sandbox</Text>
+              <Text style={styles.methodSubtitle}>Credit/Debit Cards, Online Banking & E-Wallets</Text>
             </View>
-            <Ionicons name="checkmark-circle" size={18} color="#4ade80" />
+            <Ionicons name="checkmark-circle" size={18} color="#059669" />
           </View>
 
-          {/* Total Price & 1-Click Pay Button */}
-          <View style={styles.footerRow}>
-            <View>
-              <Text style={styles.totalLabel}>Total Price</Text>
-              <Text style={styles.totalValue}>{formatPhilippinePeso(totalAmount)}</Text>
-            </View>
-          </View>
-
-          {/* High-visibility 1-Click Action Button */}
+          {/* High-visibility Action Button */}
           <TouchableOpacity
-            style={[styles.oneClickButton, (starting || !request) && styles.buttonDisabled]}
+            style={[styles.payButton, (starting || !request) && styles.buttonDisabled]}
             disabled={starting || !request}
             onPress={() => void handleOneClickPay()}
             activeOpacity={0.88}
           >
             {starting ? (
               <View style={styles.buttonLoadingRow}>
-                <ActivityIndicator size="small" color="#032014" />
-                <Text style={styles.oneClickButtonText}>Connecting to Xendit...</Text>
+                <ActivityIndicator size="small" color="#ffffff" />
+                <Text style={styles.payButtonText}>Connecting to Xendit...</Text>
               </View>
             ) : (
               <View style={styles.buttonInnerRow}>
-                <Ionicons name="flash" size={18} color="#032014" />
-                <Text style={styles.oneClickButtonText}>
-                  1-Click Pay {formatPhilippinePeso(totalAmount)}
+                <Ionicons name="lock-closed" size={17} color="#ffffff" />
+                <Text style={styles.payButtonText}>
+                  Pay {formatPhilippinePeso(totalAmount)}
                 </Text>
               </View>
             )}
@@ -330,28 +326,28 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(2, 6, 23, 0.76)',
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
   },
   sheet: {
-    backgroundColor: '#111413',
+    backgroundColor: '#ffffff',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    paddingHorizontal: 22,
+    paddingHorizontal: 20,
     paddingTop: 12,
     borderWidth: 1,
-    borderColor: '#1e2925',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 20,
+    borderColor: '#e2e8f0',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 24,
   },
   handle: {
     alignSelf: 'center',
     width: 44,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#374151',
+    backgroundColor: '#cbd5e1',
     marginBottom: 14,
   },
   header: {
@@ -366,56 +362,58 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   brandText: {
-    color: '#f8fafc',
-    fontSize: 20,
+    color: '#0f172a',
+    fontSize: 21,
     fontWeight: '800',
-    letterSpacing: -0.3,
+    letterSpacing: -0.4,
   },
   secureBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#064e3b',
+    backgroundColor: '#ecfdf5',
+    borderWidth: 1,
+    borderColor: '#a7f3d0',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 12,
   },
   secureBadgeText: {
-    color: '#86efac',
+    color: '#065f46',
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.5,
   },
   closeBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#1f2925',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f1f5f9',
     alignItems: 'center',
     justifyContent: 'center',
   },
   productRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    padding: 14,
-    backgroundColor: '#181e1b',
-    borderRadius: 18,
+    gap: 13,
+    padding: 12,
+    backgroundColor: '#f8fafc',
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#24302b',
-    marginBottom: 14,
+    borderColor: '#e2e8f0',
+    marginBottom: 12,
   },
   productThumbnail: {
-    width: 58,
-    height: 58,
-    borderRadius: 14,
-    backgroundColor: '#0f172a',
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: '#e2e8f0',
   },
   productIconFallback: {
-    width: 58,
-    height: 58,
-    borderRadius: 14,
-    backgroundColor: '#1e293b',
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: '#eff6ff',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -423,7 +421,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   productName: {
-    color: '#f8fafc',
+    color: '#0f172a',
     fontSize: 15,
     fontWeight: '700',
     lineHeight: 20,
@@ -432,130 +430,97 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    marginTop: 4,
+    marginTop: 3,
   },
   shopName: {
-    color: '#94a3b8',
+    color: '#64748b',
     fontSize: 13,
     fontWeight: '500',
   },
   variationPill: {
     alignSelf: 'flex-start',
-    backgroundColor: '#26332c',
+    backgroundColor: '#e2e8f0',
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 6,
-    marginTop: 5,
+    marginTop: 4,
   },
   variationText: {
-    color: '#a7f3d0',
+    color: '#334155',
     fontSize: 11,
     fontWeight: '600',
   },
-  splitCard: {
-    backgroundColor: '#131b17',
-    borderRadius: 18,
+  summaryCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#1d2e24',
+    borderColor: '#e2e8f0',
     marginBottom: 14,
   },
-  splitCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    marginBottom: 12,
-  },
-  splitCardTitle: {
-    color: '#bbf7d0',
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  splitRow: {
+  summaryRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 4,
+    paddingVertical: 3,
   },
-  splitTargetCol: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  splitIconWrapAdmin: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: '#1e3a8a',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  splitIconWrapShop: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: '#064e3b',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  splitTargetName: {
-    color: '#f1f5f9',
+  summaryLabel: {
+    color: '#64748b',
     fontSize: 13,
+    fontWeight: '500',
+  },
+  summaryValue: {
+    color: '#1e293b',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  summaryFreeValue: {
+    color: '#059669',
+    fontSize: 12,
     fontWeight: '700',
   },
-  splitTargetNote: {
-    color: '#94a3b8',
-    fontSize: 11,
-  },
-  splitAmountAdmin: {
-    color: '#93c5fd',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  splitAmountShop: {
-    color: '#86efac',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  splitDivider: {
+  summaryDivider: {
     height: 1,
-    backgroundColor: '#1f2e27',
+    backgroundColor: '#f1f5f9',
     marginVertical: 10,
   },
-  splitNoticeBox: {
+  totalRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
-    backgroundColor: 'rgba(6, 78, 59, 0.4)',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 10,
-    marginTop: 10,
+    justifyContent: 'space-between',
   },
-  splitNoticeText: {
-    flex: 1,
-    color: '#86efac',
+  totalMainLabel: {
+    color: '#0f172a',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  totalSubNotice: {
+    color: '#94a3b8',
     fontSize: 11,
-    lineHeight: 15,
+    marginTop: 1,
+  },
+  totalMainValue: {
+    color: '#0f172a',
+    fontSize: 22,
+    fontWeight: '900',
+    letterSpacing: -0.3,
   },
   methodRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    backgroundColor: '#171c1a',
+    gap: 11,
+    backgroundColor: '#f8fafc',
     borderRadius: 14,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#222d28',
-    marginBottom: 16,
+    borderColor: '#e2e8f0',
+    marginBottom: 18,
   },
   methodIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#0f2744',
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#ecfdf5',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -563,42 +528,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   methodTitle: {
-    color: '#f8fafc',
+    color: '#0f172a',
     fontSize: 13,
     fontWeight: '700',
   },
   methodSubtitle: {
-    color: '#94a3b8',
+    color: '#64748b',
     fontSize: 11,
-    marginTop: 2,
-  },
-  footerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 14,
-    paddingHorizontal: 4,
-  },
-  totalLabel: {
-    color: '#94a3b8',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  totalValue: {
-    color: '#f8fafc',
-    fontSize: 22,
-    fontWeight: '900',
     marginTop: 1,
   },
-  oneClickButton: {
-    minHeight: 54,
+  payButton: {
+    minHeight: 52,
     borderRadius: 16,
-    backgroundColor: '#5eead4',
+    backgroundColor: '#059669',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#5eead4',
+    shadowColor: '#059669',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.25,
     shadowRadius: 10,
     elevation: 6,
   },
@@ -612,10 +559,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  oneClickButtonText: {
-    color: '#032014',
+  payButtonText: {
+    color: '#ffffff',
     fontSize: 16,
-    fontWeight: '900',
+    fontWeight: '800',
     letterSpacing: 0.2,
   },
   buttonDisabled: {

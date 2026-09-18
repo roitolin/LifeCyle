@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
@@ -9,6 +9,7 @@ import { buildCsv, csvTimestamp, dateStamp, downloadCsv } from '@/utils/exportCs
 import { createNotification } from '@/utils/supabaseNotifications'
 import AdminShopPaymentReceipt from './AdminShopPaymentReceipt'
 import AdminRefundsPanel from './AdminRefundsPanel'
+import AdminCommissionsPanel from './AdminCommissionsPanel'
 import './AdminPaymentsPage.css'
 
 function formatUpdatedAt(value: string | null): string {
@@ -56,13 +57,8 @@ export type PaymentSubmission = {
 export default function AdminPaymentsPage() {
   const { openAlert, alertDialog } = useAlertDialog()
   const { openConfirm, confirmDialog } = useConfirmDialog()
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
-
-  const [qrUrl, setQrUrl] = useState<string | null>(null)
   const [feeAmount, setFeeAmount] = useState('')
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
-  const [, setFile] = useState<File | null>(null)
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -74,16 +70,19 @@ export default function AdminPaymentsPage() {
   const [selectedPayment, setSelectedPayment] = useState<PaymentSubmission | null>(null)
   const [rejectingPayment, setRejectingPayment] = useState<PaymentSubmission | null>(null)
   const [rejectionReason, setRejectionReason] = useState('')
-  const [activeTab, setActiveTab] = useState<'submissions' | 'refunds' | 'setup'>(() => (
-    new URLSearchParams(window.location.search).get('tab') === 'refunds' ? 'refunds' : 'submissions'
-  ))
+  const [activeTab, setActiveTab] = useState<'submissions' | 'commissions' | 'refunds' | 'setup'>(() => {
+    const tabParam = new URLSearchParams(window.location.search).get('tab')
+    if (tabParam === 'commissions') return 'commissions'
+    if (tabParam === 'refunds') return 'refunds'
+    if (tabParam === 'setup') return 'setup'
+    return 'submissions'
+  })
 
   const load = async () => {
     setLoading(true)
     setError('')
     try {
       const setting = await getPaymentQrSetting()
-      setQrUrl(setting.imageUrl)
       setFeeAmount(setting.feeAmount > 0 ? String(setting.feeAmount) : '')
       setUpdatedAt(setting.updatedAt)
     } catch {
@@ -284,30 +283,8 @@ export default function AdminPaymentsPage() {
     }
   }
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = event.target.files?.[0]
-    if (!selected) return
-
-    if (!selected.type.startsWith('image/')) {
-      openAlert({ title: 'Invalid File', message: 'Please choose an image file for the payment QR code.', tone: 'warning', okLabel: 'Got It' })
-      return
-    }
-
-    if (previewUrl) URL.revokeObjectURL(previewUrl)
-    setFile(selected)
-    setPreviewUrl(URL.createObjectURL(selected))
-  }
-
-  const clearSelection = () => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl)
-    setFile(null)
-    setPreviewUrl(null)
-    if (fileInputRef.current) fileInputRef.current.value = ''
-  }
-
   const handleDiscard = () => {
     if (saving) return
-    clearSelection()
     void load()
   }
 
@@ -328,13 +305,11 @@ export default function AdminPaymentsPage() {
         feeAmount: parsedFee,
       })
 
-      setQrUrl(null)
       setUpdatedAt(new Date().toISOString())
-      clearSelection()
 
       openAlert({
-        title: 'Payments Updated',
-        message: 'Payment settings saved. Verified shops can now pay this fee through Xendit Test Mode.',
+        title: 'Settings Saved',
+        message: 'Payment settings updated successfully.',
         tone: 'info',
         okLabel: 'Done',
       })
@@ -344,41 +319,6 @@ export default function AdminPaymentsPage() {
       setSaving(false)
     }
   }
-
-  const handleRemoveQr = () => {
-    if (!qrUrl || saving) return
-    const parsedFee = Number(String(feeAmount).replace(/[^\d.]/g, ''))
-    openConfirm({
-      title: 'Remove Payment QR?',
-      message: 'This will remove the QR code from the seller payment section until you upload a new one. The registration fee will be kept.',
-      confirmLabel: 'Remove QR',
-      cancelLabel: 'Cancel',
-      tone: 'danger',
-      onConfirm: async () => {
-        setSaving(true)
-        try {
-          await savePaymentQrDetails({
-            imageUrl: null,
-            feeAmount: Number.isFinite(parsedFee) && parsedFee > 0 ? parsedFee : 0,
-          })
-          setQrUrl(null)
-          setUpdatedAt(new Date().toISOString())
-          openAlert({
-            title: 'Payment QR Removed',
-            message: 'The payment QR code was removed.',
-            tone: 'info',
-            okLabel: 'Done',
-          })
-        } catch (err: any) {
-          setError('Remove failed: ' + (err?.message || 'Unknown error.'))
-        } finally {
-          setSaving(false)
-        }
-      },
-    })
-  }
-
-  const shownQrUrl = previewUrl || qrUrl
   const pendingPaymentCount = payments.filter((entry) => entry.status === 'pending' && entry.paymentProvider === 'manual').length
   const verifiedPayments = payments.filter((entry) => entry.status === 'verified')
   const verifiedPaymentTotal = verifiedPayments.reduce((total, entry) => total + Number(entry.amount || 0), 0)
@@ -389,12 +329,12 @@ export default function AdminPaymentsPage() {
         <div className="payments-header-text">
           <h2>Payments</h2>
           <p className="panel-sub">
-            Review shop registration payments and manage the payment instructions shown to sellers.
+            Review shop registration payments and manage platform subscription fees.
           </p>
         </div>
         <span className={`payments-status-pill${Number(feeAmount) > 0 ? ' is-live' : ' is-empty'}`}>
           <span className="payments-status-dot" aria-hidden="true" />
-          {Number(feeAmount) > 0 ? 'Xendit Ready' : 'Fee Required'}
+          {Number(feeAmount) > 0 ? 'Active' : 'Fee Required'}
         </span>
       </header>
 
@@ -407,6 +347,15 @@ export default function AdminPaymentsPage() {
           onClick={() => setActiveTab('submissions')}
         >
           Submissions
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'commissions'}
+          className={`payments-tab${activeTab === 'commissions' ? ' is-active' : ''}`}
+          onClick={() => setActiveTab('commissions')}
+        >
+          Commissions
         </button>
         <button
           type="button"
@@ -432,10 +381,10 @@ export default function AdminPaymentsPage() {
           style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}
         >
           <span>Shop Payout Accounts</span>
-          <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 999, background: '#2563eb', color: '#fff', fontWeight: 700 }}>Direct</span>
         </Link>
       </div>
 
+      {activeTab === 'commissions' ? <AdminCommissionsPanel /> : null}
       {activeTab === 'refunds' ? <AdminRefundsPanel /> : null}
 
       {activeTab === 'setup' ? (
@@ -491,68 +440,13 @@ export default function AdminPaymentsPage() {
 
             <section className="payments-card">
               <div className="payments-card-head">
-                <h3>Xendit Test Checkout</h3>
-                <p>Enabled Xendit test channels are confirmed automatically. No real money is used.</p>
+                <h3>Payment Gateway</h3>
+                <p>Registration and renewal payments are processed securely via Xendit.</p>
               </div>
 
-              <div className='payments-paymongo-live'>
-                <strong>Secure checkout enabled</strong>
-                <p>No QR image or payment screenshot is required. Xendit sends the verified result directly to LifeCycle.</p>
-              </div>
-              <div className="payments-qr-layout" style={{ display: 'none' }}>
-                <div className={`payments-qr-preview${shownQrUrl ? ' has-image' : ''}`}>
-                  {shownQrUrl ? (
-                    <img src={shownQrUrl} alt={previewUrl ? 'New payment QR preview' : 'Current payment QR code'} />
-                  ) : (
-                    <div className="payments-qr-empty">
-                      <svg viewBox="0 0 24 24" fill="none" width="34" height="34">
-                        <rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1.6" />
-                        <rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1.6" />
-                        <rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1.6" />
-                        <path d="M14 14H21V21H14V14Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-                      </svg>
-                      <span>No QR uploaded yet</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="payments-qr-controls">
-                  <input
-                    ref={fileInputRef}
-                    id="payments-qr-file-input"
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    className="payments-file-input"
-                    onChange={handleFileChange}
-                  />
-                  <label htmlFor="payments-qr-file-input" className="ghost-btn payments-choose-btn">
-                    <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
-                      <path d="M12 16V4M12 4L7 9M12 4L17 9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M5 16v2a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3v-2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                    </svg>
-                    {previewUrl ? 'Choose another image' : 'Upload QR image'}
-                  </label>
-
-                  {previewUrl ? (
-                    <button type="button" className="ghost-btn" onClick={clearSelection} disabled={saving}>
-                      Cancel
-                    </button>
-                  ) : null}
-
-                  <p className="payments-upload-hint">
-                    {previewUrl
-                      ? 'New QR selected — save to publish it to sellers.'
-                      : qrUrl
-                        ? 'This QR code is currently shown to verified sellers.'
-                        : 'Upload a QR code image to start accepting registration payments.'}
-                  </p>
-
-                  {qrUrl ? (
-                    <button type="button" className="payments-remove" onClick={handleRemoveQr} disabled={saving}>
-                      Remove current QR code
-                    </button>
-                  ) : null}
-                </div>
+              <div className="payments-gateway-status">
+                <strong>Automated Checkout Active</strong>
+                <p>Partners pay registration and renewal fees through Xendit hosted checkout. Payments and subscription terms are verified automatically.</p>
               </div>
             </section>
           </div>
@@ -562,7 +456,7 @@ export default function AdminPaymentsPage() {
               Discard Changes
             </button>
             <button type="button" className="solid-btn" onClick={() => void handleSave()} disabled={saving}>
-              {saving ? 'Saving...' : 'Save Xendit Fee'}
+              {saving ? 'Saving...' : 'Save Fee'}
             </button>
           </footer>
         </>

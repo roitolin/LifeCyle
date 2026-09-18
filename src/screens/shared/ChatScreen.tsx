@@ -45,12 +45,20 @@ import { ensureAppAudioReady, playSoundFromStart } from "../../utils/soundPlayba
 
 const CHAT_SENT_SOUND = require("../../../sound/ChatSents.mp3");
 const CHAT_RECEIVE_SOUND = require("../../../sound/ChatRecieves.mp3");
-const chatSoundsReady = Promise.all([
-  preload(CHAT_SENT_SOUND),
-  preload(CHAT_RECEIVE_SOUND),
-]).catch((error) => {
-  console.warn("Unable to preload chat sounds:", error);
-});
+
+let chatSoundsPreloadAttempted = false;
+async function safelyPreloadChatSounds() {
+  if (chatSoundsPreloadAttempted) return;
+  chatSoundsPreloadAttempted = true;
+  try {
+    await Promise.race([
+      Promise.all([preload(CHAT_SENT_SOUND), preload(CHAT_RECEIVE_SOUND)]),
+      new Promise((resolve) => setTimeout(resolve, 3000)),
+    ]);
+  } catch {
+    // createAudioPlayer will handle on demand loading
+  }
+}
 
 type ChatMessage = {
   id: string;
@@ -422,7 +430,7 @@ export default function ChatScreen({ route, navigation }: any) {
     let cancelled = false;
     const prepareSounds = async () => {
       try {
-        await chatSoundsReady;
+        void safelyPreloadChatSounds();
         await ensureAppAudioReady();
         if (cancelled) return;
         const sent = createAudioPlayer(CHAT_SENT_SOUND, { keepAudioSessionActive: true });

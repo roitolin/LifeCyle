@@ -20,6 +20,11 @@ type RefundRequest = {
   shopName: string
   deceasedFullName: string
   paymentAmount: number
+  serviceStatus: string
+  shopMarkedCompletedAt: string | null
+  completedAt: string | null
+  completionProofImageUrl: string | null
+  isDelivered: boolean
 }
 
 type RefundFilter = 'open' | 'history' | 'all'
@@ -67,7 +72,7 @@ export default function AdminRefundsPanel() {
           ? supabase.from('users').select('id, fullName, email').in('id', requesterIds)
           : Promise.resolve({ data: [], error: null }),
         serviceIds.length
-          ? supabase.from('funeral_service_requests').select('id, shopName, deceasedFullName, paymentAmount').in('id', serviceIds)
+          ? supabase.from('funeral_service_requests').select('id, shopName, deceasedFullName, paymentAmount, status, shopMarkedCompletedAt, completedAt, completionProofImageUrl').in('id', serviceIds)
           : Promise.resolve({ data: [], error: null }),
       ])
       if (usersResult.error) throw usersResult.error
@@ -78,6 +83,8 @@ export default function AdminRefundsPanel() {
       setRefunds(rawRefunds.map((row: any) => {
         const requester: any = users.get(row.requester_id)
         const service: any = services.get(row.service_request_id)
+        const serviceStatus = String(service?.status || '').toLowerCase()
+        const isDelivered = serviceStatus === 'completed' || Boolean(service?.shopMarkedCompletedAt)
         return {
           id: row.id,
           serviceRequestId: row.service_request_id,
@@ -91,6 +98,11 @@ export default function AdminRefundsPanel() {
           shopName: service?.shopName || '',
           deceasedFullName: service?.deceasedFullName || '',
           paymentAmount: Number(service?.paymentAmount || 0),
+          serviceStatus,
+          shopMarkedCompletedAt: service?.shopMarkedCompletedAt || null,
+          completedAt: service?.completedAt || null,
+          completionProofImageUrl: service?.completionProofImageUrl || null,
+          isDelivered,
         }
       }))
     } catch (loadError) {
@@ -123,6 +135,10 @@ export default function AdminRefundsPanel() {
 
   const updateRefund = async (refund: RefundRequest, status: 'approved' | 'rejected' | 'refunded', text?: string) => {
     if (updatingId) return
+    if ((status === 'approved' || status === 'refunded') && !refund.isDelivered) {
+      setError('Policy restriction: Refunds can only be approved and issued after complete delivery of the service.')
+      return
+    }
     setUpdatingId(refund.id)
     setError('')
     try {
@@ -151,6 +167,21 @@ export default function AdminRefundsPanel() {
   }
 
   const approveRefund = (refund: RefundRequest) => {
+    if (!refund.isDelivered) {
+      openConfirm({
+        title: 'Complete Delivery Required',
+        message: `Refund cannot be approved yet for ${refund.requesterName || 'this family'}. Refunds can only be made after complete delivery.`,
+        details: [
+          'The assigned shop has not marked this arrangement as delivered with completion proof.',
+          'Platform policy requires the service to be delivered or completed before refund processing.'
+        ],
+        tone: 'danger',
+        confirmLabel: 'Understood',
+        cancelLabel: '',
+        onConfirm: () => {},
+      })
+      return
+    }
     openConfirm({
       title: 'Approve this refund request?',
       message: `Approve the refund requested by ${refund.requesterName || refund.requesterEmail || 'this family'}?`,
@@ -228,15 +259,54 @@ export default function AdminRefundsPanel() {
             <div className="finance-details-grid">
               <div><span>Requested</span><strong>{formatDate(refund.requestedAt)}</strong></div>
               <div><span>Arrangement</span><strong>{refund.deceasedFullName || refund.serviceRequestId.slice(0, 8).toUpperCase()}</strong></div>
+              <div>
+                <span>Delivery Status</span>
+                {refund.isDelivered ? (
+                  <strong style={{ color: '#047857' }}>
+                    ✓ {refund.completedAt ? 'Completed Delivery' : 'Delivered (Proof Attached)'}
+                  </strong>
+                ) : (
+                  <strong style={{ color: '#b45309' }}>
+                    ⏳ Incomplete (In Preparation)
+                  </strong>
+                )}
+              </div>
               {refund.responseNote ? <div className="is-wide"><span>Decision note</span><strong>{refund.responseNote}</strong></div> : null}
               {refund.refundReference ? <div className="is-wide"><span>Refund reference</span><strong>{refund.refundReference}</strong></div> : null}
             </div>
+
+            {!refund.isDelivered && (refund.status === 'pending' || refund.status === 'approved') ? (
+              <div style={{ background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: 6, padding: '8px 12px', fontSize: 12, color: '#92400e', margin: '10px 0 4px' }}>
+                🔒 <strong>Refund Locked:</strong> Platform policy requires complete delivery before refunds can be issued. The shop has not delivered this arrangement yet.
+              </div>
+            ) : null}
+
             <footer>
               <Link to={`/admin/orders/${refund.serviceRequestId}`}>Open arrangement record</Link>
               <div className="operations-card-actions">
                 {refund.status === 'pending' ? <button type="button" className="is-danger" disabled={updatingId === refund.id} onClick={() => { setDialog({ mode: 'reject', refund }); setDialogText('') }}>Reject</button> : null}
-                {refund.status === 'pending' ? <button type="button" className="is-success" disabled={updatingId === refund.id} onClick={() => approveRefund(refund)}>Approve refund</button> : null}
-                {refund.status === 'approved' ? <button type="button" className="is-success" disabled={updatingId === refund.id} onClick={() => { setDialog({ mode: 'sent', refund }); setDialogText('') }}>Record refund sent</button> : null}
+                {refund.status === 'pending' ? (
+                  <button
+                    type="button"
+                    className="is-success"
+                    disabled={updatingId === refund.id || !refund.isDelivered}
+                    title={!refund.isDelivered ? 'Complete delivery required before approving refund' : undefined}
+                    onClick={() => approveRefund(refund)}
+                  >
+                    Approve refund
+                  </button>
+                ) : null}
+                {refund.status === 'approved' ? (
+                  <button
+                    type="button"
+                    className="is-success"
+                    disabled={updatingId === refund.id || !refund.isDelivered}
+                    title={!refund.isDelivered ? 'Complete delivery required before issuing refund' : undefined}
+                    onClick={() => { setDialog({ mode: 'sent', refund }); setDialogText('') }}
+                  >
+                    Record refund sent
+                  </button>
+                ) : null}
               </div>
             </footer>
           </article>

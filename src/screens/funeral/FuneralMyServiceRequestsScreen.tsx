@@ -23,6 +23,7 @@ import * as Sharing from "expo-sharing";
 import { KeyboardAwareScrollView } from "@/components";
 import ServiceRequestScheduleFields from "@/components/ServiceRequestScheduleFields";
 import ServiceXenditSheet from "@/components/ServiceXenditSheet";
+import { syncServiceXenditCheckout } from "@/services/serviceXendit";
 import { supabase } from "@/services/supabaseClient";
 import { auth, uploadCertificate } from "@/services";
 import { hapticMedium, hapticSuccess } from "@/utils/haptics";
@@ -487,6 +488,22 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
       setSelectedRequest((current) => nextRequests.find((item: any) => item.id === current?.id) || null);
       setReconnecting(false);
       setLoading(false);
+
+      // Auto-sync any awaiting Xendit payments seamlessly in the background
+      const awaitingXendit = (rows || []).filter(
+        (r: any) =>
+          String(r.status || "").toLowerCase() === "awaiting_payment" &&
+          (r.paymentProvider === "xendit" || Boolean(r.providerCheckoutId))
+      );
+      if (awaitingXendit.length > 0) {
+        Promise.allSettled(awaitingXendit.map((r: any) => syncServiceXenditCheckout(r.id))).then((results) => {
+          const anyPaid = results.some((res) => res.status === "fulfilled" && res.value?.paid === true);
+          if (anyPaid) {
+            void loadRequests();
+          }
+        });
+      }
+
       return true;
     } catch {
       setReconnecting(true);
@@ -981,7 +998,20 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                 key={item.id}
                 style={[styles.requestCard, paymentRequired ? styles.requestCardPayment : null]}
                 activeOpacity={0.92}
-                onPress={() => navigation.navigate("ServiceRequestDetails", { request: item, requesterView: true })}
+                onPress={async () => {
+                  if (
+                    String(item.status || "").toLowerCase() === "awaiting_payment" &&
+                    (item.paymentProvider === "xendit" || Boolean((item as any).providerCheckoutId))
+                  ) {
+                    try {
+                      const res = await syncServiceXenditCheckout(item.id);
+                      if (res.paid) {
+                        await loadRequests();
+                      }
+                    } catch {}
+                  }
+                  navigation.navigate("ServiceRequestDetails", { request: item, requesterView: true });
+                }}
               >
                 {item.productImageUrl ? (
                   <Image source={{ uri: item.productImageUrl }} style={styles.requestImage} resizeMode="cover" />
@@ -1007,9 +1037,21 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                   {canShowPaymentSection(item) ? (
                     <TouchableOpacity
                       style={styles.cardPaymentButton}
-                      onPress={() => {
+                      onPress={async () => {
                         setPaymentInfoExpanded(false);
                         setSubmittedProofExpanded(false);
+                        if (
+                          String(item.status || "").toLowerCase() === "awaiting_payment" &&
+                          (item.paymentProvider === "xendit" || Boolean((item as any).providerCheckoutId))
+                        ) {
+                          try {
+                            const res = await syncServiceXenditCheckout(item.id);
+                            if (res.paid) {
+                              await loadRequests();
+                              return;
+                            }
+                          } catch {}
+                        }
                         setPaymentRequest(item);
                       }}
                     >
@@ -1745,7 +1787,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                       </View>
                     ) : null}
                   </View>
-                ) : paymentRequest.paymentQrUrl ? (
+                ) : paymentRequest.paymentQrUrl && !paymentRequest.paymentQrUrl.startsWith("xendit") ? (
                   <>
                     <Text style={styles.paymentDetailsMediaTitle}>Shop Payment QR</Text>
                     <TouchableOpacity activeOpacity={0.9} onPress={() => setPaymentViewerUrl(paymentRequest.paymentQrUrl || null)}>
