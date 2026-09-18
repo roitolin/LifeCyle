@@ -40,10 +40,6 @@ function validProviderId(value: string) {
   return /^[A-Za-z0-9_-]{8,128}$/.test(value);
 }
 
-function validSplitRuleId(value: string) {
-  return /^splitru_[A-Za-z0-9-]{8,128}$/.test(value);
-}
-
 function firstRpcRow<T>(value: T | T[] | null): T | null {
   return Array.isArray(value) ? value[0] || null : value;
 }
@@ -99,16 +95,12 @@ Deno.serve(async (request) => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   const xenditSecretKey = Deno.env.get('XENDIT_SECRET_KEY')?.trim();
-  const splitRuleId = Deno.env.get('XENDIT_SPLIT_RULE_ID')?.trim();
-  const masterBusinessId = Deno.env.get('XENDIT_MASTER_BUSINESS_ID')?.trim();
-  if (!supabaseUrl || !serviceRoleKey || !xenditSecretKey || !splitRuleId || !masterBusinessId) {
+  // No longer need XENDIT_SPLIT_RULE_ID or XENDIT_MASTER_BUSINESS_ID
+  if (!supabaseUrl || !serviceRoleKey || !xenditSecretKey) {
     return jsonResponse(request, { error: 'Xendit test checkout configuration is incomplete.' }, 503);
   }
   if (isObviouslyLiveKey(xenditSecretKey)) {
     return jsonResponse(request, { error: 'LifeCycle Xendit checkout is locked to test mode.' }, 503);
-  }
-  if (!validSplitRuleId(splitRuleId) || !validProviderId(masterBusinessId)) {
-    return jsonResponse(request, { error: 'Xendit test checkout configuration is invalid.' }, 503);
   }
 
   const accessToken = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
@@ -145,40 +137,21 @@ Deno.serve(async (request) => {
   if (serviceRequest.status === 'payment_verified') {
     return jsonResponse(request, { paid: true, requestId, testMode: true, livemode: false });
   }
-  if (serviceRequest.status === 'paid_waiting_for_split' || serviceRequest.providerStatus === 'paid_waiting_for_split') {
-    return jsonResponse(request, { waitingForSplit: true, requestId, testMode: true, livemode: false });
-  }
-  if (serviceRequest.status === 'commission_failed' || serviceRequest.providerStatus === 'commission_failed') {
-    return jsonResponse(request, { error: 'The commission split failed. Contact an administrator.' }, 409);
-  }
   if (serviceRequest.status !== 'awaiting_payment') {
     return jsonResponse(request, { error: 'This service request is not awaiting payment.' }, 409);
   }
 
-  const { data: shop, error: shopError } = await admin
-    .from('funeral_shops')
-    .select('id, xenditAccountId, xenditProvisioningStatus')
-    .eq('id', serviceRequest.shopId)
-    .maybeSingle();
-  const shopAccountId = String(shop?.xenditAccountId || '').trim();
-  if (shopError) return jsonResponse(request, { error: 'Unable to load the funeral shop payment account.' }, 500);
-  if (!shop || !validProviderId(shopAccountId) || shop.xenditProvisioningStatus !== 'provisioned') {
-    return jsonResponse(request, { error: 'The funeral shop is not ready for Xendit payments.' }, 409);
-  }
-
+  // Direct payout model: no sub-account or split rule needed
   const idempotencyKey = `lifecycle-service-${requestId}`;
   const { data: claimData, error: claimError } = await admin.rpc('claim_xendit_service_checkout', {
     p_request_id: requestId,
     p_idempotency_key: idempotencyKey,
-    p_shop_account_id: shopAccountId,
-    p_split_rule_id: splitRuleId,
-    p_master_business_id: masterBusinessId,
     p_currency: 'PHP',
     p_livemode: false,
   });
   if (claimError) {
     console.error('Unable to claim Xendit service checkout:', claimError.code || 'unknown');
-    return jsonResponse(request, { error: 'Unable to prepare this checkout.' }, 409);
+    return jsonResponse(request, { error: claimError.message || 'Unable to prepare this checkout.' }, 409);
   }
 
   const claim = firstRpcRow<any>(claimData);
@@ -209,9 +182,6 @@ Deno.serve(async (request) => {
   const checkoutClaimId = String(claim.checkoutClaimId || '').trim();
   const commissionRate = Number(claim.commissionRate);
   const safeClaim = gross && commission && shopNet &&
-    claim.shopAccountId === shopAccountId &&
-    claim.splitRuleId === splitRuleId &&
-    claim.masterBusinessId === masterBusinessId &&
     claim.idempotencyKey === idempotencyKey &&
     claim.currency === 'PHP' &&
     claim.livemode === false &&
@@ -225,6 +195,8 @@ Deno.serve(async (request) => {
   }
 
   const productName = String(serviceRequest.productName || 'Casket').trim().slice(0, 80);
+  // Direct checkout: no for-user-id or with-split-rule headers
+  // Payment goes directly to admin's Xendit account
   const checkoutBody = {
     reference_id: referenceId,
     session_type: 'PAY',
@@ -246,10 +218,7 @@ Deno.serve(async (request) => {
 
   const xenditResponse = await xenditRequest(xenditSecretKey, {
     method: 'POST',
-    headers: {
-      'for-user-id': shopAccountId,
-      'with-split-rule': splitRuleId,
-    },
+    // No for-user-id or with-split-rule headers — payment goes to admin account
     body: JSON.stringify(checkoutBody),
   }).catch(() => null);
   const responseJson = xenditResponse ? await xenditResponse.json().catch(() => null) : null;
@@ -262,15 +231,13 @@ Deno.serve(async (request) => {
   const paymentSessionId = String(responseJson?.payment_session_id || '').trim();
   const paymentLinkUrl = String(responseJson?.payment_link_url || '').trim();
   const responseAmount = amountDetails(responseJson?.amount);
-  const responseBusinessId = String(responseJson?.business_id || '').trim();
   const validResponse = validProviderId(paymentSessionId) &&
     paymentSessionId.startsWith('ps-') &&
     isTestCheckoutUrl(paymentLinkUrl) &&
     String(responseJson?.status || '').toUpperCase() === 'ACTIVE' &&
     responseJson?.reference_id === referenceId &&
     responseJson?.currency === 'PHP' &&
-    responseAmount?.cents === gross.cents &&
-    (!responseBusinessId || responseBusinessId === shopAccountId);
+    responseAmount?.cents === gross.cents;
   if (!validResponse) {
     return jsonResponse(request, { error: 'Xendit returned an invalid test checkout.' }, 502);
   }
@@ -281,7 +248,7 @@ Deno.serve(async (request) => {
     p_idempotency_key: idempotencyKey,
     p_payment_session_id: paymentSessionId,
     p_payment_link_url: paymentLinkUrl,
-    p_shop_account_id: shopAccountId,
+    p_shop_account_id: '', // No sub-account in direct payout model
     p_amount: gross.amount,
     p_currency: 'PHP',
     p_livemode: false,

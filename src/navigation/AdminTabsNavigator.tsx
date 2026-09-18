@@ -15,6 +15,7 @@ import {
   AdminMoreScreen,
   AdminOrdersScreen,
   AdminPaymentsScreen,
+  AdminPayoutAccountsScreen,
   AdminProductsScreen,
   AdminSupportMessages,
   AdminUsersScreen,
@@ -32,6 +33,7 @@ const routeLabels: Record<string, string> = {
   LoginSecurity: 'Login & Security',
   Deletions: 'Account Deletion Requests',
   HomeContent: 'Mobile Home Feature',
+  PayoutAccounts: 'Payout Accounts',
 };
 
 function NotificationBell() {
@@ -126,6 +128,7 @@ export default function AdminTabsNavigator() {
       <Tab.Screen name='LoginSecurity' component={AdminLoginSecurityScreen} options={({ navigation }) => hiddenWithBack(navigation, 'Login & Security')} />
       {isRootAdmin ? <Tab.Screen name='Deletions' component={AdminDeletionRequestsScreen} options={({ navigation }) => hiddenWithBack(navigation, 'Account Deletion Requests')} /> : null}
       {isRootAdmin ? <Tab.Screen name='HomeContent' component={AdminHomeContentScreen} options={({ navigation }) => hiddenWithBack(navigation, 'Mobile Home Feature')} /> : null}
+      {isFuneralAdmin ? <Tab.Screen name='PayoutAccounts' component={AdminPayoutAccountsScreen} options={({ navigation }) => hiddenWithBack(navigation, 'Payout Accounts')} /> : null}
     </Tab.Navigator>
   );
 }

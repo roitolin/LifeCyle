@@ -15,12 +15,27 @@ import {
 import { Button, Searchbar, SegmentedButtons } from "react-native-paper";
 import { supabase } from "@/services/supabaseClient";
 import { auth } from "@/services";
-import { provisionXenditShop } from "@/services/xenditAdmin";
+import { verifyShopPayout } from "@/services/xenditAdmin";
 import { useResponsive } from "@/utils/responsive";
 import { logAdminAction } from "@/utils/adminAuditLog";
 
 type ShopStatus = "pending" | "verified" | "rejected" | "live" | "offline";
 type FilterType = "all" | "pending" | "verified" | "rejected" | "live" | "offline";
+
+const PAYOUT_CHANNELS = [
+  { code: "PH_GCASH", label: "GCash" },
+  { code: "PH_MAYA", label: "Maya" },
+  { code: "PH_BDO", label: "BDO" },
+  { code: "PH_BPI", label: "BPI" },
+  { code: "PH_UBP", label: "UnionBank" },
+  { code: "PH_METROBANK", label: "Metrobank" },
+  { code: "PH_LANDBANK", label: "Landbank" },
+  { code: "PH_PNB", label: "PNB" },
+  { code: "PH_RCBC", label: "RCBC" },
+  { code: "PH_CHINABANK", label: "Chinabank" },
+  { code: "PH_SECURITYBANK", label: "Security Bank" },
+  { code: "PH_EASTWESTBANK", label: "EastWest Bank" },
+];
 
 type ShopApplicant = {
   id: string;
@@ -42,6 +57,12 @@ type ShopApplicant = {
   xenditProvisioningStatus?: string | null;
   xenditProvisioningError?: string | null;
   xenditProvisionedAt?: string | null;
+  // Payout account details
+  payoutChannelCode?: string | null;
+  payoutAccountName?: string | null;
+  payoutAccountNumber?: string | null;
+  payoutVerifiedByAdmin?: boolean;
+  payoutVerifiedAt?: string | null;
   // Owner info from joined users table
   ownerEmail?: string;
   ownerFullName?: string;
@@ -56,6 +77,11 @@ const FILTER_OPTIONS = [
   { value: "rejected", label: "Rejected" },
 ];
 
+function getChannelLabel(code?: string | null) {
+  if (!code) return "Not set";
+  return PAYOUT_CHANNELS.find((ch) => ch.code === code)?.label || code;
+}
+
 export default function AdminFuneralShopVerificationsScreen() {
   const { isDesktop } = useResponsive();
   const [items, setItems] = useState<ShopApplicant[]>([]);
@@ -67,7 +93,13 @@ export default function AdminFuneralShopVerificationsScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
-  const [provisioningShopId, setProvisioningShopId] = useState<string | null>(null);
+  const [verifyingPayoutShopId, setVerifyingPayoutShopId] = useState<string | null>(null);
+  // Payout form state
+  const [payoutChannel, setPayoutChannel] = useState("");
+  const [payoutName, setPayoutName] = useState("");
+  const [payoutNumber, setPayoutNumber] = useState("");
+  const [channelPickerVisible, setChannelPickerVisible] = useState(false);
+  const [payoutSectionExpanded, setPayoutSectionExpanded] = useState(false);
 
   const applyFilters = useCallback((allItems: ShopApplicant[], search: string, filter: FilterType) => {
     let result = [...allItems];
@@ -126,6 +158,11 @@ export default function AdminFuneralShopVerificationsScreen() {
         xenditProvisioningStatus: row.xenditProvisioningStatus || "not_started",
         xenditProvisioningError: row.xenditProvisioningError || null,
         xenditProvisionedAt: row.xenditProvisionedAt || null,
+        payoutChannelCode: row.payoutChannelCode || null,
+        payoutAccountName: row.payoutAccountName || null,
+        payoutAccountNumber: row.payoutAccountNumber || null,
+        payoutVerifiedByAdmin: Boolean(row.payoutVerifiedByAdmin),
+        payoutVerifiedAt: row.payoutVerifiedAt || null,
         ownerEmail: row.users?.email || "",
         ownerFullName: row.users?.fullName || "",
       }));
@@ -153,6 +190,9 @@ export default function AdminFuneralShopVerificationsScreen() {
     setModalVisible(false);
     setSelectedItem(null);
     setRejectionReason("");
+    setPayoutChannel("");
+    setPayoutName("");
+    setPayoutNumber("");
   };
 
   const notifyUser = async (userId: string, type: string, title: string, body: string) => {
@@ -166,57 +206,67 @@ export default function AdminFuneralShopVerificationsScreen() {
     });
   };
 
-  const provisionShopAccount = async (
+  const verifyPayoutAccount = async (
     item: ShopApplicant,
     options: { afterApproval?: boolean } = {},
   ): Promise<boolean> => {
-    setProvisioningShopId(item.id);
-    try {
-      const result = await provisionXenditShop(item.id);
+    // Use payout details from form or existing shop data
+    const channel = payoutChannel || item.payoutChannelCode || "";
+    const name = payoutName || item.payoutAccountName || "";
+    const number = payoutNumber || item.payoutAccountNumber || "";
 
-      const provisionedShop: Partial<ShopApplicant> = {
-        xenditAccountId: result.xenditAccountId,
-        xenditProvisioningStatus: result.provisioningStatus || "provisioned",
+    if (!channel || !name || !number) {
+      Alert.alert("Missing payout details", "Enter the shop's payout channel, account name, and account number.");
+      return false;
+    }
+
+    setVerifyingPayoutShopId(item.id);
+    try {
+      const result = await verifyShopPayout(item.id, channel, name, number);
+
+      const updatedShop: Partial<ShopApplicant> = {
+        payoutChannelCode: result.payoutChannelCode,
+        payoutAccountName: result.payoutAccountName,
+        payoutVerifiedByAdmin: result.payoutVerified,
+        payoutVerifiedAt: new Date().toISOString(),
+        xenditProvisioningStatus: "provisioned",
         xenditProvisioningError: null,
-        xenditProvisionedAt: new Date().toISOString(),
       };
       setItems((current) =>
         current.map((shop) =>
-          shop.id === item.id ? { ...shop, ...provisionedShop } : shop
+          shop.id === item.id ? { ...shop, ...updatedShop } : shop
         )
       );
       setSelectedItem((current) =>
-        current?.id === item.id ? { ...current, ...provisionedShop } : current
+        current?.id === item.id ? { ...current, ...updatedShop } : current
       );
 
       void logAdminAction({
         adminId: auth.currentUser?.uid,
-        action: "xendit_shop_account_provisioned",
+        action: "shop_payout_verified",
         targetType: "funeral_shop",
         targetId: item.id,
-        summary: `${result.reused ? "Confirmed" : "Created"} Xendit test account for ${item.shopName || item.ownerEmail || item.id}`,
-        metadata: { reused: Boolean(result.reused), testMode: true },
-      }).catch((error) => console.warn("Unable to record Xendit provisioning audit log", error));
+        summary: `Verified payout account for ${item.shopName || item.ownerEmail || item.id} (${getChannelLabel(channel)})`,
+        metadata: { payoutChannel: channel, testMode: true },
+      }).catch((error) => console.warn("Unable to record payout verification audit log", error));
 
       Alert.alert(
-        options.afterApproval ? "Shop approved and payment-ready" : "Xendit setup complete",
-        result.reused
-          ? "The shop's existing Xendit Test Mode account is ready."
-          : "A Xendit Test Mode sub-account was created for this shop.",
+        options.afterApproval ? "Shop approved and payout ready" : "Payout account verified",
+        `The shop's ${getChannelLabel(channel)} payout account has been verified. 70% of casket payments will be sent here automatically.`,
       );
       return true;
     } catch (error: any) {
       const safeMessage =
         typeof error?.message === "string"
           ? error.message
-          : "Xendit test account setup could not be completed.";
+          : "Payout account verification could not be completed.";
       Alert.alert(
-        options.afterApproval ? "Shop approved — Xendit setup pending" : "Xendit setup failed",
-        `${safeMessage}\n\nThe shop remains approved. You can safely retry this setup from the shop details.`,
+        options.afterApproval ? "Shop approved — payout setup pending" : "Payout verification failed",
+        `${safeMessage}\n\nThe shop remains approved. You can safely retry from the shop details.`,
       );
       return false;
     } finally {
-      setProvisioningShopId(null);
+      setVerifyingPayoutShopId(null);
     }
   };
 
@@ -261,12 +311,25 @@ export default function AdminFuneralShopVerificationsScreen() {
         }
       });
 
-      const provisioned = await provisionShopAccount(
-        { ...item, status: "verified", rejectionReason: null },
-        { afterApproval: true },
-      );
-      await loadApplicants();
-      if (provisioned) closeModal();
+      // If payout details are filled in, verify them as part of approval
+      const hasPayoutDetails = (payoutChannel || item.payoutChannelCode) &&
+        (payoutName || item.payoutAccountName) &&
+        (payoutNumber || item.payoutAccountNumber);
+
+      if (hasPayoutDetails) {
+        const verified = await verifyPayoutAccount(
+          { ...item, status: "verified", rejectionReason: null },
+          { afterApproval: true },
+        );
+        await loadApplicants();
+        if (verified) closeModal();
+      } else {
+        Alert.alert(
+          "Shop approved",
+          "The shop is approved. Set up payout details (GCash/bank) so they can receive customer payments.",
+        );
+        await loadApplicants();
+      }
     } catch (error: any) {
       Alert.alert("Error", error?.message || "Failed to approve funeral shop.");
     } finally {
@@ -324,23 +387,25 @@ export default function AdminFuneralShopVerificationsScreen() {
     await Linking.openURL(url);
   };
 
+  const openModal = (item: ShopApplicant) => {
+    setSelectedItem(item);
+    setRejectionReason(item.rejectionReason || "");
+    setPayoutChannel(item.payoutChannelCode || "");
+    setPayoutName(item.payoutAccountName || "");
+    setPayoutNumber(item.payoutAccountNumber || "");
+    setModalVisible(true);
+  };
+
   const renderItem = ({ item }: { item: ShopApplicant }) => (
-    <TouchableOpacity
-      style={styles.itemCard}
-      onPress={() => {
-        setSelectedItem(item);
-        setRejectionReason(item.rejectionReason || "");
-        setModalVisible(true);
-      }}
-    >
+    <TouchableOpacity style={styles.itemCard} onPress={() => openModal(item)}>
       <Text style={styles.itemTitle}>{item.shopName || "Unnamed shop"}</Text>
       <Text style={styles.itemMeta}>Owner: {item.ownerFullName || "Unknown"}</Text>
       <Text style={styles.itemMeta}>Email: {item.ownerEmail || "N/A"}</Text>
       <Text style={styles.itemMeta}>Business: {item.businessName || "N/A"}</Text>
       <Text style={styles.itemMeta}>Location: {item.generalLocation || "N/A"}</Text>
       <Text style={styles.itemMeta}>Status: {item.status || "none"}</Text>
-      <Text style={item.xenditAccountId ? styles.xenditReadyText : styles.xenditPendingText}>
-        Xendit: {item.xenditAccountId ? "Ready (Test Mode)" : "Setup needed"}
+      <Text style={item.payoutVerifiedByAdmin ? styles.payoutReadyText : styles.payoutPendingText}>
+        Payout: {item.payoutVerifiedByAdmin ? `Verified (${getChannelLabel(item.payoutChannelCode)})` : "Setup needed"}
       </Text>
     </TouchableOpacity>
   );
@@ -402,33 +467,61 @@ export default function AdminFuneralShopVerificationsScreen() {
                   <Text style={styles.detailText}>TIN: {selectedItem.tin || "-"}</Text>
                   <Text style={styles.detailText}>VAT Status: {selectedItem.vatRegistrationStatus ? "Registered" : "Not Registered"}</Text>
 
+                  {/* Payout Account Section */}
                   <View
                     style={[
-                      styles.xenditCard,
-                      selectedItem.xenditAccountId
-                        ? styles.xenditCardReady
-                        : styles.xenditCardPending,
+                      styles.payoutCard,
+                      selectedItem.payoutVerifiedByAdmin
+                        ? styles.payoutCardReady
+                        : styles.payoutCardPending,
                     ]}
                   >
-                    <Text style={styles.xenditTitle}>Xendit Test Mode</Text>
-                    <Text style={styles.xenditDetail}>
-                      Payment account: {selectedItem.xenditAccountId ? "Ready" : "Setup needed"}
+                    <Text style={styles.payoutTitle}>Payout Account (Test Mode)</Text>
+                    <Text style={styles.payoutDetail}>
+                      Status: {selectedItem.payoutVerifiedByAdmin ? "✅ Verified" : selectedItem.payoutChannelCode ? "⏳ Submitted — awaiting your verification" : "❌ Shop has not submitted payout details yet"}
                     </Text>
-                    {selectedItem.xenditAccountId ? (
-                      <Text style={styles.xenditAccountId} selectable>
-                        Account ID: {selectedItem.xenditAccountId}
+
+                    {/* Show what the shop submitted (read-only summary) */}
+                    {selectedItem.payoutChannelCode ? (
+                      <View style={{ marginTop: 8, marginBottom: 4, padding: 10, backgroundColor: "#f0f9ff", borderRadius: 8 }}>
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: "#0369a1", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Shop Submitted Details</Text>
+                        <Text style={{ color: "#0c4a6e" }}>Channel: {getChannelLabel(selectedItem.payoutChannelCode)}</Text>
+                        <Text style={{ color: "#0c4a6e" }}>Name: {selectedItem.payoutAccountName || "—"}</Text>
+                        <Text style={{ color: "#0c4a6e" }}>Number: {selectedItem.payoutAccountNumber || "—"}</Text>
+                      </View>
+                    ) : (
+                      <Text style={{ color: "#92400e", fontSize: 12, marginTop: 6, fontStyle: "italic" }}>
+                        The shop owner must first set up their payout account from Shop Settings → Payout Account before you can verify it.
                       </Text>
-                    ) : null}
-                    {selectedItem.xenditProvisioningStatus ? (
-                      <Text style={styles.xenditDetail}>
-                        Setup status: {selectedItem.xenditProvisioningStatus.replace(/_/g, " ")}
+                    )}
+
+                    {/* Admin can override / confirm the channel, name, number */}
+                    <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Override Payout Channel (optional)</Text>
+                    <TouchableOpacity
+                      style={styles.channelPicker}
+                      onPress={() => setChannelPickerVisible(true)}
+                    >
+                      <Text style={styles.channelPickerText}>
+                        {payoutChannel ? getChannelLabel(payoutChannel) : "Keep shop's channel / select to override..."}
                       </Text>
-                    ) : null}
-                    {selectedItem.xenditProvisioningError && !selectedItem.xenditAccountId ? (
-                      <Text style={styles.xenditError}>
-                        Last setup attempt failed. Check the server configuration and retry.
-                      </Text>
-                    ) : null}
+                    </TouchableOpacity>
+
+                    <Text style={styles.fieldLabel}>Override Account Holder Name (optional)</Text>
+                    <TextInput
+                      style={styles.payoutInput}
+                      value={payoutName}
+                      onChangeText={setPayoutName}
+                      placeholder={selectedItem.payoutAccountName || "Keep shop's name / enter to override"}
+                    />
+
+                    <Text style={styles.fieldLabel}>Override Account Number (optional)</Text>
+                    <TextInput
+                      style={styles.payoutInput}
+                      value={payoutNumber}
+                      onChangeText={setPayoutNumber}
+                      placeholder={selectedItem.payoutAccountNumber || "Keep shop's number / enter to override"}
+                      keyboardType="default"
+                    />
                   </View>
 
                   <Button mode="outlined" onPress={() => void openExternalLink(selectedItem.birCertificateUrl)} style={styles.linkButton}>
@@ -448,7 +541,7 @@ export default function AdminFuneralShopVerificationsScreen() {
                       mode="contained"
                       onPress={() => void approveShop(selectedItem)}
                       loading={actionLoading}
-                      disabled={actionLoading || provisioningShopId === selectedItem.id}
+                      disabled={actionLoading || verifyingPayoutShopId === selectedItem.id}
                     >
                       Approve
                     </Button>
@@ -457,30 +550,30 @@ export default function AdminFuneralShopVerificationsScreen() {
                       buttonColor="#b91c1c"
                       onPress={() => void rejectShop(selectedItem)}
                       loading={actionLoading}
-                      disabled={actionLoading || provisioningShopId === selectedItem.id}
+                      disabled={actionLoading || verifyingPayoutShopId === selectedItem.id}
                     >
                       Reject
                     </Button>
-                    {!selectedItem.xenditAccountId &&
-                    ["verified", "live", "offline"].includes(selectedItem.status) ? (
+                    {["verified", "live", "offline"].includes(selectedItem.status) &&
+                    (selectedItem.payoutChannelCode || payoutChannel) ? (
                       <Button
                         mode="contained-tonal"
+                        buttonColor={selectedItem.payoutVerifiedByAdmin ? "#059669" : "#2563eb"}
+                        textColor="#ffffff"
                         onPress={async () => {
-                          await provisionShopAccount(selectedItem);
+                          await verifyPayoutAccount(selectedItem);
                           await loadApplicants();
                         }}
-                        loading={provisioningShopId === selectedItem.id}
-                        disabled={actionLoading || provisioningShopId === selectedItem.id}
+                        loading={verifyingPayoutShopId === selectedItem.id}
+                        disabled={actionLoading || verifyingPayoutShopId === selectedItem.id}
                       >
-                        {selectedItem.xenditProvisioningStatus === "failed"
-                          ? "Retry Xendit Setup"
-                          : "Set Up Xendit"}
+                        {selectedItem.payoutVerifiedByAdmin ? "Re-Verify Payout" : "✓ Verify Payout Account"}
                       </Button>
                     ) : null}
                     <Button
                       mode="outlined"
                       onPress={closeModal}
-                      disabled={actionLoading || provisioningShopId === selectedItem.id}
+                      disabled={actionLoading || verifyingPayoutShopId === selectedItem.id}
                     >
                       Close
                     </Button>
@@ -488,6 +581,34 @@ export default function AdminFuneralShopVerificationsScreen() {
                 </>
               ) : null}
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Channel picker modal */}
+      <Modal visible={channelPickerVisible} transparent animationType="fade" onRequestClose={() => setChannelPickerVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { maxHeight: "70%" }]}>
+            <Text style={styles.modalTitle}>Select Payout Channel</Text>
+            <ScrollView>
+              {PAYOUT_CHANNELS.map((ch) => (
+                <TouchableOpacity
+                  key={ch.code}
+                  style={[styles.channelOption, payoutChannel === ch.code && styles.channelOptionSelected]}
+                  onPress={() => {
+                    setPayoutChannel(ch.code);
+                    setChannelPickerVisible(false);
+                  }}
+                >
+                  <Text style={[styles.channelOptionText, payoutChannel === ch.code && styles.channelOptionTextSelected]}>
+                    {ch.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <Button mode="outlined" onPress={() => setChannelPickerVisible(false)} style={{ marginTop: 10 }}>
+              Cancel
+            </Button>
           </View>
         </View>
       </Modal>
@@ -547,12 +668,12 @@ const styles = StyleSheet.create({
     color: "#475569",
     lineHeight: 20,
   },
-  xenditReadyText: {
+  payoutReadyText: {
     color: "#047857",
     fontWeight: "700",
     lineHeight: 20,
   },
-  xenditPendingText: {
+  payoutPendingText: {
     color: "#b45309",
     fontWeight: "700",
     lineHeight: 20,
@@ -588,40 +709,72 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     marginBottom: 6,
   },
-  xenditCard: {
+  payoutCard: {
     borderWidth: 1,
     borderRadius: 10,
     marginTop: 10,
     marginBottom: 2,
     padding: 12,
   },
-  xenditCardReady: {
+  payoutCardReady: {
     backgroundColor: "#ecfdf5",
     borderColor: "#a7f3d0",
   },
-  xenditCardPending: {
+  payoutCardPending: {
     backgroundColor: "#fffbeb",
     borderColor: "#fde68a",
   },
-  xenditTitle: {
+  payoutTitle: {
     color: "#0f172a",
     fontWeight: "800",
     marginBottom: 4,
   },
-  xenditDetail: {
+  payoutDetail: {
     color: "#334155",
     lineHeight: 20,
+    marginBottom: 8,
   },
-  xenditAccountId: {
+  fieldLabel: {
+    color: "#475569",
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  payoutInput: {
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 8,
+    padding: 10,
+    color: "#111827",
+    fontSize: 15,
+  },
+  channelPicker: {
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 8,
+    padding: 10,
+  },
+  channelPickerText: {
     color: "#334155",
-    fontFamily: "monospace",
-    fontSize: 12,
-    lineHeight: 19,
+    fontSize: 15,
   },
-  xenditError: {
-    color: "#b91c1c",
-    lineHeight: 20,
-    marginTop: 4,
+  channelOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  channelOptionSelected: {
+    backgroundColor: "#ecfdf5",
+  },
+  channelOptionText: {
+    color: "#334155",
+    fontSize: 16,
+  },
+  channelOptionTextSelected: {
+    color: "#047857",
+    fontWeight: "700",
   },
   linkButton: {
     marginTop: 10,

@@ -52,6 +52,7 @@ const AdminOrdersPage = lazy(() => import('./pages/admin/AdminOrdersPage'))
 const AdminProductDetailPage = lazy(() => import('./pages/admin/AdminProductDetailPage'))
 const AdminServiceRequestDetailPage = lazy(() => import('./pages/admin/AdminServiceRequestDetailPage'))
 const AdminPaymentsPage = lazy(() => import('./pages/admin/AdminPaymentsPage'))
+const AdminPayoutAccountsPage = lazy(() => import('./pages/admin/AdminPayoutAccountsPage'))
 const AdminRoleGuard = lazy(() => import('./pages/admin/AdminRoleGuard'))
 const AdminRoleRedirectPage = lazy(() => import('./pages/admin/AdminRoleRedirectPage'))
 const AdminShopCentrePage = lazy(() => import('./pages/admin/AdminShopCentrePage'))
@@ -120,6 +121,7 @@ function App() {
                 <Route path="orders" element={<AdminOrdersPage />} />
                 <Route path="orders/:requestId" element={<AdminServiceRequestDetailPage />} />
                 <Route path="payments" element={<AdminPaymentsPage />} />
+                <Route path="payout-accounts" element={<AdminPayoutAccountsPage />} />
               </Route>
               <Route element={<AdminRoleGuard allowedRoles={['super_admin', 'admin']} />}>
                 <Route path="analytics" element={<AdminAnalyticsPage />} />

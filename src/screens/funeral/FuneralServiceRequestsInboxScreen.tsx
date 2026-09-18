@@ -74,10 +74,10 @@ const getStatusMeta = (status: string) => {
     return { label: "Payment Submitted", background: "#e0eefa", text: "#1c4f7e" };
   }
   if (normalized === "paid_waiting_for_split") {
-    return { label: "Waiting for Commission", background: "#fef3c7", text: "#86654a" };
+    return { label: "Processing Payout", background: "#fef3c7", text: "#86654a" };
   }
   if (normalized === "commission_failed") {
-    return { label: "Commission Failed", background: "#fde8e8", text: "#991b1b" };
+    return { label: "Payout Review", background: "#fde8e8", text: "#991b1b" };
   }
   if (normalized === "payment_verified") {
     return { label: "Payment Confirmed", background: "#e7f5ec", text: "#166534" };

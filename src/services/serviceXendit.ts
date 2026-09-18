@@ -6,7 +6,6 @@ export type ServiceXenditCheckoutResult = {
   requestId: string;
   reused?: boolean;
   paid?: boolean;
-  waitingForSplit?: boolean;
   testMode?: boolean;
   livemode?: boolean;
 };
@@ -36,13 +35,14 @@ export async function createServiceXenditCheckout(requestId: string): Promise<Se
 
   if (error) throw new Error(await getFunctionErrorMessage(error));
 
-  const settledOrSplitting = data?.paid === true || data?.waitingForSplit === true;
-  if (!settledOrSplitting && typeof data?.checkoutUrl !== 'string') {
+  // Direct payout model: no waitingForSplit state
+  const isSettled = data?.paid === true;
+  if (!isSettled && typeof data?.checkoutUrl !== 'string') {
     throw new Error('Xendit did not return a checkout link.');
   }
 
   const isTestMode = data?.testMode === true || data?.livemode === false;
-  if (!settledOrSplitting && !isTestMode) {
+  if (!isSettled && !isTestMode) {
     throw new Error('Checkout was blocked because LifeCycle only allows Xendit test payments.');
   }
 

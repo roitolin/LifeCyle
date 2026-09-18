@@ -95,6 +95,11 @@ type FuneralServiceRequest = {
   paymentSubmittedAt?: any;
   paymentVerifiedAt?: any;
   paymentRejectionReason?: string | null;
+  payoutId?: string | null;
+  payoutStatus?: string | null;
+  payoutAmount?: number | null;
+  payoutCompletedAt?: any;
+  payoutFailureCode?: string | null;
   completionProofImageUrl?: string | null;
   shopMarkedCompletedAt?: any;
   completionProofSeenAt?: any;
@@ -163,22 +168,22 @@ const getStatusMeta = (status: string) => {
   }
   if (normalized === "paid_waiting_for_split") {
     return {
-      label: "Waiting for Commission Split",
+      label: "Processing Payout",
       background: "#fef3c7",
       text: "#86654a",
-      icon: "git-branch-outline" as IoniconName,
-      message: "Xendit received your payment. The order will continue after the 30% admin commission is confirmed.",
-      shopMessage: "Payment succeeded. Waiting for Xendit to confirm the 30% admin commission.",
+      icon: "wallet-outline" as IoniconName,
+      message: "Payment received. The order is confirmed and the 70% shop payout is processing.",
+      shopMessage: "Payment received. 70% payout to your registered account is processing.",
     };
   }
   if (normalized === "commission_failed") {
     return {
-      label: "Commission Needs Review",
+      label: "Payout Review",
       background: "#fde8e8",
       text: "#991b1b",
       icon: "warning-outline" as IoniconName,
-      message: "Payment was received, but the commission split needs administrator review before the order can continue.",
-      shopMessage: "Payment was received, but Xendit reported a commission split problem. Do not fulfill this order yet.",
+      message: "Payment was received, but the shop payout needs administrator review.",
+      shopMessage: "Payment was received, but the 70% payout encountered an issue. An administrator will review.",
     };
   }
   if (normalized === "payment_verified") {
@@ -357,9 +362,8 @@ const getRequestProgressIndex = (status: string) => {
       return 1;
     case "awaiting_payment":
     case "payment_submitted":
-    case "paid_waiting_for_split":
-    case "commission_failed":
       return 2;
+    case "paid_waiting_for_split":
     case "payment_verified":
     case "awaiting_customer_confirmation":
       return 3;
@@ -1339,17 +1343,17 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
     } else if (normalizedRequestStatus === "paid_waiting_for_split") {
       stickyAction = {
         context: "Payment status",
-        label: "Confirming commission split",
-        helper: "Xendit received the payment. Waiting for the 30% admin route.",
-        icon: "git-branch-outline",
+        label: "Processing payout",
+        helper: "Payment confirmed. Preparing your service.",
+        icon: "wallet-outline",
         disabled: true,
         onPress: () => undefined,
       };
     } else if (normalizedRequestStatus === "commission_failed") {
       stickyAction = {
         context: "Payment status",
-        label: "Commission review required",
-        helper: "Support must resolve the Xendit split before fulfillment.",
+        label: "Payout review required",
+        helper: "Administrator is reviewing the payout.",
         icon: "warning-outline",
         disabled: true,
         onPress: () => undefined,
@@ -1416,17 +1420,17 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
   } else if (normalizedRequestStatus === "paid_waiting_for_split") {
     stickyAction = {
       context: "Payment status",
-      label: "Waiting for commission split",
-      helper: "Do not fulfill yet. Xendit is confirming the admin commission.",
-      icon: "git-branch-outline",
+      label: "Payout processing",
+      helper: "Payment received. 70% payout is being dispatched.",
+      icon: "wallet-outline",
       disabled: true,
       onPress: () => undefined,
     };
   } else if (normalizedRequestStatus === "commission_failed") {
     stickyAction = {
       context: "Payment status",
-      label: "Commission review required",
-      helper: "Do not fulfill until an administrator resolves the failed split.",
+      label: "Payout review required",
+      helper: "Administrator will review the shop payout.",
       icon: "warning-outline",
       disabled: true,
       onPress: () => undefined,
@@ -2078,7 +2082,21 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
             ) : null}
 
             {!requesterView && String(request.status || "").toLowerCase() === "payment_verified" ? (
-              <Text style={styles.paymentNote}>Payment confirmed. Prepare the casket and mark the request as completed once delivered.</Text>
+              <View>
+                <Text style={styles.paymentNote}>Payment confirmed. Prepare the casket and mark the request as completed once delivered.</Text>
+                <View style={styles.payoutStatusContainer}>
+                  <Text style={styles.payoutStatusHeader}>Shop Payout (70%):</Text>
+                  <Text style={styles.payoutStatusBody}>
+                    {request.payoutStatus === "succeeded"
+                      ? `₱${Number(request.payoutAmount || 0).toLocaleString()} sent to your registered account${request.payoutCompletedAt ? ` on ${formatTimestamp(request.payoutCompletedAt)}` : ""}.`
+                      : request.payoutStatus === "failed"
+                      ? `Payout of ₱${Number(request.payoutAmount || 0).toLocaleString()} failed (${request.payoutFailureCode || "Contact admin"}). Admin will review.`
+                      : request.payoutStatus === "pending"
+                      ? `Payout of ₱${Number(request.payoutAmount || 0).toLocaleString()} is being processed by Xendit.`
+                      : "Payment confirmed. 70% payout will be sent to your registered GCash/bank account."}
+                  </Text>
+                </View>
+              </View>
             ) : null}
 
             {!requesterView && String(request.status || "").toLowerCase() === "awaiting_payment" ? (
@@ -2240,9 +2258,9 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
           </View>
         ) : String(request.status || "").toLowerCase() === "accepted_by_shop" ? (
           <View style={styles.readonlyStatusCard}>
-            <Text style={styles.readonlyStatusTitle}>Xendit Setup Required</Text>
+            <Text style={styles.readonlyStatusTitle}>Payout Account Setup Required</Text>
             <Text style={styles.readonlyStatusText}>
-              An administrator must finish this shop’s Xendit test sub-account before customer checkout can open.
+              An administrator must verify this shop’s payout account before customer checkout can open.
             </Text>
           </View>
         ) : String(request.status || "").toLowerCase() === "payment_verified" ? (
@@ -4079,5 +4097,23 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginTop: 4,
     marginBottom: 14,
+  },
+  payoutStatusContainer: {
+    marginTop: 8,
+    padding: 12,
+    backgroundColor: "#f0fdf4",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#bbf7d0",
+  },
+  payoutStatusHeader: {
+    fontWeight: "700",
+    color: "#166534",
+    fontSize: 13,
+  },
+  payoutStatusBody: {
+    color: "#15803d",
+    fontSize: 12,
+    marginTop: 3,
   },
 });

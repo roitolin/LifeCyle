@@ -1,11 +1,16 @@
 // eslint-disable-next-line import/no-unresolved
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
-const XENDIT_ACCOUNTS_URL = 'https://api.xendit.co/v3/accounts';
-const XENDIT_LIST_ACCOUNTS_URL = 'https://api.xendit.co/v2/accounts';
 const ADMIN_ROLES = new Set(['admin', 'super_admin', 'funeral_admin']);
 const ELIGIBLE_SHOP_STATUSES = new Set(['verified', 'live', 'offline']);
 const MAX_BODY_BYTES = 16 * 1024;
+
+const VALID_PAYOUT_CHANNELS = new Set([
+  'PH_GCASH', 'PH_MAYA',
+  'PH_BDO', 'PH_BPI', 'PH_UBP', 'PH_METROBANK',
+  'PH_LANDBANK', 'PH_PNB', 'PH_RCBC', 'PH_CHINABANK',
+  'PH_SECURITYBANK', 'PH_EASTWESTBANK',
+]);
 
 function corsHeaders(request: Request) {
   return {
@@ -24,31 +29,8 @@ function jsonResponse(request: Request, body: unknown, status = 200) {
   });
 }
 
-function basicAuth(secretKey: string) {
-  return `Basic ${btoa(`${secretKey}:`)}`;
-}
-
-function isObviouslyLiveKey(secretKey: string) {
-  const key = secretKey.trim().toLowerCase();
-  return key.startsWith('xnd_production_') ||
-    key.startsWith('sk_live_') ||
-    /^(?:live|production)[_-]/.test(key);
-}
-
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-}
-
-function isEmail(value: string) {
-  return value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
-function validAccountId(value: string) {
-  return /^[A-Za-z0-9_-]{8,128}$/.test(value);
-}
-
-function firstRpcRow<T>(value: T | T[] | null): T | null {
-  return Array.isArray(value) ? value[0] || null : value;
 }
 
 async function readJson(request: Request) {
@@ -63,63 +45,25 @@ async function readJson(request: Request) {
   return JSON.parse(raw);
 }
 
-async function xenditRequest(secretKey: string, url: string, init?: RequestInit) {
-  return fetch(url, {
-    ...init,
-    headers: {
-      Authorization: basicAuth(secretKey),
-      Accept: 'application/json',
-      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(init?.headers || {}),
-    },
-  });
-}
-
-type ListedAccount = {
-  id?: unknown;
-  email?: unknown;
-  status?: unknown;
-};
-
-async function findExistingAccount(secretKey: string, email: string) {
-  const url = new URL(XENDIT_LIST_ACCOUNTS_URL);
-  url.searchParams.set('email', email);
-  url.searchParams.set('limit', '10');
-
-  const result = await xenditRequest(secretKey, url.toString());
-  if (!result.ok) return null;
-
-  const payload = await result.json().catch(() => null);
-  const exactMatches = (Array.isArray(payload?.data) ? payload.data : [])
-    .filter((account: ListedAccount) =>
-      String(account?.email || '').toLowerCase() === email.toLowerCase() &&
-      validAccountId(String(account?.id || ''))
-    );
-
-  if (exactMatches.length !== 1) return null;
-  return {
-    id: String(exactMatches[0].id),
-    status: String(exactMatches[0].status || 'LIVE').toUpperCase(),
-    createdAt: null as string | null,
-  };
-}
-
+/**
+ * Verify/update a shop's payout account details.
+ *
+ * When called by an admin, this sets payoutVerifiedByAdmin = true.
+ * When called by a shop owner, this only updates the payout details
+ * (admin verification is still required before the shop can receive orders).
+ */
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders(request) });
   if (request.method !== 'POST') return jsonResponse(request, { error: 'Method not allowed.' }, 405);
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  const xenditSecretKey = Deno.env.get('XENDIT_SECRET_KEY')?.trim();
-  if (!supabaseUrl || !serviceRoleKey || !xenditSecretKey) {
-    return jsonResponse(request, { error: 'Xendit test configuration is incomplete.' }, 503);
-  }
-  if (isObviouslyLiveKey(xenditSecretKey)) {
-    return jsonResponse(request, { error: 'LifeCycle Xendit accounts are locked to test mode.' }, 503);
+  if (!supabaseUrl || !serviceRoleKey) {
+    return jsonResponse(request, { error: 'Server configuration is incomplete.' }, 503);
   }
 
   const accessToken = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
-  if (!accessToken) return jsonResponse(request, { error: 'Administrator sign-in is required.' }, 401);
+  if (!accessToken) return jsonResponse(request, { error: 'Sign in before managing shop payouts.' }, 401);
 
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -131,162 +75,141 @@ Deno.serve(async (request) => {
 
   const { data: actor, error: actorError } = await admin
     .from('users')
-    .select('role, disabled, adminStatus')
+    .select('role, disabled')
     .eq('id', userData.user.id)
     .maybeSingle();
-  if (actorError) return jsonResponse(request, { error: 'Unable to authorize this request.' }, 500);
-  if (!actor || !ADMIN_ROLES.has(String(actor.role)) || actor.disabled || actor.adminStatus !== 'active') {
-    return jsonResponse(request, { error: 'Only an active administrator can provision shop payments.' }, 403);
+  if (actorError) {
+    console.error('Actor lookup error in provision-xendit-shop:', actorError);
+    return jsonResponse(request, { error: 'Unable to authorize this request.' }, 500);
   }
 
-  let input: { shopId?: unknown };
+  const isAdmin = actor && ADMIN_ROLES.has(String(actor.role)) && !actor.disabled;
+
+  let input: {
+    shopId?: unknown;
+    payoutChannelCode?: unknown;
+    payoutAccountName?: unknown;
+    payoutAccountNumber?: unknown;
+    action?: unknown;
+  };
   try {
     input = await readJson(request);
   } catch (error) {
     const status = error instanceof Error && error.message === 'body_too_large' ? 413 : 400;
-    return jsonResponse(request, { error: 'Invalid provisioning request.' }, status);
+    return jsonResponse(request, { error: 'Invalid request.' }, status);
   }
+
   const shopId = String(input?.shopId || '').trim().toLowerCase();
   if (!isUuid(shopId)) return jsonResponse(request, { error: 'A valid funeral shop is required.' }, 400);
 
-  const [{ data: shopProfile, error: shopProfileError }, { data: ownerProfile, error: ownerProfileError }] =
-    await Promise.all([
-      admin.from('funeral_shops').select('id, status').eq('id', shopId).maybeSingle(),
-      admin.from('users').select('id, role, disabled').eq('id', shopId).maybeSingle(),
-    ]);
-  if (shopProfileError || ownerProfileError) {
-    return jsonResponse(request, { error: 'Unable to load the funeral shop.' }, 500);
-  }
-  if (!shopProfile || !ownerProfile || ownerProfile.role !== 'funeral' || ownerProfile.disabled) {
-    return jsonResponse(request, { error: 'This funeral shop account is not available.' }, 404);
-  }
-  if (!ELIGIBLE_SHOP_STATUSES.has(String(shopProfile.status || '').toLowerCase())) {
-    return jsonResponse(request, { error: 'Verify the funeral shop before provisioning Xendit.' }, 409);
-  }
+  const action = String(input?.action || 'verify').trim().toLowerCase();
 
-  const { data: claimData, error: claimError } = await admin.rpc('claim_xendit_shop_provisioning', {
-    p_shop_id: shopId,
-  });
-  if (claimError) {
-    const unavailable = claimError.code === 'P0001' || claimError.code === '23514';
-    return jsonResponse(
-      request,
-      { error: unavailable ? 'Verify the funeral shop before provisioning Xendit.' : 'Unable to prepare Xendit provisioning.' },
-      unavailable ? 409 : 500,
-    );
-  }
+  // Verify action: admin confirms the shop's payout details
+  if (action === 'verify') {
+    if (!actor || !ADMIN_ROLES.has(String(actor.role)) || actor.disabled) {
+      return jsonResponse(request, { error: 'Only an active administrator can verify payout accounts.' }, 403);
+    }
 
-  const claim = firstRpcRow<any>(claimData);
-  if (!claim || claim.shopId !== shopId) {
-    return jsonResponse(request, { error: 'Unable to prepare Xendit provisioning.' }, 500);
-  }
+    const { data: shop, error: shopError } = await admin
+      .from('funeral_shops')
+      .select('id, status, payoutChannelCode, payoutAccountName, payoutAccountNumber, payoutVerifiedByAdmin')
+      .eq('id', shopId)
+      .maybeSingle();
+    if (shopError) return jsonResponse(request, { error: 'Unable to load the funeral shop.' }, 500);
+    if (!shop) return jsonResponse(request, { error: 'Funeral shop not found.' }, 404);
+    if (!ELIGIBLE_SHOP_STATUSES.has(String(shop.status || '').toLowerCase())) {
+      return jsonResponse(request, { error: 'Verify the funeral shop before setting up payouts.' }, 409);
+    }
 
-  const existingId = String(claim.xenditAccountId || '').trim();
-  if (!claim.shouldProvision && validAccountId(existingId)) {
+    // If admin provides new payout details, update them
+    const channelCode = String(input?.payoutChannelCode || shop.payoutChannelCode || '').trim().toUpperCase();
+    const accountName = String(input?.payoutAccountName || shop.payoutAccountName || '').trim();
+    const accountNumber = String(input?.payoutAccountNumber || shop.payoutAccountNumber || '').trim();
+
+    if (!VALID_PAYOUT_CHANNELS.has(channelCode)) {
+      return jsonResponse(request, { error: 'Select a valid payout channel (e.g. GCash, BDO, BPI).' }, 400);
+    }
+    if (!accountName || accountName.length < 2 || accountName.length > 120) {
+      return jsonResponse(request, { error: 'A valid account holder name is required.' }, 400);
+    }
+    if (!accountNumber || accountNumber.length < 4 || accountNumber.length > 30) {
+      return jsonResponse(request, { error: 'A valid account number is required.' }, 400);
+    }
+
+    const { error: updateError } = await admin
+      .from('funeral_shops')
+      .update({
+        payoutChannelCode: channelCode,
+        payoutAccountName: accountName,
+        payoutAccountNumber: accountNumber,
+        payoutVerifiedByAdmin: true,
+        payoutVerifiedAt: new Date().toISOString(),
+        // Also mark the legacy xendit provisioning as 'provisioned' for backward compatibility
+        xenditProvisioningStatus: 'provisioned',
+        xenditProvisioningError: null,
+        xenditProvisioningUpdatedAt: new Date().toISOString(),
+      })
+      .eq('id', shopId);
+
+    if (updateError) {
+      console.error('Unable to verify shop payout:', updateError.code || 'unknown');
+      return jsonResponse(request, { error: 'Unable to save the payout verification.' }, 500);
+    }
+
     return jsonResponse(request, {
       shopId,
-      xenditAccountId: existingId,
-      xenditAccountStatus: 'LIVE',
-      provisioningStatus: String(claim.provisioningStatus || 'provisioned'),
-      reused: true,
+      payoutChannelCode: channelCode,
+      payoutAccountName: accountName,
+      payoutVerified: true,
       testMode: true,
     });
   }
 
-  if (!claim.shouldProvision) {
-    return jsonResponse(request, { error: 'This Xendit account is already being provisioned.' }, 409);
-  }
-
-  const ownerEmail = String(claim.email || '').trim().toLowerCase();
-  const shopName = String(claim.shopName || '').trim().slice(0, 120);
-  const attemptId = String(claim.provisioningAttemptId || '').trim();
-  if (!isUuid(attemptId)) {
-    return jsonResponse(request, { error: 'Unable to reserve Xendit provisioning.' }, 500);
-  }
-  if (!isEmail(ownerEmail) || shopName.length < 2) {
-    await admin.rpc('finish_xendit_shop_provisioning', {
-      p_shop_id: shopId,
-      p_attempt_id: attemptId,
-      p_xendit_account_id: null,
-      p_error: 'invalid_verified_shop_identity',
-    });
-    return jsonResponse(request, { error: 'The verified shop name or owner email is invalid.' }, 409);
-  }
-
-  const recovered = await findExistingAccount(xenditSecretKey, ownerEmail).catch(() => null);
-  let account = recovered;
-  if (!account) {
-    const xenditResponse = await xenditRequest(xenditSecretKey, XENDIT_ACCOUNTS_URL, {
-      method: 'POST',
-      body: JSON.stringify({
-        name: shopName,
-        email: ownerEmail,
-        identity: {
-          country_of_incorporation: 'PH',
-          entity_type: 'CORPORATION',
-        },
-      }),
-    }).catch(() => null);
-
-    const responseJson = xenditResponse ? await xenditResponse.json().catch(() => null) : null;
-    if (!xenditResponse?.ok) {
-      const code = String(responseJson?.error_code || 'account_creation_failed').slice(0, 80);
-      await admin.rpc('finish_xendit_shop_provisioning', {
-        p_shop_id: shopId,
-        p_attempt_id: attemptId,
-        p_xendit_account_id: null,
-        p_error: code,
-      });
-      console.error('Xendit shop account provisioning failed:', code);
-      return jsonResponse(request, { error: 'Xendit could not create the test shop account.', code }, 502);
+  // Update action: shop owner submits their own payout details (not verified yet)
+  if (action === 'update') {
+    if (userData.user.id !== shopId && !isAdmin) {
+      return jsonResponse(request, { error: 'Only the shop owner can update payout details.' }, 403);
     }
 
-    const accountId = String(responseJson?.id || '').trim();
-    const accountStatus = String(responseJson?.status || '').trim().toUpperCase();
-    if (!validAccountId(accountId) || accountStatus !== 'LIVE') {
-      await admin.rpc('finish_xendit_shop_provisioning', {
-        p_shop_id: shopId,
-        p_attempt_id: attemptId,
-        p_xendit_account_id: null,
-        p_error: 'invalid_test_account_response',
-      });
-      return jsonResponse(request, { error: 'Xendit returned an invalid test account.' }, 502);
+    const channelCode = String(input?.payoutChannelCode || '').trim().toUpperCase();
+    const accountName = String(input?.payoutAccountName || '').trim();
+    const accountNumber = String(input?.payoutAccountNumber || '').trim();
+
+    if (!VALID_PAYOUT_CHANNELS.has(channelCode)) {
+      return jsonResponse(request, { error: 'Select a valid payout channel (e.g. GCash, BDO, BPI).' }, 400);
     }
-    account = {
-      id: accountId,
-      status: accountStatus,
-      createdAt: typeof responseJson?.created_at === 'string' ? responseJson.created_at : null,
-    };
-  }
+    if (!accountName || accountName.length < 2 || accountName.length > 120) {
+      return jsonResponse(request, { error: 'A valid account holder name is required.' }, 400);
+    }
+    if (!accountNumber || accountNumber.length < 4 || accountNumber.length > 30) {
+      return jsonResponse(request, { error: 'A valid account number is required.' }, 400);
+    }
 
-  if (!account || !validAccountId(account.id) || account.status !== 'LIVE') {
-    await admin.rpc('finish_xendit_shop_provisioning', {
-      p_shop_id: shopId,
-      p_attempt_id: attemptId,
-      p_xendit_account_id: null,
-      p_error: 'existing_test_account_not_live',
+    const { error: updateError } = await admin
+      .from('funeral_shops')
+      .update({
+        payoutChannelCode: channelCode,
+        payoutAccountName: accountName,
+        payoutAccountNumber: accountNumber,
+        // Reset verification when details change
+        payoutVerifiedByAdmin: false,
+        payoutVerifiedAt: null,
+      })
+      .eq('id', shopId);
+
+    if (updateError) {
+      console.error('Unable to update shop payout:', updateError.code || 'unknown');
+      return jsonResponse(request, { error: 'Unable to save the payout details.' }, 500);
+    }
+
+    return jsonResponse(request, {
+      shopId,
+      payoutChannelCode: channelCode,
+      payoutAccountName: accountName,
+      payoutVerified: false,
+      testMode: true,
     });
-    return jsonResponse(request, { error: 'The matching Xendit test account is not active.' }, 409);
   }
 
-  const { data: finishData, error: finishError } = await admin.rpc('finish_xendit_shop_provisioning', {
-    p_shop_id: shopId,
-    p_attempt_id: attemptId,
-    p_xendit_account_id: account.id,
-    p_error: null,
-  });
-  const finished = firstRpcRow<any>(finishData);
-  if (finishError || !finished || String(finished.xenditAccountId || '') !== account.id) {
-    console.error('Unable to persist the Xendit shop account mapping.');
-    return jsonResponse(request, { error: 'The Xendit account was created but could not be linked safely.' }, 500);
-  }
-
-  return jsonResponse(request, {
-    shopId,
-    xenditAccountId: String(finished.xenditAccountId),
-    xenditAccountStatus: String(account.status),
-    provisioningStatus: String(finished.provisioningStatus || 'provisioned'),
-    reused: Boolean(recovered),
-    testMode: true,
-  });
+  return jsonResponse(request, { error: 'Invalid action. Use "verify" or "update".' }, 400);
 });

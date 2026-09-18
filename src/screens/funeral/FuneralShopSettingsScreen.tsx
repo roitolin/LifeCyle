@@ -20,7 +20,28 @@ import { AdminPaymentModal, AppBackButton, KeyboardAwareScrollView } from "@/com
 import LoadingBird from "@/components/LoadingBird";
 import { auth, uploadCertificate } from "@/services";
 import { supabase } from "@/services/supabaseClient";
+import { updateShopPayout } from "@/services/xenditAdmin";
 import { sanitizePlainText } from "@/utils/inputSecurity";
+
+const PAYOUT_CHANNELS = [
+  { code: "PH_GCASH", label: "GCash" },
+  { code: "PH_MAYA", label: "Maya" },
+  { code: "PH_BDO", label: "BDO" },
+  { code: "PH_BPI", label: "BPI" },
+  { code: "PH_UBP", label: "UnionBank" },
+  { code: "PH_METROBANK", label: "Metrobank" },
+  { code: "PH_LANDBANK", label: "Landbank" },
+  { code: "PH_PNB", label: "PNB" },
+  { code: "PH_RCBC", label: "RCBC" },
+  { code: "PH_CHINABANK", label: "Chinabank" },
+  { code: "PH_SECURITYBANK", label: "Security Bank" },
+  { code: "PH_EASTWESTBANK", label: "EastWest Bank" },
+];
+
+function getChannelLabel(code?: string | null) {
+  if (!code) return "Not set";
+  return PAYOUT_CHANNELS.find((ch) => ch.code === code)?.label || code;
+}
 
 type IoniconName = ComponentProps<typeof Ionicons>["name"];
 type ShopStatus = "none" | "pending" | "verified" | "live" | "offline" | "rejected";
@@ -44,6 +65,11 @@ type ShopRecord = {
   zipCode?: string | null;
   tin?: string | null;
   vatRegistrationStatus?: boolean | null;
+  payoutChannelCode?: string | null;
+  payoutAccountName?: string | null;
+  payoutAccountNumber?: string | null;
+  payoutVerifiedByAdmin?: boolean | null;
+  payoutVerifiedAt?: string | null;
 };
 type ShopPayment = {
   status?: string | null;
@@ -266,6 +292,10 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
   const [savingProfile, setSavingProfile] = useState(false);
   const [uploadingImage, setUploadingImage] = useState<"logo" | "cover" | null>(null);
   const [profileDraft, setProfileDraft] = useState({ name: "", address: "", phone: "", logo: null as string | null, cover: null as string | null });
+  const [payoutVisible, setPayoutVisible] = useState(false);
+  const [savingPayout, setSavingPayout] = useState(false);
+  const [payoutDraft, setPayoutDraft] = useState({ channel: "", name: "", number: "" });
+  const [channelPickerVisible, setChannelPickerVisible] = useState(false);
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
@@ -298,7 +328,7 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
   const status = (shop?.status || "none") as ShopStatus;
   const statusMeta = getStatusMeta(status);
   const isVerified = ["verified", "live", "offline"].includes(status);
-  const customerCheckoutReady = Boolean(shop?.xenditAccountId);
+  const customerCheckoutReady = Boolean(shop?.payoutVerifiedByAdmin);
   const latestPaymentVerified = String(payment?.status || "").toLowerCase() === "verified";
   const renewalPaymentReady = Boolean(
     latestPaymentVerified
@@ -472,11 +502,27 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
           <SettingsSection label="Payments & Billing">
             <SettingRow icon="card-outline" label="Customer Casket Checkout"
               description={customerCheckoutReady
-                ? "Xendit test checkout is ready with automatic 30% LifeCycle commission"
+                ? "Xendit test checkout is ready with automatic 30/70 commission split"
                 : isVerified
-                  ? "Waiting for the admin to finish this shop's Xendit test account"
+                  ? "Set up your payout account so you can receive the 70% shop payout"
                   : "Available after shop approval"}
               value={customerCheckoutReady ? "Ready" : "Setup required"}
+              disabled={!isVerified} />
+            <SettingRow icon="wallet-outline" label="Payout Account"
+              description={shop?.payoutVerifiedByAdmin
+                ? `Verified: ${getChannelLabel(shop?.payoutChannelCode)} — ${shop?.payoutAccountName || ""}`
+                : shop?.payoutChannelCode
+                  ? "Submitted — waiting for admin verification"
+                  : "Set up your GCash or bank account to receive 70% of each sale"}
+              value={shop?.payoutVerifiedByAdmin ? "Verified" : shop?.payoutChannelCode ? "Pending" : "Not set"}
+              onPress={() => {
+                setPayoutDraft({
+                  channel: shop?.payoutChannelCode || "",
+                  name: shop?.payoutAccountName || "",
+                  number: shop?.payoutAccountNumber || "",
+                });
+                setPayoutVisible(true);
+              }}
               disabled={!isVerified} />
             <SettingRow icon="card-outline" label="LifeCycle Payments"
               description="Pay securely with Xendit Test Mode, renew, and view payment history"
@@ -558,6 +604,149 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
                 <Text style={styles.primaryButtonText}>{savingProfile ? "Saving..." : "Save Shop Profile"}</Text>
               </TouchableOpacity>
             </KeyboardAwareScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Payout Account Modal */}
+      <Modal visible={payoutVisible} transparent animationType="fade" onRequestClose={() => setPayoutVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setPayoutVisible(false)} />
+          <View style={styles.modalCard}>
+            <KeyboardAwareScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
+              <View style={styles.modalHeader}>
+                <View>
+                  <Text style={styles.modalTitle}>Payout Account</Text>
+                </View>
+                <TouchableOpacity style={styles.closeButton} onPress={() => setPayoutVisible(false)}>
+                  <Ionicons name="close" size={20} color="#53615d" />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.readOnlyNote}>
+                <Ionicons name="information-circle-outline" size={17} color="#6c7772" />
+                <Text style={styles.readOnlyNoteText}>This is where 70% of each casket payment will be sent. An admin will verify your details before payouts can start.</Text>
+              </View>
+              {shop?.payoutVerifiedByAdmin ? (
+                <View style={[styles.detailGroup, { backgroundColor: "#ecfdf5", borderRadius: 10, padding: 12, marginBottom: 12 }]}>
+                  <Text style={{ color: "#047857", fontWeight: "700", marginBottom: 4 }}>✅ Verified by admin</Text>
+                  <Text style={{ color: "#334155" }}>Channel: {getChannelLabel(shop?.payoutChannelCode)}</Text>
+                  <Text style={{ color: "#334155" }}>Name: {shop?.payoutAccountName || "-"}</Text>
+                  <Text style={{ color: "#334155" }}>Number: {shop?.payoutAccountNumber || "-"}</Text>
+                </View>
+              ) : null}
+              <Text style={styles.inputLabel}>Payout Channel</Text>
+              <TouchableOpacity
+                style={[styles.input, { justifyContent: "center" }]}
+                onPress={() => setChannelPickerVisible(true)}
+              >
+                <Text style={{ color: payoutDraft.channel ? "#111827" : "#9ca3af" }}>
+                  {payoutDraft.channel ? getChannelLabel(payoutDraft.channel) : "Select GCash or bank..."}
+                </Text>
+              </TouchableOpacity>
+              <Text style={styles.inputLabel}>Account Holder Name</Text>
+              <TextInput
+                style={styles.input}
+                value={payoutDraft.name}
+                onChangeText={(name) => setPayoutDraft((d) => ({ ...d, name }))}
+                placeholder="e.g. Juan Dela Cruz"
+              />
+              <Text style={styles.inputLabel}>Account / GCash Number</Text>
+              <TextInput
+                style={styles.input}
+                value={payoutDraft.number}
+                onChangeText={(number) => setPayoutDraft((d) => ({ ...d, number }))}
+                placeholder="e.g. 09171234567"
+                keyboardType="default"
+              />
+              <TouchableOpacity
+                style={[styles.primaryButton, savingPayout ? styles.buttonDisabled : null]}
+                onPress={async () => {
+                  let targetShopId = auth.currentUser?.uid || shop?.id || null;
+                  if (!targetShopId) {
+                    const { data: sessionData } = await supabase.auth.getSession();
+                    targetShopId = sessionData.session?.user?.id || null;
+                  }
+                  if (!targetShopId) {
+                    Alert.alert("Authentication required", "Please sign in again before saving payout details.");
+                    return;
+                  }
+                  const channel = payoutDraft.channel.trim();
+                  const name = sanitizePlainText(payoutDraft.name, 120);
+                  const number = payoutDraft.number.trim();
+                  if (!channel || !name || !number) {
+                    Alert.alert("Missing info", "Select a payout channel and enter your account name and number.");
+                    return;
+                  }
+                  setSavingPayout(true);
+                  try {
+                    await updateShopPayout(targetShopId, channel, name, number);
+                    setShop((current) =>
+                      current
+                        ? {
+                            ...current,
+                            payoutChannelCode: channel,
+                            payoutAccountName: name,
+                            payoutAccountNumber: number,
+                            payoutVerifiedByAdmin: false,
+                            payoutVerifiedAt: null,
+                          }
+                        : current
+                    );
+                    setPayoutVisible(false);
+                    Alert.alert(
+                      "Payout details saved",
+                      "An administrator will verify your payout account before you can receive payments."
+                    );
+                  } catch (error: any) {
+                    Alert.alert("Save failed", error?.message || "Unable to save payout details.");
+                  } finally {
+                    setSavingPayout(false);
+                  }
+                }}
+                disabled={savingPayout}
+              >
+                {savingPayout ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Ionicons name="checkmark-circle-outline" size={18} color="#ffffff" />
+                )}
+                <Text style={styles.primaryButtonText}>{savingPayout ? "Saving..." : "Save Payout Details"}</Text>
+              </TouchableOpacity>
+            </KeyboardAwareScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Channel picker modal */}
+      <Modal visible={channelPickerVisible} transparent animationType="fade" onRequestClose={() => setChannelPickerVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setChannelPickerVisible(false)} />
+          <View style={[styles.modalCard, { maxHeight: "70%" }]}>
+            <ScrollView contentContainerStyle={styles.modalContent}>
+              <Text style={styles.modalTitle}>Select Payout Channel</Text>
+              {PAYOUT_CHANNELS.map((ch) => (
+                <TouchableOpacity
+                  key={ch.code}
+                  style={[
+                    { paddingVertical: 12, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: "#f0f0f0" },
+                    payoutDraft.channel === ch.code && { backgroundColor: "#ecfdf5" },
+                  ]}
+                  onPress={() => {
+                    setPayoutDraft((d) => ({ ...d, channel: ch.code }));
+                    setChannelPickerVisible(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      { fontSize: 16, color: "#334155" },
+                      payoutDraft.channel === ch.code && { color: "#047857", fontWeight: "700" },
+                    ]}
+                  >
+                    {ch.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
         </View>
       </Modal>

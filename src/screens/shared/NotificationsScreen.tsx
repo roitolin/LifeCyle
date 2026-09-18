@@ -63,6 +63,8 @@ const REQUEST_NOTIFICATION_TYPES = [
   "funeral_refund_updated",
   "death_certificate_requested",
   "death_certificate_ready",
+  "shop_payout_succeeded",
+  "shop_payout_failed",
 ];
 
 const isChatNotification = (type: string) =>
@@ -72,17 +74,17 @@ type NotificationFilter = "all" | "requests" | "payments" | "updates";
 
 const getNotificationCategory = (type: string): Exclude<NotificationFilter, "all"> => {
   const normalized = String(type || "").toLowerCase();
-  if (normalized.includes("payment") || normalized.includes("refund")) return "payments";
+  if (normalized.includes("payment") || normalized.includes("refund") || normalized.includes("payout") || normalized.includes("commission")) return "payments";
   if (normalized.includes("request") || normalized.includes("booking") || normalized.includes("order")) return "requests";
   return "updates";
 };
 
 const getNotificationVisual = (type: string) => {
   const normalized = String(type || "").toLowerCase();
-  if (normalized.includes("payment_rejected") || normalized.includes("refund")) {
+  if (normalized.includes("payout_failed") || normalized.includes("payment_rejected") || normalized.includes("refund")) {
     return { icon: "return-down-back-outline" as const, color: "#9a5148", background: "#fbefed" };
   }
-  if (normalized.includes("payment")) {
+  if (normalized.includes("payment") || normalized.includes("payout") || normalized.includes("commission")) {
     return { icon: "wallet-outline" as const, color: "#85632e", background: "#f8f1e5" };
   }
   if (normalized.includes("completed") || normalized.includes("verified")) {
@@ -258,7 +260,11 @@ export default function NotificationsScreen({ navigation, route }: any) {
       notification.type === "request_accepted" ||
       notification.type === "request_completed" ||
       notification.type === "funeral_request_pending" ||
-      notification.type === "funeral_payment_submitted"
+      notification.type === "funeral_payment_submitted" ||
+      notification.type === "admin_payment_received" ||
+      notification.type === "admin_payout_completed" ||
+      notification.type === "admin_payout_failed" ||
+      notification.type === "admin_shop_payment_received"
     ) {
       navigation.navigate("AdminTabs", { screen: "Orders" });
       return;

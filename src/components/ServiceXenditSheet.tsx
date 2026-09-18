@@ -118,20 +118,11 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
     setStarting(true);
     try {
       const result = await createServiceXenditCheckout(request.id);
-      if (result.waitingForSplit) {
-        await onChanged?.();
-        Alert.alert(
-          'Payment Processing',
-          'Xendit received your payment. 30% platform commission is routing to admin and 70% to the shop.',
-        );
-        handleClose();
-        return;
-      }
       if (result.paid) {
         await onChanged?.();
         Alert.alert(
           'Payment Confirmed',
-          'Payment succeeded! The 30% admin commission and 70% shop payout have been confirmed.',
+          'Payment succeeded! The order has been verified.',
         );
         handleClose();
         return;

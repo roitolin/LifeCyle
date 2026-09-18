@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
@@ -425,6 +426,14 @@ export default function AdminPaymentsPage() {
         >
           Payment Setup
         </button>
+        <Link
+          to="/admin/payout-accounts"
+          className="payments-tab"
+          style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+        >
+          <span>Shop Payout Accounts</span>
+          <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 999, background: '#2563eb', color: '#fff', fontWeight: 700 }}>Direct</span>
+        </Link>
       </div>
 
       {activeTab === 'refunds' ? <AdminRefundsPanel /> : null}

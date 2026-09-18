@@ -286,18 +286,18 @@ const getStatusMeta = (status: string) => {
   }
   if (normalized === "paid_waiting_for_split") {
     return {
-      label: "Payment Received",
+      label: "Payment Confirmed",
       background: "#fef3c7",
       text: "#86654a",
-      message: "Xendit received your payment. The order will continue after the 30% admin commission is confirmed.",
+      message: "Payment received. The shop payout is being processed and the shop is preparing your order.",
     };
   }
   if (normalized === "commission_failed") {
     return {
-      label: "Commission Needs Review",
+      label: "Payout Review",
       background: "#fde8e8",
       text: "#991b1b",
-      message: "Your payment was received, but Xendit could not confirm the commission split. Support must review it before the order continues.",
+      message: "Your payment was received, but shop payout needs administrator review. Support is resolving it.",
     };
   }
   if (normalized === "payment_verified") {

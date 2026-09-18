@@ -258,6 +258,17 @@ function AdminLayout() {
             </span>
             <span className="sidebar-label">Payments</span>
           </NavLink> : null}
+          {isFuneralAdmin ? <NavLink to="/admin/payout-accounts" className={({ isActive }) => `user-nav-link${isActive ? ' active' : ''}`}>
+            <span className="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none">
+                <rect x="2" y="5" width="20" height="14" rx="2" strokeWidth="1.8" />
+                <line x1="2" y1="10" x2="22" y2="10" strokeWidth="1.8" />
+                <path d="M6 15H9" strokeWidth="1.8" strokeLinecap="round" />
+                <path d="M14 15L16 17L20 13" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+            <span className="sidebar-label">Payout Accounts</span>
+          </NavLink> : null}
           {isRootAdmin ? <span className="admin-nav-section sidebar-label">Root Tools</span> : null}
           {isRootAdmin ? <NavLink to="/admin/home-content" className={({ isActive }) => isActive ? 'user-nav-link active' : 'user-nav-link'}>
             <span className="nav-icon" aria-hidden="true">

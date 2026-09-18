@@ -1,6 +1,7 @@
 // eslint-disable-next-line import/no-unresolved
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
+const XENDIT_PAYOUTS_URL = 'https://api.xendit.co/v2/payouts';
 const MAX_BODY_BYTES = 256 * 1024;
 const encoder = new TextEncoder();
 
@@ -24,10 +25,6 @@ function isUuid(value: string) {
 
 function validProviderId(value: string) {
   return /^[A-Za-z0-9_-]{8,128}$/.test(value);
-}
-
-function validSplitRuleId(value: string) {
-  return /^splitru_[A-Za-z0-9-]{8,128}$/.test(value);
 }
 
 function validShopPaymentReference(value: string) {
@@ -57,6 +54,10 @@ function amountValue(value: unknown) {
   return cents / 100;
 }
 
+function basicAuth(secretKey: string) {
+  return `Basic ${btoa(`${secretKey}:`)}`;
+}
+
 async function digest(value: string) {
   return new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode(value)));
 }
@@ -83,29 +84,25 @@ async function readBody(request: Request) {
 type NormalizedEvent = {
   eventId: string;
   eventType: string;
-  eventKind: 'payment_completed' | 'payment_expired' | 'split_completed' | 'split_failed';
+  eventKind: 'payment_completed' | 'payment_expired' | 'payout_succeeded' | 'payout_failed';
   checkoutId: string | null;
   referenceId: string;
   paymentId: string | null;
-  splitPaymentId: string | null;
-  splitRuleId: string | null;
+  payoutId: string | null;
   shopAccountId: string;
-  destinationAccountId: string | null;
   currency: string;
   grossAmount: number | null;
-  splitAmount: number | null;
+  payoutAmount: number | null;
+  payoutFailureCode: string | null;
   payload: Record<string, unknown>;
 };
 
-function normalizeEvent(
-  payload: any,
-  configuredSplitRuleId: string,
-  configuredMasterBusinessId: string,
-): NormalizedEvent | null {
+function normalizeEvent(payload: any): NormalizedEvent | null {
   const eventType = stringValue(payload?.event, 80).toLowerCase();
   const data = payload?.data && typeof payload.data === 'object' ? payload.data : {};
   const created = stringValue(payload?.created, 50);
 
+  // ── Payment session events ──
   if (eventType === 'payment_session.completed' || eventType === 'payment_session.expired') {
     const status = stringValue(data.status, 40).toUpperCase();
     const expectedStatus = eventType === 'payment_session.completed' ? 'COMPLETED' : 'EXPIRED';
@@ -130,28 +127,22 @@ function normalizeEvent(
       checkoutId,
       referenceId,
       paymentId,
-      splitPaymentId: null,
-      splitRuleId: null,
+      payoutId: null,
       shopAccountId,
-      destinationAccountId: null,
       currency,
       grossAmount,
-      splitAmount: null,
+      payoutAmount: null,
+      payoutFailureCode: null,
       payload: {
-        event: eventType,
-        created,
-        status,
-        businessId: shopAccountId,
-        paymentSessionId: checkoutId,
-        paymentId,
-        referenceId,
-        currency,
-        amount: grossAmount,
+        event: eventType, created, status,
+        businessId: shopAccountId, paymentSessionId: checkoutId,
+        paymentId, referenceId, currency, amount: grossAmount,
         channelCode: stringValue(data.channel_code, 80) || null,
       },
     };
   }
 
+  // ── Payment capture events ──
   if (eventType === 'payment.capture') {
     const status = stringValue(data.status, 40).toUpperCase();
     const referenceId = normalizedReference(data.reference_id);
@@ -173,32 +164,19 @@ function normalizeEvent(
       eventId: `xendit:${eventType}:${paymentId}:${captureId}`,
       eventType,
       eventKind: 'payment_completed',
-      checkoutId,
-      referenceId,
-      paymentId,
-      splitPaymentId: null,
-      splitRuleId: null,
-      shopAccountId,
-      destinationAccountId: null,
-      currency,
-      grossAmount,
-      splitAmount: null,
+      checkoutId, referenceId, paymentId,
+      payoutId: null, shopAccountId, currency, grossAmount,
+      payoutAmount: null, payoutFailureCode: null,
       payload: {
-        event: eventType,
-        created,
-        status,
-        businessId: shopAccountId,
-        paymentSessionId: checkoutId,
-        paymentId,
-        captureId,
-        referenceId,
-        currency,
-        amount: grossAmount,
+        event: eventType, created, status,
+        businessId: shopAccountId, paymentSessionId: checkoutId,
+        paymentId, captureId, referenceId, currency, amount: grossAmount,
         channelCode: stringValue(data.channel_code, 80) || null,
       },
     };
   }
 
+  // ── Payment succeeded events ──
   if (eventType === 'payment.succeeded') {
     const status = stringValue(data.status, 40).toUpperCase();
     const referenceId = normalizedReference(data.reference_id);
@@ -218,78 +196,49 @@ function normalizeEvent(
       eventId: `xendit:${eventType}:${paymentId}`,
       eventType,
       eventKind: 'payment_completed',
-      checkoutId,
-      referenceId,
-      paymentId,
-      splitPaymentId: null,
-      splitRuleId: null,
-      shopAccountId,
-      destinationAccountId: null,
-      currency,
-      grossAmount,
-      splitAmount: null,
+      checkoutId, referenceId, paymentId,
+      payoutId: null, shopAccountId, currency, grossAmount,
+      payoutAmount: null, payoutFailureCode: null,
       payload: {
-        event: eventType,
-        created,
-        status,
-        businessId: shopAccountId,
-        paymentSessionId: checkoutId,
-        paymentId,
-        referenceId,
-        currency,
-        amount: grossAmount,
+        event: eventType, created, status,
+        businessId: shopAccountId, paymentSessionId: checkoutId,
+        paymentId, referenceId, currency, amount: grossAmount,
         channelCode: stringValue(data.channel_code, 80) || null,
       },
     };
   }
 
-  if (eventType === 'split.payment') {
-    const status = stringValue(data.status, 40).toUpperCase();
-    const splitPaymentId = stringValue(data.id, 128);
-    const splitRuleId = stringValue(data.split_rule_id, 160);
-    const routeReferenceId = stringValue(data.reference_id, 160);
-    const referenceId = normalizedReference(data.payment_reference_id);
-    const paymentId = stringValue(data.payment_id, 128);
-    const shopAccountId = stringValue(data.source_account_id, 128);
-    const destinationAccountId = stringValue(data.destination_account_id, 128);
+  // ── Payout events (new — for 70% shop payout confirmation) ──
+  if (eventType === 'payout.succeeded' || eventType === 'payout.failed') {
+    const payoutId = stringValue(data.id, 128);
+    const referenceId = stringValue(data.reference_id, 255);
+    const payoutStatus = stringValue(data.status, 40).toUpperCase();
     const currency = stringValue(data.currency, 3).toUpperCase();
-    const splitAmount = amountValue(data.amount);
-    if (!validSplitRuleId(configuredSplitRuleId) ||
-      !['COMPLETED', 'FAILED'].includes(status) || !validProviderId(splitPaymentId) ||
-      splitRuleId !== configuredSplitRuleId || routeReferenceId !== 'lifecycle_admin_commission' ||
-      !isUuid(referenceId) || !validProviderId(paymentId) || !validProviderId(shopAccountId) ||
-      destinationAccountId !== configuredMasterBusinessId || currency !== 'PHP' || !splitAmount) {
-      return null;
-    }
-    const failureCode = status === 'FAILED' ? stringValue(data.failure_code, 100) || 'UNKNOWN' : null;
+    const payoutAmount = amountValue(data.amount);
+    const failureCode = stringValue(data.failure_code, 100) || null;
+    const shopAccountId = stringValue(data.business_id || payload?.business_id, 128);
+
+    if (!payoutId || !referenceId || currency !== 'PHP') return null;
+    if (eventType === 'payout.succeeded' && payoutStatus !== 'SUCCEEDED') return null;
+    if (eventType === 'payout.failed' && payoutStatus !== 'FAILED') return null;
+
     return {
-      eventId: `xendit:${eventType}:${splitPaymentId}:${status}`,
+      eventId: `xendit:${eventType}:${payoutId}`,
       eventType,
-      eventKind: status === 'COMPLETED' ? 'split_completed' : 'split_failed',
+      eventKind: eventType === 'payout.succeeded' ? 'payout_succeeded' : 'payout_failed',
       checkoutId: null,
       referenceId,
-      paymentId,
-      splitPaymentId,
-      splitRuleId,
+      paymentId: null,
+      payoutId,
       shopAccountId,
-      destinationAccountId,
       currency,
       grossAmount: null,
-      splitAmount,
+      payoutAmount,
+      payoutFailureCode: failureCode,
       payload: {
-        event: eventType,
-        created,
-        status,
-        splitPaymentId,
-        splitRuleId,
-        routeReferenceId,
-        paymentId,
-        referenceId,
-        sourceAccountId: shopAccountId,
-        destinationAccountId,
-        currency,
-        amount: splitAmount,
-        failureCode,
+        event: eventType, created,
+        payoutId, referenceId, status: payoutStatus,
+        currency, amount: payoutAmount, failureCode,
       },
     };
   }
@@ -304,10 +253,8 @@ Deno.serve(async (request) => {
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   const webhookToken = Deno.env.get('XENDIT_WEBHOOK_TOKEN') || '';
   const xenditSecretKey = Deno.env.get('XENDIT_SECRET_KEY')?.trim() || '';
-  const splitRuleId = Deno.env.get('XENDIT_SPLIT_RULE_ID')?.trim() || '';
-  const masterBusinessId = Deno.env.get('XENDIT_MASTER_BUSINESS_ID')?.trim() || '';
-  if (!supabaseUrl || !serviceRoleKey || !webhookToken || !xenditSecretKey ||
-    !validProviderId(masterBusinessId)) {
+  // No longer need XENDIT_SPLIT_RULE_ID or XENDIT_MASTER_BUSINESS_ID
+  if (!supabaseUrl || !serviceRoleKey || !webhookToken || !xenditSecretKey) {
     return jsonResponse({ error: 'Xendit webhook configuration is incomplete.' }, 503);
   }
   if (isObviouslyLiveKey(xenditSecretKey)) {
@@ -333,29 +280,52 @@ Deno.serve(async (request) => {
     'payment_session.expired',
     'payment.capture',
     'payment.succeeded',
-    'split.payment',
+    'payout.succeeded',
+    'payout.failed',
   ]);
   if (!supported.has(eventType)) return jsonResponse({ ignored: true });
 
-  const event = normalizeEvent(payload, splitRuleId, masterBusinessId);
+  const event = normalizeEvent(payload);
   if (!event) return jsonResponse({ ignored: true });
 
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+
+  // ── Handle payout webhook events ──
+  if (event.eventKind === 'payout_succeeded' || event.eventKind === 'payout_failed') {
+    const { data, error } = await admin.rpc('reconcile_payout_event', {
+      p_event_id: event.eventId,
+      p_payout_id: event.payoutId,
+      p_reference_id: event.referenceId,
+      p_status: event.eventKind === 'payout_succeeded' ? 'succeeded' : 'failed',
+      p_failure_code: event.payoutFailureCode,
+      p_payload: event.payload,
+    });
+    if (error) {
+      console.error('Unable to reconcile payout event:', error.code || 'unknown');
+      return jsonResponse({ error: 'Unable to reconcile the payout event.' }, 500);
+    }
+    const result = firstRpcRow<any>(data);
+    return jsonResponse({
+      received: true,
+      requestId: result?.requestId || null,
+      payoutStatus: result?.payoutStatus || null,
+      duplicate: Boolean(result?.duplicate),
+    });
+  }
+
+  // ── Handle shop payment events ──
   const isShopPaymentEvent =
-    event.shopAccountId === masterBusinessId &&
     validShopPaymentReference(event.referenceId) &&
     (event.eventKind === 'payment_completed' || event.eventKind === 'payment_expired');
-  const isServicePaymentEvent =
-    event.shopAccountId !== masterBusinessId &&
-    isUuid(event.referenceId);
+  const isServicePaymentEvent = isUuid(event.referenceId);
+
   if (!isShopPaymentEvent && !isServicePaymentEvent) {
     return jsonResponse({ ignored: true });
   }
 
-  // General payment webhooks may omit the Payment Session ID. Resolve it only
-  // from the server-owned reference saved when the checkout was created.
+  // Resolve checkout ID from reference if missing
   if (event.eventKind === 'payment_completed' && !event.checkoutId) {
     const lookup = isShopPaymentEvent
       ? admin
@@ -414,10 +384,7 @@ Deno.serve(async (request) => {
     });
   }
 
-  if (!validSplitRuleId(splitRuleId)) {
-    return jsonResponse({ error: 'Xendit service split configuration is incomplete.' }, 503);
-  }
-
+  // ── Service payment events (casket orders) ──
   const { data, error } = await admin.rpc('reconcile_xendit_service_event', {
     p_event_id: event.eventId,
     p_event_type: event.eventType,
@@ -425,13 +392,13 @@ Deno.serve(async (request) => {
     p_checkout_id: event.checkoutId,
     p_reference_id: event.referenceId,
     p_provider_payment_id: event.paymentId,
-    p_provider_split_payment_id: event.splitPaymentId,
-    p_split_rule_id: event.splitRuleId,
+    p_provider_split_payment_id: null,
+    p_split_rule_id: null,
     p_shop_account_id: event.shopAccountId,
-    p_destination_account_id: event.destinationAccountId,
+    p_destination_account_id: null,
     p_currency: event.currency,
     p_gross_amount: event.grossAmount,
-    p_split_amount: event.splitAmount,
+    p_split_amount: null,
     p_livemode: false,
     p_payload: event.payload,
   });
@@ -441,12 +408,138 @@ Deno.serve(async (request) => {
   }
 
   const result = firstRpcRow<any>(data);
-  return jsonResponse({
+  const responsePayload: Record<string, unknown> = {
     received: true,
     requestId: result?.requestId || null,
     status: result?.status || null,
     providerStatus: result?.providerStatus || null,
     commissionStatus: result?.commissionStatus || null,
     duplicate: Boolean(result?.duplicate),
-  });
+  };
+
+  // ── After payment_completed: trigger payout of 70% to shop ──
+  if (event.eventKind === 'payment_completed' && !result?.duplicate && result?.status === 'payment_verified') {
+    const requestId = result?.requestId;
+    const shopNetAmount = result?.shopNetAmount;
+    if (requestId && shopNetAmount && shopNetAmount > 0) {
+      try {
+        const payoutRefId = `lifecycle-payout-${requestId}`;
+        const { data: payoutData, error: payoutError } = await admin.rpc('initiate_shop_payout', {
+          p_request_id: requestId,
+          p_payout_reference_id: payoutRefId,
+        });
+        const payoutInfo = firstRpcRow<any>(payoutData);
+
+        if (payoutError) {
+          console.error('Unable to initiate shop payout:', payoutError.code || 'unknown');
+        } else if (payoutInfo && !payoutInfo.alreadyInitiated && payoutInfo.payoutAmount > 0) {
+          // Call Xendit Payouts API to send 70% to shop
+          const payoutBody = {
+            reference_id: payoutRefId,
+            channel_code: payoutInfo.payoutChannelCode,
+            channel_properties: {
+              account_holder_name: payoutInfo.payoutAccountName,
+              account_number: payoutInfo.payoutAccountNumber,
+            },
+            amount: payoutInfo.payoutAmount,
+            currency: 'PHP',
+            description: `LifeCycle shop payout (70%) for order ${requestId}`.slice(0, 200),
+            metadata: {
+              purpose: 'lifecycle_shop_payout',
+              request_id: requestId,
+              commission_percent: '30',
+            },
+          };
+
+          const payoutResponse = await fetch(XENDIT_PAYOUTS_URL, {
+            method: 'POST',
+            headers: {
+              Authorization: basicAuth(xenditSecretKey),
+              Accept: 'application/json',
+              'Content-Type': 'application/json',
+              'Idempotency-key': payoutRefId,
+            },
+            body: JSON.stringify(payoutBody),
+          }).catch(() => null);
+
+          const payoutJson = payoutResponse ? await payoutResponse.json().catch(() => null) : null;
+          if (payoutResponse?.ok && payoutJson?.id) {
+            responsePayload.payoutInitiated = true;
+            responsePayload.payoutId = payoutJson.id;
+            console.log('Shop payout initiated:', payoutJson.id, 'Amount:', payoutInfo.payoutAmount);
+          } else {
+            const payoutErrorCode = String(payoutJson?.error_code || 'payout_failed').slice(0, 80);
+            console.error('Xendit payout creation failed:', payoutErrorCode);
+            responsePayload.payoutInitiated = false;
+            responsePayload.payoutError = payoutErrorCode;
+
+            // Mark failure on the service request
+            await admin
+              .from('funeral_service_requests')
+              .update({
+                payoutStatus: 'failed',
+                payoutFailureCode: payoutErrorCode,
+                updatedAt: new Date().toISOString(),
+              })
+              .eq('id', requestId);
+
+            const formattedPayout = Number(payoutInfo.payoutAmount).toLocaleString('en-PH', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            });
+
+            // 1. Notify Admins immediately
+            const { data: admins } = await admin
+              .from('users')
+              .select('id')
+              .in('role', ['admin', 'super_admin', 'funeral_admin']);
+
+            if (admins && admins.length > 0) {
+              await admin.from('notifications').insert(
+                admins.map((adm: any) => ({
+                  userId: adm.id,
+                  type: 'admin_payout_failed',
+                  title: `ALERT: Shop Payout Failed (₱${formattedPayout})`,
+                  body: `70% payout for order #${requestId.slice(0, 8)} failed to dispatch via Xendit (${payoutErrorCode}). Please check admin balance or shop details.`,
+                  data: {
+                    requestId,
+                    payoutError: payoutErrorCode,
+                    amount: payoutInfo.payoutAmount,
+                  },
+                  read: false,
+                }))
+              );
+            }
+
+            // 2. Notify Shop
+            const { data: reqData } = await admin
+              .from('funeral_service_requests')
+              .select('shopId')
+              .eq('id', requestId)
+              .maybeSingle();
+
+            if (reqData?.shopId) {
+              await admin.from('notifications').insert({
+                userId: reqData.shopId,
+                type: 'shop_payout_failed',
+                title: `Payout Issue: ₱${formattedPayout}`,
+                body: `Your 70% payout of ₱${formattedPayout} for order #${requestId.slice(0, 8)} encountered an issue (${payoutErrorCode}). An administrator will review your account.`,
+                data: {
+                  requestId,
+                  payoutError: payoutErrorCode,
+                  amount: payoutInfo.payoutAmount,
+                },
+                read: false,
+              });
+            }
+          }
+        }
+      } catch (payoutErr) {
+        console.error('Payout initiation error:', payoutErr);
+        responsePayload.payoutInitiated = false;
+      }
+    }
+  }
+
+  return jsonResponse(responsePayload);
 });
