@@ -3,13 +3,16 @@ import { View, Text, Button, Alert, StyleSheet } from "react-native";
 import { supabase } from "../../services/supabaseClient";
 import { getSupabaseEmailRedirectTo } from "../../services/supabaseAuthRedirect";
 import { useAuth } from "../../context/AuthContext";
+import { useAppDialog } from '../../hooks/useAppDialog';
 import { useResponsive } from "../../utils/responsive";
+import { confirmLogout } from '../../utils/logoutConfirmation';
 
 const RESEND_COOLDOWN_SECONDS = 60;
 const RATE_LIMIT_COOLDOWN_SECONDS = 120;
 
 export default function VerificationScreen() {
   const { user, logout } = useAuth();
+  const { showDialog, dialog } = useAppDialog();
   const [resending, setResending] = useState(false);
   const [checking, setChecking] = useState(false);
   const [countdown, setCountdown] = useState(30 * 60);
@@ -124,12 +127,11 @@ export default function VerificationScreen() {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await logout();
-    } catch (error: any) {
-      Alert.alert("Logout Failed", error.message);
-    }
+  const handleLogout = () => {
+    confirmLogout({
+      logout,
+      showDialog,
+    });
   };
 
   return (
@@ -151,8 +153,9 @@ export default function VerificationScreen() {
         <View style={{ marginTop: 10 }} />
         <Button title={checking ? "Checking..." : "I've Verified My Email"} onPress={checkVerification} disabled={checking} />
         <View style={{ marginTop: 10 }} />
-        <Button title="Logout Now" onPress={handleLogout} color="red" />
+        <Button title="Logout Now" onPress={handleLogout} color="#22312d" />
       </View>
+      {dialog}
     </View>
   );
 }

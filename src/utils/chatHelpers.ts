@@ -58,15 +58,16 @@ export const ensureConversationForUsers = async (
   _db: any, // kept for signature compatibility
   uid1: string,
   uid2: string,
-  preferredConversationId?: string
+  preferredConversationId?: string,
+  shopId?: string | null
 ): Promise<string> => {
   if (!uid1 || !uid2) throw new Error("Both conversation participants are required.");
   if (uid1 === uid2) throw new Error("A direct conversation requires two different users.");
 
   const participants = [uid1, uid2].sort();
-  const selectFields = "id, participants, hiddenFor";
+  const selectFields = "id, participants, hiddenFor, shopId";
 
-  let conv: { id: string; participants: string[]; hiddenFor?: string[] } | null = null;
+  let conv: { id: string; participants: string[]; hiddenFor?: string[]; shopId?: string | null } | null = null;
 
   if (preferredConversationId) {
     const { data, error } = await supabase
@@ -84,17 +85,26 @@ export const ensureConversationForUsers = async (
       if (!exactParticipants) {
         throw new Error("This conversation link does not match its participants.");
       }
+      if (shopId && data.shopId !== shopId) {
+        throw new Error("This conversation does not belong to the selected shop.");
+      }
       conv = data;
     }
   }
 
   if (!conv) {
-    const { data, error: lookupError } = await supabase
+    let lookupQuery = supabase
       .from("conversations")
       .select(selectFields)
       .contains("participants", participants)
       .containedBy("participants", participants)
-      .order("updatedAt", { ascending: false })
+      .order("updatedAt", { ascending: false });
+
+    lookupQuery = shopId
+      ? lookupQuery.eq("shopId", shopId)
+      : lookupQuery.is("shopId", null);
+
+    const { data, error: lookupError } = await lookupQuery
       .limit(1)
       .maybeSingle();
 
@@ -119,6 +129,7 @@ export const ensureConversationForUsers = async (
 
   const { data: createdConversation, error: createError } = await supabase.from("conversations").insert({
       participants,
+      shopId: shopId || null,
       hiddenFor: [],
       updatedAt: new Date().toISOString()
     }).select("id").single();

@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase'
 import { addFuneralCartItem, loadFuneralCart } from '@/utils/funeralCart'
 import type { User } from '@supabase/supabase-js'
 import BrandLogo from '@/components/BrandLogo'
+import NotificationDropdown from '@/components/NotificationDropdown'
+import LogoutLink from '@/components/LogoutLink'
 import './ProductDetailPage.css'
 
 type Product = {
@@ -20,11 +22,12 @@ type Product = {
   category: string
   imageUrl: string | null
   galleryImageUrls: string[]
-  variations: { id: string; name: string; imageUrl?: string | null }[]
+  variations: { id: string; name: string; price?: number | null; imageUrl?: string | null }[]
   packageItems: PackageDisplayItem[]
 }
 
 type ShopPackage = {
+  items?: { id?: string; name?: string; imageUrl?: string | null }[] | null
   flowersImageUrl?: string | null
   candlesImageUrl?: string | null
   curtainsImageUrl?: string | null
@@ -47,6 +50,14 @@ type RelatedProduct = {
 
 function getPackageItems(row?: ShopPackage | null): PackageDisplayItem[] {
   if (!row || row.active === false) return []
+  if (Array.isArray(row.items) && row.items.length > 0) {
+    return row.items
+      .map(item => ({
+        name: String(item?.name || '').trim(),
+        imageUrl: item?.imageUrl || null,
+      }))
+      .filter(item => Boolean(item.name && item.imageUrl))
+  }
   return [
     { name: 'Flowers', imageUrl: row.flowersImageUrl },
     { name: 'Candles', imageUrl: row.candlesImageUrl },
@@ -163,6 +174,11 @@ export default function ProductDetailPage() {
   }
 
   const variations = product?.variations ?? []
+  const selectedVariationItem = variations.find(variation => variation.id === selectedVariation) || null
+  const selectedProductPrice = selectedVariationItem?.price && selectedVariationItem.price > 0
+    ? selectedVariationItem.price
+    : product?.price || 0
+  const calculatedTotal = selectedProductPrice
   const baseGallery = product?.galleryImageUrls.length ? product.galleryImageUrls
     : product?.imageUrl ? [product.imageUrl]
     : []
@@ -225,7 +241,7 @@ export default function ProductDetailPage() {
           .select(`
             id, name, description, price, stock, "imageUrl", active, "shopId", "hasVariations",
             funeral_product_images ( "imageUrl", "displayOrder" ),
-            funeral_product_variations ( id, name, "imageUrl" ),
+            funeral_product_variations ( id, name, price, "imageUrl" ),
             funeral_shops!inner ( "shopName", "shopImageUrl", "shopAddress", "shopPhoneNumber", "generalLocation", status )
           `)
           .eq('id', productId)
@@ -248,6 +264,7 @@ export default function ProductDetailPage() {
         const variationList = vars.map((v: any) => ({
           id: String(v.id),
           name: String(v.name || 'Standard'),
+          price: v.price == null ? null : Number(v.price),
           imageUrl: v.imageUrl ?? null,
         }))
 
@@ -271,7 +288,7 @@ export default function ProductDetailPage() {
 
         const { data: packageData } = await supabase
           .from('funeral_shop_packages')
-          .select('"flowersImageUrl", "candlesImageUrl", "curtainsImageUrl", "vehicleImageUrl", active')
+          .select('items, "flowersImageUrl", "candlesImageUrl", "curtainsImageUrl", "vehicleImageUrl", active')
           .eq('shopId', productData.shopId)
           .eq('active', true)
           .maybeSingle()
@@ -333,8 +350,9 @@ export default function ProductDetailPage() {
       shopId: product.shopId,
       shopName: product.shopName,
       name: product.name,
-      price: product.price,
+      price: calculatedTotal,
       imageUrl: varItem?.imageUrl ?? product.imageUrl,
+      variationId: varItem?.id ?? null,
       variationName: varItem?.name ?? null,
       packageItems: product.packageItems.map(item => item.name),
       quantity: 1,
@@ -364,8 +382,9 @@ export default function ProductDetailPage() {
       shopId: product.shopId,
       shopName: product.shopName,
       name: product.name,
-      price: product.price,
+      price: calculatedTotal,
       imageUrl: varItem?.imageUrl ?? product.imageUrl,
+      variationId: varItem?.id ?? null,
       variationName: varItem?.name ?? null,
       packageItems: product.packageItems.map(item => item.name),
       quantity: 1,
@@ -413,7 +432,7 @@ export default function ProductDetailPage() {
             <Link to="/seller">Seller Centre</Link>
           </div>
           <div className="sp-topbar-right">
-            <Link to="/user/notifications">Notifications</Link>
+            <NotificationDropdown />
             <Link to="/user/help">Help Centre</Link>
             <span className="sp-divider">|</span>
             {isLoggedIn
@@ -434,7 +453,7 @@ export default function ProductDetailPage() {
                     <Link to="/user/profile">My Account</Link>
                     <Link to="/user/purchase">Purchases</Link>
                     <Link to="/auth/switch-account" className="sp-dropdown-switch">Switch Account</Link>
-                    <Link to="/auth/logout">Log out</Link>
+                    <LogoutLink>Log out</LogoutLink>
                   </div>
                 </div>
               )
@@ -456,20 +475,17 @@ export default function ProductDetailPage() {
                 value={queryText}
                 onChange={e => setQueryText(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && navigate(`/funeral?search=${encodeURIComponent(queryText)}`)}
-                placeholder="Search for caskets..."
+                placeholder="Search products"
                 aria-label="Search"
               />
               <button type="button" className="sp-search-btn" onClick={() => navigate(`/funeral?search=${encodeURIComponent(queryText)}`)} aria-label="Search">
                 <SearchIcon />
               </button>
             </div>
-            <div className="sp-trending">
-              <button type="button" onClick={() => navigate('/funeral?search=Caskets')}>Caskets</button>
-            </div>
           </div>
 
           <div className="sp-cart-area">
-            <Link to={isLoggedIn ? '/user/cart' : '/login?next=/user/cart'} className="sp-cart-btn" aria-label="Cart">
+            <Link to={isLoggedIn ? '/user/cart' : '/login?next=/user/cart'} className="sp-cart-btn" aria-label="Shopping cart" title="Shopping cart">
               <HeaderCartIcon />
               {isLoggedIn && cartCount > 0 && <span className="sp-cart-count">{cartCount}</span>}
             </Link>
@@ -563,8 +579,13 @@ export default function ProductDetailPage() {
             </div>
 
             <div className="pd-price-block">
-              <span className="pd-price-label">Price</span>
-              <div className="pd-price-value">{formatPeso(product.price)}</div>
+              <span className="pd-price-label">Total price</span>
+              <div className="pd-price-value">{formatPeso(calculatedTotal)}</div>
+              {selectedVariationItem && (
+                <span className="pd-price-breakdown">
+                  Selected variation: {selectedVariationItem.name}
+                </span>
+              )}
             </div>
 
 
@@ -592,7 +613,9 @@ export default function ProductDetailPage() {
                       aria-pressed={selectedVariation === v.id}
                     >
                       {v.imageUrl && <img src={v.imageUrl} alt={v.name} className="pd-variation-img" />}
-                      <span>{v.name}</span>
+                      <span className="pd-variation-copy">
+                        <strong>{v.name}</strong>
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -633,10 +656,10 @@ export default function ProductDetailPage() {
 
             <div className="pd-actions-row">
               <button className="pd-btn pd-btn-cart" onClick={handleAddToCart} disabled={product.stock === 0}>
-                <CartIcon /> Add to cart
+                <CartIcon /> Add to cart · {formatPeso(calculatedTotal)}
               </button>
               <button className="pd-btn pd-btn-buy" onClick={handleBuyNow} disabled={product.stock === 0}>
-                Buy now
+                Buy now · {formatPeso(calculatedTotal)}
               </button>
             </div>
             {!isLoggedIn && (

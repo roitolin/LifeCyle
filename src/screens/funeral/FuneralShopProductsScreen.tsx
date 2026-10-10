@@ -408,7 +408,11 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
       Alert.alert("Your shop", "You cannot start a chat with your own shop account.");
       return;
     }
-    navigation.navigate("ShopChat", { otherUserId: shopId, otherUserName: shopName || "Funeral Shop" });
+    navigation.navigate("ShopChat", {
+      otherUserId: shopId,
+      otherUserName: shopName || "Funeral Shop",
+      shopId,
+    });
   };
 
   const callShop = async () => {
@@ -459,9 +463,11 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
   };
 
   const showShopMenu = () => {
-    const actions: any[] = [
-      { text: "Custom casket request", onPress: openCustomRequest },
-    ];
+    const actions: any[] = [];
+    if (viewerId === shopId) {
+      actions.push({ text: "Add new product", onPress: () => navigation.navigate("ProductEditor") });
+    }
+    actions.push({ text: "Custom casket request", onPress: openCustomRequest });
     if (shopPhoneNumber) {
       actions.push({ text: "Call shop", onPress: () => void callShop() });
     }

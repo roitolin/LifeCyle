@@ -5,6 +5,7 @@ import { loadFuneralCart, removeFuneralCartItem, type WebFuneralCartItem } from 
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import BrandLogo from '@/components/BrandLogo'
+import LogoutLink from '@/components/LogoutLink'
 import './CartPage.css'
 
 type ViewerProfile = {
@@ -291,7 +292,7 @@ function TopBar({ profile }: { profile: ViewerProfile | null }) {
               <Link to="/user/profile">My Account</Link>
               <Link to="/user/purchase">Purchases</Link>
               <Link to="/auth/switch-account" className="cart-dropdown-switch">Switch Account</Link>
-              <Link to="/auth/logout">Log out</Link>
+              <LogoutLink>Log out</LogoutLink>
             </div>
           </div>
         </div>

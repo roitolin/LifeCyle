@@ -453,3 +453,17 @@
 .purchase-page-nav .purchase-back-btn:hover {
   color: #172033;
 }
+
+/* Match the homepage header color. */
+.purchase-topbar,
+.purchase-header {
+  background: #22312d;
+}
+
+.purchase-search button {
+  background: #315f50;
+}
+
+.purchase-search button:hover {
+  background: #3f6f58;
+}

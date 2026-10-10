@@ -237,6 +237,7 @@ create policy "Shop owners can manage images"
 create table if not exists public.conversations (
   id uuid primary key default gen_random_uuid(),
   participants uuid[] not null,
+  "shopId" uuid references public.funeral_shops(id) on delete cascade,
   "lastMessage" jsonb,
   "hiddenFor" uuid[] default array[]::uuid[],
   "pinnedFor" uuid[] not null default array[]::uuid[],
@@ -253,6 +254,9 @@ create policy "Users can access their conversations" on public.conversations for
 create index if not exists conversations_pinned_for_idx on public.conversations using gin ("pinnedFor");
 create index if not exists conversations_archived_for_idx on public.conversations using gin ("archivedFor");
 create index if not exists conversations_unread_for_idx on public.conversations using gin ("unreadFor");
+create index if not exists conversations_shop_updated_idx
+  on public.conversations ("shopId", "updatedAt" desc)
+  where "shopId" is not null;
 
 create table if not exists public.messages (
   id uuid primary key default gen_random_uuid(),

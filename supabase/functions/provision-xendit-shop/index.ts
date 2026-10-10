@@ -9,7 +9,6 @@ const VALID_PAYOUT_CHANNELS = new Set([
   'PH_GCASH', 'PH_MAYA',
   'PH_BDO', 'PH_BPI', 'PH_UBP', 'PH_METROBANK',
   'PH_LANDBANK', 'PH_PNB', 'PH_RCBC', 'PH_CHINABANK',
-  'PH_SECURITYBANK', 'PH_EASTWESTBANK',
 ]);
 
 function corsHeaders(request: Request) {
@@ -90,6 +89,7 @@ Deno.serve(async (request) => {
     payoutChannelCode?: unknown;
     payoutAccountName?: unknown;
     payoutAccountNumber?: unknown;
+    active?: unknown;
     action?: unknown;
   };
   try {
@@ -156,6 +156,24 @@ Deno.serve(async (request) => {
       return jsonResponse(request, { error: 'Unable to save the payout verification.' }, 500);
     }
 
+    const verifiedAt = new Date().toISOString();
+    const { error: accountError } = await admin
+      .from('funeral_shop_payout_accounts')
+      .upsert({
+        shopId,
+        channelCode,
+        accountName,
+        accountNumber,
+        active: true,
+        verifiedByAdmin: true,
+        verifiedAt,
+        updatedAt: verifiedAt,
+      }, { onConflict: 'shopId,channelCode' });
+    if (accountError) {
+      console.error('Unable to verify receiver account:', accountError.code || 'unknown');
+      return jsonResponse(request, { error: 'Unable to save the receiver account verification.' }, 500);
+    }
+
     return jsonResponse(request, {
       shopId,
       payoutChannelCode: channelCode,
@@ -202,6 +220,24 @@ Deno.serve(async (request) => {
       return jsonResponse(request, { error: 'Unable to save the payout details.' }, 500);
     }
 
+    const updatedAt = new Date().toISOString();
+    const { error: accountError } = await admin
+      .from('funeral_shop_payout_accounts')
+      .upsert({
+        shopId,
+        channelCode,
+        accountName,
+        accountNumber,
+        active: true,
+        verifiedByAdmin: false,
+        verifiedAt: null,
+        updatedAt,
+      }, { onConflict: 'shopId,channelCode' });
+    if (accountError) {
+      console.error('Unable to save receiver account:', accountError.code || 'unknown');
+      return jsonResponse(request, { error: 'Unable to save the receiver account.' }, 500);
+    }
+
     return jsonResponse(request, {
       shopId,
       payoutChannelCode: channelCode,
@@ -211,5 +247,30 @@ Deno.serve(async (request) => {
     });
   }
 
-  return jsonResponse(request, { error: 'Invalid action. Use "verify" or "update".' }, 400);
+  if (action === 'set-active') {
+    if (userData.user.id !== shopId && !isAdmin) {
+      return jsonResponse(request, { error: 'Only the shop owner can change this receiver account.' }, 403);
+    }
+    const channelCode = String(input?.payoutChannelCode || '').trim().toUpperCase();
+    if (!VALID_PAYOUT_CHANNELS.has(channelCode) || typeof input?.active !== 'boolean') {
+      return jsonResponse(request, { error: 'A valid receiver account and status are required.' }, 400);
+    }
+
+    const { data: account, error: accountError } = await admin
+      .from('funeral_shop_payout_accounts')
+      .update({ active: input.active, updatedAt: new Date().toISOString() })
+      .eq('shopId', shopId)
+      .eq('channelCode', channelCode)
+      .select('channelCode, active, verifiedByAdmin')
+      .maybeSingle();
+    if (accountError) {
+      console.error('Unable to change receiver account status:', accountError.code || 'unknown');
+      return jsonResponse(request, { error: 'Unable to change the receiver account status.' }, 500);
+    }
+    if (!account) return jsonResponse(request, { error: 'Receiver account not found.' }, 404);
+
+    return jsonResponse(request, { shopId, ...account });
+  }
+
+  return jsonResponse(request, { error: 'Invalid action. Use "verify", "update", or "set-active".' }, 400);
 });

@@ -686,3 +686,9 @@
 .notification-page-nav .notification-back-btn:hover {
   color: #172033;
 }
+
+/* Match the homepage header color. */
+.notification-topbar,
+.notification-header {
+  background: #22312d;
+}

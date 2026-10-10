@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { loadFuneralPurchases, type WebFuneralPurchase } from '@/utils/funeralPurchase'
 import BrandLogo from '@/components/BrandLogo'
+import LogoutLink from '@/components/LogoutLink'
 import './PurchasePage.css'
 
 type ViewerProfile = {
@@ -101,7 +102,7 @@ export default function PurchasePage() {
                 <Link to="/user/profile">My Account</Link>
                 <Link to="/user/purchase">Purchases</Link>
                 <Link to="/auth/switch-account">Switch Account</Link>
-                <Link to="/auth/logout">Log out</Link>
+                <LogoutLink>Log out</LogoutLink>
               </div>
             </div>
           </div>

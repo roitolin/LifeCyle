@@ -82,6 +82,7 @@ function LoginPage() {
     const search = new URLSearchParams(location.search)
     if (search.get('registered') === '1') return 'Registration successful. Check your email to verify your account.'
     if (search.get('verifyExpired') === '1') return 'Verification session expired after 30 minutes. Please log in again.'
+    if (search.get('passwordReset') === '1') return 'Your password has been reset. You can now log in with your new password.'
     return ''
   }, [location.search])
   const redirectAfterLogin = useMemo(() => {
@@ -289,6 +290,10 @@ function LoginPage() {
                   </svg>
                 )}
               </button>
+            </div>
+
+            <div className='auth-forgot-row'>
+              <Link to='/forgot-password'>Forgot password?</Link>
             </div>
 
             <button type="submit" className={`solid-btn auth-submit${loading ? ' auth-submit-loading' : ''}`} disabled={loading}>

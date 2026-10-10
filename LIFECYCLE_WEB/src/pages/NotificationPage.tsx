@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import BrandLogo from '@/components/BrandLogo'
+import LogoutLink from '@/components/LogoutLink'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import { supabase } from '@/lib/supabase'
@@ -374,7 +375,7 @@ export default function NotificationPage() {
                 <Link to="/user/profile">My Account</Link>
                 <Link to="/user/purchase">Purchases</Link>
                 <Link to="/auth/switch-account">Switch Account</Link>
-                <Link to="/auth/logout">Log out</Link>
+                <LogoutLink>Log out</LogoutLink>
               </div>
             </div>
           </div>

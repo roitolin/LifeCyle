@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Button } from 'react-native-paper';
 
 import { useAuth } from '@/context/AuthContext';
+import { useAppDialog } from '@/hooks/useAppDialog';
 import { termsSections } from '@/screens/shared/TermsOfUseScreen';
 import { confirmLogout } from '@/utils/logoutConfirmation';
 
@@ -26,6 +27,7 @@ export default function TermsAndConditionsScreen() {
   const [readProgress, setReadProgress] = useState(0);
   const [saving, setSaving] = useState(false);
   const { acceptTerms, logout, user } = useAuth();
+  const { showDialog, dialog } = useAppDialog();
 
   const ownerName = useMemo(() => {
     const displayName = String(user?.displayName || '').trim();
@@ -185,7 +187,7 @@ export default function TermsAndConditionsScreen() {
               <Button
                 mode='outlined'
                 disabled={saving}
-                onPress={() => confirmLogout({ logout })}
+                onPress={() => confirmLogout({ logout, showDialog })}
                 style={styles.actionButton}
                 textColor='#5a6b64'
               >
@@ -205,6 +207,7 @@ export default function TermsAndConditionsScreen() {
           </View>
         </View>
       </SafeAreaView>
+      {dialog}
     </View>
   );
 }

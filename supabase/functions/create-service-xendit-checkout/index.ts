@@ -5,6 +5,19 @@ const CREATE_SESSION_URL = 'https://api.xendit.co/sessions';
 const XENDIT_PAYOUTS_URL = 'https://api.xendit.co/v2/payouts';
 const MAX_BODY_BYTES = 16 * 1024;
 
+const SHOP_PAYMENT_METHODS = [
+  { accountChannel: 'PH_GCASH', providerChannel: 'GCASH', label: 'GCash', type: 'wallet' },
+  { accountChannel: 'PH_MAYA', providerChannel: 'PAYMAYA', label: 'Maya', type: 'wallet' },
+  { accountChannel: 'PH_BDO', providerChannel: 'BANK_TRANSFER', label: 'Bank transfer · BDO', type: 'bank' },
+  { accountChannel: 'PH_BPI', providerChannel: 'BANK_TRANSFER', label: 'Bank transfer · BPI', type: 'bank' },
+  { accountChannel: 'PH_UBP', providerChannel: 'BANK_TRANSFER', label: 'Bank transfer · UnionBank', type: 'bank' },
+  { accountChannel: 'PH_METROBANK', providerChannel: 'BANK_TRANSFER', label: 'Bank transfer · Metrobank', type: 'bank' },
+  { accountChannel: 'PH_LANDBANK', providerChannel: 'BANK_TRANSFER', label: 'Bank transfer · Landbank', type: 'bank' },
+  { accountChannel: 'PH_PNB', providerChannel: 'BANK_TRANSFER', label: 'Bank transfer · PNB', type: 'bank' },
+  { accountChannel: 'PH_RCBC', providerChannel: 'BANK_TRANSFER', label: 'Bank transfer · RCBC', type: 'bank' },
+  { accountChannel: 'PH_CHINABANK', providerChannel: 'BANK_TRANSFER', label: 'Bank transfer · China Bank', type: 'bank' },
+] as const;
+
 function corsHeaders(request: Request) {
   return {
     'Access-Control-Allow-Origin': request.headers.get('origin') || '*',
@@ -254,7 +267,7 @@ Deno.serve(async (request) => {
     return jsonResponse(request, { error: 'Your session is invalid or expired.' }, 401);
   }
 
-  let input: { requestId?: unknown; action?: unknown };
+  let input: { requestId?: unknown; action?: unknown; paymentMethod?: unknown };
   try {
     input = await readJson(request);
   } catch (error) {
@@ -262,12 +275,15 @@ Deno.serve(async (request) => {
     return jsonResponse(request, { error: 'Invalid checkout request.' }, status);
   }
   const requestId = String(input?.requestId || '').trim().toLowerCase();
-  const isSyncAction = String(input?.action || '').trim().toLowerCase() === 'sync';
+  const action = String(input?.action || '').trim().toLowerCase();
+  const isSyncAction = action === 'sync';
+  const isMethodsAction = action === 'methods';
+  const requestedPaymentMethod = String(input?.paymentMethod || '').trim().toUpperCase();
   if (!isUuid(requestId)) return jsonResponse(request, { error: 'A valid service request is required.' }, 400);
 
   const { data: serviceRequest, error: requestError } = await admin
     .from('funeral_service_requests')
-    .select('id, requesterId, shopId, productName, status, providerStatus, providerCheckoutId, providerCheckoutUrl, providerReferenceId, paymentAmount, shopNetAmount, commissionAmount')
+    .select('id, requesterId, shopId, productName, status, providerStatus, providerCheckoutId, providerCheckoutUrl, providerReferenceId, paymentAmount, shopNetAmount, commissionAmount, payoutChannelCode')
     .eq('id', requestId)
     .maybeSingle();
   if (requestError) return jsonResponse(request, { error: 'Unable to load the service request.' }, 500);
@@ -278,13 +294,44 @@ Deno.serve(async (request) => {
     return jsonResponse(request, { error: 'This service request is not available to your account.' }, 403);
   }
 
+  const { data: receiverAccounts, error: receiverError } = await admin
+    .from('funeral_shop_payout_accounts')
+    .select('channelCode')
+    .eq('shopId', serviceRequest.shopId)
+    .eq('active', true)
+    .eq('verifiedByAdmin', true);
+  if (receiverError) {
+    console.error('Unable to load shop receiver accounts:', receiverError.code || 'unknown');
+    return jsonResponse(request, { error: 'Unable to load this shop’s payment methods.' }, 500);
+  }
+
+  const configuredChannels = new Set((receiverAccounts || []).map((row: any) => String(row.channelCode || '').toUpperCase()));
+  const availableMethods = SHOP_PAYMENT_METHODS.filter(method => configuredChannels.has(method.accountChannel));
+
+  if (isMethodsAction) {
+    const selectedMethod = String(serviceRequest.payoutChannelCode || '').trim().toUpperCase();
+    return jsonResponse(request, {
+      requestId,
+      selectedMethod: configuredChannels.has(selectedMethod) ? selectedMethod : null,
+      methods: availableMethods.map(method => ({
+        code: method.accountChannel,
+        label: method.label,
+        type: method.type,
+      })),
+    });
+  }
+
   if (serviceRequest.status === 'payment_verified') {
     return jsonResponse(request, { paid: true, status: 'payment_verified', requestId, testMode: true, livemode: false });
   }
 
   // Active sync on any existing checkout session ID
   const existingProviderCheckoutId = String(serviceRequest.providerCheckoutId || '').trim();
+  const savedPaymentMethod = String(serviceRequest.payoutChannelCode || '').trim().toUpperCase();
   if (validProviderId(existingProviderCheckoutId) && existingProviderCheckoutId.startsWith('ps-')) {
+    if (!isSyncAction && requestedPaymentMethod && savedPaymentMethod && requestedPaymentMethod !== savedPaymentMethod) {
+      return jsonResponse(request, { error: 'This checkout is already locked to another payment method.' }, 409);
+    }
     const syncRes = await syncAndReconcileSession(
       admin,
       xenditSecretKey,
@@ -322,6 +369,15 @@ Deno.serve(async (request) => {
 
   if (serviceRequest.status !== 'awaiting_payment') {
     return jsonResponse(request, { error: 'This service request is not awaiting payment.' }, 409);
+  }
+
+  const selectedMethod = availableMethods.find(method => method.accountChannel === requestedPaymentMethod);
+  if (!selectedMethod) {
+    return jsonResponse(request, {
+      error: availableMethods.length === 0
+        ? 'This shop has not configured a verified payment receiver account yet.'
+        : 'Choose one of the payment methods configured by this shop.',
+    }, 409);
   }
 
   // Direct payout model: claim checkout
@@ -371,6 +427,7 @@ Deno.serve(async (request) => {
       paid: false,
       testMode: true,
       livemode: false,
+      paymentMethod: savedPaymentMethod || undefined,
     });
   }
   if (!claim.shouldCreate || claim.inProgress) {
@@ -396,6 +453,16 @@ Deno.serve(async (request) => {
     return jsonResponse(request, { error: 'The authoritative casket price or commission is invalid.' }, 409);
   }
 
+  const { error: receiverSnapshotError } = await admin
+    .from('funeral_service_requests')
+    .update({ payoutChannelCode: selectedMethod.accountChannel, updatedAt: new Date().toISOString() })
+    .eq('id', requestId)
+    .eq('shopId', serviceRequest.shopId);
+  if (receiverSnapshotError) {
+    console.error('Unable to save receiver account snapshot:', receiverSnapshotError.code || 'unknown');
+    return jsonResponse(request, { error: 'Unable to lock the selected payment receiver.' }, 500);
+  }
+
   const productName = String(serviceRequest.productName || 'Casket').trim().slice(0, 80);
   // Direct checkout: no for-user-id or with-split-rule headers
   // Payment goes directly to admin's Xendit account
@@ -407,12 +474,14 @@ Deno.serve(async (request) => {
     currency: 'PHP',
     country: 'PH',
     capture_method: 'AUTOMATIC',
+    allowed_payment_channels: [selectedMethod.providerChannel],
     locale: 'en',
     description: `LifeCycle casket payment - ${productName}`.slice(0, 200),
     metadata: {
       purpose: 'lifecycle_casket_payment',
       request_id: requestId,
       shop_id: String(serviceRequest.shopId),
+      receiver_channel: selectedMethod.accountChannel,
       commission_percent: '30',
     },
   };
@@ -467,5 +536,6 @@ Deno.serve(async (request) => {
     reused: false,
     testMode: true,
     livemode: false,
+    paymentMethod: selectedMethod.accountChannel,
   });
 });

@@ -725,6 +725,12 @@
   color: var(--request-ink);
 }
 
+/* Match the homepage header color. */
+.checkout-page .checkout-topbar,
+.checkout-page .checkout-header {
+  background: #22312d;
+}
+
 .checkout-page .checkout-section-title,
 .checkout-page .checkout-order-summary > h2,
 .checkout-page .checkout-summary-name,

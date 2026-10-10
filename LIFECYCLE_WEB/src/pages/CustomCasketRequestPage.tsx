@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase'
 import { uploadCertificateWeb } from '@/lib/supabaseStorage'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
+import { checkServiceAvailability } from '@/utils/serviceAvailability'
+import LogoutLink from '@/components/LogoutLink'
 import './CheckoutPage.css' // Reusing Checkout styles for consistent form layout
 
 type ViewerProfile = {
@@ -254,6 +256,23 @@ export default function CustomCasketRequestPage() {
 
     setSubmitting(true)
     try {
+      const availability = await checkServiceAvailability({
+        shopId,
+        productId: 'custom_casket_design',
+        wakeStartDate,
+        wakeEndDate,
+      })
+
+      if (!availability.available) {
+        openAlert({
+          title: 'Schedule Unavailable',
+          message: availability.message,
+          tone: 'warning',
+          okLabel: 'Choose Other Dates',
+        })
+        return
+      }
+
       const requestId = generateId()
       const { error } = await supabase.from('funeral_service_requests').insert({
         id: requestId,
@@ -749,7 +768,7 @@ function TopBar({ profileName }: { profileName?: string | null }) {
               <Link to="/user/profile">My Account</Link>
               <Link to="/user/purchase">Purchases</Link>
               <Link to="/auth/switch-account" className="checkout-dropdown-switch">Switch Account</Link>
-              <Link to="/auth/logout">Log out</Link>
+              <LogoutLink>Log out</LogoutLink>
             </div>
           </div>
         </div>

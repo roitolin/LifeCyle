@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import BrandLogo from '@/components/BrandLogo'
+import DeathCertificateVaultCard from '@/components/DeathCertificateVaultCard'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import { supabase } from '@/lib/supabase'
@@ -1044,6 +1045,8 @@ export default function SellerServiceRequestPage() {
                 </button>
               </section>
             )}
+
+            <DeathCertificateVaultCard serviceRequestId={request.id} role="shop" />
 
             <section className="sr-card">
               <div className="sr-section-heading">

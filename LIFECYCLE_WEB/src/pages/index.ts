@@ -18,7 +18,6 @@ export { default as ShopRegistrationPage } from "./ShopRegistrationPage";
 export { default as FeedbackPage } from "./FeedbackPage";
 export { default as PurchasePage } from "./PurchasePage";
 export { default as NotificationPage } from "./NotificationPage";
-export { default as LogoutPage } from "./LogoutPage";
 export { default as CartPage } from "./CartPage";
 export { default as CheckoutPage } from "./CheckoutPage";
 export { default as MyServiceRequestsPage } from "./MyServiceRequestsPage";

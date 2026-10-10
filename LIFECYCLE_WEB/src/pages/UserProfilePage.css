@@ -27,6 +27,17 @@
 
 .profile-browse-link:hover { color: #ffffff; }
 
+/* Match the homepage header color. */
+.profile-page > .sp-topbar,
+.profile-page > .sp-header {
+  background: #22312d;
+}
+
+.profile-page > .sp-header .lc-brand {
+  --lc-brand-ink: #ffffff;
+  --lc-brand-soft: #c7d1dc;
+}
+
 .profile-sidebar {
   display: flex;
   flex-direction: column;

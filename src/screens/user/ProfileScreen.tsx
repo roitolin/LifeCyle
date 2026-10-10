@@ -5,8 +5,10 @@ import { Ionicons } from "@expo/vector-icons";
 import AccountSwitcher from '@/components/AccountSwitcher';
 import { KeyboardAwareScrollView } from "@/components";
 import { useAuth } from "@/context/AuthContext";
+import { useAppDialog } from '@/hooks/useAppDialog';
 import { supabase } from "@/services/supabaseClient";
 import { auth } from "@/services/supabaseAuth";
+import { confirmLogout } from '@/utils/logoutConfirmation';
 import { useResponsive } from "@/utils/responsive";
 
 const defaultProfile = require("../../../assets/Male_Default_Profile.png");
@@ -40,6 +42,7 @@ const getShopStatus = (shop: { status?: string | null } | null): ShopStatus => {
 export default function ProfileScreen({ navigation }: any) {
   const { isDesktop } = useResponsive();
   const { logout, user } = useAuth();
+  const { showDialog, dialog } = useAppDialog();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [photoURL, setPhotoURL] = useState<string | null>(null);
@@ -148,21 +151,11 @@ export default function ProfileScreen({ navigation }: any) {
           ? "Manage your verified funeral shop"
           : "Register your funeral shop";
 
-  const confirmLogout = () => {
-    Alert.alert("Log out", "Are you sure you want to log out?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Log out",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await logout();
-          } catch {
-            Alert.alert("Logout failed", "Please try again.");
-          }
-        },
-      },
-    ]);
+  const handleLogout = () => {
+    confirmLogout({
+      logout,
+      showDialog,
+    });
   };
 
   return (
@@ -266,8 +259,9 @@ export default function ProfileScreen({ navigation }: any) {
           onAddAccount={() => navigation.navigate('Login', { addAccount: true })}
           onManageAccounts={() => navigation.navigate('ManageDeviceAccounts')}
         />
-        <ActionRow icon='log-out-outline' label='Log Out' onPress={confirmLogout} danger showChevron={false} last />
+        <ActionRow icon='log-out-outline' label='Log Out' onPress={handleLogout} danger showChevron={false} last />
       </SettingsSection>
+      {dialog}
     </KeyboardAwareScrollView>
   );
 }

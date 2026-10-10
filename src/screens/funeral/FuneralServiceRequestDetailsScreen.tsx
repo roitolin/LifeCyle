@@ -1938,11 +1938,11 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
               <>
             {isRequestOwner && String(request.status || "").toLowerCase() === "awaiting_payment" ? (
               <TouchableOpacity
-                style={styles.acceptButton}
+                style={[styles.acceptButton, { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }]}
                 onPress={() => setXenditVisible(true)}
               >
                 <Ionicons name="flash" size={19} color="#ffffff" />
-                <Text style={styles.acceptButtonText}>1-Click Pay with Xendit</Text>
+                <Text style={styles.acceptButtonText}>Pay Online (GCash, Cards & Maya)</Text>
               </TouchableOpacity>
             ) : null}
 

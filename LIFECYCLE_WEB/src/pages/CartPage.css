@@ -578,3 +578,9 @@
 .cart-page-nav .cart-back-btn:hover {
   color: #172033;
 }
+
+/* Match the homepage header color. */
+.cart-topbar,
+.cart-header {
+  background: #22312d;
+}

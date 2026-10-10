@@ -10,6 +10,15 @@ import { addMonths, daysRemaining, formatSubscriptionDate, SUBSCRIPTION_MONTHS }
 import { fetchNotificationsForUser } from '@/utils/supabaseNotifications'
 import XenditShopPaymentCard from '@/components/XenditShopPaymentCard'
 import BrandLogo from '@/components/BrandLogo'
+import {
+  createShopScheduleEvent,
+  deleteShopScheduleEvent,
+  listShopScheduleEvents,
+  updateShopScheduleEvent,
+  type ShopScheduleEvent,
+  type ShopScheduleEventInput,
+  type ShopScheduleEventType,
+} from '@/utils/shopSchedule'
 
 type ShopInfo = {
   id: string
@@ -25,8 +34,25 @@ type ShopInfo = {
   createdAt: string
   updatedAt: string
   paidUntil: string | null
-  paymentQrUrl: string | null
-  serviceFeeAmount: number | string | null
+  serviceCapacity: number | string | null
+  payoutChannelCode: string | null
+  payoutAccountName: string | null
+  payoutAccountNumber: string | null
+  payoutVerifiedByAdmin: boolean | null
+  payoutVerifiedAt: string | null
+  individualRegisteredName?: string | null
+  businessName?: string | null
+  registeredAddress?: string | null
+  zipCode?: string | null
+  tin?: string | null
+  vatRegistrationStatus?: boolean | null
+}
+
+type ShopProfileDraft = {
+  name: string
+  address: string
+  phone: string
+  capacity: string
 }
 
 type ShopProduct = {
@@ -43,9 +69,16 @@ type ShopProduct = {
   updatedAt: string
 }
 
+type PackageItem = {
+  id: string
+  name: string
+  imageUrl?: string | null
+}
+
 type ShopPackage = {
   id?: string
   shopId?: string
+  items: PackageItem[]
   flowersImageUrl?: string | null
   candlesImageUrl?: string | null
   curtainsImageUrl?: string | null
@@ -55,14 +88,31 @@ type ShopPackage = {
   updatedAt?: string | null
 }
 
-type PackageField = 'flowersImageUrl' | 'candlesImageUrl' | 'curtainsImageUrl' | 'vehicleImageUrl'
+const MAX_PACKAGE_ITEMS = 12
 
-const SHOP_PACKAGE_ITEMS: { key: string; label: string; field: PackageField }[] = [
-  { key: 'flowers', label: 'Flowers', field: 'flowersImageUrl' },
-  { key: 'candles', label: 'Candles', field: 'candlesImageUrl' },
-  { key: 'curtains', label: 'Curtains', field: 'curtainsImageUrl' },
-  { key: 'vehicle', label: 'Vehicle', field: 'vehicleImageUrl' },
-]
+function createPackageItemId() {
+  return typeof crypto?.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `package-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+function normalizePackageItems(row?: Partial<ShopPackage> | null): PackageItem[] {
+  if (Array.isArray(row?.items) && row.items.length > 0) {
+    return row.items
+      .map(item => ({
+        id: String(item?.id || createPackageItemId()),
+        name: String(item?.name || ''),
+        imageUrl: item?.imageUrl || null,
+      }))
+  }
+
+  return [
+    { id: 'legacy-flowers', name: 'Flowers', imageUrl: row?.flowersImageUrl },
+    { id: 'legacy-candles', name: 'Candles', imageUrl: row?.candlesImageUrl },
+    { id: 'legacy-curtains', name: 'Curtains', imageUrl: row?.curtainsImageUrl },
+    { id: 'legacy-vehicle', name: 'Vehicle', imageUrl: row?.vehicleImageUrl },
+  ].filter(item => Boolean(item.imageUrl))
+}
 
 type ServiceRequest = {
   id: string
@@ -82,7 +132,6 @@ type ServiceRequest = {
   tributeMessage: string
   contactNumber: string
   status: string
-  paymentQrUrl?: string | null
   paymentAmount?: number | string | null
   paymentPayerName?: string | null
   paymentGcashName?: string | null
@@ -153,12 +202,14 @@ async function notifyShopFollowersOnNewProduct(
 
 type ProductVariation = {
   name: string
+  price: string
   imageUrl: string | null
 }
 
 type ProductVariationDetail = {
   id: string
   name: string
+  price: number | null
   imageUrl: string | null
 }
 
@@ -195,6 +246,124 @@ type ShopPayment = {
   expiresAt: string | null
 }
 
+type ShopPayoutAccount = {
+  id: string
+  shopId: string
+  channelCode: string
+  accountName: string
+  accountNumber: string
+  active: boolean
+  verifiedByAdmin: boolean
+  verifiedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+type FamilyPaymentFilter = 'all' | 'review' | 'verified'
+type FamilyPaymentIconName = 'wallet' | 'clock' | 'check' | 'receipt' | 'person' | 'key' | 'image' | 'alert' | 'chevron'
+type SellerCentreTab = 'dashboard' | 'products' | 'packages' | 'orders' | 'customers' | 'calendar' | 'reports' | 'payments' | 'payout_accounts' | 'payout_account_setup' | 'admin_payments' | 'settings' | 'registered_information' | 'product_editor'
+type ScheduleFilter = 'all' | 'requests' | 'shop'
+
+type ScheduleItem = {
+  id: string
+  source: 'request' | 'shop'
+  dateKey: string
+  timeSort: string
+  timeLabel: string
+  title: string
+  subtitle: string
+  location: string | null
+  kind: 'wake' | 'burial' | ShopScheduleEventType
+  request?: ServiceRequest
+  event?: ShopScheduleEvent
+}
+
+type ScheduleEventDraft = {
+  title: string
+  eventType: ShopScheduleEventType
+  eventDate: string
+  startTime: string
+  endTime: string
+  location: string
+  notes: string
+}
+
+const SCHEDULE_EVENT_TYPES: { value: ShopScheduleEventType; label: string }[] = [
+  { value: 'appointment', label: 'Appointment' },
+  { value: 'delivery', label: 'Delivery' },
+  { value: 'follow_up', label: 'Follow-up' },
+  { value: 'blocked', label: 'Unavailable' },
+  { value: 'other', label: 'Other' },
+]
+
+const EMPTY_SCHEDULE_DRAFT: ScheduleEventDraft = {
+  title: '',
+  eventType: 'appointment',
+  eventDate: '',
+  startTime: '09:00',
+  endTime: '',
+  location: '',
+  notes: '',
+}
+
+const SHOP_PAYOUT_CHANNELS = [
+  { value: 'PH_GCASH', label: 'GCash', type: 'wallet' },
+  { value: 'PH_MAYA', label: 'Maya', type: 'wallet' },
+  { value: 'PH_BDO', label: 'BDO Unibank', type: 'bank' },
+  { value: 'PH_BPI', label: 'Bank of the Philippine Islands (BPI)', type: 'bank' },
+  { value: 'PH_UBP', label: 'UnionBank of the Philippines', type: 'bank' },
+  { value: 'PH_METROBANK', label: 'Metrobank', type: 'bank' },
+  { value: 'PH_LANDBANK', label: 'Landbank of the Philippines', type: 'bank' },
+  { value: 'PH_PNB', label: 'Philippine National Bank (PNB)', type: 'bank' },
+  { value: 'PH_RCBC', label: 'Rizal Commercial Banking Corporation (RCBC)', type: 'bank' },
+  { value: 'PH_CHINABANK', label: 'China Banking Corporation', type: 'bank' },
+] as const
+
+function getPayoutChannelLabel(value: string | null | undefined) {
+  return SHOP_PAYOUT_CHANNELS.find(channel => channel.value === value)?.label || value || 'Not selected'
+}
+
+function maskPayoutAccount(value: string | null | undefined) {
+  const clean = String(value || '').trim()
+  if (!clean) return 'Not provided'
+  if (clean.length <= 4) return clean
+  return `${'•'.repeat(Math.min(6, clean.length - 4))}${clean.slice(-4)}`
+}
+
+function FamilyPaymentIcon({ name }: { name: FamilyPaymentIconName }) {
+  const common = {
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.9,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true,
+  }
+
+  if (name === 'wallet') return <svg {...common}><path d="M4 6.5h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a3 3 0 0 1-3-3v-11a3 3 0 0 1 3-3h12"/><path d="M16 11h5v5h-5a2.5 2.5 0 0 1 0-5Z"/></svg>
+  if (name === 'clock') return <svg {...common}><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+  if (name === 'check') return <svg {...common}><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg>
+  if (name === 'receipt') return <svg {...common}><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6M9 12h6"/></svg>
+  if (name === 'person') return <svg {...common}><circle cx="12" cy="8" r="3"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/></svg>
+  if (name === 'key') return <svg {...common}><circle cx="8" cy="15" r="3"/><path d="m10.5 13.5 8-8M16 6l2 2M13.5 8.5l2 2"/></svg>
+  if (name === 'image') return <svg {...common}><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 15-4-4L6 20"/></svg>
+  if (name === 'alert') return <svg {...common}><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+  if (name === 'chevron') return <svg {...common}><path d="m9 18 6-6-6-6"/></svg>
+  return <svg {...common}><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/></svg>
+}
+
+function getFamilyPaymentStatus(request: ServiceRequest) {
+  const status = String(request.status || '').toLowerCase()
+  if (status === 'payment_submitted') {
+    return { label: 'Needs review', icon: 'clock' as FamilyPaymentIconName, className: 'is-review' }
+  }
+  if (request.paymentVerifiedAt || ['payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(status)) {
+    return { label: 'Verified', icon: 'check' as FamilyPaymentIconName, className: 'is-verified' }
+  }
+  return { label: 'Submitted', icon: 'receipt' as FamilyPaymentIconName, className: 'is-submitted' }
+}
+
 function formatPeso(value: number | string | null | undefined): string {
   const num = Number(String(value ?? '').replace(/[^\d.]/g, ''))
   if (!Number.isFinite(num) || num <= 0) return value ? String(value) : '—'
@@ -202,8 +371,8 @@ function formatPeso(value: number | string | null | undefined): string {
 }
 
 function formatCompactPeso(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) return '\\u20b10'
-  return `\\u20b1${new Intl.NumberFormat('en-PH', {
+  if (!Number.isFinite(value) || value <= 0) return '₱0'
+  return `₱${new Intl.NumberFormat('en-PH', {
     notation: 'compact',
     maximumFractionDigits: 1,
   }).format(value)}`
@@ -249,6 +418,118 @@ function formatScheduleTime(value: string | null | undefined): string {
   const minute = Number(match[2])
   if (hour > 23 || minute > 59) return value
   return `${hour % 12 || 12}:${String(minute).padStart(2, '0')} ${hour >= 12 ? 'PM' : 'AM'}`
+}
+
+function toScheduleDateKey(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function scheduleDateFromKey(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!match) return null
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+  return toScheduleDateKey(date) === value ? date : null
+}
+
+function normalizeScheduleDate(value: string | null | undefined): string | null {
+  if (!value) return null
+  const dateKey = String(value).slice(0, 10)
+  return scheduleDateFromKey(dateKey) ? dateKey : null
+}
+
+function buildScheduleCalendarDays(month: Date): Date[] {
+  const first = new Date(month.getFullYear(), month.getMonth(), 1)
+  const firstCell = new Date(first)
+  firstCell.setDate(first.getDate() - first.getDay())
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(firstCell)
+    date.setDate(firstCell.getDate() + index)
+    return date
+  })
+}
+
+function formatScheduleDayHeading(value: string): string {
+  const date = scheduleDateFromKey(value)
+  return date
+    ? date.toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' })
+    : value
+}
+
+function buildRequestScheduleItems(requests: ServiceRequest[]): ScheduleItem[] {
+  const items: ScheduleItem[] = []
+  requests.forEach(request => {
+    const name = request.deceasedFullName || request.productName || 'Service request'
+    const subtitle = [request.productName || 'Funeral service', request.familyCoordinatorName || request.requesterName]
+      .filter(Boolean)
+      .join(' · ')
+    const wakeStart = normalizeScheduleDate(request.wakeStartDate)
+    const wakeEnd = normalizeScheduleDate(request.wakeEndDate)
+
+    if (wakeStart) {
+      items.push({
+        id: `wake-start-${request.id}`,
+        source: 'request',
+        dateKey: wakeStart,
+        timeSort: '00:00',
+        timeLabel: 'All day',
+        title: `Wake begins · ${name}`,
+        subtitle,
+        location: request.wakeAddress || null,
+        kind: 'wake',
+        request,
+      })
+    }
+    if (wakeEnd && wakeEnd !== wakeStart) {
+      items.push({
+        id: `wake-end-${request.id}`,
+        source: 'request',
+        dateKey: wakeEnd,
+        timeSort: '00:01',
+        timeLabel: 'All day',
+        title: `Wake ends · ${name}`,
+        subtitle,
+        location: request.wakeAddress || null,
+        kind: 'wake',
+        request,
+      })
+    }
+    if (wakeEnd && request.burialTime) {
+      items.push({
+        id: `burial-${request.id}`,
+        source: 'request',
+        dateKey: wakeEnd,
+        timeSort: String(request.burialTime).slice(0, 5) || '12:00',
+        timeLabel: formatScheduleTime(request.burialTime),
+        title: `Burial service · ${name}`,
+        subtitle,
+        location: request.cemeteryName || request.pickupAddress || request.wakeAddress || null,
+        kind: 'burial',
+        request,
+      })
+    }
+  })
+  return items
+}
+
+function buildShopScheduleItem(event: ShopScheduleEvent): ScheduleItem {
+  const typeLabel = SCHEDULE_EVENT_TYPES.find(type => type.value === event.event_type)?.label || 'Shop event'
+  const start = event.start_time ? formatScheduleTime(event.start_time) : 'All day'
+  const end = event.end_time ? ` – ${formatScheduleTime(event.end_time)}` : ''
+  return {
+    id: `shop-${event.id}`,
+    source: 'shop',
+    dateKey: event.event_date,
+    timeSort: event.start_time || '00:00',
+    timeLabel: `${start}${end}`,
+    title: event.title,
+    subtitle: typeLabel,
+    location: event.location,
+    kind: event.event_type,
+    event,
+  }
 }
 
 type SellerNotification = {
@@ -354,22 +635,64 @@ export default function SellerCentrePage() {
   const [products, setProducts] = useState<ShopProduct[]>([])
   const [packages, setPackages] = useState<ShopPackage[]>([])
   const [requests, setRequests] = useState<ServiceRequest[]>([])
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'packages' | 'orders' | 'customers' | 'calendar' | 'reports' | 'payments' | 'admin_payments' | 'shop' | 'payment_setup' | 'product_editor'>(() => (
-    searchParams.get('tab') === 'orders' ? 'orders' : 'dashboard'
-  ))
+  const [activeTab, setActiveTab] = useState<SellerCentreTab>(() => {
+    const requestedTab = searchParams.get('tab')
+    if (requestedTab === 'orders' || requestedTab === 'settings' || requestedTab === 'registered_information') {
+      return requestedTab
+    }
+    return 'dashboard'
+  })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [productTab, setProductTab] = useState<'all' | 'live' | 'soldout'>('all')
   const [saving, setSaving] = useState(false)
   const [uploadingShopProfile, setUploadingShopProfile] = useState(false)
   const [uploadingShopCover, setUploadingShopCover] = useState(false)
+  const [editingShopProfile, setEditingShopProfile] = useState(false)
+  const [savingShopProfile, setSavingShopProfile] = useState(false)
+  const [shopProfileDraft, setShopProfileDraft] = useState<ShopProfileDraft>({
+    name: '',
+    address: '',
+    phone: '',
+    capacity: '1',
+  })
+  const [payoutDraft, setPayoutDraft] = useState({ channel: '', name: '', number: '' })
+  const [payoutAccounts, setPayoutAccounts] = useState<ShopPayoutAccount[]>([])
+  const [savingPayout, setSavingPayout] = useState(false)
   const [payment, setPayment] = useState<ShopPayment | null>(null)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [notifications, setNotifications] = useState<SellerNotification[]>([])
   const [sidebarExpanded, setSidebarExpanded] = useState<Record<string, boolean>>({ order: true, product: true, finance: true, setting: true })
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const [paymentVerifyingId, setPaymentVerifyingId] = useState('')
+  const [familyPaymentFilter, setFamilyPaymentFilter] = useState<FamilyPaymentFilter>('all')
   const [customerSearch, setCustomerSearch] = useState('')
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null)
+  const [scheduleMonth, setScheduleMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1))
+  const [selectedScheduleDate, setSelectedScheduleDate] = useState(() => toScheduleDateKey(new Date()))
+  const [scheduleFilter, setScheduleFilter] = useState<ScheduleFilter>('all')
+  const [shopScheduleEvents, setShopScheduleEvents] = useState<ShopScheduleEvent[]>([])
+  const [scheduleLoading, setScheduleLoading] = useState(false)
+  const [scheduleError, setScheduleError] = useState<string | null>(null)
+  const [scheduleModalOpen, setScheduleModalOpen] = useState(false)
+  const [editingScheduleEvent, setEditingScheduleEvent] = useState<ShopScheduleEvent | null>(null)
+  const [scheduleDraft, setScheduleDraft] = useState<ScheduleEventDraft>(EMPTY_SCHEDULE_DRAFT)
+  const [savingScheduleEvent, setSavingScheduleEvent] = useState(false)
+
+  useEffect(() => {
+    const requestedTab = searchParams.get('tab')
+    if (requestedTab === 'orders' || requestedTab === 'settings' || requestedTab === 'registered_information') {
+      setActiveTab(requestedTab)
+    }
+  }, [searchParams])
+
+  const toggleSidebarGroup = (group: 'order' | 'product' | 'finance' | 'setting') => {
+    setSidebarExpanded((current) => ({
+      ...current,
+      [group]: sidebarOpen ? !current[group] : true,
+    }))
+    if (!sidebarOpen) setSidebarOpen(true)
+  }
 
   // Product details viewer
   const [selectedProduct, setSelectedProduct] = useState<ShopProduct | null>(null)
@@ -389,15 +712,6 @@ export default function SellerCentrePage() {
   const [completionProofPreview, setCompletionProofPreview] = useState<string | null>(null)
   const [uploadingCompletionProof, setUploadingCompletionProof] = useState(false)
 
-  // Payment QR & Amount states
-  const paymentQrFileInputRef = useRef<HTMLInputElement | null>(null)
-  const [paymentQrUrl, setPaymentQrUrl] = useState<string | null>(null)
-  const [paymentFeeInput, setPaymentFeeInput] = useState('')
-  const [paymentQrFile, setPaymentQrFile] = useState<File | null>(null)
-  const [paymentQrPreview, setPaymentQrPreview] = useState<string | null>(null)
-  const [paymentSaving, setPaymentSaving] = useState(false)
-  const [paymentQrSavedAt, setPaymentQrSavedAt] = useState<string | null>(null)
-
   // Product Editor States
   const [editingProductId, setEditingProductId] = useState<string | null>(null)
   const [editorLoading, setEditorLoading] = useState(false)
@@ -410,7 +724,7 @@ export default function SellerCentrePage() {
   const [editorImages, setEditorImages] = useState<(string | null)[]>(Array(5).fill(null))
   const [editorUploadingIndex, setEditorUploadingIndex] = useState<number | null>(null)
   const [packageSaving, setPackageSaving] = useState(false)
-  const [uploadingPackageField, setUploadingPackageField] = useState<PackageField | null>(null)
+  const [uploadingPackageItemId, setUploadingPackageItemId] = useState<string | null>(null)
 
   const openProductEditor = async (productId: string | null) => {
     setEditingProductId(productId)
@@ -420,7 +734,7 @@ export default function SellerCentrePage() {
       setEditorPrice("")
       setEditorStock("1")
       setEditorHasVariations(false)
-      setEditorVariationEntries([{ name: "", imageUrl: null }])
+      setEditorVariationEntries([{ name: "", price: "", imageUrl: null }])
       setEditorDescription("")
       setEditorImages(Array(5).fill(null))
       return
@@ -432,7 +746,7 @@ export default function SellerCentrePage() {
         .from('funeral_products')
         .select(`
           *,
-          funeral_product_variations ( id, name, imageUrl ),
+          funeral_product_variations ( id, name, price, imageUrl ),
           funeral_product_images ( id, imageUrl, displayOrder )
         `)
         .eq('id', productId)
@@ -455,9 +769,10 @@ export default function SellerCentrePage() {
 
         const vars = (data.funeral_product_variations || []).map((v: any) => ({
           name: v.name || "",
+          price: v.price == null ? "" : String(v.price),
           imageUrl: v.imageUrl || null
         }))
-        setEditorVariationEntries(vars.length > 0 ? vars : [{ name: "", imageUrl: null }])
+        setEditorVariationEntries(vars.length > 0 ? vars : [{ name: "", price: "", imageUrl: null }])
         setEditorHasVariations(Boolean(data.hasVariations && vars.length > 0))
         setEditorDescription(data.description || "")
       }
@@ -556,25 +871,197 @@ export default function SellerCentrePage() {
     }
   }
 
-  const handlePaymentQrFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = event.target.files?.[0]
-    if (!selected) return
+  const createShopProfileDraft = (currentShop: ShopInfo): ShopProfileDraft => ({
+    name: currentShop.shopName || '',
+    address: currentShop.shopAddress || '',
+    phone: currentShop.shopPhoneNumber || '',
+    capacity: String(Math.max(1, Number(currentShop.serviceCapacity) || 1)),
+  })
 
-    if (!selected.type.startsWith('image/')) {
-      openAlert({ title: 'Invalid File', message: 'Please choose an image file for the payment QR code.', tone: 'warning', okLabel: 'Got It' })
+  const openShopProfileEditor = () => {
+    if (!shop) return
+    setShopProfileDraft(createShopProfileDraft(shop))
+    setEditingShopProfile(true)
+  }
+
+  const cancelShopProfileEditor = () => {
+    if (shop) setShopProfileDraft(createShopProfileDraft(shop))
+    setEditingShopProfile(false)
+  }
+
+  const saveShopProfile = async () => {
+    if (!user || !shop || savingShopProfile) return
+
+    const name = shopProfileDraft.name.trim().replace(/\s+/g, ' ')
+    const address = shopProfileDraft.address.trim().replace(/\s+/g, ' ')
+    const phone = shopProfileDraft.phone.trim().replace(/\s+/g, ' ')
+    const capacity = Number(shopProfileDraft.capacity)
+
+    if (!name || !address || !phone) {
+      openAlert({
+        title: 'Missing Information',
+        message: 'Shop name, public address, and phone number are required.',
+        tone: 'warning',
+        okLabel: 'Got It',
+      })
+      return
+    }
+    if (!Number.isInteger(capacity) || capacity < 1 || capacity > 20) {
+      openAlert({
+        title: 'Invalid Capacity',
+        message: 'Service capacity must be a whole number from 1 to 20.',
+        tone: 'warning',
+        okLabel: 'Got It',
+      })
       return
     }
 
-    if (paymentQrPreview) URL.revokeObjectURL(paymentQrPreview)
-    setPaymentQrFile(selected)
-    setPaymentQrPreview(URL.createObjectURL(selected))
+    setSavingShopProfile(true)
+    try {
+      const update = {
+        shopName: name,
+        shopAddress: address,
+        shopPhoneNumber: phone,
+        serviceCapacity: capacity,
+        updatedAt: new Date().toISOString(),
+      }
+      const { error: updateError } = await supabase
+        .from('funeral_shops')
+        .update(update)
+        .eq('id', shop.id)
+      if (updateError) throw updateError
+
+      setShop(current => current ? { ...current, ...update } : current)
+      setShopProfileDraft({ name, address, phone, capacity: String(capacity) })
+      setEditingShopProfile(false)
+      openAlert({
+        title: 'Shop Profile Updated',
+        message: 'Your public storefront information has been saved.',
+        tone: 'info',
+        okLabel: 'Done',
+      })
+    } catch (err: any) {
+      openAlert({
+        title: 'Save Failed',
+        message: err?.message || 'Unable to update the shop profile.',
+        tone: 'danger',
+        okLabel: 'Dismiss',
+      })
+    } finally {
+      setSavingShopProfile(false)
+    }
   }
 
-  const clearPaymentQrSelection = () => {
-    if (paymentQrPreview) URL.revokeObjectURL(paymentQrPreview)
-    setPaymentQrFile(null)
-    setPaymentQrPreview(null)
-    if (paymentQrFileInputRef.current) paymentQrFileInputRef.current.value = ''
+  const savePayoutAccount = async () => {
+    if (!user || !shop || savingPayout) return
+
+    const channel = payoutDraft.channel.trim().toUpperCase()
+    const accountName = payoutDraft.name.trim()
+    const accountNumber = payoutDraft.number.trim().replace(/[\s-]+/g, '')
+    const validChannel = SHOP_PAYOUT_CHANNELS.some(item => item.value === channel)
+
+    if (!validChannel) {
+      openAlert({ title: 'Select a Payout Account', message: 'Choose an e-wallet or supported bank account.', tone: 'warning', okLabel: 'Got It' })
+      return
+    }
+    if (accountName.length < 2 || accountName.length > 120) {
+      openAlert({ title: 'Check Account Name', message: 'Enter the registered account holder name.', tone: 'warning', okLabel: 'Got It' })
+      return
+    }
+    if (accountNumber.length < 4 || accountNumber.length > 30) {
+      openAlert({ title: 'Check Account Number', message: 'Enter a valid GCash, Maya, or bank account number.', tone: 'warning', okLabel: 'Got It' })
+      return
+    }
+
+    setSavingPayout(true)
+    try {
+      const { data, error: functionError } = await supabase.functions.invoke('provision-xendit-shop', {
+        body: {
+          shopId: shop.id,
+          action: 'update',
+          payoutChannelCode: channel,
+          payoutAccountName: accountName,
+          payoutAccountNumber: accountNumber,
+        },
+      })
+
+      if (functionError) {
+        let message = 'Unable to save the payout account.'
+        const context = (functionError as { context?: Response }).context
+        if (context && typeof context.json === 'function') {
+          try {
+            const body = await context.json()
+            if (typeof body?.error === 'string' && body.error.trim()) message = body.error
+          } catch {
+            // Keep the safe fallback message.
+          }
+        }
+        throw new Error(message)
+      }
+      if (!data || data.shopId !== shop.id) throw new Error('The payout account could not be confirmed.')
+
+      setPayoutDraft({ channel, name: accountName, number: accountNumber })
+      setShop(current => current ? {
+        ...current,
+        payoutChannelCode: channel,
+        payoutAccountName: accountName,
+        payoutAccountNumber: accountNumber,
+        payoutVerifiedByAdmin: false,
+        payoutVerifiedAt: null,
+      } : current)
+      setActiveTab('payout_accounts')
+      await loadData()
+      openAlert({
+        title: 'Payout Account Submitted',
+        message: 'Your payout details were saved and are now waiting for administrator verification.',
+        tone: 'info',
+        okLabel: 'Done',
+      })
+    } catch (err: unknown) {
+      openAlert({
+        title: 'Save Failed',
+        message: err instanceof Error ? err.message : 'Unable to save the payout account.',
+        tone: 'danger',
+        okLabel: 'Dismiss',
+      })
+    } finally {
+      setSavingPayout(false)
+    }
+  }
+
+  const openPayoutAccountEditor = (account?: ShopPayoutAccount, channelCode?: string) => {
+    setPayoutDraft(account ? {
+      channel: account.channelCode,
+      name: account.accountName,
+      number: account.accountNumber,
+    } : { channel: channelCode || '', name: '', number: '' })
+    setActiveTab('payout_account_setup')
+  }
+
+  const togglePayoutAccount = async (account: ShopPayoutAccount) => {
+    if (!shop || savingPayout) return
+    setSavingPayout(true)
+    try {
+      const { error: functionError } = await supabase.functions.invoke('provision-xendit-shop', {
+        body: {
+          shopId: shop.id,
+          action: 'set-active',
+          payoutChannelCode: account.channelCode,
+          active: !account.active,
+        },
+      })
+      if (functionError) throw functionError
+      await loadData()
+    } catch (err: unknown) {
+      openAlert({
+        title: 'Update Failed',
+        message: err instanceof Error ? err.message : 'Unable to change the receiver account status.',
+        tone: 'danger',
+        okLabel: 'Dismiss',
+      })
+    } finally {
+      setSavingPayout(false)
+    }
   }
 
   const handleCompletionProofFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -602,100 +1089,6 @@ export default function SellerCentrePage() {
   const openRequestDetail = (request: ServiceRequest) => {
     clearCompletionProofSelection()
     navigate(`/seller/requests/${request.id}`)
-  }
-
-  const handleSavePaymentSettings = async () => {
-    if (!user || paymentSaving) return
-
-    const parsedFee = Number(String(paymentFeeInput).replace(/[^\d.]/g, ''))
-    if (!String(paymentFeeInput).trim() || !Number.isFinite(parsedFee) || parsedFee <= 0) {
-      openAlert({ title: 'Invalid Amount', message: 'Please enter a valid service fee amount your requesters must send.', tone: 'warning', okLabel: 'Got It' })
-      return
-    }
-
-    setPaymentSaving(true)
-    try {
-      let finalQrUrl = paymentQrUrl
-
-      if (paymentQrFile) {
-        const ext = paymentQrFile.name.split('.').pop() || 'png'
-        const path = `payment-qr/shop_${user.id}_${Date.now()}.${ext}`
-        const { error: uploadError } = await supabase.storage.from('avatars').upload(path, paymentQrFile, { upsert: true })
-        if (uploadError) throw uploadError
-        const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
-        finalQrUrl = urlData.publicUrl
-      }
-
-      if (!finalQrUrl) {
-        openAlert({ title: 'QR Required', message: 'Upload the QR code requesters will scan to pay you.', tone: 'warning', okLabel: 'Got It' })
-        return
-      }
-
-      const { error } = await supabase
-        .from('funeral_shops')
-        .update({
-          paymentQrUrl: finalQrUrl,
-          serviceFeeAmount: parsedFee,
-          updatedAt: new Date().toISOString(),
-        })
-        .eq('id', user.id)
-      if (error) throw error
-
-      setPaymentQrUrl(finalQrUrl)
-      setPaymentFeeInput(String(parsedFee))
-      setPaymentQrSavedAt(new Date().toISOString())
-      clearPaymentQrSelection()
-      setRequests(current => current.map(request =>
-        request.status === 'accepted_by_shop'
-          ? { ...request, status: 'awaiting_payment', paymentQrUrl: finalQrUrl, paymentAmount: parsedFee }
-          : request
-      ))
-
-      openAlert({
-        title: 'Payment Settings Saved',
-        message: 'Every newly accepted request will use this QR code and amount automatically. Existing accepted requests are updated too.',
-        tone: 'info',
-        okLabel: 'Done',
-      })
-    } catch (err: any) {
-      openAlert({ title: 'Save Failed', message: 'Failed to save payment settings: ' + (err?.message || 'Unknown error.'), tone: 'danger', okLabel: 'Dismiss' })
-    } finally {
-      setPaymentSaving(false)
-    }
-  }
-
-  const handleRemovePaymentQr = () => {
-    if (!paymentQrUrl || paymentSaving) return
-    const parsedFee = Number(String(paymentFeeInput).replace(/[^\d.]/g, ''))
-    openConfirm({
-      title: 'Remove Payment QR?',
-      message: 'Requesters will no longer be shown a QR code to pay you. The fee amount will be kept.',
-      confirmLabel: 'Remove QR',
-      cancelLabel: 'Cancel',
-      tone: 'danger',
-      onConfirm: async () => {
-        if (!user) return
-        setPaymentSaving(true)
-        try {
-          const { error } = await supabase
-            .from('funeral_shops')
-            .update({
-              paymentQrUrl: null,
-              serviceFeeAmount: Number.isFinite(parsedFee) && parsedFee > 0 ? parsedFee : null,
-              updatedAt: new Date().toISOString(),
-            })
-            .eq('id', user.id)
-          if (error) throw error
-          setPaymentQrUrl(null)
-          setPaymentQrSavedAt(new Date().toISOString())
-          openAlert({ title: 'Payment QR Removed', message: 'The payment QR code was removed.', tone: 'info', okLabel: 'Done' })
-        } catch (err: any) {
-          openAlert({ title: 'Remove Failed', message: 'Failed to remove the QR code: ' + (err?.message || 'Unknown error.'), tone: 'danger', okLabel: 'Dismiss' })
-        } finally {
-          setPaymentSaving(false)
-        }
-      },
-    })
   }
 
   const handleSaveProduct = async () => {
@@ -726,9 +1119,12 @@ export default function SellerCentrePage() {
 
     const finalVars = editorHasVariations ? editorVariationEntries : []
     if (editorHasVariations) {
-      const hasInvalidVar = finalVars.some(v => !v.name.trim() || !v.imageUrl)
+      const hasInvalidVar = finalVars.some(v => {
+        const variationPrice = Number(String(v.price || '').replace(/[^\d.]/g, ''))
+        return !v.name.trim() || !v.imageUrl || !Number.isFinite(variationPrice) || variationPrice <= 0
+      })
       if (hasInvalidVar) {
-        openAlert({ title: 'Incomplete Variations', message: "Each variation needs a name and an image.", tone: 'warning', okLabel: 'Got It' })
+        openAlert({ title: 'Incomplete Variations', message: "Each variation needs a name, price, and image.", tone: 'warning', okLabel: 'Got It' })
         return
       }
     }
@@ -766,6 +1162,7 @@ export default function SellerCentrePage() {
         const variationRows = finalVars.map(v => ({
           productId: finalProductId,
           name: v.name.trim(),
+          price: Number(String(v.price || '').replace(/[^\d.]/g, '')),
           imageUrl: v.imageUrl || null,
         }))
         await supabase.from("funeral_product_variations").insert(variationRows)
@@ -795,7 +1192,36 @@ export default function SellerCentrePage() {
     }
   }
 
-  const handlePackageImageUpload = async (field: PackageField, event: React.ChangeEvent<HTMLInputElement>) => {
+  const addPackageItem = () => {
+    if (!user) return
+    setPackages(previous => {
+      const current = previous[0] || { shopId: user.id, active: true, items: [] }
+      const items = normalizePackageItems(current)
+      if (items.length >= MAX_PACKAGE_ITEMS) return previous.length ? previous : [current]
+      return [{ ...current, items: [...items, { id: createPackageItemId(), name: '', imageUrl: null }] }]
+    })
+  }
+
+  const updatePackageItem = (itemId: string, updates: Partial<PackageItem>) => {
+    if (!user) return
+    setPackages(previous => {
+      const current = previous[0] || { shopId: user.id, active: true, items: [] }
+      return [{
+        ...current,
+        items: normalizePackageItems(current).map(item => item.id === itemId ? { ...item, ...updates } : item),
+      }]
+    })
+  }
+
+  const removePackageItem = (itemId: string) => {
+    if (!user) return
+    setPackages(previous => {
+      const current = previous[0] || { shopId: user.id, active: true, items: [] }
+      return [{ ...current, items: normalizePackageItems(current).filter(item => item.id !== itemId) }]
+    })
+  }
+
+  const handlePackageImageUpload = async (itemId: string, event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file || !user) return
     if (!file.type.startsWith('image/')) {
@@ -803,19 +1229,18 @@ export default function SellerCentrePage() {
       return
     }
 
-    setUploadingPackageField(field)
+    setUploadingPackageItemId(itemId)
     try {
       const ext = file.name.split('.').pop()
-      const path = `packages/${user.id}_${field}_${Date.now()}.${ext}`
+      const path = `packages/${user.id}_${itemId}_${Date.now()}.${ext}`
       const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
       if (uploadError) throw uploadError
       const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
-      const current = packages[0] || { shopId: user.id, active: true }
-      setPackages([{ ...current, shopId: user.id, active: true, [field]: urlData.publicUrl }])
+      updatePackageItem(itemId, { imageUrl: urlData.publicUrl })
     } catch (err: any) {
       openAlert({ title: 'Upload Failed', message: err?.message || 'Unable to upload package picture.', tone: 'danger', okLabel: 'Dismiss' })
     } finally {
-      setUploadingPackageField(null)
+      setUploadingPackageItemId(null)
       event.target.value = ''
     }
   }
@@ -823,9 +1248,22 @@ export default function SellerCentrePage() {
   const handleSavePackage = async () => {
     if (!user || packageSaving) return
     const current = packages[0]
-    const missing = SHOP_PACKAGE_ITEMS.find(item => !current?.[item.field])
-    if (missing) {
-      openAlert({ title: 'Picture Required', message: `Add a picture for ${missing.label}.`, tone: 'warning', okLabel: 'Got It' })
+    const items = normalizePackageItems(current).map(item => ({
+      id: item.id,
+      name: item.name.trim(),
+      imageUrl: item.imageUrl || null,
+    }))
+    if (items.length === 0) {
+      openAlert({ title: 'Add an Inclusion', message: 'Add at least one item to your package.', tone: 'warning', okLabel: 'Got It' })
+      return
+    }
+    if (items.some(item => !item.name)) {
+      openAlert({ title: 'Name Required', message: 'Give every package item a name.', tone: 'warning', okLabel: 'Got It' })
+      return
+    }
+    const missingPhoto = items.find(item => !item.imageUrl)
+    if (missingPhoto) {
+      openAlert({ title: 'Picture Required', message: `Add a picture for ${missingPhoto.name}.`, tone: 'warning', okLabel: 'Got It' })
       return
     }
 
@@ -834,10 +1272,7 @@ export default function SellerCentrePage() {
       const payload: ShopPackage = {
         id: current.id,
         shopId: user.id,
-        flowersImageUrl: current.flowersImageUrl || null,
-        candlesImageUrl: current.candlesImageUrl || null,
-        curtainsImageUrl: current.curtainsImageUrl || null,
-        vehicleImageUrl: current.vehicleImageUrl || null,
+        items,
         active: true,
         updatedAt: new Date().toISOString(),
       }
@@ -853,18 +1288,42 @@ export default function SellerCentrePage() {
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user ?? null)
-      setAuthReady(true)
-      if (!data.session?.user) setLoading(false)
-    })
+    let mounted = true
+    void supabase.auth.getSession()
+      .then(({ data }) => {
+        if (!mounted) return
+        setUser(data.session?.user ?? null)
+        if (!data.session?.user) setLoading(false)
+      })
+      .catch(() => {
+        if (!mounted) return
+        setUser(null)
+        setLoading(false)
+        setError('Your session could not be checked. Refresh the page and try again.')
+      })
+      .finally(() => {
+        if (mounted) setAuthReady(true)
+      })
     const { data: l } = supabase.auth.onAuthStateChange((_, s) => {
+      if (!mounted) return
       setUser(s?.user ?? null)
       setAuthReady(true)
       if (!s?.user) setLoading(false)
     })
-    return () => l.subscription.unsubscribe()
+    return () => {
+      mounted = false
+      l.subscription.unsubscribe()
+    }
   }, [])
+
+  useEffect(() => {
+    if (!authReady || !user || !loading) return
+    const timeout = window.setTimeout(() => {
+      setLoading(false)
+      setError('The Shop Centre is taking too long to load. Check your connection, then retry.')
+    }, 20_000)
+    return () => window.clearTimeout(timeout)
+  }, [authReady, loading, user])
 
   useEffect(() => {
     if (!user) return
@@ -920,10 +1379,28 @@ export default function SellerCentrePage() {
       if (shopErr) throw shopErr
 
       setShop(shopData ?? null)
-      setPaymentQrUrl((shopData?.paymentQrUrl as string | null) || null)
-      const storedFee = Number(shopData?.serviceFeeAmount) || 0
-      setPaymentFeeInput(storedFee > 0 ? String(storedFee) : '')
-      setPaymentQrSavedAt((shopData?.updatedAt as string | null) || null)
+      if (shopData) {
+        setShopProfileDraft({
+          name: String(shopData.shopName || ''),
+          address: String(shopData.shopAddress || ''),
+          phone: String(shopData.shopPhoneNumber || ''),
+          capacity: String(Math.max(1, Number(shopData.serviceCapacity) || 1)),
+        })
+      }
+      setPayoutDraft({
+        channel: String(shopData?.payoutChannelCode || ''),
+        name: String(shopData?.payoutAccountName || ''),
+        number: String(shopData?.payoutAccountNumber || ''),
+      })
+      const { data: payoutAccountData, error: payoutAccountError } = await supabase
+        .from('funeral_shop_payout_accounts')
+        .select('id, "shopId", "channelCode", "accountName", "accountNumber", active, "verifiedByAdmin", "verifiedAt", "createdAt", "updatedAt"')
+        .eq('shopId', user.id)
+        .order('createdAt', { ascending: true })
+      if (payoutAccountError) throw payoutAccountError
+      setPayoutAccounts(((payoutAccountData || []) as ShopPayoutAccount[]).filter(account =>
+        SHOP_PAYOUT_CHANNELS.some(channel => channel.value === account.channelCode)
+      ))
 
       const { data: paymentData } = await supabase
         .from('shop_payments')
@@ -962,13 +1439,14 @@ export default function SellerCentrePage() {
 
       const { data: packagesData, error: packagesErr } = await supabase
         .from('funeral_shop_packages')
-        .select('id, "shopId", "flowersImageUrl", "candlesImageUrl", "curtainsImageUrl", "vehicleImageUrl", active, "createdAt", "updatedAt"')
+        .select('id, "shopId", items, "flowersImageUrl", "candlesImageUrl", "curtainsImageUrl", "vehicleImageUrl", active, "createdAt", "updatedAt"')
         .eq('shopId', user.id)
         .maybeSingle()
       if (packagesErr) throw packagesErr
       setPackages(packagesData ? [{
         id: String((packagesData as any).id),
         shopId: String((packagesData as any).shopId || user.id),
+        items: normalizePackageItems(packagesData as ShopPackage),
         flowersImageUrl: (packagesData as any).flowersImageUrl ?? null,
         candlesImageUrl: (packagesData as any).candlesImageUrl ?? null,
         curtainsImageUrl: (packagesData as any).curtainsImageUrl ?? null,
@@ -989,6 +1467,7 @@ export default function SellerCentrePage() {
 
       const reqs: ServiceRequest[] = (reqData?.data ?? []) as ServiceRequest[]
       setRequests(reqs)
+      setError(null)
 
     } catch (e: any) {
       setError(e?.message ?? 'Unable to load shop data.')
@@ -1009,7 +1488,7 @@ export default function SellerCentrePage() {
       const [variationsRes, imagesRes, ratingsRes, feedbackRes, feedbackCountRes] = await Promise.all([
         supabase
           .from('funeral_product_variations')
-          .select('id, name, "imageUrl"')
+          .select('id, name, price, "imageUrl"')
           .eq('productId', product.id)
           .order('name'),
         supabase
@@ -1046,6 +1525,7 @@ export default function SellerCentrePage() {
         variations: (variationsRes.data || []).map((v: any) => ({
           id: String(v.id),
           name: String(v.name),
+          price: v.price == null ? null : Number(v.price),
           imageUrl: v.imageUrl ?? null,
         })),
         images: (imagesRes.data || []).map((img: any) => ({
@@ -1102,10 +1582,18 @@ export default function SellerCentrePage() {
   }
 
   const paymentVerified = payment?.status === 'verified'
+  const shopAccountApproved = ['verified', 'live', 'offline'].includes(String(shop?.status || '').toLowerCase())
+  const selectedPayoutChannel = SHOP_PAYOUT_CHANNELS.find(channel => channel.value === payoutDraft.channel)
 
   const paidUntil = shop?.paidUntil ? new Date(shop.paidUntil) : null
-  const subscriptionActive = Boolean(paymentVerified && paidUntil && paidUntil.getTime() > Date.now())
-  const subscriptionExpired = Boolean(paymentVerified && paidUntil && paidUntil.getTime() <= Date.now())
+  const subscriptionActive = Boolean(paidUntil && paidUntil.getTime() > Date.now())
+  const renewalPaymentReady = Boolean(
+    paymentVerified
+    && payment?.verifiedAt
+    && paidUntil
+    && new Date(payment.verifiedAt).getTime() > paidUntil.getTime(),
+  )
+  const subscriptionExpired = Boolean(paymentVerified && paidUntil && paidUntil.getTime() <= Date.now() && !renewalPaymentReady)
   const daysLeft = daysRemaining(shop?.paidUntil)
 
   const openAdminPayments = () => {
@@ -1117,7 +1605,7 @@ export default function SellerCentrePage() {
     const currentShop = shop
     if (!currentShop || currentShop.status === 'live' || saving) return
 
-    if (!paymentVerified) {
+    if (!subscriptionActive && !paymentVerified) {
       openAdminPayments()
       return
     }
@@ -1182,14 +1670,13 @@ export default function SellerCentrePage() {
   const handleGoOffline = () => {
     if (shop?.status !== 'live' || saving) return
     openConfirm({
-      title: 'Go Offline?',
-      message: 'Your shop will be hidden from buyers the moment you confirm.',
+      title: 'Take shop offline',
+      message: 'Customers will no longer see your shop or products until you go online again.',
       details: [
-        'Your shop and products will no longer appear in buyer searches.',
-        'Orders you already received will still be processed normally.',
-        'Your subscription time keeps running — you can go live again anytime before it ends on ' + formatSubscriptionDate(shop.paidUntil) + '.',
+        'Existing orders will continue as usual.',
+        'Your subscription remains active until ' + formatSubscriptionDate(shop.paidUntil) + '.',
       ],
-      confirmLabel: 'Go Offline',
+      confirmLabel: 'Go offline',
       cancelLabel: 'Cancel',
       tone: 'warning',
       onConfirm: async () => {
@@ -1251,14 +1738,13 @@ export default function SellerCentrePage() {
 
   const handleUpdateStatus = async (request: ServiceRequest, nextStatus: 'accepted_by_shop' | 'declined_by_shop') => {
     const accepting = nextStatus === 'accepted_by_shop'
-    const savedPaymentAmount = Number(paymentFeeInput) || 0
     const requestProductPrice = Number(request.productPrice) || 0
-    const finalAmount = requestProductPrice > 0 ? requestProductPrice : savedPaymentAmount
+    const finalAmount = requestProductPrice
 
     if (accepting && finalAmount <= 0) {
       openAlert({
-        title: 'Payment Setup Required',
-        message: 'Configure the casket product price or shop default amount before accepting requests.',
+        title: 'Product Price Required',
+        message: 'Set the product or custom-service price before accepting this request.',
         tone: 'warning',
         okLabel: 'Got It',
       })
@@ -1547,6 +2033,141 @@ export default function SellerCentrePage() {
       .slice(0, 4)
   }, [scheduledRequests])
 
+  const scheduleCalendarDays = useMemo(() => buildScheduleCalendarDays(scheduleMonth), [scheduleMonth])
+
+  const loadShopSchedule = useCallback(async () => {
+    if (!shop?.id) return
+    setScheduleLoading(true)
+    setScheduleError(null)
+    try {
+      const firstDate = toScheduleDateKey(scheduleCalendarDays[0])
+      const lastDate = toScheduleDateKey(scheduleCalendarDays[scheduleCalendarDays.length - 1])
+      const events = await listShopScheduleEvents(shop.id, firstDate, lastDate)
+      setShopScheduleEvents(events)
+    } catch (scheduleLoadError: any) {
+      setScheduleError(scheduleLoadError?.message || 'Could not load the schedule.')
+    } finally {
+      setScheduleLoading(false)
+    }
+  }, [scheduleCalendarDays, shop?.id])
+
+  useEffect(() => {
+    if (activeTab === 'calendar') void loadShopSchedule()
+  }, [activeTab, loadShopSchedule])
+
+  const requestScheduleItems = useMemo(() => buildRequestScheduleItems(scheduledRequests), [scheduledRequests])
+  const combinedScheduleItems = useMemo(() =>
+    [...requestScheduleItems, ...shopScheduleEvents.map(buildShopScheduleItem)].sort((left, right) =>
+      left.dateKey.localeCompare(right.dateKey) || left.timeSort.localeCompare(right.timeSort)
+    ), [requestScheduleItems, shopScheduleEvents])
+  const allScheduleItems = useMemo(() => combinedScheduleItems.filter(item =>
+    scheduleFilter === 'all'
+    || (scheduleFilter === 'requests' && item.source === 'request')
+    || (scheduleFilter === 'shop' && item.source === 'shop')
+  ), [combinedScheduleItems, scheduleFilter])
+
+  const scheduleItemsByDate = useMemo(() => {
+    const grouped: Record<string, ScheduleItem[]> = {}
+    allScheduleItems.forEach(item => {
+      if (!grouped[item.dateKey]) grouped[item.dateKey] = []
+      grouped[item.dateKey].push(item)
+    })
+    return grouped
+  }, [allScheduleItems])
+
+  const selectedScheduleItems = scheduleItemsByDate[selectedScheduleDate] || []
+  const scheduleTodayKey = toScheduleDateKey(new Date())
+  const scheduleNextWeek = useMemo(() => {
+    const end = new Date()
+    end.setDate(end.getDate() + 7)
+    const endKey = toScheduleDateKey(end)
+    return combinedScheduleItems.filter(item => item.dateKey >= scheduleTodayKey && item.dateKey <= endKey).length
+  }, [combinedScheduleItems, scheduleTodayKey])
+
+  const openNewScheduleEvent = (date = selectedScheduleDate) => {
+    setEditingScheduleEvent(null)
+    setScheduleDraft({ ...EMPTY_SCHEDULE_DRAFT, eventDate: date })
+    setScheduleModalOpen(true)
+  }
+
+  const openScheduleEvent = (event: ShopScheduleEvent) => {
+    setEditingScheduleEvent(event)
+    setScheduleDraft({
+      title: event.title,
+      eventType: event.event_type,
+      eventDate: event.event_date,
+      startTime: event.start_time?.slice(0, 5) || '09:00',
+      endTime: event.end_time?.slice(0, 5) || '',
+      location: event.location || '',
+      notes: event.notes || '',
+    })
+    setScheduleModalOpen(true)
+  }
+
+  const saveScheduleEvent = async () => {
+    if (!shop?.id || savingScheduleEvent) return
+    const title = scheduleDraft.title.trim()
+    if (!title || !scheduleDraft.eventDate) {
+      openAlert({ title: 'Missing information', message: 'Enter a title and date.', tone: 'warning', okLabel: 'Done' })
+      return
+    }
+    if (scheduleDraft.endTime && scheduleDraft.startTime && scheduleDraft.endTime <= scheduleDraft.startTime) {
+      openAlert({ title: 'Check the time', message: 'The end time must be later than the start time.', tone: 'warning', okLabel: 'Done' })
+      return
+    }
+
+    const input: ShopScheduleEventInput = {
+      title,
+      eventType: scheduleDraft.eventType,
+      eventDate: scheduleDraft.eventDate,
+      startTime: scheduleDraft.startTime,
+      endTime: scheduleDraft.endTime,
+      location: scheduleDraft.location,
+      notes: scheduleDraft.notes,
+    }
+
+    setSavingScheduleEvent(true)
+    try {
+      if (editingScheduleEvent) await updateShopScheduleEvent(editingScheduleEvent.id, input)
+      else await createShopScheduleEvent(shop.id, input)
+      setScheduleModalOpen(false)
+      setEditingScheduleEvent(null)
+      setSelectedScheduleDate(scheduleDraft.eventDate)
+      const savedDate = scheduleDateFromKey(scheduleDraft.eventDate)
+      if (savedDate) setScheduleMonth(new Date(savedDate.getFullYear(), savedDate.getMonth(), 1))
+      await loadShopSchedule()
+    } catch (scheduleSaveError: any) {
+      openAlert({ title: 'Event not saved', message: scheduleSaveError?.message || 'Could not save the event.', tone: 'danger', okLabel: 'Dismiss' })
+    } finally {
+      setSavingScheduleEvent(false)
+    }
+  }
+
+  const removeScheduleEvent = () => {
+    if (!editingScheduleEvent || savingScheduleEvent) return
+    const event = editingScheduleEvent
+    openConfirm({
+      title: 'Delete schedule event?',
+      message: `Remove “${event.title}” from the shop schedule?`,
+      confirmLabel: 'Delete event',
+      cancelLabel: 'Cancel',
+      tone: 'danger',
+      onConfirm: async () => {
+        setSavingScheduleEvent(true)
+        try {
+          await deleteShopScheduleEvent(event.id)
+          setScheduleModalOpen(false)
+          setEditingScheduleEvent(null)
+          await loadShopSchedule()
+        } catch (scheduleDeleteError: any) {
+          openAlert({ title: 'Event not deleted', message: scheduleDeleteError?.message || 'Could not delete the event.', tone: 'danger', okLabel: 'Dismiss' })
+        } finally {
+          setSavingScheduleEvent(false)
+        }
+      },
+    })
+  }
+
   const recentRequests = useMemo(
     () => [...requests]
       .sort((left, right) => new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime())
@@ -1606,12 +2227,8 @@ export default function SellerCentrePage() {
   const isShopOnline = shop?.status === 'live'
 
   const profileReady = Boolean(shop?.shopName && shop.shopAddress && shop.shopPhoneNumber)
-  const paymentSetupReady = Boolean(
-    paymentQrUrl && Number(String(paymentFeeInput).replace(/[^\\d.]/g, '')) > 0
-  )
   const readinessItems = [
-    { label: 'Shop profile', detail: 'Address and contact details', complete: profileReady, tab: 'shop' },
-    { label: 'Payment collection', detail: 'QR code and service fee', complete: paymentSetupReady, tab: 'payment_setup' },
+    { label: 'Shop profile', detail: 'Address and contact details', complete: profileReady, tab: 'settings' },
     { label: 'Product catalog', detail: 'At least one available product', complete: stats.liveProducts > 0, tab: 'products' },
     { label: 'Storefront visibility', detail: 'Subscription active and shop online', complete: Boolean(subscriptionActive && isShopOnline), tab: 'admin_payments' },
   ] as const
@@ -1623,7 +2240,8 @@ export default function SellerCentrePage() {
     () =>
       requests.filter((r) => {
         const status = String(r.status || '').toLowerCase()
-        return ['payment_submitted', 'payment_verified'].includes(status) || Boolean(r.paymentProofImageUrl)
+        return Boolean(r.paymentProofImageUrl || r.paymentSubmittedAt)
+          || ['payment_submitted', 'payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(status)
       }),
     [requests]
   )
@@ -1644,6 +2262,16 @@ export default function SellerCentrePage() {
     )
   }, [paymentSubmissions])
 
+  const visibleFamilyPayments = useMemo(() => {
+    if (familyPaymentFilter === 'review') {
+      return paymentSubmissions.filter(request => String(request.status || '').toLowerCase() === 'payment_submitted')
+    }
+    if (familyPaymentFilter === 'verified') {
+      return paymentSubmissions.filter(request => getFamilyPaymentStatus(request).label === 'Verified')
+    }
+    return paymentSubmissions
+  }, [familyPaymentFilter, paymentSubmissions])
+
   const filtered = useMemo(() => {
     if (productTab === 'all') return products
     if (productTab === 'live') return products.filter(p => p.active && p.stock > 0)
@@ -1651,6 +2279,7 @@ export default function SellerCentrePage() {
   }, [products, productTab])
 
   const shopPackage = packages[0] || null
+  const packageItems = normalizePackageItems(shopPackage)
 
   const galleryImages = useMemo(() => {
     if (!selectedProduct) return []
@@ -1748,7 +2377,7 @@ export default function SellerCentrePage() {
   if (!shop) return null
 
   return (
-    <div className="sc-page">
+    <div className={`sc-page${sidebarOpen ? '' : ' sidebar-collapsed'}`}>
       {/* ── Header Bar ── */}
       <div className="sc-header-bar">
         <div className="sc-header-left">
@@ -1772,14 +2401,15 @@ export default function SellerCentrePage() {
           <div className="sc-notif-wrap">
             <button
               type="button"
-              className="sc-header-btn"
+              className="sc-header-btn sc-notification-button"
               title="Notifications"
+              aria-label="Notifications"
               aria-haspopup="dialog"
               aria-expanded={notificationsOpen}
               aria-controls="sc-notification-menu"
               onClick={() => setNotificationsOpen(prev => !prev)}
             >
-              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" /></svg>
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" /></svg>
               {unreadCount > 0 ? <span className="sc-notif-badge">{unreadCount > 9 ? '9+' : unreadCount}</span> : null}
             </button>
 
@@ -1833,20 +2463,37 @@ export default function SellerCentrePage() {
 
       {/* ── Workspace (Sidebar + Content) ── */}
       <div className="sc-workspace">
-        <aside className="sc-sidebar">
+        <aside id="seller-centre-sidebar" className="sc-sidebar">
           <nav className="sc-sidebar-nav">
+            <button
+              type="button"
+              className="sc-sidebar-toggle sc-sidebar-toggle-row"
+              onClick={() => setSidebarOpen((current) => !current)}
+              aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+              aria-expanded={sidebarOpen}
+              aria-controls="seller-centre-sidebar"
+              title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+            >
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M4 7H20" />
+                <path d="M4 12H20" />
+                <path d="M4 17H20" />
+              </svg>
+              <span className="sc-sidebar-label">Menu</span>
+            </button>
+
             {/* Dashboard */}
-            <div className={`sc-sidebar-item${activeTab === 'dashboard' ? ' active' : ''}`} onClick={() => setActiveTab('dashboard')}>
+            <div className={`sc-sidebar-item${activeTab === 'dashboard' ? ' active' : ''}`} onClick={() => setActiveTab('dashboard')} title="Dashboard">
               <svg className="sc-sidebar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
-              Dashboard
+              <span className="sc-sidebar-label">Dashboard</span>
             </div>
 
             {/* Operations Group */}
             <div className="sc-sidebar-group">
-              <div className="sc-sidebar-group-header" onClick={() => setSidebarExpanded(prev => ({ ...prev, order: !prev.order }))}>
+              <div className="sc-sidebar-group-header" onClick={() => toggleSidebarGroup('order')} title="Operations">
                 <div className="sc-sidebar-group-title">
                   <svg className="sc-sidebar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
-                  Operations
+                  <span className="sc-sidebar-label">Operations</span>
                 </div>
                 <svg className={`sc-arrow${sidebarExpanded.order ? ' expanded' : ''}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
               </div>
@@ -1859,17 +2506,17 @@ export default function SellerCentrePage() {
               )}
             </div>
 
-            <div className={`sc-sidebar-item${activeTab === 'reports' ? ' active' : ''}`} onClick={() => setActiveTab('reports')}>
+            <div className={`sc-sidebar-item${activeTab === 'reports' ? ' active' : ''}`} onClick={() => setActiveTab('reports')} title="Reports">
               <span className='sc-sidebar-icon' aria-hidden='true'>R</span>
-              Reports
+              <span className="sc-sidebar-label">Reports</span>
             </div>
 
             {/* Product Group */}
             <div className="sc-sidebar-group">
-              <div className="sc-sidebar-group-header" onClick={() => setSidebarExpanded(prev => ({ ...prev, product: !prev.product }))}>
+              <div className="sc-sidebar-group-header" onClick={() => toggleSidebarGroup('product')} title="Product">
                 <div className="sc-sidebar-group-title">
                   <svg className="sc-sidebar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /></svg>
-                  Product
+                  <span className="sc-sidebar-label">Product</span>
                 </div>
                 <svg className={`sc-arrow${sidebarExpanded.product ? ' expanded' : ''}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
               </div>
@@ -1883,35 +2530,41 @@ export default function SellerCentrePage() {
 
             {/* Finance Group */}
             <div className="sc-sidebar-group">
-              <div className="sc-sidebar-group-header" onClick={() => setSidebarExpanded(prev => ({ ...prev, finance: !prev.finance }))}>
+              <div className="sc-sidebar-group-header" onClick={() => toggleSidebarGroup('finance')} title="Finance">
                 <div className="sc-sidebar-group-title">
                   <svg className="sc-sidebar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
-                  Finance
+                  <span className="sc-sidebar-label">Finance</span>
                 </div>
                 <svg className={`sc-arrow${sidebarExpanded.finance ? ' expanded' : ''}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
               </div>
               {sidebarExpanded.finance && (
                 <div className="sc-sidebar-sub">
                   <div className={`sc-sidebar-sub-item${activeTab === 'payments' ? ' active' : ''}`} onClick={() => setActiveTab('payments')}>Family Payments</div>
-                  <div className={`sc-sidebar-sub-item${activeTab === 'payment_setup' ? ' active' : ''}`} onClick={() => setActiveTab('payment_setup')}>Family Payment Setup</div>
+                  <div className={`sc-sidebar-sub-item${activeTab === 'payout_accounts' || activeTab === 'payout_account_setup' ? ' active' : ''}`} onClick={() => setActiveTab('payout_accounts')}>Payout Accounts</div>
                   <div className={`sc-sidebar-sub-item${activeTab === 'admin_payments' ? ' active' : ''}`} onClick={openAdminPayments}>LifeCycle Payments</div>
                 </div>
               )}
             </div>
 
-            {/* Setting Group */}
+            {/* Shop Group */}
             <div className="sc-sidebar-group">
-              <div className="sc-sidebar-group-header" onClick={() => setSidebarExpanded(prev => ({ ...prev, setting: !prev.setting }))}>
+              <div className="sc-sidebar-group-header" onClick={() => toggleSidebarGroup('setting')} title="Shop">
                 <div className="sc-sidebar-group-title">
                   <svg className="sc-sidebar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
-                  Settings
+                  <span className="sc-sidebar-label">Shop</span>
                 </div>
                 <svg className={`sc-arrow${sidebarExpanded.setting ? ' expanded' : ''}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
               </div>
               {sidebarExpanded.setting && (
                 <div className="sc-sidebar-sub">
-                  <div className={`sc-sidebar-sub-item${activeTab === 'shop' ? ' active' : ''}`} onClick={() => setActiveTab('shop')}>Shop Profile</div>
-                  <div className="sc-sidebar-sub-item" onClick={() => navigate('/funeral')}>Back to Marketplace</div>
+                  <div
+                    className={`sc-sidebar-sub-item${activeTab === 'settings' || activeTab === 'registered_information' ? ' active' : ''}`}
+                    onClick={() => navigate('/seller?tab=settings')}
+                  >
+                    Profile &amp; Settings
+                  </div>
+                  <div className='sc-sidebar-sub-item' onClick={() => navigate(`/shop/${shop.id}`)}>View Storefront</div>
+                  <div className="sc-sidebar-sub-item" onClick={() => navigate('/funeral')}>Return to Marketplace</div>
                 </div>
               )}
             </div>
@@ -1941,222 +2594,566 @@ export default function SellerCentrePage() {
               {/* DASHBOARD VIEW */}
               {activeTab === 'dashboard' && (
                 <div className="sc-dashboard-overview">
-                  <section className="sc-dashboard-intro">
-                    <div className="sc-dashboard-intro-copy">
-                      <span className="sc-dashboard-eyebrow">Shop overview</span>
-                      <h1>{shop.shopName}</h1>
-                      <p>Review cases that need attention, monitor performance, and keep your storefront ready for families.</p>
+                  {/* Shop dashboard header */}
+                  <section className="sc-dashboard-hero">
+                    <div className="sc-dashboard-hero-main">
+                      <div className="sc-dashboard-hero-avatar-wrap">
+                        {shop.shopImageUrl ? (
+                          <img
+                            src={shop.shopImageUrl}
+                            alt={shop.shopName}
+                            className="sc-dashboard-hero-avatar"
+                          />
+                        ) : (
+                          <div className="sc-dashboard-hero-avatar-placeholder">
+                            {shop.shopName.trim().charAt(0).toUpperCase() || 'S'}
+                          </div>
+                        )}
+                        <span
+                          className={`sc-dashboard-hero-avatar-dot ${isShopOnline && subscriptionActive ? 'online' : 'offline'}`}
+                          title={isShopOnline && subscriptionActive ? 'Online & Discoverable' : 'Offline'}
+                        />
+                      </div>
+
+                      <div className="sc-dashboard-hero-details">
+                        <div className="sc-dashboard-hero-badges">
+                          <span className="sc-dashboard-badge verified">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+                            Verified
+                          </span>
+                          {isShopOnline && subscriptionActive ? (
+                            <span className="sc-dashboard-badge live">
+                              <span className="sc-badge-pulse-dot" />
+                              Storefront Active · {daysLeft}d left
+                            </span>
+                          ) : subscriptionExpired ? (
+                            <span className="sc-dashboard-badge warning" onClick={openAdminPayments} style={{ cursor: 'pointer' }}>
+                              Subscription Expired · Renew
+                            </span>
+                          ) : (
+                            <span className="sc-dashboard-badge neutral">
+                              {statusMeta.label}
+                            </span>
+                          )}
+                        </div>
+
+                        <h1 className="sc-dashboard-hero-title">Dashboard</h1>
+
+                        <div className="sc-dashboard-hero-meta">
+                          <span className="sc-dashboard-hero-meta-item">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                            {shop.generalLocation || shop.shopAddress || 'Philippines'}
+                          </span>
+                          {shop.shopPhoneNumber && (
+                            <span className="sc-dashboard-hero-meta-item">
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                              {shop.shopPhoneNumber}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div className="sc-dashboard-intro-actions">
+
+                    <div className="sc-dashboard-hero-actions">
                       {isShopOnline && (
-                        <button type="button" className="sc-dashboard-btn sc-dashboard-btn-secondary" onClick={() => navigate(`/shop/${shop.id}`)}>
-                          View storefront
+                        <button
+                          type="button"
+                          className="sc-dash-btn sc-dash-btn-secondary"
+                          onClick={() => navigate(`/shop/${shop.id}`)}
+                          title="Open public buyer storefront"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                          View Storefront
                         </button>
                       )}
-                      <button type="button" className="sc-dashboard-btn sc-dashboard-btn-primary" onClick={() => void openProductEditor(null)}>
-                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
-                        Add product
+                      <button
+                        type="button"
+                        className="sc-dash-btn sc-dash-btn-primary"
+                        onClick={() => void openProductEditor(null)}
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        Add Product
+                      </button>
+                      <button
+                        type="button"
+                        className="sc-dash-btn sc-dash-btn-ghost"
+                        onClick={() => setActiveTab('settings')}
+                        title="Edit shop profile and settings"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                        Settings
                       </button>
                     </div>
                   </section>
 
-                  <section className="sc-dashboard-kpis" aria-label="Shop performance summary">
-                    <article className="sc-dashboard-kpi">
-                      <span className="sc-dashboard-kpi-icon revenue" aria-hidden="true">₱</span>
-                      <div><span>Confirmed value</span><strong>{formatPeso(report.revenue)}</strong><small>Verified and completed cases</small></div>
+                  {/* Shop summary */}
+                  <section className="sc-dashboard-kpis" aria-label="Shop summary">
+                    {/* Revenue Card */}
+                    <article className="sc-kpi-card" onClick={() => setActiveTab('reports')} role="button" tabIndex={0}>
+                      <div className="sc-kpi-top">
+                        <span className="sc-kpi-label">Revenue</span>
+                        <div className="sc-kpi-icon-wrap emerald">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                        </div>
+                      </div>
+                      <div className="sc-kpi-value">{formatPeso(report.revenue)}</div>
+                      <div className="sc-kpi-bottom">
+                        <span className="sc-kpi-sub-pill emerald">
+                          {report.completed} completed
+                        </span>
+                        <span className="sc-kpi-sub-text">
+                          Avg. {formatPeso(report.averageValue)}
+                        </span>
+                      </div>
                     </article>
-                    <article className="sc-dashboard-kpi">
-                      <span className="sc-dashboard-kpi-icon cases" aria-hidden="true">
-                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 6h13M8 12h13M8 18h13" /><path d="M3 6h.01M3 12h.01M3 18h.01" /></svg>
-                      </span>
-                      <div><span>Active cases</span><strong>{stats.activeCases}</strong><small>{stats.awaitingFamilyConfirmation} awaiting family confirmation</small></div>
+
+                    {/* Active Cases Card */}
+                    <article className="sc-kpi-card" onClick={() => setActiveTab('orders')} role="button" tabIndex={0}>
+                      <div className="sc-kpi-top">
+                        <span className="sc-kpi-label">Active cases</span>
+                        <div className="sc-kpi-icon-wrap blue">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+                        </div>
+                      </div>
+                      <div className="sc-kpi-value">{stats.activeCases}</div>
+                      <div className="sc-kpi-bottom">
+                        {stats.awaitingFamilyConfirmation > 0 ? (
+                          <span className="sc-kpi-sub-pill amber">
+                            {stats.awaitingFamilyConfirmation} awaiting family
+                          </span>
+                        ) : (
+                          <span className="sc-kpi-sub-pill blue">
+                            No waiting cases
+                          </span>
+                        )}
+                        <span className="sc-kpi-sub-text">Currently in progress</span>
+                      </div>
                     </article>
-                    <article className="sc-dashboard-kpi">
-                      <span className="sc-dashboard-kpi-icon requests" aria-hidden="true">
-                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 2h9l5 5v15H6z" /><path d="M14 2v6h6M9 13h8M9 17h6" /></svg>
-                      </span>
-                      <div><span>New requests</span><strong>{stats.newRequests}</strong><small>{requests.length} total arrangement cases</small></div>
+
+                    {/* New requests */}
+                    <article className="sc-kpi-card" onClick={() => setActiveTab('orders')} role="button" tabIndex={0}>
+                      <div className="sc-kpi-top">
+                        <span className="sc-kpi-label">New requests</span>
+                        <div className="sc-kpi-icon-wrap indigo">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 12h-6l-2 3h-4l-2-3H2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-7z"/><path d="M5.45 5.11L2 12v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-7l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+                        </div>
+                      </div>
+                      <div className="sc-kpi-value">{stats.newRequests}</div>
+                      <div className="sc-kpi-bottom">
+                        {stats.newRequests > 0 ? (
+                          <span className="sc-kpi-sub-pill crimson">
+                            <span className="sc-kpi-dot crimson" /> Action needed
+                          </span>
+                        ) : (
+                          <span className="sc-kpi-sub-pill emerald">
+                            ✓ All reviewed
+                          </span>
+                        )}
+                        <span className="sc-kpi-sub-text">{requests.length} total cases</span>
+                      </div>
                     </article>
-                    <article className="sc-dashboard-kpi">
-                      <span className="sc-dashboard-kpi-icon products" aria-hidden="true">
-                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m3 7 9-4 9 4-9 4-9-4Z" /><path d="m3 7 9 4 9-4M3 12l9 4 9-4" /></svg>
-                      </span>
-                      <div><span>Live products</span><strong>{stats.liveProducts}</strong><small>{stats.lowStockProducts + stats.soldOutProducts} need stock attention</small></div>
+
+                    {/* Live Catalog Card */}
+                    <article className="sc-kpi-card" onClick={() => setActiveTab('products')} role="button" tabIndex={0}>
+                      <div className="sc-kpi-top">
+                        <span className="sc-kpi-label">Live products</span>
+                        <div className="sc-kpi-icon-wrap purple">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m7.5 4.27 9 5.15M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg>
+                        </div>
+                      </div>
+                      <div className="sc-kpi-value">{stats.liveProducts}</div>
+                      <div className="sc-kpi-bottom">
+                        {stats.lowStockProducts + stats.soldOutProducts > 0 ? (
+                          <span className="sc-kpi-sub-pill amber">
+                            {stats.lowStockProducts + stats.soldOutProducts} stock alert{stats.lowStockProducts + stats.soldOutProducts === 1 ? '' : 's'}
+                          </span>
+                        ) : (
+                          <span className="sc-kpi-sub-pill emerald">
+                            No stock alerts
+                          </span>
+                        )}
+                        <span className="sc-kpi-sub-text">Visible to customers</span>
+                      </div>
                     </article>
                   </section>
 
-                  <section className="sc-dashboard-panel sc-dashboard-analytics">
-                    <div className="sc-dashboard-panel-head">
-                      <div>
-                        <span className="sc-dashboard-panel-kicker">Performance</span>
-                        <h2>Last six months</h2>
+                 {/* Performance */}
+                 <section className="sc-dashboard-panel sc-analytics-panel">
+                    <div className="sc-panel-header sc-performance-header">
+                     <div>
+                        <h2 className="sc-panel-title">Performance</h2>
+                        <p className="sc-panel-description">Requests and verified revenue for the last six months.</p>
+                     </div>
+                      <div className="sc-performance-actions">
+                        <span className="sc-performance-rate"><strong>{report.conversionRate}%</strong> acceptance rate</span>
+                       <button type="button" className="sc-text-link-btn" onClick={() => setActiveTab('reports')}>
+                          View reports
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+                        </button>
                       </div>
-                      <button type="button" className="sc-dashboard-text-btn" onClick={() => setActiveTab('reports')}>Full report</button>
                     </div>
-                    <div className="sc-dashboard-chart-grid">
-                      <article className="sc-dashboard-chart-card">
-                        <div className="sc-dashboard-chart-head">
-                          <div><span>Cases received</span><strong>{report.monthly.reduce((total, entry) => total + entry.cases, 0)}</strong></div>
-                          <small>Monthly requests</small>
-                        </div>
-                        <div className="sc-dashboard-chart-bars" role="img" aria-label="Cases received over the last six months">
-                          {report.monthly.map((entry) => (
-                            <div className="sc-dashboard-chart-column" key={entry.key}>
-                              <span className="sc-dashboard-chart-value">{entry.cases}</span>
-                              <div className="sc-dashboard-chart-track">
-                                <span className="cases" style={{ height: `${entry.cases ? Math.max(8, Math.round((entry.cases / maxMonthlyCases) * 100)) : 3}%` }} />
-                              </div>
-                              <small>{entry.label}</small>
-                            </div>
-                          ))}
-                        </div>
-                      </article>
 
-                      <article className="sc-dashboard-chart-card">
-                        <div className="sc-dashboard-chart-head">
-                          <div><span>Confirmed value</span><strong>{formatPeso(report.revenue)}</strong></div>
-                          <small>Verified case value</small>
-                        </div>
-                        <div className="sc-dashboard-chart-bars" role="img" aria-label="Confirmed value over the last six months">
-                          {report.monthly.map((entry) => (
-                            <div className="sc-dashboard-chart-column" key={entry.key}>
-                              <span className="sc-dashboard-chart-value">{formatCompactPeso(entry.revenue)}</span>
-                              <div className="sc-dashboard-chart-track">
-                                <span className="revenue" style={{ height: `${entry.revenue ? Math.max(8, Math.round((entry.revenue / maxMonthlyRevenue) * 100)) : 3}%` }} />
-                              </div>
-                              <small>{entry.label}</small>
+                    <div className="sc-chart-dual-grid">
+                     <article className="sc-chart-card">
+                        <div className="sc-chart-card-header">
+                          <div>
+                            <span className="sc-chart-card-title">Requests</span>
+                            <span className="sc-chart-card-subtitle">{report.monthly.reduce((total, entry) => total + entry.cases, 0)} received</span>
+                         </div>
+                       </div>
+
+                        <div className="sc-chart-plot">
+                          <div className="sc-chart-axis" aria-hidden="true">
+                            <span>{maxMonthlyCases}</span>
+                            <span>{Math.ceil(maxMonthlyCases / 2)}</span>
+                            <span>0</span>
+                          </div>
+                          <div className="sc-chart-visual" role="img" aria-label="Monthly requests received over the last six months">
+                            <div className="sc-chart-gridlines" aria-hidden="true">
+                              <span /><span /><span />
                             </div>
-                          ))}
-                        </div>
-                      </article>
+                            <div className="sc-chart-bars-container">
+                              {report.monthly.map((entry) => {
+                                const pct = entry.cases ? Math.max(6, Math.round((entry.cases / maxMonthlyCases) * 100)) : 0
+                                return (
+                                  <div className="sc-chart-bar-col" key={entry.key} aria-label={`${entry.label}: ${entry.cases} requests`}>
+                                    <span className="sc-chart-value">{entry.cases}</span>
+                                    <div className="sc-chart-bar-track">
+                                      <div className={`sc-chart-bar-fill cases ${entry.cases ? '' : 'is-zero'}`} style={{ height: `${pct}%` }} />
+                                    </div>
+                                    <span className="sc-chart-bar-label">{entry.label}</span>
+                                 </div>
+                                )
+                              })}
+                            </div>
+                         </div>
+                       </div>
+                     </article>
+
+                     <article className="sc-chart-card">
+                        <div className="sc-chart-card-header">
+                          <div>
+                            <span className="sc-chart-card-title">Revenue</span>
+                            <span className="sc-chart-card-subtitle">{formatCompactPeso(report.revenue)} verified</span>
+                         </div>
+                       </div>
+
+                        <div className="sc-chart-plot">
+                          <div className="sc-chart-axis" aria-hidden="true">
+                            <span>{formatCompactPeso(maxMonthlyRevenue)}</span>
+                            <span>{formatCompactPeso(maxMonthlyRevenue / 2)}</span>
+                            <span>₱0</span>
+                          </div>
+                          <div className="sc-chart-visual" role="img" aria-label="Monthly verified revenue over the last six months">
+                            <div className="sc-chart-gridlines" aria-hidden="true">
+                              <span /><span /><span />
+                            </div>
+                            <div className="sc-chart-bars-container">
+                              {report.monthly.map((entry) => {
+                                const pct = entry.revenue ? Math.max(6, Math.round((entry.revenue / maxMonthlyRevenue) * 100)) : 0
+                                return (
+                                  <div className="sc-chart-bar-col" key={entry.key} aria-label={`${entry.label}: ${formatPeso(entry.revenue)}`}>
+                                    <span className="sc-chart-value">{formatCompactPeso(entry.revenue)}</span>
+                                    <div className="sc-chart-bar-track">
+                                      <div className={`sc-chart-bar-fill revenue ${entry.revenue ? '' : 'is-zero'}`} style={{ height: `${pct}%` }} />
+                                    </div>
+                                    <span className="sc-chart-bar-label">{entry.label}</span>
+                                 </div>
+                                )
+                              })}
+                            </div>
+                         </div>
+                       </div>
+                     </article>
                     </div>
                   </section>
 
-                  <div className="sc-dashboard-primary-grid">
-                    <section className="sc-dashboard-panel sc-dashboard-actions-panel">
-                      <div className="sc-dashboard-panel-head">
-                        <div><span className="sc-dashboard-panel-kicker">Action center</span><h2>Needs your attention</h2></div>
-                        <span className="sc-dashboard-count">{attentionCount}</span>
-                      </div>
-                      <div className="sc-dashboard-action-list">
-                        {stats.newRequests > 0 && (
-                          <button type="button" className="sc-dashboard-action-item priority" onClick={() => setActiveTab('orders')}>
-                            <span className="sc-dashboard-action-icon">!</span>
-                            <span className="sc-dashboard-action-copy"><strong>Respond to new requests</strong><small>Accept or decline each family request promptly.</small></span>
-                            <span className="sc-dashboard-action-value">{stats.newRequests}</span><span className="sc-dashboard-action-arrow" aria-hidden="true">›</span>
+                  {/* Operations and shop setup */}
+                  <div className="sc-dashboard-main-grid">
+                    {/* Pending work and recent cases */}
+                    <div className="sc-dashboard-main-column">
+                      {/* Pending work */}
+                      <section className="sc-dashboard-panel sc-action-center-panel">
+                        <div className="sc-panel-header">
+                          <div>
+                            <div className="sc-panel-kicker">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                              Pending work
+                            </div>
+                            <h2 className="sc-panel-title">Pending work</h2>
+                          </div>
+                          {attentionCount > 0 ? (
+                            <span className="sc-attention-pill active">
+                              <span className="sc-badge-pulse-dot crimson" />
+                              {attentionCount} pending
+                            </span>
+                          ) : (
+                            <span className="sc-attention-pill clear">
+                              None pending
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="sc-action-list">
+                          {stats.newRequests > 0 && (
+                            <button
+                              type="button"
+                              className="sc-action-card priority"
+                              onClick={() => setActiveTab('orders')}
+                            >
+                              <div className="sc-action-card-icon-wrap crimson">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                              </div>
+                              <div className="sc-action-card-body">
+                                <div className="sc-action-card-heading">
+                                  <strong>Review new requests</strong>
+                                  <span className="sc-action-urgency-badge crimson">New</span>
+                                </div>
+                                <p>{stats.newRequests} request{stats.newRequests === 1 ? '' : 's'} waiting for review.</p>
+                              </div>
+                              <div className="sc-action-card-tail">
+                                <span className="sc-action-badge crimson">{stats.newRequests}</span>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+                              </div>
+                            </button>
+                          )}
+
+                          {stats.paymentsToVerify > 0 && (
+                            <button
+                              type="button"
+                              className="sc-action-card warning"
+                              onClick={() => setActiveTab('payments')}
+                            >
+                              <div className="sc-action-card-icon-wrap amber">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                              </div>
+                              <div className="sc-action-card-body">
+                                <div className="sc-action-card-heading">
+                                  <strong>Verify payments</strong>
+                                  <span className="sc-action-urgency-badge amber">Pending</span>
+                                </div>
+                                <p>{stats.paymentsToVerify} payment{stats.paymentsToVerify === 1 ? '' : 's'} waiting for verification.</p>
+                              </div>
+                              <div className="sc-action-card-tail">
+                                <span className="sc-action-badge amber">{stats.paymentsToVerify}</span>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+                              </div>
+                            </button>
+                          )}
+
+                          {stats.toProcessShipment > 0 && (
+                            <button
+                              type="button"
+                              className="sc-action-card info"
+                              onClick={() => setActiveTab('orders')}
+                            >
+                              <div className="sc-action-card-icon-wrap emerald">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                              </div>
+                              <div className="sc-action-card-body">
+                                <div className="sc-action-card-heading">
+                                  <strong>Prepare confirmed cases</strong>
+                                  <span className="sc-action-urgency-badge emerald">Ready</span>
+                                </div>
+                                <p>{stats.toProcessShipment} case{stats.toProcessShipment === 1 ? '' : 's'} ready to process.</p>
+                              </div>
+                              <div className="sc-action-card-tail">
+                                <span className="sc-action-badge emerald">{stats.toProcessShipment}</span>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+                              </div>
+                            </button>
+                          )}
+
+                          {(stats.lowStockProducts + stats.soldOutProducts) > 0 && (
+                            <button
+                              type="button"
+                              className="sc-action-card neutral"
+                              onClick={() => setActiveTab('products')}
+                            >
+                              <div className="sc-action-card-icon-wrap violet">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                              </div>
+                              <div className="sc-action-card-body">
+                                <div className="sc-action-card-heading">
+                                  <strong>Update inventory</strong>
+                                  <span className="sc-action-urgency-badge violet">Stock</span>
+                                </div>
+                                <p>{stats.lowStockProducts + stats.soldOutProducts} product{stats.lowStockProducts + stats.soldOutProducts === 1 ? '' : 's'} need attention.</p>
+                              </div>
+                              <div className="sc-action-card-tail">
+                                <span className="sc-action-badge violet">{stats.lowStockProducts + stats.soldOutProducts}</span>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+                              </div>
+                            </button>
+                          )}
+
+                          {attentionCount === 0 && (
+                            <div className="sc-action-empty-state">
+                              <div className="sc-action-empty-icon">
+                                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+                              </div>
+                              <div className="sc-action-empty-text">
+                                <strong>No pending work</strong>
+                                <p>New requests, payments, and stock alerts will appear here.</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </section>
+
+                      {/* Recent Cases */}
+                      <section className="sc-dashboard-panel">
+                        <div className="sc-panel-header">
+                          <div>
+                            <div className="sc-panel-kicker">Recent cases</div>
+                            <h2 className="sc-panel-title">Recent Arrangements</h2>
+                          </div>
+                          <button type="button" className="sc-text-link-btn" onClick={() => setActiveTab('orders')}>
+                            View all ({requests.length})
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
                           </button>
-                        )}
-                        {stats.paymentsToVerify > 0 && (
-                          <button type="button" className="sc-dashboard-action-item warning" onClick={() => setActiveTab('payments')}>
-                            <span className="sc-dashboard-action-icon">₱</span>
-                            <span className="sc-dashboard-action-copy"><strong>Verify submitted payments</strong><small>Review references and uploaded payment proof.</small></span>
-                            <span className="sc-dashboard-action-value">{stats.paymentsToVerify}</span><span className="sc-dashboard-action-arrow" aria-hidden="true">›</span>
-                          </button>
-                        )}
-                        {stats.toProcessShipment > 0 && (
-                          <button type="button" className="sc-dashboard-action-item info" onClick={() => setActiveTab('orders')}>
-                            <span className="sc-dashboard-action-icon">✓</span>
-                            <span className="sc-dashboard-action-copy"><strong>Prepare confirmed arrangements</strong><small>These cases have verified payments and can proceed.</small></span>
-                            <span className="sc-dashboard-action-value">{stats.toProcessShipment}</span><span className="sc-dashboard-action-arrow" aria-hidden="true">›</span>
-                          </button>
-                        )}
-                        {(stats.lowStockProducts + stats.soldOutProducts) > 0 && (
-                          <button type="button" className="sc-dashboard-action-item neutral" onClick={() => setActiveTab('products')}>
-                            <span className="sc-dashboard-action-icon">□</span>
-                            <span className="sc-dashboard-action-copy"><strong>Review product availability</strong><small>Update low-stock or unavailable catalog items.</small></span>
-                            <span className="sc-dashboard-action-value">{stats.lowStockProducts + stats.soldOutProducts}</span><span className="sc-dashboard-action-arrow" aria-hidden="true">›</span>
-                          </button>
-                        )}
-                        {attentionCount === 0 && (
-                          <div className="sc-dashboard-action-empty">
-                            <span aria-hidden="true">✓</span>
-                            <div><strong>Nothing urgent right now</strong><small>New requests and payment tasks will appear here.</small></div>
+                        </div>
+
+                        {recentRequests.length === 0 ? (
+                          <div className="sc-panel-empty-state">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                            <p>Arrangement requests from families will appear here.</p>
+                          </div>
+                        ) : (
+                          <div className="sc-stream-list">
+                            {recentRequests.map((request) => {
+                              const name = request.requesterName || request.familyCoordinatorName || 'Family Request'
+                              const initial = (name.trim().charAt(0) || 'C').toUpperCase()
+                              const cleanStatus = String(request.status || 'pending').toLowerCase()
+                              return (
+                                <button
+                                  type="button"
+                                  key={request.id}
+                                  className="sc-stream-row"
+                                  onClick={() => openRequestDetail(request)}
+                                >
+                                  <div className="sc-stream-avatar">{initial}</div>
+                                  <div className="sc-stream-body">
+                                    <strong className="sc-stream-title">{name}</strong>
+                                    <span className="sc-stream-subtitle">
+                                      {request.productName || 'Funeral Service'} · {formatTimestamp(request.createdAt)}
+                                    </span>
+                                  </div>
+                                  <span className={`sc-status sc-status-${cleanStatus}`}>
+                                    {cleanStatus.replace(/_/g, ' ')}
+                                  </span>
+                                  <span className="sc-stream-chevron">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+                                  </span>
+                                </button>
+                              )
+                            })}
                           </div>
                         )}
-                      </div>
-                    </section>
-
-                    <div className="sc-dashboard-side-stack">
-                      <section className="sc-dashboard-panel sc-dashboard-readiness">
-                        <div className="sc-dashboard-panel-head compact">
-                          <div><span className="sc-dashboard-panel-kicker">Shop readiness</span><h2>{readinessProgress}% complete</h2></div>
-                          <span className="sc-dashboard-readiness-score">{readinessCompleted}/{readinessItems.length}</span>
-                        </div>
-                        <div className="sc-dashboard-progress" aria-label={`Shop readiness ${readinessProgress}%`}><span style={{ width: `${readinessProgress}%` }} /></div>
-                        <div className="sc-dashboard-checklist">
-                          {readinessItems.map((item) => (
-                            <button type="button" key={item.label} onClick={() => setActiveTab(item.tab)}>
-                              <span className={item.complete ? 'complete' : ''}>{item.complete ? '✓' : '○'}</span>
-                              <span><strong>{item.label}</strong><small>{item.detail}</small></span>
-                              <b aria-hidden="true">›</b>
-                            </button>
-                          ))}
-                        </div>
-                      </section>
-
-                      <section className="sc-dashboard-panel sc-dashboard-quick">
-                        <div className="sc-dashboard-panel-head compact"><div><span className="sc-dashboard-panel-kicker">Shortcuts</span><h2>Quick actions</h2></div></div>
-                        <div className="sc-dashboard-quick-grid">
-                          <button type="button" onClick={() => void openProductEditor(null)}><span>+</span><strong>Add product</strong></button>
-                          <button type="button" onClick={() => setActiveTab('orders')}><span>↗</span><strong>View cases</strong></button>
-                          <button type="button" onClick={() => setActiveTab('payment_setup')}><span>₱</span><strong>Payment setup</strong></button>
-                          <button type="button" onClick={() => setActiveTab('shop')}><span>⌂</span><strong>Edit profile</strong></button>
-                        </div>
                       </section>
                     </div>
-                  </div>
 
-                  <div className="sc-dashboard-secondary-grid">
-                    <section className="sc-dashboard-panel">
-                      <div className="sc-dashboard-panel-head">
-                        <div><span className="sc-dashboard-panel-kicker">Latest activity</span><h2>Recent arrangement cases</h2></div>
-                        <button type="button" className="sc-dashboard-text-btn" onClick={() => setActiveTab('orders')}>View all</button>
-                      </div>
-                      {recentRequests.length === 0 ? (
-                        <div className="sc-dashboard-list-empty">Arrangement requests will appear here.</div>
-                      ) : (
-                        <div className="sc-dashboard-case-list">
-                          {recentRequests.map((request) => (
-                            <button type="button" key={request.id} onClick={() => openRequestDetail(request)}>
-                              <span className="sc-dashboard-case-avatar">{(request.requesterName || request.familyCoordinatorName || request.productName || 'C').trim().charAt(0).toUpperCase()}</span>
-                              <span className="sc-dashboard-case-copy">
-                                <strong>{request.requesterName || request.familyCoordinatorName || 'Family request'}</strong>
-                                <small>{request.productName || 'Custom arrangement'} · {formatTimestamp(request.createdAt)}</small>
+                    {/* Shop setup and schedule */}
+                    <div className="sc-dashboard-side-column">
+                      {/* Shop setup */}
+                      <section className="sc-dashboard-panel sc-readiness-panel">
+                        <div className="sc-panel-header compact">
+                          <div>
+                            <div className="sc-panel-kicker">Setup</div>
+                            <h2 className="sc-panel-title">Shop setup</h2>
+                          </div>
+                          <span className={`sc-readiness-pct ${readinessProgress === 100 ? 'complete' : ''}`}>
+                            {readinessProgress}%
+                          </span>
+                        </div>
+
+                        <div className="sc-readiness-bar" aria-label={`Setup ${readinessProgress}% complete`}>
+                          <div
+                            className="sc-readiness-bar-fill"
+                            style={{ width: `${readinessProgress}%` }}
+                          />
+                        </div>
+
+                        <div className="sc-readiness-list">
+                          {readinessItems.map((item) => (
+                            <button
+                              type="button"
+                              key={item.label}
+                              className={`sc-readiness-row ${item.complete ? 'is-complete' : ''}`}
+                              onClick={() => setActiveTab(item.tab)}
+                            >
+                              <div className="sc-readiness-status-icon">
+                                {item.complete ? (
+                                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                ) : (
+                                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/></svg>
+                                )}
+                              </div>
+                              <div className="sc-readiness-info">
+                                <strong>{item.label}</strong>
+                                <small>{item.detail}</small>
+                              </div>
+                              <span className="sc-readiness-chevron">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
                               </span>
-                              <span className={`sc-status sc-status-${String(request.status || 'pending').toLowerCase()}`}>{String(request.status || 'pending').replace(/_/g, ' ')}</span>
-                              <span className="sc-dashboard-action-arrow" aria-hidden="true">›</span>
                             </button>
                           ))}
                         </div>
-                      )}
-                    </section>
+                      </section>
 
-                    <section className="sc-dashboard-panel">
-                      <div className="sc-dashboard-panel-head">
-                        <div><span className="sc-dashboard-panel-kicker">Schedule</span><h2>Upcoming services</h2></div>
-                        <button type="button" className="sc-dashboard-text-btn" onClick={() => setActiveTab('calendar')}>Open calendar</button>
-                      </div>
-                      {upcomingRequests.length === 0 ? (
-                        <div className="sc-dashboard-list-empty">No upcoming services have been scheduled.</div>
-                      ) : (
-                        <div className="sc-dashboard-schedule-list">
-                          {upcomingRequests.map((request) => (
-                            <button type="button" key={request.id} onClick={() => openRequestDetail(request)}>
-                              <span className="sc-dashboard-date">
-                                <strong>{request.wakeStartDate ? new Date(request.wakeStartDate).getDate() : '--'}</strong>
-                                <small>{request.wakeStartDate ? new Date(request.wakeStartDate).toLocaleDateString('en-PH', { month: 'short' }) : 'TBD'}</small>
-                              </span>
-                              <span className="sc-dashboard-case-copy">
-                                <strong>{request.deceasedFullName || request.productName || 'Arrangement service'}</strong>
-                                <small>{request.wakeAddress || 'Venue not set'}</small>
-                              </span>
-                              <span className="sc-dashboard-schedule-meta">{formatScheduleDate(request.wakeStartDate)}</span>
-                              <span className="sc-dashboard-action-arrow" aria-hidden="true">›</span>
-                            </button>
-                          ))}
+                      {/* Scheduled services */}
+                      <section className="sc-dashboard-panel">
+                        <div className="sc-panel-header">
+                          <div>
+                            <div className="sc-panel-kicker">Schedule</div>
+                            <h2 className="sc-panel-title">Upcoming Services</h2>
+                          </div>
+                          <button type="button" className="sc-text-link-btn" onClick={() => setActiveTab('calendar')}>
+                            View calendar
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+                          </button>
                         </div>
-                      )}
-                    </section>
+
+                        {upcomingRequests.length === 0 ? (
+                          <div className="sc-panel-empty-state">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                            <p>No upcoming services.</p>
+                          </div>
+                        ) : (
+                          <div className="sc-stream-list">
+                            {upcomingRequests.map((request) => {
+                              const dateObj = request.wakeStartDate ? new Date(request.wakeStartDate) : null
+                              const dayNum = dateObj && !isNaN(dateObj.getTime()) ? dateObj.getDate() : '--'
+                              const monthStr = dateObj && !isNaN(dateObj.getTime()) ? dateObj.toLocaleDateString('en-PH', { month: 'short' }).toUpperCase() : 'TBD'
+                              return (
+                                <button
+                                  type="button"
+                                  key={request.id}
+                                  className="sc-stream-row"
+                                  onClick={() => openRequestDetail(request)}
+                                >
+                                  <div className="sc-calendar-chip">
+                                    <span className="sc-cal-month">{monthStr}</span>
+                                    <strong className="sc-cal-day">{dayNum}</strong>
+                                  </div>
+                                  <div className="sc-stream-body">
+                                    <strong className="sc-stream-title">{request.deceasedFullName || request.productName || 'Arrangement service'}</strong>
+                                    <span className="sc-stream-subtitle">
+                                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                                      {request.wakeAddress || request.churchName || 'Venue not set'}
+                                    </span>
+                                  </div>
+                                  <span className="sc-stream-meta-date">{formatScheduleDate(request.wakeStartDate)}</span>
+                                  <span className="sc-stream-chevron">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+                                  </span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </section>
+                    </div>
                   </div>
                 </div>
               )}
@@ -2196,38 +3193,187 @@ export default function SellerCentrePage() {
 
               {/* CALENDAR VIEW */}
               {activeTab === 'calendar' && (
-                <div className='sc-ops-page'>
-                  <div className='sc-section-head'>
+                <div className='sc-ops-page sc-service-schedule'>
+                  <div className='sc-section-head sc-schedule-page-head'>
                     <div>
-                      <h2>Service Calendar</h2>
-                      <p className='sc-card-subtitle'>Wake and burial schedules from active arrangement cases.</p>
+                      <h2>Service Schedule</h2>
                     </div>
-                    <button className='sc-btn' onClick={() => void loadData()} disabled={loading}>Refresh</button>
+                    <div className='sc-schedule-head-actions'>
+                      <button className='sc-btn' onClick={() => void loadShopSchedule()} disabled={scheduleLoading}>Refresh</button>
+                      <button className='sc-btn sc-btn-primary' onClick={() => openNewScheduleEvent()}>+ Add event</button>
+                    </div>
                   </div>
-                  <div className='sc-summary-strip'>
-                    <div><strong>{scheduledRequests.length}</strong><span>Scheduled cases</span></div>
-                    <div><strong>{requests.filter((request) => !request.wakeStartDate && !request.wakeEndDate && !request.burialTime).length}</strong><span>Need a schedule</span></div>
+
+                  <div className='sc-schedule-summary' aria-label='Schedule summary'>
+                    <div><strong>{combinedScheduleItems.filter(item => item.dateKey === scheduleTodayKey).length}</strong><span>Today</span></div>
+                    <div><strong>{scheduleNextWeek}</strong><span>Next 7 days</span></div>
+                    <div><strong>{shopScheduleEvents.length}</strong><span>Shop events</span></div>
                   </div>
-                  {scheduledRequests.length === 0 ? (
-                    <div className='sc-empty'><p>No services have been scheduled yet.</p></div>
-                  ) : (
-                    <div className='sc-schedule-list'>
-                      {scheduledRequests.map((request) => (
-                        <button key={request.id} type='button' className='sc-schedule-row' onClick={() => openRequestDetail(request)}>
-                          <span className='sc-date-tile'>
-                            <strong>{request.wakeStartDate ? new Date(request.wakeStartDate).getDate() : '--'}</strong>
-                            <small>{request.wakeStartDate ? new Date(request.wakeStartDate).toLocaleDateString('en-PH', { month: 'short' }) : 'TBD'}</small>
-                          </span>
-                          <span className='sc-schedule-main'>
-                            <strong>{request.deceasedFullName || request.productName || 'Arrangement case'}</strong>
-                            <small>{request.familyCoordinatorName || request.requesterName || 'Requestor'} - {request.wakeAddress || 'Venue not set'}</small>
-                          </span>
-                          <span className='sc-schedule-time'>{formatScheduleDate(request.wakeStartDate)} to {formatScheduleDate(request.wakeEndDate)}</span>
-                          <span className={`sc-status sc-status-${String(request.status || '').toLowerCase()}`}>{String(request.status || 'pending').replace(/_/g, ' ')}</span>
-                        </button>
-                      ))}
+
+                  <div className='sc-schedule-filters' role='group' aria-label='Filter schedule'>
+                    {([
+                      ['all', 'All'],
+                      ['requests', 'Requests'],
+                      ['shop', 'Shop events'],
+                    ] as [ScheduleFilter, string][]).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type='button'
+                        className={scheduleFilter === value ? 'active' : ''}
+                        onClick={() => setScheduleFilter(value)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {scheduleError && (
+                    <div className='sc-schedule-error'>
+                      <span>{scheduleError}</span>
+                      <button type='button' onClick={() => void loadShopSchedule()}>Retry</button>
                     </div>
                   )}
+
+                  <div className='sc-schedule-workspace'>
+                    <section className='sc-schedule-calendar-card' aria-label='Monthly calendar'>
+                      <div className='sc-schedule-calendar-head'>
+                        <button
+                          type='button'
+                          aria-label='Previous month'
+                          onClick={() => setScheduleMonth(current => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
+                        >
+                          ‹
+                        </button>
+                        <div>
+                          <strong>{scheduleMonth.toLocaleDateString('en-PH', { month: 'long', year: 'numeric' })}</strong>
+                          <button
+                            type='button'
+                            className='sc-schedule-today-link'
+                            onClick={() => {
+                              const today = new Date()
+                              setScheduleMonth(new Date(today.getFullYear(), today.getMonth(), 1))
+                              setSelectedScheduleDate(toScheduleDateKey(today))
+                            }}
+                          >
+                            Today
+                          </button>
+                        </div>
+                        <button
+                          type='button'
+                          aria-label='Next month'
+                          onClick={() => setScheduleMonth(current => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
+                        >
+                          ›
+                        </button>
+                      </div>
+
+                      <div className='sc-schedule-weekdays'>
+                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => <span key={day}>{day}</span>)}
+                      </div>
+                      <div className='sc-schedule-calendar-grid'>
+                        {scheduleCalendarDays.map(date => {
+                          const dateKey = toScheduleDateKey(date)
+                          const dayItems = scheduleItemsByDate[dateKey] || []
+                          const outsideMonth = date.getMonth() !== scheduleMonth.getMonth()
+                          const selected = dateKey === selectedScheduleDate
+                          const today = dateKey === scheduleTodayKey
+                          return (
+                            <button
+                              key={dateKey}
+                              type='button'
+                              className={`${outsideMonth ? 'is-outside ' : ''}${selected ? 'is-selected ' : ''}${today ? 'is-today' : ''}`.trim()}
+                              onClick={() => {
+                                setSelectedScheduleDate(dateKey)
+                                if (outsideMonth) setScheduleMonth(new Date(date.getFullYear(), date.getMonth(), 1))
+                              }}
+                              aria-label={`${formatScheduleDayHeading(dateKey)}${dayItems.length ? `, ${dayItems.length} scheduled` : ''}`}
+                            >
+                              <span className='sc-schedule-day-number'>{date.getDate()}</span>
+                              <span className='sc-schedule-day-dots' aria-hidden='true'>
+                                {dayItems.slice(0, 3).map(item => <i key={item.id} className={`is-${item.kind}`} />)}
+                                {dayItems.length > 3 && <small>+{dayItems.length - 3}</small>}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                      <div className='sc-schedule-legend'>
+                        <span><i className='is-wake' />Wake</span>
+                        <span><i className='is-burial' />Burial</span>
+                        <span><i className='is-appointment' />Shop event</span>
+                      </div>
+                    </section>
+
+                    <section className='sc-schedule-agenda-card' aria-label='Selected day agenda'>
+                      <div className='sc-schedule-agenda-head'>
+                        <div>
+                          <h3>{formatScheduleDayHeading(selectedScheduleDate)}</h3>
+                          <p>{selectedScheduleItems.length === 1 ? '1 scheduled item' : `${selectedScheduleItems.length} scheduled items`}</p>
+                        </div>
+                        <button type='button' onClick={() => openNewScheduleEvent(selectedScheduleDate)} aria-label='Add event on selected day'>+</button>
+                      </div>
+
+                      {scheduleLoading ? (
+                        <div className='sc-schedule-agenda-empty'><span className='sc-spinner' /><p>Loading schedule…</p></div>
+                      ) : selectedScheduleItems.length ? (
+                        <div className='sc-schedule-agenda-list'>
+                          {selectedScheduleItems.map(item => (
+                            <button
+                              key={item.id}
+                              type='button'
+                              className={`sc-schedule-agenda-item is-${item.kind}`}
+                              onClick={() => item.request ? openRequestDetail(item.request) : item.event ? openScheduleEvent(item.event) : undefined}
+                            >
+                              <span className='sc-schedule-agenda-copy'>
+                                <small>{item.timeLabel}</small>
+                                <strong>{item.title}</strong>
+                                <span>{item.subtitle}{item.location ? ` · ${item.location}` : ''}</span>
+                              </span>
+                              <span className='sc-row-arrow' aria-hidden='true'>›</span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className='sc-schedule-agenda-empty'>
+                          <strong>No events</strong>
+                          <button type='button' onClick={() => openNewScheduleEvent(selectedScheduleDate)}>Add event</button>
+                        </div>
+                      )}
+                    </section>
+                  </div>
+
+                  <section className='sc-schedule-register'>
+                    <div className='sc-schedule-register-head'>
+                      <div>
+                        <h3>Service records</h3>
+                      </div>
+                      <span>{scheduledRequests.length} records</span>
+                    </div>
+                    {scheduledRequests.length ? (
+                      <div className='sc-schedule-register-list'>
+                        {scheduledRequests.map(request => (
+                          <button key={request.id} type='button' onClick={() => openRequestDetail(request)}>
+                            <span className='sc-date-tile'>
+                              <strong>{request.wakeStartDate ? new Date(`${String(request.wakeStartDate).slice(0, 10)}T00:00:00`).getDate() : '--'}</strong>
+                              <small>{request.wakeStartDate ? new Date(`${String(request.wakeStartDate).slice(0, 10)}T00:00:00`).toLocaleDateString('en-PH', { month: 'short' }) : 'TBD'}</small>
+                            </span>
+                            <span className='sc-schedule-main'>
+                              <strong>{request.deceasedFullName || request.productName || 'Arrangement case'}</strong>
+                              <small>{request.familyCoordinatorName || request.requesterName || 'Family coordinator'} · {request.wakeAddress || 'Venue not set'}</small>
+                            </span>
+                            <span className='sc-schedule-record-dates'>
+                              <small>Wake</small>
+                              <strong>{formatScheduleDate(request.wakeStartDate)} – {formatScheduleDate(request.wakeEndDate)}</strong>
+                            </span>
+                            <span className={`sc-status sc-status-${String(request.status || '').toLowerCase()}`}>{String(request.status || 'pending').replace(/_/g, ' ')}</span>
+                            <span className='sc-row-arrow' aria-hidden='true'>›</span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className='sc-empty'><p>No scheduled service requests.</p></div>
+                    )}
+                  </section>
                 </div>
               )}
 
@@ -2378,25 +3524,50 @@ export default function SellerCentrePage() {
                   <div className="sc-section-head">
                     <div>
                       <h2>Packages</h2>
-                      <p className="sc-card-subtitle">One shop package appears automatically on every product.</p>
+                      <p className="sc-card-subtitle">Create inclusions with a name and photo. They come with every casket at no separate price.</p>
                     </div>
-                    <button className="sc-primary-btn" disabled={packageSaving || Boolean(uploadingPackageField)} onClick={() => void handleSavePackage()}>
+                    <button className="sc-primary-btn" disabled={packageSaving || Boolean(uploadingPackageItemId)} onClick={() => void handleSavePackage()}>
                       {packageSaving ? 'Saving...' : 'Save Package'}
                     </button>
                   </div>
 
+                  {packageItems.length === 0 && (
+                    <div className="sc-package-empty">
+                      <strong>No inclusions yet</strong>
+                      <span>Add anything your shop provides. You choose the name and photo.</span>
+                    </div>
+                  )}
+
                   <div className="sc-package-grid">
-                    {SHOP_PACKAGE_ITEMS.map(item => {
-                      const imageUrl = shopPackage?.[item.field] || null
-                      const uploading = uploadingPackageField === item.field
+                    {packageItems.map((item, index) => {
+                      const imageUrl = item.imageUrl || null
+                      const uploading = uploadingPackageItemId === item.id
                       return (
-                        <section className="sc-package-tile" key={item.key}>
+                        <section className="sc-package-tile" key={item.id}>
                           <div className="sc-package-tile-head">
-                            <h3>{item.label}</h3>
-                            {imageUrl ? <span>Ready</span> : <span className="is-missing">Needs picture</span>}
+                            <h3>Inclusion {index + 1}</h3>
+                            <button
+                              type="button"
+                              className="sc-package-remove"
+                              disabled={packageSaving || Boolean(uploadingPackageItemId)}
+                              onClick={() => removePackageItem(item.id)}
+                            >
+                              Remove
+                            </button>
                           </div>
+                          <label className="sc-package-name-label" htmlFor={`package-name-${item.id}`}>What is included?</label>
+                          <input
+                            id={`package-name-${item.id}`}
+                            className="sc-form-input sc-package-name-input"
+                            type="text"
+                            maxLength={80}
+                            value={item.name}
+                            placeholder="e.g. Memorial flower arrangement"
+                            disabled={packageSaving}
+                            onChange={event => updatePackageItem(item.id, { name: event.target.value })}
+                          />
                           <div className="sc-package-image-box">
-                            {imageUrl ? <img src={imageUrl} alt={item.label} /> : uploading ? <div className="sc-spinner" /> : <span>No picture added</span>}
+                            {imageUrl ? <img src={imageUrl} alt={item.name || `Inclusion ${index + 1}`} /> : uploading ? <div className="sc-spinner" /> : <span>No picture added</span>}
                           </div>
                           <label className="sc-btn sc-btn-secondary sc-package-upload">
                             {imageUrl ? 'Replace Picture' : 'Upload Picture'}
@@ -2404,14 +3575,24 @@ export default function SellerCentrePage() {
                               type="file"
                               accept="image/*"
                               style={{ display: 'none' }}
-                              disabled={uploadingPackageField !== null || packageSaving}
-                              onChange={(event) => void handlePackageImageUpload(item.field, event)}
+                              disabled={uploadingPackageItemId !== null || packageSaving}
+                              onChange={(event) => void handlePackageImageUpload(item.id, event)}
                             />
                           </label>
                         </section>
                       )
                     })}
                   </div>
+
+                  <button
+                    type="button"
+                    className="sc-package-add"
+                    disabled={packageSaving || Boolean(uploadingPackageItemId) || packageItems.length >= MAX_PACKAGE_ITEMS}
+                    onClick={addPackageItem}
+                  >
+                    {packageItems.length >= MAX_PACKAGE_ITEMS ? 'Maximum 12 inclusions' : '+ Add Inclusion'}
+                  </button>
+
                 </div>
               )}
 
@@ -2547,7 +3728,7 @@ export default function SellerCentrePage() {
                                       </button>
                                     </div>
                                   ) : r.status === 'accepted_by_shop' ? (
-                                    <span style={{ fontSize: '12px', color: 'var(--sc-muted)' }}>Complete shop payment settings</span>
+                                    <span style={{ fontSize: '12px', color: 'var(--sc-muted)' }}>Preparing secure checkout</span>
                                   ) : r.status === 'payment_verified' ? (
                                     <div className="sc-actions" style={{ flexDirection: 'column' }}>
                                       <button
@@ -2575,257 +3756,550 @@ export default function SellerCentrePage() {
 
               {/* PAYMENTS VIEW */}
               {activeTab === 'payments' && (
-                <div className="sc-finance-layout">
-                  <header className="sc-finance-header">
-                    <div>
-                      <span className="sc-finance-kicker">Finance</span>
-                      <h2>Family payments</h2>
-                      <p>Review payment receipts submitted for arrangement cases.</p>
-                    </div>
-                    <button className="sc-finance-refresh" onClick={() => void loadData()} disabled={loading}>
-                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7" /><path d="M20 5v6h-6" /></svg>
+                <div className="sc-family-payments-layout">
+                  <header className="sc-family-payments-header">
+                    <div><h2>Family Payments</h2><p>Review receipts submitted for arrangement cases.</p></div>
+                    <button type="button" className="sc-family-payments-refresh" onClick={() => void loadData()} disabled={loading}>
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/></svg>
                       Refresh
                     </button>
                   </header>
 
-                  <section className="sc-finance-summary" aria-label="Family payment summary">
-                    <article className="sc-finance-summary-primary">
-                      <span>Confirmed payments</span>
-                      <strong>{formatPeso(financeSummary.received)}</strong>
-                      <small>{financeSummary.verified} verified receipt{financeSummary.verified === 1 ? '' : 's'}</small>
-                    </article>
-                    <article>
-                      <span>Needs review</span>
-                      <strong>{financeSummary.awaitingReview}</strong>
-                      <small>Receipt{financeSummary.awaitingReview === 1 ? '' : 's'} awaiting a decision</small>
-                    </article>
-                    <article>
-                      <span>All submissions</span>
-                      <strong>{paymentSubmissions.length}</strong>
-                      <small>Payment records received</small>
-                    </article>
+                  <section className="sc-family-payments-summary" aria-label="Family payment summary">
+                    <div className="sc-family-payments-summary-icon"><FamilyPaymentIcon name="wallet" /></div>
+                    <h3>Review family receipts</h3>
+                    <p>Check the sender, account, reference number, and proof before verifying a payment.</p>
+                    <div className="sc-family-payments-stats">
+                      {[
+                        { value: financeSummary.awaitingReview, label: 'Need review' },
+                        { value: financeSummary.verified, label: 'Verified' },
+                        { value: paymentSubmissions.length, label: 'Total' },
+                      ].map(stat => (
+                        <div key={stat.label} className="sc-family-payments-stat"><strong>{stat.value}</strong><span>{stat.label}</span></div>
+                      ))}
+                    </div>
                   </section>
 
-                  <section className="sc-finance-panel">
-                    <div className="sc-finance-panel-head">
-                      <div>
-                        <h3>Payment receipts</h3>
-                        <p>Open a request to review its complete payment information and receipt.</p>
-                      </div>
-                      <span>{paymentSubmissions.length} total</span>
-                    </div>
+                  <nav className="sc-family-payments-filters" aria-label="Filter family payments">
+                    {([
+                      { key: 'all', label: `All (${paymentSubmissions.length})` },
+                      { key: 'review', label: `Needs review (${financeSummary.awaitingReview})` },
+                      { key: 'verified', label: `Verified (${financeSummary.verified})` },
+                    ] as { key: FamilyPaymentFilter; label: string }[]).map(item => (
+                      <button type="button" key={item.key} className={familyPaymentFilter === item.key ? 'active' : ''} aria-pressed={familyPaymentFilter === item.key} onClick={() => setFamilyPaymentFilter(item.key)}>
+                        {item.label}
+                      </button>
+                    ))}
+                  </nav>
 
-                  {paymentSubmissions.length === 0 ? (
-                    <div className="sc-finance-empty">
-                      <div aria-hidden="true">
-                        <svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" /><path d="M9 8h6M9 12h6" /></svg>
-                      </div>
-                      <strong>No payment receipts yet</strong>
-                      <span>Submitted family payments will appear here for review.</span>
-                    </div>
+                  {visibleFamilyPayments.length === 0 ? (
+                    <section className="sc-family-payments-empty">
+                      <div><FamilyPaymentIcon name="receipt" /></div>
+                      <h3>{familyPaymentFilter === 'all' ? 'No family payments yet' : 'Nothing in this filter'}</h3>
+                      <p>Submitted payment receipts will appear here for review.</p>
+                    </section>
                   ) : (
-                    <div className="sc-table-wrap sc-finance-table-wrap">
-                      <table className="sc-table sc-finance-table">
-                        <thead>
-                          <tr>
-                            <th>Service</th>
-                            <th>Sender</th>
-                            <th>Amount</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {paymentSubmissions.map(r => {
-                            const status = String(r.status || '').toLowerCase()
-                            const submitted = status === 'payment_submitted'
-                            const verified = ['payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(status)
-                            const rejected = status === 'awaiting_payment' && Boolean(r.paymentRejectionReason)
-
-                            return (
-                              <tr key={r.id}>
-                                <td>
-                                  <div className="sc-product-cell">
-                                    {r.productImageUrl ? (
-                                      <img src={r.productImageUrl} alt={r.productName} className="sc-product-thumb" />
-                                    ) : (
-                                      <div className="sc-product-thumb-sc">LC</div>
-                                    )}
-                                    <div>
-                                      <div style={{ fontWeight: 600 }}>{r.productName || 'Custom Casket'}</div>
-                                      {r.variationName && <div style={{ fontSize: '11px', color: 'var(--sc-muted)' }}>Variation: {r.variationName}</div>}
-                                    </div>
-                                  </div>
-                                </td>
-                                <td className="sc-finance-sender">
-                                  <div style={{ fontWeight: 600 }}>{r.paymentPayerName || '—'}</div>
-                                  {r.paymentSubmittedAt && (
-                                    <small>{formatTimestamp(r.paymentSubmittedAt)}</small>
-                                  )}
-                                </td>
-                                <td className="sc-finance-amount">{r.paymentAmount != null && Number(r.paymentAmount) > 0 ? formatPeso(r.paymentAmount) : '—'}</td>
-                                <td>
-                                  <span className={`sc-finance-status ${submitted ? 'is-pending' : verified ? 'is-verified' : 'is-rejected'}`}>
-                                    {submitted ? 'Awaiting Verification' : verified ? 'Verified' : rejected ? 'Rejected' : (r.status || '').replace(/_/g, ' ')}
-                                  </span>
-                                  {rejected && r.paymentRejectionReason && (
-                                    <div className="sc-finance-rejection" title={r.paymentRejectionReason}>
-                                      {r.paymentRejectionReason.length > 60 ? r.paymentRejectionReason.slice(0, 60) + '…' : r.paymentRejectionReason}
-                                    </div>
-                                  )}
-                                </td>
-                                <td>
-                                  <div className="sc-finance-actions">
-                                    <button
-                                      type="button"
-                                      className="sc-finance-action"
-                                      disabled={saving}
-                                      onClick={() => openRequestDetail(r)}
-                                    >
-                                      Review
-                                    </button>
-                                    {submitted ? (
-                                      <>
-                                        <button
-                                          className="sc-finance-action sc-finance-action-verify"
-                                          disabled={saving || paymentVerifyingId === r.id}
-                                          onClick={() => void handleVerifyPayment(r, 'verified')}
-                                        >
-                                          {paymentVerifyingId === r.id ? 'Updating…' : 'Verify'}
-                                        </button>
-                                        <button
-                                          className="sc-finance-action sc-finance-action-reject"
-                                          disabled={saving || paymentVerifyingId === r.id}
-                                          onClick={() => void handleVerifyPayment(r, 'rejected')}
-                                        >
-                                          Reject
-                                        </button>
-                                      </>
-                                    ) : verified ? (
-                                      <span className="sc-finance-reviewed">
-                                        {r.paymentVerifiedAt ? `Verified ${new Date(r.paymentVerifiedAt).toLocaleDateString()}` : 'Verified'}
-                                      </span>
-                                    ) : (
-                                      <span className="sc-finance-reviewed">—</span>
-                                    )}
-                                  </div>
-                                </td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
+                    <div className="sc-family-payments-list">
+                      {visibleFamilyPayments.map(request => {
+                        const statusMeta = getFamilyPaymentStatus(request)
+                        const needsReview = String(request.status || '').toLowerCase() === 'payment_submitted'
+                        const sender = request.paymentPayerName || request.familyCoordinatorName || request.requesterName || 'Unknown sender'
+                        return (
+                          <article key={request.id} className={`sc-family-payment-card${needsReview ? ' needs-review' : ''}`}>
+                            <div className="sc-family-payment-top">
+                              <div><h3 title={request.productName || 'Funeral service'}>{request.productName || 'Funeral service'}</h3><p>For {request.deceasedFullName || 'family service'}</p></div>
+                              <span className={`sc-family-payment-status ${statusMeta.className}`}><FamilyPaymentIcon name={statusMeta.icon} />{statusMeta.label}</span>
+                            </div>
+                            <strong className="sc-family-payment-amount">{Number(request.paymentAmount) > 0 ? formatPeso(request.paymentAmount) : 'Amount not provided'}</strong>
+                            <div className="sc-family-payment-meta">
+                              <span><FamilyPaymentIcon name="person" />{sender}</span>
+                              <span><FamilyPaymentIcon name="clock" />{formatTimestamp(request.paymentSubmittedAt || request.createdAt)}</span>
+                              {request.paymentReferenceNumber ? <span><FamilyPaymentIcon name="key" />Reference {request.paymentReferenceNumber}</span> : null}
+                            </div>
+                            <footer className="sc-family-payment-footer">
+                              <span className={request.paymentProofImageUrl ? 'has-proof' : 'missing-proof'}><FamilyPaymentIcon name={request.paymentProofImageUrl ? 'image' : 'alert'} />{request.paymentProofImageUrl ? 'Receipt available' : 'Receipt missing'}</span>
+                              <button type="button" onClick={() => openRequestDetail(request)}>View Receipt<FamilyPaymentIcon name="chevron" /></button>
+                            </footer>
+                          </article>
+                        )
+                      })}
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* INDIVIDUAL PAYOUT METHOD SETUP */}
+              {activeTab === 'payout_account_setup' && (
+                <div className="sc-method-setup-page">
+                  <button type="button" className="sc-method-setup-back" onClick={() => setActiveTab('payout_accounts')}>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+                    Payment methods
+                  </button>
+
+                  {selectedPayoutChannel ? (
+                    <section className="sc-method-setup-card">
+                      <header className="sc-method-setup-header">
+                        <div className={`sc-method-setup-logo is-${selectedPayoutChannel.type}`}>
+                          {selectedPayoutChannel.label.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <span>{selectedPayoutChannel.type === 'wallet' ? 'E-wallet receiver' : 'Bank receiver'}</span>
+                          <h2>{payoutAccounts.some(account => account.channelCode === payoutDraft.channel) ? 'Edit' : 'Add'} {selectedPayoutChannel.label}</h2>
+                          <p>This page only manages your {selectedPayoutChannel.label} payout destination.</p>
+                        </div>
+                      </header>
+
+                      <form className="sc-method-setup-form" onSubmit={event => { event.preventDefault(); void savePayoutAccount() }}>
+                        <div className="sc-method-setup-readonly">
+                          <span>Payment method</span>
+                          <strong>{selectedPayoutChannel.label}</strong>
+                        </div>
+
+                        <label>
+                          <span>Registered account holder</span>
+                          <input
+                            type="text"
+                            value={payoutDraft.name}
+                            maxLength={120}
+                            autoComplete="name"
+                            placeholder={selectedPayoutChannel.type === 'wallet' ? 'Name registered to the wallet' : 'Name registered to the bank account'}
+                            onChange={event => setPayoutDraft(current => ({ ...current, name: event.target.value }))}
+                          />
+                        </label>
+
+                        <label>
+                          <span>{selectedPayoutChannel.type === 'wallet' ? 'Registered mobile number' : 'Bank account number'}</span>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={payoutDraft.number}
+                            maxLength={30}
+                            autoComplete="off"
+                            placeholder={selectedPayoutChannel.type === 'wallet' ? '09XXXXXXXXX' : 'Enter account number'}
+                            onChange={event => setPayoutDraft(current => ({ ...current, number: event.target.value }))}
+                          />
+                          <small>Enter the exact details registered with {selectedPayoutChannel.label}.</small>
+                        </label>
+
+                        <div className="sc-method-setup-notice">
+                          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>
+                          <div>
+                            <strong>Verification required</strong>
+                            <span>Customers cannot use this method until an administrator verifies the receiver details.</span>
+                          </div>
+                        </div>
+
+                        <footer>
+                          <button type="button" className="sc-settings-secondary-btn" onClick={() => setActiveTab('payout_accounts')}>Cancel</button>
+                          <button type="submit" className="sc-settings-primary-btn" disabled={savingPayout}>
+                            {savingPayout ? 'Saving…' : 'Submit for verification'}
+                          </button>
+                        </footer>
+                      </form>
+                    </section>
+                  ) : (
+                    <div className="sc-payout-empty">
+                      <strong>Select a payment method first</strong>
+                      <span>Return to the payment methods list and choose the receiver you want to set up.</span>
+                      <button type="button" onClick={() => setActiveTab('payout_accounts')}>View payment methods</button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* PAYOUT ACCOUNTS VIEW */}
+              {activeTab === 'payout_accounts' && (
+                <div className="sc-payout-page">
+                  <header className="sc-payout-page-header">
+                    <div>
+                      <span>Finance</span>
+                      <h2>Payout accounts</h2>
+                      <p>Choose where each customer payment method sends your shop’s 70% share.</p>
+                    </div>
+                  </header>
+
+                  <div className="sc-payout-overview-grid">
+                    <article>
+                      <span>Accounts set up</span>
+                      <strong>{payoutAccounts.length}</strong>
+                      <small>Wallets and bank accounts</small>
+                    </article>
+                    <article>
+                      <span>Available to customers</span>
+                      <strong>{payoutAccounts.filter(account => account.active && account.verifiedByAdmin).length}</strong>
+                      <small>Active and verified methods</small>
+                    </article>
+                    <article>
+                      <span>Waiting for review</span>
+                      <strong>{payoutAccounts.filter(account => !account.verifiedByAdmin).length}</strong>
+                      <small>Unavailable until approved</small>
+                    </article>
+                  </div>
+
+                  <div className="sc-payout-page-note">
+                    <FamilyPaymentIcon name="wallet" />
+                    <div>
+                      <strong>Customer methods follow your setup</strong>
+                      <span>If GCash is not active and verified here, customers will not see GCash at checkout. The same rule applies to Maya and bank transfer.</span>
+                    </div>
+                  </div>
+
+                  {!shopAccountApproved && (
+                    <div className="sc-settings-notice">
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+                      <div><strong>Available after shop approval</strong><span>Your funeral shop must be approved before you can submit receiver accounts.</span></div>
+                    </div>
+                  )}
+
+                  <section className="sc-payout-accounts-panel">
+                    <header>
+                      <div>
+                        <span>Receiver accounts</span>
+                        <h3>Configured payment methods</h3>
+                      </div>
+                    </header>
+
+                    {payoutAccounts.length === 0 ? (
+                      <div className="sc-payout-empty">
+                        <div><FamilyPaymentIcon name="wallet" /></div>
+                        <strong>No receiver accounts yet</strong>
+                        <span>Add GCash, Maya, or a Philippine bank account. Customers will only see methods that are active and verified.</span>
+                        {shopAccountApproved && <button type="button" onClick={() => openPayoutAccountEditor(undefined, SHOP_PAYOUT_CHANNELS[0].value)}>Add your first account</button>}
+                      </div>
+                    ) : (
+                      <div className="sc-payout-account-list">
+                        {payoutAccounts.map(account => {
+                          const channel = SHOP_PAYOUT_CHANNELS.find(item => item.value === account.channelCode)
+                          const enabled = account.active && account.verifiedByAdmin
+                          return (
+                            <article className={`sc-payout-account-card${!account.active ? ' is-disabled' : ''}`} key={account.id}>
+                              <div className={`sc-payout-account-logo is-${channel?.type || 'bank'}`}>
+                                {channel?.type === 'wallet' ? 'W' : 'B'}
+                              </div>
+                              <div className="sc-payout-account-copy">
+                                <div>
+                                  <span>{channel?.type === 'wallet' ? 'E-wallet' : 'Philippine bank'}</span>
+                                  <strong>{getPayoutChannelLabel(account.channelCode)}</strong>
+                                </div>
+                                <p>{account.accountName}</p>
+                                <small>{maskPayoutAccount(account.accountNumber)}</small>
+                              </div>
+                              <div className="sc-payout-account-status">
+                                <span className={enabled ? 'is-enabled' : account.verifiedByAdmin ? 'is-disabled' : 'is-pending'}>
+                                  <i aria-hidden="true" />
+                                  {enabled ? 'Available to customers' : account.verifiedByAdmin ? 'Disabled' : 'Awaiting verification'}
+                                </span>
+                                {account.verifiedAt && <small>Verified {new Date(account.verifiedAt).toLocaleDateString('en-PH')}</small>}
+                              </div>
+                              <div className="sc-payout-account-actions">
+                                <button type="button" onClick={() => openPayoutAccountEditor(account)}>Edit</button>
+                                <button type="button" disabled={savingPayout} onClick={() => void togglePayoutAccount(account)}>
+                                  {account.active ? 'Disable' : 'Enable'}
+                                </button>
+                              </div>
+                            </article>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </section>
+
+                  <section className="sc-payout-methods-panel">
+                    <header>
+                      <div>
+                        <span>Payment methods</span>
+                        <h3>Add or manage a receiver</h3>
+                        <p>Each option opens its own secure setup page.</p>
+                      </div>
+                    </header>
+
+                    <div className="sc-payout-method-group">
+                      <span className="sc-payout-method-group-title">E-wallets</span>
+                      {SHOP_PAYOUT_CHANNELS.filter(channel => channel.type === 'wallet').map(channel => {
+                        const account = payoutAccounts.find(item => item.channelCode === channel.value)
+                        return (
+                          <button
+                            type="button"
+                            className="sc-payout-method-row"
+                            key={channel.value}
+                            disabled={!shopAccountApproved}
+                            onClick={() => openPayoutAccountEditor(account, channel.value)}
+                          >
+                            <span className="sc-payout-method-brand is-wallet">{channel.label.slice(0, 2).toUpperCase()}</span>
+                            <span className="sc-payout-method-copy">
+                              <strong>{account ? channel.label : `Add ${channel.label}`}</strong>
+                              <small>{account ? `${account.accountName} · ${maskPayoutAccount(account.accountNumber)}` : 'Set up a new e-wallet receiver'}</small>
+                            </span>
+                            <span className={`sc-payout-method-state${account?.active && account.verifiedByAdmin ? ' is-ready' : account ? ' is-pending' : ''}`}>
+                              {account?.active && account.verifiedByAdmin ? 'Ready' : account ? 'Manage' : 'Add'}
+                            </span>
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    <div className="sc-payout-method-group">
+                      <span className="sc-payout-method-group-title">Philippine banks</span>
+                      {SHOP_PAYOUT_CHANNELS.filter(channel => channel.type === 'bank').map(channel => {
+                        const account = payoutAccounts.find(item => item.channelCode === channel.value)
+                        return (
+                          <button
+                            type="button"
+                            className="sc-payout-method-row"
+                            key={channel.value}
+                            disabled={!shopAccountApproved}
+                            onClick={() => openPayoutAccountEditor(account, channel.value)}
+                          >
+                            <span className="sc-payout-method-brand">{channel.label.split(' ').map(part => part[0]).join('').slice(0, 3)}</span>
+                            <span className="sc-payout-method-copy">
+                              <strong>{account ? channel.label : `Add ${channel.label}`}</strong>
+                              <small>{account ? `${account.accountName} · ${maskPayoutAccount(account.accountNumber)}` : 'Set up a bank receiver account'}</small>
+                            </span>
+                            <span className={`sc-payout-method-state${account?.active && account.verifiedByAdmin ? ' is-ready' : account ? ' is-pending' : ''}`}>
+                              {account?.active && account.verifiedByAdmin ? 'Ready' : account ? 'Manage' : 'Add'}
+                            </span>
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+                          </button>
+                        )
+                      })}
+                    </div>
                   </section>
                 </div>
               )}
 
-              {/* SHOP VIEW */}
-              {activeTab === 'shop' && (
-                <div className="sc-shop-layout">
-                  <h2>Shop Profile</h2>
+              {/* REGISTERED INFORMATION VIEW */}
+              {activeTab === 'registered_information' && (
+                <div className="sc-registered-layout">
+                  <button
+                    type="button"
+                    className="sc-registered-back"
+                    onClick={() => navigate('/seller?tab=settings')}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+                    Back to Funeral Shop Settings
+                  </button>
 
-                  {shop.status === 'verified' || shop.status === 'live' || shop.status === 'offline' ? (
-                    <div className={`sc-shop-status-card${subscriptionExpired ? ' sc-shop-status-card-expired' : ''}${subscriptionActive && daysLeft <= 7 ? ' sc-shop-status-card-expiring' : ''}`}>
-                      <div className="sc-shop-status-info">
-                        <div className="sc-shop-status-head">
-                          <h3>Shop Status</h3>
-                          </div>
-                        <p className="sc-shop-status-desc">
-                          {subscriptionExpired
-                            ? `Your subscription expired on ${formatSubscriptionDate(shop.paidUntil)}. Your shop is offline and hidden from buyers. Renew to get 1 more month of live access.`
-                            : shop.status === 'live'
-                              ? `Your shop is live and buyers can see and order from it. Your subscription ends on ${formatSubscriptionDate(shop.paidUntil)} (${daysLeft} day${daysLeft === 1 ? '' : 's'} left).`
-                              : shop.status === 'offline'
-                                ? shop.paidUntil
-                                  ? `Your shop is currently offline and hidden from buyers. Your subscription runs until ${formatSubscriptionDate(shop.paidUntil)} (${daysLeft} day${daysLeft === 1 ? '' : 's'} left). Click Go Live to bring it back online.`
-                                  : 'Your shop is currently offline and hidden from buyers. Click Go Live to bring it back online.'
-                                : paymentVerified
-                                  ? shop.paidUntil
-                                    ? `Your payment is verified. Your subscription runs until ${formatSubscriptionDate(shop.paidUntil)} (${daysLeft} day${daysLeft === 1 ? '' : 's'} left). Click Go Live to activate your shop.`
-                                    : 'Your payment is verified. Click Go Live to activate your shop.'
-                                  : payment?.status === 'pending'
-                                    ? 'Your payment is under review. Once it is verified by an admin, you can go live.'
-                                    : 'Pay your registration fee to activate your shop. Click Go Live to see the payment details.'}
-                        </p>
-                        {subscriptionActive ? (
-                          <div className="sc-shop-sub-info">
-                            {daysLeft <= 7 ? (
-                              <span className="sc-shop-sub-badge sc-shop-sub-badge-warn">
-                                Expiring soon · {daysLeft} day{daysLeft === 1 ? '' : 's'} left
-                              </span>
-                            ) : (
-                              <span className="sc-shop-sub-badge">
-                                Subscription active until {formatSubscriptionDate(shop.paidUntil)}
-                              </span>
-                            )}
-                          </div>
-                        ) : subscriptionExpired ? (
-                          <div className="sc-shop-sub-info">
-                            <span className="sc-shop-sub-badge sc-shop-sub-badge-danger">
-                              Subscription expired on {formatSubscriptionDate(shop.paidUntil)}
-                            </span>
-                          </div>
-                        ) : null}
-                      </div>
-                      <button
-                        type="button"
-                        className="sc-shop-status-btn"
-                        onClick={subscriptionExpired ? openAdminPayments : shop.status === 'live' ? handleGoOffline : handleGoLive}
-                        disabled={saving}
-                      >
-                        {subscriptionExpired
-                          ? 'Renew Subscription'
-                          : shop.status === 'live'
-                            ? 'Go Offline'
-                            : 'Go Live'}
-                      </button>
+                  <header className="sc-registered-header">
+                    <div>
+                      <span>Shop account</span>
+                      <h2>Registered information</h2>
+                      <p>Review the legal business and tax details submitted for LifeCycle verification.</p>
                     </div>
-                  ) : null}
+                    <span className={'sc-registered-status' + (shopAccountApproved ? ' is-verified' : '')}>
+                      <i aria-hidden="true" />
+                      {shopAccountApproved ? 'Verified' : 'Under review'}
+                    </span>
+                  </header>
 
-                  <div className="sc-card">
-                    <div className="sc-shop-cover">
-                      {shop.coverImageUrl ? (
-                        <img src={shop.coverImageUrl} alt={`${shop.shopName} cover`} />
-                      ) : (
-                        <span className="sc-shop-cover-ph">Add a cover photo</span>
-                      )}
-                      {uploadingShopCover && (
-                        <div className="sc-shop-cover-spinner"><div className="sc-spinner" /></div>
-                      )}
-                      <label className="sc-shop-cover-upload">
-                        {uploadingShopCover ? 'Uploading…' : 'Upload Cover'}
-                        <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleUploadShopImage(e, 'coverImageUrl')} />
-                      </label>
-                    </div>
-                    <div className="sc-shop-header">
-                      <div className="sc-shop-icon-wrap">
-                        <div className="sc-shop-icon">
-                          {shop.shopImageUrl ? (
-                            <img src={shop.shopImageUrl} alt={shop.shopName} />
-                          ) : (
-                            <span className="sc-shop-icon-ph">LC</span>
-                          )}
-                        </div>
-                        <label className="sc-shop-profile-upload">
-                          {uploadingShopProfile ? 'Uploading…' : 'Upload Profile'}
-                          <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleUploadShopImage(e, 'shopImageUrl')} />
-                        </label>
-                      </div>
+                  <section className="sc-registered-card">
+                    <div className="sc-registered-notice">
+                      <span className="sc-registered-notice-icon">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+                      </span>
                       <div>
-                        <h3>{shop.shopName}</h3>
-                        {shop.rejectionReason && (
-                          <p className="sc-rejection">Reason: {shop.rejectionReason}</p>
-                        )}
+                        <strong>Verified details are read-only</strong>
+                        <p>Request a correction if your registered business information has changed.</p>
                       </div>
                     </div>
-                    <div className="sc-detail-grid">
-                      <div className="sc-detail"><span>Address</span><strong>{shop.shopAddress || '—'}</strong></div>
-                      <div className="sc-detail"><span>Phone</span><strong>{shop.shopPhoneNumber || '—'}</strong></div>
-                      <div className="sc-detail"><span>Location</span><strong>{shop.generalLocation || '—'}</strong></div>
-                      <div className="sc-detail"><span>Member since</span><strong>{new Date(shop.createdAt).toLocaleDateString()}</strong></div>
+
+                    <div className="sc-registered-section">
+                      <header>
+                        <h3>Registered business</h3>
+                        <p>Business identity and registered operating address.</p>
+                      </header>
+                      <dl className="sc-registered-grid">
+                        <div>
+                          <dt>Business name</dt>
+                          <dd>{shop.businessName || shop.shopName || 'Not provided'}</dd>
+                        </div>
+                        <div>
+                          <dt>Registered owner</dt>
+                          <dd>{shop.individualRegisteredName || 'Not provided'}</dd>
+                        </div>
+                        <div>
+                          <dt>General location</dt>
+                          <dd>{shop.generalLocation || 'Not provided'}</dd>
+                        </div>
+                        <div>
+                          <dt>ZIP code</dt>
+                          <dd>{shop.zipCode || 'Not provided'}</dd>
+                        </div>
+                        <div className="is-wide">
+                          <dt>Registered address</dt>
+                          <dd>{shop.registeredAddress || 'Not provided'}</dd>
+                        </div>
+                      </dl>
                     </div>
+
+                    <div className="sc-registered-section">
+                      <header>
+                        <h3>Tax details</h3>
+                        <p>Information used during registration review.</p>
+                      </header>
+                      <dl className="sc-registered-grid">
+                        <div>
+                          <dt>Taxpayer Identification Number (TIN)</dt>
+                          <dd>{shop.tin || 'Not provided'}</dd>
+                        </div>
+                        <div>
+                          <dt>VAT registration status</dt>
+                          <dd>{shop.vatRegistrationStatus == null ? 'Not provided' : shop.vatRegistrationStatus ? 'VAT registered' : 'Non-VAT registered'}</dd>
+                        </div>
+                      </dl>
+                    </div>
+
+                    <footer className="sc-registered-footer">
+                      <div>
+                        <strong>Need to update something?</strong>
+                        <span>LifeCycle Support will review legal information changes.</span>
+                      </div>
+                      <button type="button" onClick={() => navigate('/user/contact')}>Request a correction</button>
+                    </footer>
+                  </section>
+                </div>
+              )}
+
+              {/* FUNERAL SHOP SETTINGS VIEW */}
+              {activeTab === 'settings' && (
+                <div className="sc-settings-layout">
+                  <header className="sc-settings-header">
+                    <div>
+                      <h2>Funeral Shop Settings</h2>
+                      <p>Manage your public shop profile, availability, and registered business details.</p>
+                    </div>
+                  </header>
+
+                  <div className="sc-settings-columns is-single">
+                    <div className="sc-settings-main-column">
+                      <section className="sc-settings-panel">
+                        <header className="sc-settings-panel-header">
+                          <div>
+                            <span>Storefront</span>
+                            <h3>Public shop profile</h3>
+                            <p>Keep the details families see accurate and up to date.</p>
+                          </div>
+                        </header>
+
+                        <div className="sc-settings-profile-media">
+                          <div className="sc-settings-cover-preview">
+                            {shop.coverImageUrl ? <img src={shop.coverImageUrl} alt={`${shop.shopName} cover`} /> : <span>Cover photo</span>}
+                            <label>
+                              {uploadingShopCover ? 'Uploading…' : 'Change cover'}
+                              <input type="file" accept="image/*" onChange={event => handleUploadShopImage(event, 'coverImageUrl')} />
+                            </label>
+                          </div>
+                          <div className="sc-settings-logo-preview">
+                            {shop.shopImageUrl ? <img src={shop.shopImageUrl} alt={shop.shopName} /> : <span>{shop.shopName.slice(0, 2).toUpperCase()}</span>}
+                            <label>
+                              {uploadingShopProfile ? 'Uploading…' : 'Change logo'}
+                              <input type="file" accept="image/*" onChange={event => handleUploadShopImage(event, 'shopImageUrl')} />
+                            </label>
+                          </div>
+                        </div>
+
+                        {editingShopProfile ? (
+                          <form className="sc-settings-profile-form" onSubmit={event => { event.preventDefault(); void saveShopProfile() }}>
+                            <div className="sc-settings-profile-grid">
+                              <label className="is-wide">
+                                <span>Shop name</span>
+                                <input type="text" maxLength={120} value={shopProfileDraft.name} onChange={event => setShopProfileDraft(current => ({ ...current, name: event.target.value }))} />
+                              </label>
+                              <label className="is-wide">
+                                <span>Public address</span>
+                                <textarea maxLength={220} rows={3} value={shopProfileDraft.address} onChange={event => setShopProfileDraft(current => ({ ...current, address: event.target.value }))} />
+                              </label>
+                              <label>
+                                <span>Phone number</span>
+                                <input type="tel" maxLength={24} value={shopProfileDraft.phone} onChange={event => setShopProfileDraft(current => ({ ...current, phone: event.target.value }))} />
+                              </label>
+                              <label>
+                                <span>Service capacity</span>
+                                <input type="number" min="1" max="20" step="1" value={shopProfileDraft.capacity} onChange={event => setShopProfileDraft(current => ({ ...current, capacity: event.target.value }))} />
+                                <small>Maximum overlapping wake services.</small>
+                              </label>
+                            </div>
+                            <footer className="sc-settings-profile-actions">
+                              <button type="button" className="sc-settings-secondary-btn" onClick={cancelShopProfileEditor}>Cancel</button>
+                              <button type="submit" className="sc-settings-primary-btn" disabled={savingShopProfile}>{savingShopProfile ? 'Saving…' : 'Save profile'}</button>
+                            </footer>
+                          </form>
+                        ) : (
+                          <div className="sc-settings-profile-summary">
+                            <div><span>Shop name</span><strong>{shop.shopName}</strong></div>
+                            <div><span>Phone</span><strong>{shop.shopPhoneNumber || 'Not provided'}</strong></div>
+                            <div><span>Public address</span><strong>{shop.shopAddress || 'Not provided'}</strong></div>
+                            <div><span>Account email</span><strong>{user?.email || 'Not provided'}</strong></div>
+                            <div><span>General location</span><strong>{shop.generalLocation || 'Not provided'}</strong></div>
+                            <div><span>Shop ID</span><strong className="sc-settings-shop-id" title={shop.id}>{shop.id}</strong></div>
+                          </div>
+                        )}
+
+                        {!editingShopProfile && (
+                          <footer className="sc-settings-profile-edit-footer">
+                            <button type="button" className="sc-settings-header-action" onClick={openShopProfileEditor}>Edit profile</button>
+                          </footer>
+                        )}
+
+                        <div className="sc-settings-row sc-settings-row-static">
+                          <span className="sc-settings-row-icon">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                          </span>
+                          <span className="sc-settings-row-copy">
+                            <strong>Storefront availability</strong>
+                            <small>{shop.status === 'live' ? 'Families can currently find and order from your shop' : 'Your storefront is currently hidden from families'}</small>
+                          </span>
+                          <div className="sc-settings-availability-controls">
+                            <button
+                              type="button"
+                              className={`sc-settings-availability${shop.status === 'live' ? ' is-live' : ''}`}
+                              disabled
+                              aria-label={shop.status === 'live' ? 'Storefront is online' : 'Storefront is offline'}
+                            >
+                              <i aria-hidden="true" />
+                              {shop.status === 'live' ? 'Online' : 'Offline'}
+                            </button>
+                            <button
+                              type="button"
+                              className={`sc-settings-availability-action${shop.status === 'live' ? '' : ' is-enable'}`}
+                              onClick={shop.status === 'live' ? handleGoOffline : handleGoLive}
+                              disabled={!shopAccountApproved || saving}
+                            >
+                              {saving ? 'Saving...' : shop.status === 'live' ? 'Turn off' : 'Turn on'}
+                            </button>
+                          </div>
+                        </div>
+                      </section>
+
+                      <section className="sc-settings-panel sc-settings-actions-panel">
+                        <header className="sc-settings-panel-header">
+                          <div>
+                            <span>Shop account</span>
+                            <h3>Registered business</h3>
+                            <p>Review the legal information connected to this shop.</p>
+                          </div>
+                        </header>
+
+                        <button
+                          type="button"
+                          className="sc-settings-row sc-settings-action-row"
+                          onClick={() => navigate('/seller?tab=registered_information')}
+                        >
+                          <span className="sc-settings-row-icon">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V5l8-3 8 3v16"/><path d="M9 21v-4h6v4M8 7h.01M12 7h.01M16 7h.01M8 11h.01M12 11h.01M16 11h.01"/></svg>
+                          </span>
+                          <span className="sc-settings-row-copy">
+                            <strong>Registered information</strong>
+                            <small>Legal business, owner, address, TIN, and VAT details</small>
+                          </span>
+                          <span className="sc-settings-row-value">View details</span>
+                          <svg className="sc-settings-row-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+                        </button>
+
+                      </section>
+
+                    </div>
+
                   </div>
                 </div>
               )}
@@ -2835,102 +4309,8 @@ export default function SellerCentrePage() {
                 <div className="sc-payment-layout sc-admin-payments-layout">
                   <XenditShopPaymentCard
                     className="sc-lifecycle-payment-card"
-                    title="LifeCycle billing"
-                    description="Submit your shop registration or renewal payment and review its approval status."
                     onSuccess={() => void loadData()}
                   />
-                </div>
-              )}
-
-              {/* PAYMENT QR & AMOUNT VIEW */}
-              {activeTab === 'payment_setup' && (
-                <div className="sc-finance-layout sc-finance-setup-layout">
-                  <header className="sc-finance-header">
-                    <div>
-                      <span className="sc-finance-kicker">Finance</span>
-                      <h2>Family payment setup</h2>
-                      <p>Set the QR code and default amount shown after accepting a request.</p>
-                    </div>
-                    <span className={`sc-finance-setup-status ${paymentSetupReady ? 'is-ready' : 'is-required'}`}>
-                      <i aria-hidden="true" />
-                      {paymentSetupReady ? 'Ready to collect' : 'Setup required'}
-                    </span>
-                  </header>
-
-                  <section className="sc-finance-setup-panel">
-                    <div className="sc-finance-qr-pane">
-                      <div className="sc-finance-field-heading">
-                        <span>Payment QR</span>
-                        {paymentQrUrl && (
-                          <small>{paymentQrSavedAt ? `Updated ${new Date(paymentQrSavedAt).toLocaleDateString()}` : 'Saved'}</small>
-                        )}
-                      </div>
-                      <div className="sc-payment-qr-box">
-                        {paymentQrPreview ? (
-                          <img className="sc-payment-qr-img" src={paymentQrPreview} alt="New payment QR preview" />
-                        ) : paymentQrUrl ? (
-                          <img className="sc-payment-qr-img" src={paymentQrUrl} alt="Payment QR" />
-                        ) : (
-                          <div className="sc-payment-qr-empty">No QR code uploaded yet.</div>
-                        )}
-                      </div>
-                      <small className="sc-finance-qr-note">Use a clear GCash or e-wallet QR image.</small>
-                    </div>
-
-                    <div className="sc-finance-setup-fields">
-                      <span className="sc-finance-kicker">Collection details</span>
-                      <h3>Default family payment</h3>
-                      <p>This amount and QR code are shared with the family when you accept an arrangement request.</p>
-
-                      <label className="sc-finance-amount-field">
-                        <span>Amount to collect</span>
-                        <div>
-                          <b>₱</b>
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            placeholder="0.00"
-                            value={paymentFeeInput}
-                            onChange={e => setPaymentFeeInput(e.target.value)}
-                          />
-                        </div>
-                      </label>
-
-                      <div className="sc-payment-qr-actions">
-                        <input
-                          ref={paymentQrFileInputRef}
-                          type="file"
-                          accept="image/*"
-                          style={{ display: 'none' }}
-                          onChange={handlePaymentQrFileChange}
-                        />
-                        <button
-                          className="sc-finance-action"
-                          disabled={paymentSaving}
-                          onClick={() => paymentQrFileInputRef.current?.click()}
-                        >
-                          {paymentQrPreview || paymentQrUrl ? 'Replace QR Code' : 'Upload QR Code'}
-                        </button>
-                        {paymentQrPreview && (
-                          <button className="sc-finance-action" disabled={paymentSaving} onClick={clearPaymentQrSelection}>
-                            Cancel
-                          </button>
-                        )}
-                        {paymentQrUrl && !paymentQrPreview && (
-                          <button className="sc-finance-action sc-finance-action-reject" disabled={paymentSaving} onClick={handleRemovePaymentQr}>
-                            Remove QR
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <footer className="sc-finance-setup-footer">
-                      <span>Changes apply to newly accepted requests.</span>
-                      <button className="sc-btn sc-btn-primary" disabled={paymentSaving} onClick={handleSavePaymentSettings}>
-                        {paymentSaving ? 'Saving…' : 'Save Payment Settings'}
-                      </button>
-                    </footer>
-                  </section>
                 </div>
               )}
 
@@ -3010,7 +4390,7 @@ export default function SellerCentrePage() {
                             <input type="checkbox" checked={editorHasVariations} onChange={(e) => {
                               setEditorHasVariations(e.target.checked)
                               if (e.target.checked && editorVariationEntries.length === 0) {
-                                setEditorVariationEntries([{ name: "", imageUrl: null }])
+                                setEditorVariationEntries([{ name: "", price: "", imageUrl: null }])
                               }
                             }} />
                             <span className="sc-checkbox-text">This product has casket variations</span>
@@ -3055,12 +4435,17 @@ export default function SellerCentrePage() {
                                       const val = e.target.value
                                       setEditorVariationEntries(prev => prev.map((item, i) => i === idx ? { ...item, name: val } : item))
                                     }} />
+                                    <label style={{ marginTop: '10px' }}>Variation Price</label>
+                                    <input type="text" inputMode="decimal" className="sc-form-input" placeholder="₱0" value={entry.price} onChange={(e) => {
+                                      const val = e.target.value.replace(/[^\d.]/g, '')
+                                      setEditorVariationEntries(prev => prev.map((item, i) => i === idx ? { ...item, price: val } : item))
+                                    }} />
                                   </div>
                                 </div>
                               ))}
                             </div>
                             <div style={{ marginTop: '16px' }}>
-                              <button type="button" className="sc-btn" onClick={() => setEditorVariationEntries(prev => [...prev, { name: "", imageUrl: null }])}>
+                              <button type="button" className="sc-btn" onClick={() => setEditorVariationEntries(prev => [...prev, { name: "", price: "", imageUrl: null }])}>
                                 + Add Variation
                               </button>
                             </div>
@@ -3072,23 +4457,20 @@ export default function SellerCentrePage() {
                       <div className="sc-editor-section">
                         <label className="sc-editor-section-title">
                           Packages
-                          <span className="sc-editor-section-desc">Your saved shop package appears automatically after buyers choose a variation.</span>
+                          <span className="sc-editor-section-desc">Your saved inclusions come with the casket at the selected variation price.</span>
                         </label>
-                        {shopPackage ? (
+                        {packageItems.length > 0 ? (
                           <div className="sc-editor-package-preview">
-                            {SHOP_PACKAGE_ITEMS.map(item => {
-                              const imageUrl = shopPackage[item.field] || null
-                              return (
-                                <div className="sc-editor-package-item" key={item.key}>
-                                  {imageUrl ? <img src={imageUrl} alt={item.label} /> : <div className="sc-editor-package-empty">No image</div>}
-                                  <span>{item.label}</span>
+                            {packageItems.map(item => (
+                                <div className="sc-editor-package-item" key={item.id}>
+                                  {item.imageUrl ? <img src={item.imageUrl} alt={item.name} /> : <div className="sc-editor-package-empty">No image</div>}
+                                  <span>{item.name}</span>
                                 </div>
-                              )
-                            })}
+                            ))}
                           </div>
                         ) : (
                           <div className="sc-editor-package-note">
-                            Add package pictures in the Packages tab to show Flowers, Candles, Curtains, and Vehicle on every product.
+                            Add your own package inclusions and photos in the Packages tab to show buyers what you provide.
                           </div>
                         )}
                       </div>
@@ -3153,6 +4535,67 @@ export default function SellerCentrePage() {
                   ))}
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SHOP SCHEDULE EVENT MODAL */}
+      {scheduleModalOpen && (
+        <div className='sc-modal-overlay sc-schedule-modal-overlay' onClick={() => !savingScheduleEvent && setScheduleModalOpen(false)}>
+          <div className='sc-modal sc-schedule-modal' role='dialog' aria-modal='true' aria-labelledby='sc-schedule-modal-title' onClick={event => event.stopPropagation()}>
+            <div className='sc-modal-header'>
+              <div>
+                <h3 id='sc-schedule-modal-title'>{editingScheduleEvent ? 'Edit schedule event' : 'Add to schedule'}</h3>
+              </div>
+              <button type='button' className='sc-modal-close' aria-label='Close' disabled={savingScheduleEvent} onClick={() => setScheduleModalOpen(false)}>×</button>
+            </div>
+            <div className='sc-modal-body'>
+              <div className='sc-schedule-form'>
+                <label className='sc-schedule-field sc-schedule-field-wide'>
+                  <span>Event title</span>
+                  <input
+                    type='text'
+                    maxLength={120}
+                    value={scheduleDraft.title}
+                    onChange={event => setScheduleDraft(current => ({ ...current, title: event.target.value }))}
+                    placeholder='Event name'
+                    autoFocus
+                  />
+                </label>
+                <label className='sc-schedule-field'>
+                  <span>Event type</span>
+                  <select value={scheduleDraft.eventType} onChange={event => setScheduleDraft(current => ({ ...current, eventType: event.target.value as ShopScheduleEventType }))}>
+                    {SCHEDULE_EVENT_TYPES.map(type => <option key={type.value} value={type.value}>{type.label}</option>)}
+                  </select>
+                </label>
+                <label className='sc-schedule-field'>
+                  <span>Date</span>
+                  <input type='date' value={scheduleDraft.eventDate} onChange={event => setScheduleDraft(current => ({ ...current, eventDate: event.target.value }))} />
+                </label>
+                <label className='sc-schedule-field'>
+                  <span>Start time</span>
+                  <input type='time' value={scheduleDraft.startTime} onChange={event => setScheduleDraft(current => ({ ...current, startTime: event.target.value }))} />
+                </label>
+                <label className='sc-schedule-field'>
+                  <span>End time <small>Optional</small></span>
+                  <input type='time' value={scheduleDraft.endTime} onChange={event => setScheduleDraft(current => ({ ...current, endTime: event.target.value }))} />
+                </label>
+                <label className='sc-schedule-field sc-schedule-field-wide'>
+                  <span>Location <small>Optional</small></span>
+                  <input type='text' maxLength={180} value={scheduleDraft.location} onChange={event => setScheduleDraft(current => ({ ...current, location: event.target.value }))} placeholder='Location' />
+                </label>
+                <label className='sc-schedule-field sc-schedule-field-wide'>
+                  <span>Notes <small>Optional</small></span>
+                  <textarea maxLength={500} rows={3} value={scheduleDraft.notes} onChange={event => setScheduleDraft(current => ({ ...current, notes: event.target.value }))} placeholder='Notes' />
+                </label>
+              </div>
+            </div>
+            <div className='sc-schedule-modal-actions'>
+              {editingScheduleEvent && <button type='button' className='sc-schedule-delete-btn' disabled={savingScheduleEvent} onClick={removeScheduleEvent}>Delete</button>}
+              <span />
+              <button type='button' className='sc-btn' disabled={savingScheduleEvent} onClick={() => setScheduleModalOpen(false)}>Cancel</button>
+              <button type='button' className='sc-btn sc-btn-primary' disabled={savingScheduleEvent} onClick={() => void saveScheduleEvent()}>{savingScheduleEvent ? 'Saving…' : editingScheduleEvent ? 'Save changes' : 'Add event'}</button>
             </div>
           </div>
         </div>
@@ -3253,7 +4696,7 @@ export default function SellerCentrePage() {
                     {detailData.variations.map((v) => (
                       <div className="sc-var-item" key={v.id}>
                         {v.imageUrl ? <img src={v.imageUrl} alt={v.name} /> : <div className="sc-var-ph">LC</div>}
-                        <span>{v.name}</span>
+                        <span>{v.name}{v.price ? ` · ${formatPeso(v.price)}` : ''}</span>
                       </div>
                     ))}
                   </div>

@@ -30,11 +30,14 @@ import { hapticMedium } from "@/utils/haptics";
 import { colors, radii, spacing } from "@/theme";
 
 type ProductVariation = {
+  id?: string;
   name: string;
+  price?: string | number | null;
   imageUrl?: string | null;
 };
 
 type ShopPackage = {
+  items?: { id?: string; name?: string; imageUrl?: string | null }[] | null;
   flowersImageUrl?: string | null;
   candlesImageUrl?: string | null;
   curtainsImageUrl?: string | null;
@@ -132,7 +135,9 @@ function mapCatalogProduct(row: any, fallbackShopName = "Funeral shop"): Product
     shopName: String(row.funeral_shops?.shopName || fallbackShopName),
     hasVariations: Boolean(row.hasVariations) || (row.funeral_product_variations || []).length > 0,
     variations: (row.funeral_product_variations || []).map((variation: any) => ({
+      id: variation.id ? String(variation.id) : undefined,
       name: String(variation.name || "Standard"),
+      price: variation.price ?? null,
       imageUrl: variation.imageUrl || null,
     })),
   };
@@ -159,6 +164,15 @@ function formatTimestamp(timestamp: any) {
 
 function getPackageItems(row?: ShopPackage | null): PackageDisplayItem[] {
   if (!row || row.active === false) return [];
+  if (Array.isArray(row.items) && row.items.length > 0) {
+    return row.items
+      .map((item) => ({
+        name: String(item?.name || "").trim(),
+        imageUrl: item?.imageUrl || null,
+        icon: "gift-outline" as const,
+      }))
+      .filter((item) => Boolean(item.name && item.imageUrl));
+  }
   const items: PackageDisplayItem[] = [
     { name: "Flowers", imageUrl: row.flowersImageUrl, icon: "flower-outline" },
     { name: "Candles", imageUrl: row.candlesImageUrl, icon: "flame-outline" },
@@ -206,6 +220,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
   const [relatedFavoriteIds, setRelatedFavoriteIds] = useState<Set<string>>(() => new Set());
   const [recommendedProducts, setRecommendedProducts] = useState<ProductViewItem[]>([]);
   const [shopPackage, setShopPackage] = useState<ShopPackage | null>(null);
+  const [liveVariations, setLiveVariations] = useState<ProductVariation[] | null>(null);
   const [shopProductCount, setShopProductCount] = useState(1);
   const variationBackdropOpacity = useRef(new Animated.Value(0)).current;
   const variationSheetProgress = useRef(new Animated.Value(0)).current;
@@ -213,7 +228,6 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
   const cartConfirmSheetProgress = useRef(new Animated.Value(0)).current;
 
   const product = (route?.params?.product || null) as ProductViewItem | null;
-  const gallery = product ? getGallery(product) : [];
 
   const imageWidth = Math.max(width, 1);
   const imageHeight = Math.min(imageWidth, 420);
@@ -224,13 +238,19 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
   const priceLabel = product?.name || "Funeral product";
   const defaultRatingValue = Math.max(0, Math.min(5, Number(product?.rating) || 0));
   const soldCount = Math.max(0, Number(product?.soldCount) || 0);
-  const variations = Array.isArray(product?.variations) ? product.variations : [];
+  const routeVariations = Array.isArray(product?.variations) ? product.variations : [];
+  const variations = liveVariations ?? routeVariations;
+  const gallery = product
+    ? Array.from(new Set([...getGallery(product), ...variations.map((item) => item.imageUrl).filter((url): url is string => Boolean(url))]))
+    : [];
   const variationCount = variations.length;
   const selectedVariation = variations.find((item) => item.name === selectedVariationName) || null;
   const fallbackItemLabel = variations[0]?.name ? `Item: ${variations[0].name}` : "Item: Standard";
   const productKey = product ? `${product.shopId || "shop"}:${product.id}` : "";
   const availablePackages = getPackageItems(shopPackage);
   const includedPackageItems = availablePackages.map((item) => item.name);
+  const selectedVariationPrice = selectedVariation?.price == null ? priceValue : getNumericPrice(selectedVariation.price);
+  const calculatedTotal = selectedVariationPrice;
 
   const getIdentity = useCallback(async () => {
     const currentUser = auth.currentUser;
@@ -303,6 +323,8 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
 
   useEffect(() => {
     setSelectedVariationName(null);
+    setLiveVariations(null);
+    setShopPackage(null);
     setPurchaseChecked(false);
     setHasPurchased(false);
     void checkPurchaseEligibility();
@@ -321,10 +343,11 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
         setRelatedProducts([]);
         setRecommendedProducts([]);
         setShopPackage(null);
+        setLiveVariations(null);
         return;
       }
 
-      const [shopResult, relatedResult, recommendationsResult, packagesResult] = await Promise.all([
+      const [shopResult, relatedResult, recommendationsResult, packagesResult, variationsResult] = await Promise.all([
         supabase
           .from("funeral_shops")
           .select("shopName, shopAddress, generalLocation, shopImageUrl, status")
@@ -334,7 +357,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
           .from("funeral_products")
           .select(`
             *,
-            funeral_product_variations ( name, imageUrl ),
+            funeral_product_variations ( id, name, price, imageUrl ),
             funeral_product_images ( imageUrl, displayOrder )
           `, { count: "exact" })
           .eq("shopId", product.shopId)
@@ -346,7 +369,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
           .from("funeral_products")
           .select(`
             *,
-            funeral_product_variations ( name, imageUrl ),
+            funeral_product_variations ( id, name, price, imageUrl ),
             funeral_product_images ( imageUrl, displayOrder ),
             funeral_shops!inner ( shopName, status )
           `)
@@ -359,10 +382,14 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
           .limit(8),
         supabase
           .from("funeral_shop_packages")
-          .select("flowersImageUrl, candlesImageUrl, curtainsImageUrl, vehicleImageUrl, active")
+          .select("items, flowersImageUrl, candlesImageUrl, curtainsImageUrl, vehicleImageUrl, active")
           .eq("shopId", product.shopId)
           .eq("active", true)
           .maybeSingle(),
+        supabase
+          .from("funeral_product_variations")
+          .select("id, name, price, imageUrl")
+          .eq("productId", product.id),
       ]);
 
       if (cancelled) return;
@@ -381,6 +408,16 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
         setShopPackage((packagesResult.data as ShopPackage | null) || null);
       } else {
         setShopPackage(null);
+      }
+      if (!variationsResult.error) {
+        setLiveVariations((variationsResult.data || []).map((variation: any) => ({
+          id: String(variation.id),
+          name: String(variation.name || "Standard"),
+          price: variation.price ?? null,
+          imageUrl: variation.imageUrl || null,
+        })));
+      } else {
+        setLiveVariations(null);
       }
     };
 
@@ -559,13 +596,14 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
     navigation.navigate("ShopChat", {
       otherUserId: product.shopId,
       otherUserName: product.shopName || "Funeral Shop",
+      shopId: product.shopId,
     });
   };
 
   const shareProduct = async () => {
     await Share.share({
       title: product.name,
-      message: `${product.name} — ${formatPhilippinePeso(priceValue || product.price)} from ${product.shopName || "LifeCycle"}`,
+      message: `${product.name} — ${formatPhilippinePeso(calculatedTotal)} from ${product.shopName || "LifeCycle"}`,
     });
   };
 
@@ -778,8 +816,9 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
         shopId: product.shopId,
         shopName: product.shopName || "Funeral shop",
         name: product.name,
-        price: String(product.price || ""),
+        price: String(calculatedTotal),
         imageUrl: selectedVariation?.imageUrl || gallery[0] || product.imageUrl || null,
+        variationId: selectedVariation?.id || null,
         variationName: selectedVariationName,
         packageItems: includedPackageItems,
         quantity: 1,
@@ -809,8 +848,9 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
         shopId: product.shopId,
         shopName: product.shopName || "Funeral shop",
         name: product.name,
-        price: String(product.price || ""),
+        price: String(calculatedTotal),
         imageUrl: selectedVariation?.imageUrl || gallery[0] || product.imageUrl || null,
+        variationId: selectedVariation?.id || null,
         variationName: selectedVariationName,
         packageItems: includedPackageItems,
       });
@@ -908,7 +948,13 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
         <View style={styles.detailsSurface}>
         <View style={styles.priceSection}>
           <Text style={styles.productTitle}>{priceLabel}</Text>
-          <Text style={styles.priceText}>{formatPhilippinePeso(priceValue || product.price)}</Text>
+          <Text style={styles.totalPriceLabel}>Total price</Text>
+          <Text style={styles.priceText}>{formatPhilippinePeso(calculatedTotal)}</Text>
+          {selectedVariation ? (
+            <Text style={styles.priceBreakdown}>
+              Selected variation: {selectedVariation.name}
+            </Text>
+          ) : null}
           <View style={styles.ratingStockRow}>
             <View style={styles.ratingRow}>
               <View style={styles.ratingBadge}>
@@ -989,6 +1035,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
             </View>
           </View>
           ) : null}
+
         </View>
 
         <View style={styles.detailSection}>
@@ -1190,7 +1237,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
             </TouchableOpacity>
             <TouchableOpacity style={styles.buyButton} onPress={handleBuyNow}>
               <Text style={styles.buyButtonText}>Buy now</Text>
-              <Text style={styles.buyButtonPrice}>{formatPhilippinePeso(priceValue || product.price)}</Text>
+              <Text style={styles.buyButtonPrice}>{formatPhilippinePeso(calculatedTotal)}</Text>
             </TouchableOpacity>
           </>
         )}
@@ -1248,6 +1295,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
           <Animated.View
             style={[
               styles.sheetCard,
+              styles.variationSheetCard,
               { paddingBottom: sheetBottomPadding },
               {
                 opacity: variationSheetProgress.interpolate({
@@ -1275,13 +1323,51 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
             <View style={styles.sheetHandle} />
 
               <View style={styles.sheetHeader}>
-                <Text style={styles.sheetTitle}>{variationSheetMode === "cart" ? "Choose Variation" : "Variations"}</Text>
+                <Text style={styles.sheetTitle}>Choose variation</Text>
                 <TouchableOpacity style={styles.sheetCloseButton} onPress={() => closeVariationSheet()}>
                   <Ionicons name="close" size={20} color="#22312d" />
                 </TouchableOpacity>
               </View>
 
-              <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.sheetPriceSummary}>
+                <TouchableOpacity
+                  activeOpacity={selectedVariation?.imageUrl ? 0.86 : 1}
+                  style={styles.sheetPriceImageWrap}
+                  onPress={() => {
+                    if (!selectedVariation?.imageUrl) return;
+                    setPreviewVariation({
+                      name: selectedVariation.name,
+                      imageUrl: selectedVariation.imageUrl,
+                    });
+                    setVariationPreviewVisible(true);
+                  }}
+                >
+                  {selectedVariation?.imageUrl || gallery[0] || product.imageUrl ? (
+                    <Image
+                      source={{ uri: selectedVariation?.imageUrl || gallery[0] || product.imageUrl || "" }}
+                      style={styles.sheetPriceImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={styles.sheetPriceImageFallback}>
+                      <Ionicons name="cube-outline" size={25} color="#718079" />
+                    </View>
+                  )}
+                </TouchableOpacity>
+                <View style={styles.sheetPriceCopy}>
+                  <Text style={styles.sheetPriceLabel}>Total price</Text>
+                  <Text style={styles.sheetPriceValue}>{formatPhilippinePeso(calculatedTotal)}</Text>
+                  <Text style={styles.sheetPriceVariation} numberOfLines={2}>
+                    {selectedVariation ? selectedVariation.name : "Select a variation below"}
+                  </Text>
+                </View>
+              </View>
+
+              <Text style={styles.sheetOptionLabel}>Variation ({variationCount})</Text>
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.sheetVariationGrid}
+              >
                 {variations.map((variation, index) => (
                   <TouchableOpacity
                     key={`sheet_${product.id}_${variation.name}_${index}`}
@@ -1291,10 +1377,6 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
                     ]}
                     activeOpacity={0.88}
                     onPress={() => {
-                      if (variationSheetMode === "browse") {
-                        openVariationPreview(variation, index);
-                        return;
-                      }
                       setSelectedVariationName(variation.name || `Option ${index + 1}`);
                     }}
                   >
@@ -1302,10 +1384,6 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
                       activeOpacity={0.9}
                       style={styles.sheetVariationThumbLarge}
                       onPress={() => {
-                        if (variationSheetMode === "browse") {
-                          openVariationPreview(variation, index);
-                          return;
-                        }
                         setSelectedVariationName(variation.name || `Option ${index + 1}`);
                       }}
                     >
@@ -1320,12 +1398,9 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
 
                     <View style={styles.sheetVariationBody}>
                       <Text style={styles.sheetVariationName}>{variation.name || `Option ${index + 1}`}</Text>
-                      <Text style={styles.sheetVariationHint}>
-                        {variationSheetMode === "cart" ? "Select this variation for your cart" : "Tap to view this variation clearly"}
-                      </Text>
                     </View>
                     {selectedVariationName === variation.name ? (
-                      <Ionicons name="checkmark-circle" size={20} color="#16a34a" />
+                      <Ionicons name="checkmark-circle" size={22} color={colors.primary} style={styles.sheetVariationCheck} />
                     ) : null}
                   </TouchableOpacity>
                 ))}
@@ -1353,7 +1428,9 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
                   }}
                 >
                   <Ionicons name={variationSheetMode === "buy" ? "flash-outline" : "cart-outline"} size={18} color="#ffffff" />
-                  <Text style={styles.sheetAddToCartButtonText}>{variationSheetMode === "buy" ? "Continue to Checkout" : "Add to Cart"}</Text>
+                  <Text style={styles.sheetAddToCartButtonText}>
+                    {variationSheetMode === "buy" ? "Continue to Checkout" : "Add to Cart"}
+                  </Text>
                 </TouchableOpacity>
               ) : null}
             </Animated.View>
@@ -1479,7 +1556,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
                 {includedPackageItems.length > 0 ? (
                   <Text style={styles.confirmVariation}>Included: {includedPackageItems.join(", ")}</Text>
                 ) : null}
-                <Text style={styles.confirmPrice}>{formatPhilippinePeso(priceValue || product.price)}</Text>
+                <Text style={styles.confirmPrice}>Total: {formatPhilippinePeso(calculatedTotal)}</Text>
               </View>
             </View>
 
@@ -1662,6 +1739,19 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontWeight: "800",
     marginTop: spacing.xs,
+  },
+  priceBreakdown: {
+    color: colors.textMuted,
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 3,
+  },
+  totalPriceLabel: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "800",
+    marginTop: spacing.sm,
+    textTransform: "uppercase",
   },
   ratingStockRow: {
     flexDirection: "row",
@@ -2119,6 +2209,9 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 20,
   },
+  variationSheetCard: {
+    maxHeight: "84%",
+  },
   sheetHandle: {
     alignSelf: "center",
     width: 48,
@@ -2146,20 +2239,84 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  sheetVariationRow: {
+  sheetPriceSummary: {
+    minHeight: 112,
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    borderRadius: 18,
-    backgroundColor: "#fbfcf8",
+    gap: 14,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#e4ebe4",
-    padding: 12,
+    borderColor: "#e3e8e3",
+    backgroundColor: "#fbfcf8",
+    padding: 10,
+    marginBottom: 18,
+  },
+  sheetPriceImageWrap: {
+    width: 92,
+    height: 92,
+    borderRadius: 15,
+    overflow: "hidden",
+    backgroundColor: "#edf1ed",
+  },
+  sheetPriceImage: {
+    width: "100%",
+    height: "100%",
+  },
+  sheetPriceImageFallback: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sheetPriceCopy: {
+    flex: 1,
+    alignSelf: "stretch",
+    justifyContent: "center",
+  },
+  sheetPriceLabel: {
+    color: "#7b8782",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+  },
+  sheetPriceValue: {
+    color: colors.primary,
+    fontSize: 28,
+    fontWeight: "900",
+    letterSpacing: -0.5,
+    marginTop: 2,
+  },
+  sheetPriceVariation: {
+    color: "#77827d",
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 4,
+  },
+  sheetOptionLabel: {
+    color: "#22312d",
+    fontSize: 14,
+    fontWeight: "900",
     marginBottom: 10,
   },
+  sheetVariationGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    paddingBottom: 8,
+  },
+  sheetVariationRow: {
+    width: "31%",
+    borderRadius: 10,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#dce3de",
+    overflow: "hidden",
+    position: "relative",
+  },
   sheetVariationRowActive: {
-    borderColor: "#86efac",
-    backgroundColor: "#f0fdf4",
+    borderColor: colors.primary,
+    borderWidth: 2,
+    backgroundColor: colors.surfaceMuted,
   },
   sheetVariationThumb: {
     width: 60,
@@ -2169,9 +2326,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#e4ebe4",
   },
   sheetVariationThumbLarge: {
-    width: 72,
-    height: 72,
-    borderRadius: 18,
+    width: "100%",
+    aspectRatio: 1,
     overflow: "hidden",
     backgroundColor: "#e4ebe4",
   },
@@ -2187,17 +2343,25 @@ const styles = StyleSheet.create({
   },
   sheetVariationName: {
     color: "#22312d",
-    fontSize: 15,
-    fontWeight: "800",
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: "700",
+    textAlign: "center",
   },
   sheetVariationBody: {
-    flex: 1,
-    gap: 4,
+    width: "100%",
+    minHeight: 46,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 5,
+    paddingVertical: 7,
   },
-  sheetVariationHint: {
-    color: "#75807b",
-    fontSize: 12,
-    lineHeight: 18,
+  sheetVariationCheck: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    borderRadius: 999,
+    backgroundColor: "#ffffff",
   },
   sheetAddToCartButton: {
     minHeight: 50,

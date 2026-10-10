@@ -1,4 +1,4 @@
-import { useCallback, useState, type ComponentProps, type ReactNode } from "react";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -18,32 +18,11 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { AdminPaymentModal, AppBackButton, KeyboardAwareScrollView } from "@/components";
 import LoadingBird from "@/components/LoadingBird";
+import PayoutAccountsModal from "@/components/PayoutAccountsModal";
 import { auth, uploadCertificate } from "@/services";
 import { supabase } from "@/services/supabaseClient";
-import { updateShopPayout } from "@/services/xenditAdmin";
 import { sanitizePlainText } from "@/utils/inputSecurity";
 
-const PAYOUT_CHANNELS = [
-  { code: "PH_GCASH", label: "GCash" },
-  { code: "PH_MAYA", label: "Maya" },
-  { code: "PH_BDO", label: "BDO" },
-  { code: "PH_BPI", label: "BPI" },
-  { code: "PH_UBP", label: "UnionBank" },
-  { code: "PH_METROBANK", label: "Metrobank" },
-  { code: "PH_LANDBANK", label: "Landbank" },
-  { code: "PH_PNB", label: "PNB" },
-  { code: "PH_RCBC", label: "RCBC" },
-  { code: "PH_CHINABANK", label: "Chinabank" },
-  { code: "PH_SECURITYBANK", label: "Security Bank" },
-  { code: "PH_EASTWESTBANK", label: "EastWest Bank" },
-];
-
-function getChannelLabel(code?: string | null) {
-  if (!code) return "Not set";
-  return PAYOUT_CHANNELS.find((ch) => ch.code === code)?.label || code;
-}
-
-type IoniconName = ComponentProps<typeof Ionicons>["name"];
 type ShopStatus = "none" | "pending" | "verified" | "live" | "offline" | "rejected";
 type ShopRecord = {
   id: string;
@@ -54,6 +33,7 @@ type ShopRecord = {
   coverImageUrl?: string | null;
   paymentQrUrl?: string | null;
   serviceFeeAmount?: number | string | null;
+  serviceCapacity?: number | string | null;
   xenditAccountId?: string | null;
   paidUntil?: string | null;
   status?: ShopStatus | null;
@@ -76,16 +56,6 @@ type ShopPayment = {
   expiresAt?: string | null;
   verifiedAt?: string | null;
   paymentProvider?: "manual" | "paymongo" | "xendit";
-};
-type SettingRowProps = {
-  icon: IoniconName;
-  label: string;
-  description?: string;
-  value?: string;
-  onPress?: () => void;
-  last?: boolean;
-  disabled?: boolean;
-  trailing?: ReactNode;
 };
 
 function getStatusMeta(status: ShopStatus) {
@@ -197,6 +167,7 @@ const styles = StyleSheet.create({
     minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: "#d3d8d4", backgroundColor: "#ffffff",
     paddingHorizontal: 13, color: "#22312d", fontSize: 14,
   },
+  inputHelp: { color: "#7b8782", fontSize: 11, lineHeight: 16, marginTop: 6 },
   multilineInput: { minHeight: 82, paddingTop: 13, textAlignVertical: "top" },
   primaryButton: {
     minHeight: 50, borderRadius: 15, backgroundColor: "#22312d", flexDirection: "row",
@@ -236,41 +207,36 @@ const styles = StyleSheet.create({
     backgroundColor: "#f3ede5", padding: 11, marginTop: 14,
   },
   infoNoteText: { flex: 1, color: "#765f49", fontSize: 11, lineHeight: 16 },
+  pageHeading: { gap: 5, paddingHorizontal: 2 },
+  pageTitle: { color: "#22312d", fontSize: 22, fontWeight: "900", letterSpacing: -0.4 },
+  pageDescription: { color: "#697670", fontSize: 12, lineHeight: 18 },
+  settingsPanel: { overflow: "hidden", borderWidth: 1, borderColor: "#dfe5eb", borderRadius: 15, backgroundColor: "#ffffff" },
+  panelHeader: { flexDirection: "row", alignItems: "flex-start", gap: 12, padding: 15, borderBottomWidth: 1, borderBottomColor: "#e8edf1" },
+  panelHeaderCopy: { flex: 1, minWidth: 0 },
+  panelEyebrow: { color: "#8793a2", fontSize: 9, fontWeight: "800", letterSpacing: .7, textTransform: "uppercase" },
+  panelTitle: { color: "#253247", fontSize: 16, fontWeight: "900", marginTop: 3 },
+  panelDescription: { color: "#7b8798", fontSize: 10, lineHeight: 15, marginTop: 3 },
+  profileMedia: { height: 126, margin: 15, marginBottom: 34 },
+  profileCover: { width: "100%", height: "100%", overflow: "hidden", borderRadius: 12, backgroundColor: "#eef2f5" },
+  mediaPlaceholder: { flex: 1, alignItems: "center", justifyContent: "center", gap: 5 },
+  mediaPlaceholderText: { color: "#94a3b8", fontSize: 10, fontWeight: "700" },
+  profileLogo: { position: "absolute", left: 14, bottom: -24, width: 58, height: 58, overflow: "hidden", alignItems: "center", justifyContent: "center", borderWidth: 3, borderColor: "#ffffff", borderRadius: 15, backgroundColor: "#edf2f6" },
+  profileDetails: { flexDirection: "row", flexWrap: "wrap", overflow: "hidden", borderWidth: 1, borderColor: "#d9d6cd", borderRadius: 16, backgroundColor: "#ffffff" },
+  profileDetail: { width: "50%", minHeight: 68, paddingHorizontal: 14, paddingVertical: 12, borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#e8e5dd" },
+  profileDetailWide: { width: "100%" },
+  profileDetailLabel: { color: "#8a928d", fontSize: 9, fontWeight: "900", letterSpacing: .4, textTransform: "uppercase" },
+  profileDetailValue: { color: "#2f3f3a", fontSize: 13, lineHeight: 18, fontWeight: "700", marginTop: 4 },
+  profileEditFooter: { marginTop: 10 },
+  profileEditButton: { minHeight: 46, paddingHorizontal: 14, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#d1d8d3", borderRadius: 14, backgroundColor: "#ffffff" },
+  profileEditButtonText: { color: "#52635d", fontSize: 12, fontWeight: "900" },
+  availabilityRow: { minHeight: 66, flexDirection: "row", alignItems: "center", gap: 11, paddingHorizontal: 14, paddingVertical: 10 },
+  registeredRow: { minHeight: 66, flexDirection: "row", alignItems: "center", gap: 11, paddingHorizontal: 14, paddingVertical: 10 },
+  settingsRowIcon: { width: 38, height: 38, flexShrink: 0, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#ebf1e8" },
+  availabilityCopy: { flex: 1, minWidth: 0 },
+  settingsRowTitle: { color: "#2d3d38", fontSize: 14, fontWeight: "800" },
+  settingsRowDescription: { color: "#8a928d", fontSize: 10, lineHeight: 14, marginTop: 2 },
+  viewDetailsText: { color: "#60706a", fontSize: 10, fontWeight: "800" },
 });
-
-function formatDate(value?: string | null) {
-  if (!value) return "Not active";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "Not active";
-  return parsed.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-}
-
-function SettingsSection({ label, children }: { label: string; children: ReactNode }) {
-  return <View><Text style={styles.sectionLabel}>{label}</Text><View style={styles.menuGroup}>{children}</View></View>;
-}
-
-function SettingRow({ icon, label, description, value, onPress, last, disabled, trailing }: SettingRowProps) {
-  const content = (
-    <>
-      <View style={[styles.rowIcon, disabled ? styles.rowIconDisabled : null]}>
-        <Ionicons name={icon} size={20} color={disabled ? "#9ca49f" : "#41514d"} />
-      </View>
-      <View style={styles.rowCopy}>
-        <Text style={[styles.rowLabel, disabled ? styles.rowLabelDisabled : null]}>{label}</Text>
-        {description ? <Text style={styles.rowDescription}>{description}</Text> : null}
-      </View>
-      {value ? <Text style={styles.rowValue} numberOfLines={1}>{value}</Text> : null}
-      {trailing || (onPress ? <Ionicons name="chevron-forward" size={18} color="#8a928d" /> : null)}
-    </>
-  );
-  if (!onPress) return <View style={[styles.settingRow, last ? styles.lastRow : null]}>{content}</View>;
-  return (
-    <TouchableOpacity accessibilityRole="button" accessibilityLabel={label} activeOpacity={0.82} disabled={disabled}
-      onPress={onPress} style={[styles.settingRow, last ? styles.lastRow : null, disabled ? styles.rowDisabled : null]}>
-      {content}
-    </TouchableOpacity>
-  );
-}
 
 function DetailLine({ label, value, last }: { label: string; value?: string | null; last?: boolean }) {
   return (
@@ -281,7 +247,16 @@ function DetailLine({ label, value, last }: { label: string; value?: string | nu
   );
 }
 
-export default function FuneralShopSettingsScreen({ navigation }: any) {
+function ProfileDetail({ label, value, wide }: { label: string; value?: string | null; wide?: boolean }) {
+  return (
+    <View style={[styles.profileDetail, wide ? styles.profileDetailWide : null]}>
+      <Text style={styles.profileDetailLabel}>{label}</Text>
+      <Text style={styles.profileDetailValue}>{value || "Not provided"}</Text>
+    </View>
+  );
+}
+
+export default function FuneralShopSettingsScreen({ navigation, route }: any) {
   const [loading, setLoading] = useState(true);
   const [shop, setShop] = useState<ShopRecord | null>(null);
   const [payment, setPayment] = useState<ShopPayment | null>(null);
@@ -291,11 +266,9 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
   const [adminPaymentsVisible, setAdminPaymentsVisible] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [uploadingImage, setUploadingImage] = useState<"logo" | "cover" | null>(null);
-  const [profileDraft, setProfileDraft] = useState({ name: "", address: "", phone: "", logo: null as string | null, cover: null as string | null });
+  const [profileDraft, setProfileDraft] = useState({ name: "", address: "", phone: "", capacity: "1", logo: null as string | null, cover: null as string | null });
   const [payoutVisible, setPayoutVisible] = useState(false);
-  const [savingPayout, setSavingPayout] = useState(false);
-  const [payoutDraft, setPayoutDraft] = useState({ channel: "", name: "", number: "" });
-  const [channelPickerVisible, setChannelPickerVisible] = useState(false);
+  const [screenOpenedAt] = useState(Date.now);
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
@@ -314,21 +287,25 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
       ]);
       if (shopError) throw shopError;
       if (paymentError) throw paymentError;
-      setShop((shopData as ShopRecord | null) || null);
+      const loadedShop = (shopData as ShopRecord | null) || null;
+      setShop(loadedShop);
       setPayment((paymentData as ShopPayment | null) || null);
+      if (route?.params?.openSection === "payout" && loadedShop) {
+        setPayoutVisible(true);
+        navigation.setParams({ openSection: undefined });
+      }
     } catch (error: any) {
       Alert.alert("Settings unavailable", error?.message || "Unable to load shop settings.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [navigation, route]);
 
   useFocusEffect(useCallback(() => { void loadSettings(); }, [loadSettings]));
 
   const status = (shop?.status || "none") as ShopStatus;
   const statusMeta = getStatusMeta(status);
   const isVerified = ["verified", "live", "offline"].includes(status);
-  const customerCheckoutReady = Boolean(shop?.payoutVerifiedByAdmin);
   const latestPaymentVerified = String(payment?.status || "").toLowerCase() === "verified";
   const renewalPaymentReady = Boolean(
     latestPaymentVerified
@@ -337,7 +314,7 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
       && new Date(payment.verifiedAt).getTime() > new Date(shop.paidUntil).getTime()
   );
   const subscriptionExpired = Boolean(
-    shop?.paidUntil && new Date(shop.paidUntil).getTime() <= Date.now() && !renewalPaymentReady
+    shop?.paidUntil && new Date(shop.paidUntil).getTime() <= screenOpenedAt && !renewalPaymentReady
   );
 
   const handleBack = () => navigation.canGoBack?.() ? navigation.goBack() : navigation.navigate("ShopCenter");
@@ -346,6 +323,7 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
       name: String(shop?.shopName || ""),
       address: String(shop?.shopAddress || ""),
       phone: String(shop?.shopPhoneNumber || ""),
+      capacity: String(Math.max(1, Number(shop?.serviceCapacity) || 1)),
       logo: shop?.shopImageUrl || null,
       cover: shop?.coverImageUrl || null,
     });
@@ -369,13 +347,18 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
     const name = sanitizePlainText(profileDraft.name, 120);
     const address = sanitizePlainText(profileDraft.address, 220);
     const phone = sanitizePlainText(profileDraft.phone, 24);
+    const capacity = Number(profileDraft.capacity);
     if (!name || !address || !phone) {
       Alert.alert("Missing information", "Shop name, address, and phone number are required.");
       return;
     }
+    if (!Number.isInteger(capacity) || capacity < 1 || capacity > 20) {
+      Alert.alert("Invalid capacity", "Service capacity must be a whole number from 1 to 20.");
+      return;
+    }
     setSavingProfile(true);
     try {
-      const update = { shopName: name, shopAddress: address, shopPhoneNumber: phone, shopImageUrl: profileDraft.logo,
+      const update = { shopName: name, shopAddress: address, shopPhoneNumber: phone, serviceCapacity: capacity, shopImageUrl: profileDraft.logo,
         coverImageUrl: profileDraft.cover, updatedAt: new Date().toISOString() };
       const { error } = await supabase.from("funeral_shops").update(update).eq("id", user.uid);
       if (error) throw error;
@@ -410,7 +393,7 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
         "Renew your LifeCycle registration through Xendit Test Mode before making the shop live.",
         [
           { text: "Cancel", style: "cancel" },
-          { text: "Renew with Xendit", onPress: () => setAdminPaymentsVisible(true) },
+          { text: "Renew Online", onPress: () => setAdminPaymentsVisible(true) },
         ],
       );
       return;
@@ -438,9 +421,6 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
     ]);
   };
 
-  const openStorefront = () => {
-    if (shop?.id) navigation.navigate("ShopProducts", { shopId: shop.id, shopName: shop.shopName || "My Shop" });
-  };
   if (loading) return <SafeAreaView style={styles.screen}><LoadingBird fullScreen /></SafeAreaView>;
 
   return (
@@ -449,24 +429,32 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
         <View style={styles.headerBar}>
           <AppBackButton onPress={handleBack} />
           <View style={styles.headerCopy}>
-            <Text style={styles.headerTitle}>Shop Settings</Text>
+            <Text style={styles.headerTitle}>Profile &amp; Settings</Text>
           </View>
         </View>
       </SafeAreaView>
 
       <SafeAreaView edges={["bottom"]} style={styles.body}>
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <TouchableOpacity style={styles.identityCard} activeOpacity={0.86} onPress={openProfile}>
+          <View style={styles.pageHeading}>
+            <Text style={styles.pageTitle}>Funeral Shop Settings</Text>
+            <Text style={styles.pageDescription}>Manage your public shop profile, availability, and registered business details.</Text>
+          </View>
+
+          {status === "rejected" && shop?.rejectionReason ? (
+            <View style={styles.warningCard}>
+              <Ionicons name="alert-circle-outline" size={20} color="#963d38" />
+              <View style={styles.warningCopy}><Text style={styles.warningTitle}>Shop profile needs changes</Text><Text style={styles.warningText}>{shop.rejectionReason}</Text></View>
+            </View>
+          ) : null}
+
+          <View style={styles.identityCard}>
             <View style={styles.identityBackdrop}>
               {shop?.coverImageUrl ? <Image source={{ uri: shop.coverImageUrl }} style={styles.identityCover} resizeMode="cover" /> : null}
             </View>
             <View style={styles.identityContent}>
               <View style={styles.identityAvatar}>
-                {shop?.shopImageUrl ? (
-                  <Image source={{ uri: shop.shopImageUrl }} style={styles.identityImage} resizeMode="cover" />
-                ) : (
-                  <Ionicons name="storefront-outline" size={28} color="#33443e" />
-                )}
+                {shop?.shopImageUrl ? <Image source={{ uri: shop.shopImageUrl }} style={styles.identityImage} resizeMode="cover" /> : <Ionicons name="storefront-outline" size={28} color="#33443e" />}
               </View>
               <View style={styles.identityCopy}>
                 <Text style={styles.identityName} numberOfLines={1}>{shop?.shopName || "My Shop"}</Text>
@@ -476,78 +464,55 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
                   <Text style={[styles.statusText, { color: statusMeta.color }]}>{statusMeta.label}</Text>
                 </View>
               </View>
-              <View style={styles.editPill}>
-                <Text style={styles.editPillText}>Edit</Text>
-                <Ionicons name="chevron-forward" size={15} color="#52635d" />
-              </View>
             </View>
-          </TouchableOpacity>
+          </View>
 
-          {status === "rejected" && shop?.rejectionReason ? (
-            <View style={styles.warningCard}>
-              <Ionicons name="alert-circle-outline" size={20} color="#963d38" />
-              <View style={styles.warningCopy}>
-                <Text style={styles.warningTitle}>Shop profile needs changes</Text>
-                <Text style={styles.warningText}>{shop.rejectionReason}</Text>
-              </View>
+          <View>
+            <Text style={styles.sectionLabel}>Shop information</Text>
+            <View style={styles.profileDetails}>
+              <ProfileDetail label="Shop name" value={shop?.shopName} />
+              <ProfileDetail label="Phone" value={shop?.shopPhoneNumber} />
+              <ProfileDetail label="Public address" value={shop?.shopAddress} />
+              <ProfileDetail label="Account email" value={auth.currentUser?.email} />
+              <ProfileDetail label="General location" value={shop?.generalLocation} />
+              <ProfileDetail label="Shop ID" value={shop?.id} />
             </View>
-          ) : null}
 
-          <SettingsSection label="Storefront">
-            <SettingRow icon="storefront-outline" label="Shop Profile" description="Logo, cover, shop name, address, and contact" onPress={openProfile} />
-            <SettingRow icon="business-outline" label="Registered Business Information" description="Owner, business address, TIN, and VAT status" onPress={() => setBusinessVisible(true)} />
-            <SettingRow icon="eye-outline" label="View Public Storefront" description="Preview what families see" onPress={openStorefront} last />
-          </SettingsSection>
+            <View style={styles.profileEditFooter}>
+              <TouchableOpacity style={styles.profileEditButton} onPress={openProfile}>
+                <Text style={styles.profileEditButtonText}>Edit profile</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
 
-          <SettingsSection label="Payments & Billing">
-            <SettingRow
-              icon="wallet-outline"
-              label="Payout Account"
-              description={shop?.payoutVerifiedByAdmin
-                ? `Verified: ${getChannelLabel(shop?.payoutChannelCode)} — ${shop?.payoutAccountName || ""}`
-                : shop?.payoutChannelCode
-                  ? "Submitted — waiting for admin verification"
-                  : "Set up your GCash or bank account to receive customer payouts"}
-              value={shop?.payoutVerifiedByAdmin ? "Verified" : shop?.payoutChannelCode ? "Pending" : "Not set"}
-              onPress={() => {
-                setPayoutDraft({
-                  channel: shop?.payoutChannelCode || "",
-                  name: shop?.payoutAccountName || "",
-                  number: shop?.payoutAccountNumber || "",
-                });
-                setPayoutVisible(true);
-              }}
-              disabled={!isVerified}
-            />
-            <SettingRow
-              icon="shield-checkmark-outline"
-              label="LifeCycle Subscription"
-              description={subscriptionExpired
-                ? "Subscription expired — tap to renew storefront access"
-                : "Registration fee, renewal, and payment receipts"}
-              value={formatDate(shop?.paidUntil)}
-              onPress={() => setAdminPaymentsVisible(true)}
-              last
-            />
-          </SettingsSection>
+          <View>
+            <Text style={styles.sectionLabel}>Storefront</Text>
+            <View style={styles.menuGroup}>
+            <View style={styles.availabilityRow}>
+              <View style={styles.settingsRowIcon}><Ionicons name="radio-outline" size={20} color="#41514d" /></View>
+              <View style={styles.availabilityCopy}>
+                <Text style={styles.settingsRowTitle}>Storefront availability</Text>
+                <Text style={styles.settingsRowDescription}>{status === "live" ? "Families can currently find and order from your shop" : "Your storefront is currently hidden from families"}</Text>
+              </View>
+              {savingAvailability ? <ActivityIndicator size="small" color="#41514d" /> : <Switch value={status === "live"} onValueChange={toggleAvailability} disabled={!isVerified} trackColor={{ false: "#ccd2ce", true: "#8eb5a2" }} thumbColor={status === "live" ? "#2f6b55" : "#f6f7f6"} />}
+            </View>
+            </View>
+          </View>
 
-          <SettingsSection label="Store Preferences">
-            <SettingRow icon={status === "live" ? "radio-outline" : "moon-outline"} label="Storefront Availability"
-              description={isVerified ? (status === "live" ? "Families can currently find your shop" : "Your storefront is hidden from families") : "Available after shop approval"}
-              disabled={!isVerified || savingAvailability}
-              trailing={savingAvailability ? <ActivityIndicator size="small" color="#41514d" /> : (
-                <Switch value={status === "live"} onValueChange={toggleAvailability} disabled={!isVerified}
-                  trackColor={{ false: "#ccd2ce", true: "#8eb5a2" }} thumbColor={status === "live" ? "#2f6b55" : "#f6f7f6"} />
-              )} />
-            <SettingRow icon="notifications-outline" label="Notification Preferences"
-              description="Choose shop alerts and notification sounds"
-              onPress={() => navigation.navigate("NotificationPreferences")} last />
-          </SettingsSection>
-
-          <SettingsSection label="Help">
-            <SettingRow icon="help-circle-outline" label="Contact LifeCycle Support"
-              description="Get help with your shop or payments" onPress={() => navigation.navigate("Contact")} last />
-          </SettingsSection>
+          <View>
+            <Text style={styles.sectionLabel}>Shop account</Text>
+            <View style={styles.menuGroup}>
+            <TouchableOpacity style={styles.registeredRow} onPress={() => setBusinessVisible(true)} activeOpacity={0.78}>
+              <View style={styles.settingsRowIcon}><Ionicons name="business-outline" size={20} color="#41514d" /></View>
+              <View style={styles.availabilityCopy}>
+                <Text style={styles.settingsRowTitle}>Registered information</Text>
+                <Text style={styles.settingsRowDescription}>Legal business, owner, address, TIN, and VAT details</Text>
+              </View>
+              <Text style={styles.viewDetailsText}>View details</Text>
+              <Ionicons name="chevron-forward" size={18} color="#8a928d" />
+            </TouchableOpacity>
+            </View>
+          </View>
         </ScrollView>
       </SafeAreaView>
 
@@ -597,6 +562,15 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
               <Text style={styles.inputLabel}>Phone Number</Text>
               <TextInput style={styles.input} value={profileDraft.phone}
                 onChangeText={(phone) => setProfileDraft((current) => ({ ...current, phone }))} keyboardType="phone-pad" />
+              <Text style={styles.inputLabel}>Simultaneous Service Capacity</Text>
+              <TextInput
+                style={styles.input}
+                value={profileDraft.capacity}
+                onChangeText={(capacity) => setProfileDraft((current) => ({ ...current, capacity: capacity.replace(/\D/g, "") }))}
+                keyboardType="number-pad"
+                maxLength={2}
+              />
+              <Text style={styles.inputHelp}>Maximum overlapping wake services your shop can handle (1–20).</Text>
               <TouchableOpacity style={[styles.primaryButton, savingProfile ? styles.buttonDisabled : null]}
                 onPress={() => void saveProfile()} disabled={savingProfile || Boolean(uploadingImage)}>
                 {savingProfile ? <ActivityIndicator size="small" color="#ffffff" /> : <Ionicons name="checkmark-circle-outline" size={18} color="#ffffff" />}
@@ -607,148 +581,12 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
         </View>
       </Modal>
 
-      {/* Payout Account Modal */}
-      <Modal visible={payoutVisible} transparent animationType="fade" onRequestClose={() => setPayoutVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setPayoutVisible(false)} />
-          <View style={styles.modalCard}>
-            <KeyboardAwareScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
-              <View style={styles.modalHeader}>
-                <View>
-                  <Text style={styles.modalTitle}>Payout Account</Text>
-                </View>
-                <TouchableOpacity style={styles.closeButton} onPress={() => setPayoutVisible(false)}>
-                  <Ionicons name="close" size={20} color="#53615d" />
-                </TouchableOpacity>
-              </View>
-              <View style={styles.readOnlyNote}>
-                <Ionicons name="information-circle-outline" size={17} color="#6c7772" />
-                <Text style={styles.readOnlyNoteText}>This is where 70% of each casket payment will be sent. An admin will verify your details before payouts can start.</Text>
-              </View>
-              {shop?.payoutVerifiedByAdmin ? (
-                <View style={[styles.detailGroup, { backgroundColor: "#ecfdf5", borderRadius: 10, padding: 12, marginBottom: 12 }]}>
-                  <Text style={{ color: "#047857", fontWeight: "700", marginBottom: 4 }}>✅ Verified by admin</Text>
-                  <Text style={{ color: "#334155" }}>Channel: {getChannelLabel(shop?.payoutChannelCode)}</Text>
-                  <Text style={{ color: "#334155" }}>Name: {shop?.payoutAccountName || "-"}</Text>
-                  <Text style={{ color: "#334155" }}>Number: {shop?.payoutAccountNumber || "-"}</Text>
-                </View>
-              ) : null}
-              <Text style={styles.inputLabel}>Payout Channel</Text>
-              <TouchableOpacity
-                style={[styles.input, { justifyContent: "center" }]}
-                onPress={() => setChannelPickerVisible(true)}
-              >
-                <Text style={{ color: payoutDraft.channel ? "#111827" : "#9ca3af" }}>
-                  {payoutDraft.channel ? getChannelLabel(payoutDraft.channel) : "Select GCash or bank..."}
-                </Text>
-              </TouchableOpacity>
-              <Text style={styles.inputLabel}>Account Holder Name</Text>
-              <TextInput
-                style={styles.input}
-                value={payoutDraft.name}
-                onChangeText={(name) => setPayoutDraft((d) => ({ ...d, name }))}
-                placeholder="e.g. Juan Dela Cruz"
-              />
-              <Text style={styles.inputLabel}>Account / GCash Number</Text>
-              <TextInput
-                style={styles.input}
-                value={payoutDraft.number}
-                onChangeText={(number) => setPayoutDraft((d) => ({ ...d, number }))}
-                placeholder="e.g. 09171234567"
-                keyboardType="default"
-              />
-              <TouchableOpacity
-                style={[styles.primaryButton, savingPayout ? styles.buttonDisabled : null]}
-                onPress={async () => {
-                  let targetShopId = auth.currentUser?.uid || shop?.id || null;
-                  if (!targetShopId) {
-                    const { data: sessionData } = await supabase.auth.getSession();
-                    targetShopId = sessionData.session?.user?.id || null;
-                  }
-                  if (!targetShopId) {
-                    Alert.alert("Authentication required", "Please sign in again before saving payout details.");
-                    return;
-                  }
-                  const channel = payoutDraft.channel.trim();
-                  const name = sanitizePlainText(payoutDraft.name, 120);
-                  const number = payoutDraft.number.trim();
-                  if (!channel || !name || !number) {
-                    Alert.alert("Missing info", "Select a payout channel and enter your account name and number.");
-                    return;
-                  }
-                  setSavingPayout(true);
-                  try {
-                    await updateShopPayout(targetShopId, channel, name, number);
-                    setShop((current) =>
-                      current
-                        ? {
-                            ...current,
-                            payoutChannelCode: channel,
-                            payoutAccountName: name,
-                            payoutAccountNumber: number,
-                            payoutVerifiedByAdmin: false,
-                            payoutVerifiedAt: null,
-                          }
-                        : current
-                    );
-                    setPayoutVisible(false);
-                    Alert.alert(
-                      "Payout details saved",
-                      "An administrator will verify your payout account before you can receive payments."
-                    );
-                  } catch (error: any) {
-                    Alert.alert("Save failed", error?.message || "Unable to save payout details.");
-                  } finally {
-                    setSavingPayout(false);
-                  }
-                }}
-                disabled={savingPayout}
-              >
-                {savingPayout ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
-                ) : (
-                  <Ionicons name="checkmark-circle-outline" size={18} color="#ffffff" />
-                )}
-                <Text style={styles.primaryButtonText}>{savingPayout ? "Saving..." : "Save Payout Details"}</Text>
-              </TouchableOpacity>
-            </KeyboardAwareScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Channel picker modal */}
-      <Modal visible={channelPickerVisible} transparent animationType="fade" onRequestClose={() => setChannelPickerVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setChannelPickerVisible(false)} />
-          <View style={[styles.modalCard, { maxHeight: "70%" }]}>
-            <ScrollView contentContainerStyle={styles.modalContent}>
-              <Text style={styles.modalTitle}>Select Payout Channel</Text>
-              {PAYOUT_CHANNELS.map((ch) => (
-                <TouchableOpacity
-                  key={ch.code}
-                  style={[
-                    { paddingVertical: 12, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: "#f0f0f0" },
-                    payoutDraft.channel === ch.code && { backgroundColor: "#ecfdf5" },
-                  ]}
-                  onPress={() => {
-                    setPayoutDraft((d) => ({ ...d, channel: ch.code }));
-                    setChannelPickerVisible(false);
-                  }}
-                >
-                  <Text
-                    style={[
-                      { fontSize: 16, color: "#334155" },
-                      payoutDraft.channel === ch.code && { color: "#047857", fontWeight: "700" },
-                    ]}
-                  >
-                    {ch.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+      <PayoutAccountsModal
+        visible={payoutVisible}
+        shopId={shop?.id}
+        shopApproved={isVerified}
+        onClose={() => setPayoutVisible(false)}
+      />
 
       <Modal visible={businessVisible} transparent animationType="fade" onRequestClose={() => setBusinessVisible(false)}>
         <View style={styles.modalOverlay}>
@@ -757,7 +595,7 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
             <ScrollView contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
               <View style={styles.modalHeader}>
                 <View>
-                  <Text style={styles.modalTitle}>Business Information</Text>
+                  <Text style={styles.modalTitle}>Registered information</Text>
                 </View>
                 <TouchableOpacity style={styles.closeButton} onPress={() => setBusinessVisible(false)}>
                   <Ionicons name="close" size={20} color="#53615d" />
@@ -774,7 +612,7 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
                 <DetailLine label="Registered address" value={shop?.registeredAddress} />
                 <DetailLine label="ZIP code" value={shop?.zipCode} />
                 <DetailLine label="TIN" value={shop?.tin} />
-                <DetailLine label="VAT status" value={shop?.vatRegistrationStatus ? "VAT Registered" : "Non Registered"} last />
+                <DetailLine label="VAT status" value={shop?.vatRegistrationStatus == null ? "Not provided" : shop.vatRegistrationStatus ? "VAT registered" : "Non-VAT registered"} last />
               </View>
               <TouchableOpacity style={styles.outlineWideButton} onPress={() => { setBusinessVisible(false); navigation.navigate("Contact"); }}>
                 <Ionicons name="help-circle-outline" size={18} color="#52635d" />

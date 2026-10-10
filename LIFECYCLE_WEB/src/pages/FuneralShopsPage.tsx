@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { User } from '@supabase/supabase-js'
 import BrandLogo from '@/components/BrandLogo'
+import NotificationDropdown from '@/components/NotificationDropdown'
+import LogoutLink from '@/components/LogoutLink'
 import { supabase } from '@/lib/supabase'
 import { loadFuneralCart } from '@/utils/funeralCart'
-import './ShopPage.css'
+import './FuneralLandingPage.css'
 import './FuneralShopsPage.css'
 
 const HeaderCartIcon = () => (
@@ -109,7 +111,7 @@ export default function FuneralShopsPage() {
             <Link to="/seller">Seller Centre</Link>
           </div>
           <div className="sp-topbar-right">
-            <Link to="/user/notifications">Notifications</Link>
+            <NotificationDropdown />
             <Link to="/user/help">Help Centre</Link>
             <span className="sp-divider">|</span>
             {isLoggedIn
@@ -130,7 +132,7 @@ export default function FuneralShopsPage() {
                     <Link to="/user/profile">My Account</Link>
                     <Link to="/user/purchase">Purchases</Link>
                     <Link to="/auth/switch-account" className="sp-dropdown-switch">Switch Account</Link>
-                    <Link to="/auth/logout">Log out</Link>
+                    <LogoutLink>Log out</LogoutLink>
                   </div>
                 </div>
               )
@@ -159,15 +161,10 @@ export default function FuneralShopsPage() {
                 <SearchIcon />
               </button>
             </div>
-            <div className="sp-trending">
-              {['Caskets', 'Floral Tributes', 'Urns', 'Memorial Package', 'Burial Needs'].map(t => (
-                <button key={t} onClick={() => navigate(`/funeral?search=${encodeURIComponent(t)}`)}>{t}</button>
-              ))}
-            </div>
           </div>
 
           <div className="sp-cart-area">
-            <Link to={isLoggedIn ? '/user/cart' : '/login?next=/user/cart'} className="sp-cart-btn" aria-label="Cart">
+            <Link to={isLoggedIn ? '/user/cart' : '/login?next=/user/cart'} className="sp-cart-btn" aria-label="Shopping cart" title="Shopping cart">
               <HeaderCartIcon />
               {isLoggedIn && cartCount > 0 && <span className="sp-cart-count">{cartCount}</span>}
             </Link>

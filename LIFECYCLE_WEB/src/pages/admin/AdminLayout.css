@@ -1,10 +1,16 @@
 .admin-console-shell {
-  --admin-brand: #334155;
-  --admin-brand-light: #f8fafc;
-  --admin-bg: #f8fafc;
-  --admin-text: #1e293b;
-  --admin-muted: #64748b;
-  --admin-border: #e2e8f0;
+  --admin-brand: #315f50;
+  --admin-brand-strong: #22312d;
+  --admin-brand-light: #eef4f1;
+  --admin-brand-soft: #eef4f1;
+  --admin-accent: #315f50;
+  --admin-accent-strong: #274c40;
+  --admin-bg: #f4f6f5;
+  --admin-surface: #ffffff;
+  --admin-ink: #22312d;
+  --admin-text: #22312d;
+  --admin-muted: #62706b;
+  --admin-border: #d8e0dc;
   height: 100vh;
   grid-template-columns: 240px minmax(0, 1fr);
   overflow: hidden;
@@ -467,10 +473,43 @@
 }
 
 .admin-console-shell .admin-notification-btn {
-  width: 36px;
-  height: 36px;
-  border-color: var(--admin-border);
-  border-radius: 4px;
+  width: 38px;
+  height: 38px;
+  border-color: transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #45556c;
+}
+
+.admin-console-shell .admin-notification-btn:hover,
+.admin-console-shell .admin-notification-btn[aria-expanded="true"] {
+  border-color: transparent;
+  background: #f4f6f8;
+  color: #25364c;
+}
+
+.admin-console-shell .admin-notification-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(47, 64, 87, 0.14);
+}
+
+.admin-console-shell .admin-notification-btn svg {
+  width: 19px;
+  height: 19px;
+  stroke: currentColor;
+}
+
+.admin-console-shell .admin-notification-badge {
+  top: 2px;
+  right: 0;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: #ef4444;
+  font-size: 10px;
+  line-height: 17px;
+  box-shadow: 0 0 0 2px #ffffff;
 }
 
 .admin-console-shell .user-profile-trigger {
@@ -749,14 +788,14 @@
 
 /* Refined admin console */
 .admin-console-shell {
-  --admin-brand: #243247;
-  --admin-brand-strong: #172235;
-  --admin-brand-soft: #edf1f5;
-  --admin-bg: #f3f5f7;
-  --admin-text: #172235;
-  --admin-muted: #687486;
-  --admin-border: #dfe4ea;
-  --admin-border-soft: #edf0f3;
+  --admin-brand: #315f50;
+  --admin-brand-strong: #22312d;
+  --admin-brand-soft: #eef4f1;
+  --admin-bg: #f4f6f5;
+  --admin-text: #22312d;
+  --admin-muted: #62706b;
+  --admin-border: #d8e0dc;
+  --admin-border-soft: #e9eeeb;
   grid-template-columns: 248px minmax(0, 1fr);
   background: var(--admin-bg);
 }
@@ -831,7 +870,7 @@
 }
 
 .admin-console-shell .user-nav-link.active .nav-icon {
-  color: #233b5d;
+  color: #315f50;
 }
 
 .admin-console-shell .sidebar-toggle-row {
@@ -876,7 +915,10 @@
   margin-left: auto;
 }
 
-.admin-console-shell .admin-notification-btn,
+.admin-console-shell .admin-notification-btn {
+  border-radius: 8px;
+}
+
 .admin-console-shell .user-profile-trigger {
   border-radius: 7px;
 }
@@ -959,8 +1001,8 @@
 .admin-console-shell select:focus,
 .admin-console-shell textarea:focus {
   outline: none;
-  border-color: #8290a3;
-  box-shadow: 0 0 0 3px rgba(51, 65, 85, .09);
+  border-color: #5d7e73;
+  box-shadow: 0 0 0 3px rgba(49, 95, 80, .12);
 }
 
 .admin-console-shell .ghost-btn,

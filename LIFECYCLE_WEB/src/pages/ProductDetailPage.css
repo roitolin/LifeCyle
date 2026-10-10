@@ -475,12 +475,29 @@
   padding: 15px 20px;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
   margin-bottom: 25px;
+}
+.pd-price-label {
+  width: 100%;
+  color: #75818a;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
 }
 .pd-price-value {
   color: var(--pd-brand);
   font-size: 30px;
   font-weight: 500;
+}
+
+.pd-price-breakdown {
+  margin: 0;
+  color: #75818a;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 /* Options */
@@ -515,18 +532,71 @@
 
 .pd-variation-btn {
   border: 1px solid rgba(0,0,0,.09);
-  padding: 8px 12px;
+  padding: 0;
   background: #fff;
   cursor: pointer;
-  border-radius: 2px;
+  border-radius: 8px;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
-  min-width: 80px;
+  gap: 0;
+  width: 120px;
+  min-height: 126px;
   justify-content: center;
   position: relative;
   overflow: hidden;
 }
+
+.pd-variation-copy {
+  width: 100%;
+  min-height: 42px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 8px;
+  text-align: center;
+}
+
+.pd-page .sp-cart-area {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.pd-page .sp-cart-btn,
+.pd-page .sp-cart-btn:hover,
+.pd-page .sp-cart-btn:active {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0 !important;
+  border-radius: 8px;
+  background: transparent !important;
+  box-shadow: none;
+}
+
+.pd-page .sp-cart-btn svg {
+  width: 29px;
+  height: 29px;
+}
+
+.pd-page .sp-header {
+  padding: 14px 0;
+}
+
+.pd-page .sp-header-inner {
+  gap: 16px;
+}
+
+.pd-page .sp-search-wrap {
+  gap: 0;
+}
+
 .pd-variation-btn:hover {
   border-color: var(--pd-brand);
   color: var(--pd-brand);
@@ -547,8 +617,8 @@
 }
 
 .pd-variation-img {
-  width: 24px;
-  height: 24px;
+  width: 100%;
+  height: 84px;
   object-fit: cover;
 }
 
@@ -611,7 +681,7 @@
   color: #fff;
   border: 1px solid var(--pd-brand);
 }
-.pd-btn-cart:hover { background: #ffe4db; }
+.pd-btn-cart:hover { background: var(--pd-brand-light); }
 .pd-btn-buy:hover { background: #f05d40; }
 
 .pd-btn:disabled {
@@ -1598,6 +1668,7 @@
   border-radius: 7px;
   background: #fff;
   color: #3e4b56;
+  font: inherit;
   text-align: left;
 }
 
@@ -2710,4 +2781,133 @@
   .pd-product-path {
     display: none;
   }
+}
+
+/* Standalone header cart */
+.pd-page .sp-cart-btn {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #ffffff;
+  text-decoration: none;
+  transition: color 150ms ease, opacity 150ms ease, transform 150ms ease;
+}
+
+.pd-page .sp-cart-btn:hover {
+  border: 0;
+  background: transparent;
+  color: #ffffff;
+  opacity: 0.78;
+  transform: translateY(-1px);
+}
+
+.pd-page .sp-cart-btn:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.8);
+  outline-offset: 3px;
+}
+
+.pd-page .sp-cart-btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+.pd-page .sp-cart-count {
+  top: 1px;
+  right: -1px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border: 2px solid #172033;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 13px;
+  text-align: center;
+}
+
+/* Mobile green palette on the original web layout. */
+.pd-page {
+  --pd-brand: #315f50;
+  --pd-brand-dark: #22312d;
+  --pd-brand-light: #eef1ec;
+  --text-main: #22312d;
+}
+
+.pd-page .sp-topbar,
+.pd-page .sp-header {
+  background: #22312d;
+}
+
+.pd-page .sp-search-btn {
+  background: #315f50;
+}
+
+.pd-page .sp-search-btn:hover {
+  background: #3f6f58;
+}
+
+.pd-page .sp-cart-count {
+  border-color: #22312d;
+  color: #ffffff;
+}
+
+.pd-page .pd-title,
+.pd-page .pd-single-order-note,
+.pd-page .pd-spec-value {
+  color: #22312d;
+}
+
+.pd-page .pd-product-back {
+  color: #53615d;
+}
+
+.pd-page .pd-btn-buy,
+.pd-page .pd-package-check {
+  border-color: #315f50;
+  background: #315f50;
+}
+
+.pd-page .pd-btn-buy:hover {
+  background: #22312d;
+}
+
+.pd-page .pd-btn-cart {
+  border-color: #315f50;
+  color: #315f50;
+}
+
+.pd-page .pd-variation-btn.selected {
+  border-color: #315f50;
+  background: #eef1ec;
+  color: #315f50;
+}
+
+/* Standalone search icon; the search field remains the only container. */
+.pd-page .sp-search-btn,
+.pd-page .sp-search-btn:hover,
+.pd-page .sp-search-btn:active {
+  width: 48px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #315f50;
+  box-shadow: none;
+}
+
+.pd-page .sp-search-btn:hover {
+  color: #22312d;
+}
+
+.pd-page .sp-search-btn svg {
+  width: 24px;
+  height: 24px;
 }

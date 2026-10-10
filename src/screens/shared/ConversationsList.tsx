@@ -30,6 +30,7 @@ import { useFocusEffect } from "@react-navigation/native";
 interface Conversation {
   id: string;
   participants: string[];
+  shopId?: string | null;
   hiddenFor?: string[];
   pinnedFor?: string[];
   archivedFor?: string[];
@@ -139,8 +140,12 @@ function ConversationActionRow({
   );
 }
 
-export default function ConversationsList({ navigation }: any) {
+export default function ConversationsList({ navigation, route }: any) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [isShopAccount, setIsShopAccount] = useState(false);
+  const [inboxMode, setInboxMode] = useState<"personal" | "shop">(
+    route?.params?.initialInbox === "shop" ? "shop" : "personal"
+  );
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [dbError, setdbError] = useState<string | null>(null);
@@ -211,7 +216,7 @@ export default function ConversationsList({ navigation }: any) {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      title: "Chats",
+      title: isShopAccount && inboxMode === "shop" ? "Shop inbox" : "Chats",
       headerBackVisible: false,
       headerLeft: () => (
         <AppHeaderBackButton onPress={() => navigation.goBack()} accessibilityLabel="Back" />
@@ -219,7 +224,26 @@ export default function ConversationsList({ navigation }: any) {
       headerStyle: { backgroundColor: "#ffffff" },
       headerTintColor: "#26332e",
     });
-  }, [navigation]);
+  }, [inboxMode, isShopAccount, navigation]);
+
+  useEffect(() => {
+    let active = true;
+    if (!userId) return () => { active = false; };
+
+    void supabase
+      .from("funeral_shops")
+      .select("id")
+      .eq("id", userId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!active) return;
+        const hasShop = Boolean(data?.id);
+        setIsShopAccount(hasShop);
+        if (!hasShop) setInboxMode("personal");
+      });
+
+    return () => { active = false; };
+  }, [userId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -587,11 +611,10 @@ export default function ConversationsList({ navigation }: any) {
   const renderItem = ({ item }: { item: Conversation }) => {
     const otherUserId = getOtherParticipant(item);
     const otherUser = userInfoMap[otherUserId];
-    const displayName =
-      otherUser?.fullName ||
-      otherUser?.shopName ||
-      otherUser?.email ||
-      "User";
+    const partnerIsReceivingShop = item.shopId === otherUserId;
+    const displayName = partnerIsReceivingShop
+      ? otherUser?.shopName || otherUser?.fullName || otherUser?.email || "Funeral Shop"
+      : otherUser?.fullName || otherUser?.email || "Customer";
 
     const subtitlePrefix = item.lastMessage?.senderId === userId ? "You: " : "";
     const unread =
@@ -603,16 +626,20 @@ export default function ConversationsList({ navigation }: any) {
     const avatarSource =
       String(otherUser?.role || "").toLowerCase() === "admin"
         ? appLogo
+        : partnerIsReceivingShop && otherUser?.shopImageUrl
+        ? { uri: otherUser.shopImageUrl }
         : otherUser?.photoURL
         ? { uri: otherUser.photoURL }
-        : otherUser?.shopImageUrl
-        ? { uri: otherUser.shopImageUrl }
         : fallbackSource;
 
     return (
       <View style={[styles.card, unread && styles.unreadCard]}>
         <TouchableOpacity
-          onPress={() => navigation.navigate("Chat", { conversationId: item.id, otherUserId })}
+          onPress={() => navigation.navigate("Chat", {
+            conversationId: item.id,
+            otherUserId,
+            shopId: item.shopId || null,
+          })}
           onLongPress={() => {
             if (!isDesktop) setSelectedConversation(item);
           }}
@@ -695,7 +722,13 @@ export default function ConversationsList({ navigation }: any) {
     return <LoadingBird fullScreen />;
   }
 
-  const filteredConversations = conversations.filter((conversation) => {
+  const personalConversations = conversations.filter((conversation) => conversation.shopId !== userId);
+  const shopConversations = conversations.filter((conversation) => conversation.shopId === userId);
+  const inboxConversations = isShopAccount && inboxMode === "shop"
+    ? shopConversations
+    : personalConversations;
+
+  const filteredConversations = inboxConversations.filter((conversation) => {
     const archived = !!userId && !!conversation.archivedFor?.includes(userId);
     if (filterMode === "archived") return archived;
     if (archived) return false;
@@ -711,6 +744,40 @@ export default function ConversationsList({ navigation }: any) {
   return (
     <View style={[styles.container, isDesktop && styles.containerDesktop]}>
       {!!dbError && <Text style={styles.error}>{dbError}</Text>}
+      {isShopAccount ? (
+        <View style={styles.inboxTabs} accessibilityRole="tablist">
+          <TouchableOpacity
+            accessibilityRole="tab"
+            accessibilityState={{ selected: inboxMode === "personal" }}
+            activeOpacity={0.75}
+            onPress={() => {
+              setInboxMode("personal");
+              setFilterMode("all");
+            }}
+            style={[styles.inboxTab, inboxMode === "personal" && styles.inboxTabActive]}
+          >
+            <View style={styles.inboxTabLabelRow}>
+              <Text style={[styles.inboxTabText, inboxMode === "personal" && styles.inboxTabTextActive]}>Personal</Text>
+              {personalConversations.some((conversation) => isConversationUnread(conversation, userId)) ? <View style={styles.inboxUnreadDot} /> : null}
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            accessibilityRole="tab"
+            accessibilityState={{ selected: inboxMode === "shop" }}
+            activeOpacity={0.75}
+            onPress={() => {
+              setInboxMode("shop");
+              setFilterMode("all");
+            }}
+            style={[styles.inboxTab, inboxMode === "shop" && styles.inboxTabActive]}
+          >
+            <View style={styles.inboxTabLabelRow}>
+              <Text style={[styles.inboxTabText, inboxMode === "shop" && styles.inboxTabTextActive]}>Shop inbox</Text>
+              {shopConversations.some((conversation) => isConversationUnread(conversation, userId)) ? <View style={styles.inboxUnreadDot} /> : null}
+            </View>
+          </TouchableOpacity>
+        </View>
+      ) : null}
       <View style={styles.filterRow}>
         <TouchableOpacity style={[styles.filterPill, filterMode === "all" && styles.filterPillActive]} onPress={() => setFilterMode("all")}>
           <Text style={[styles.filterText, filterMode === "all" && styles.filterTextActive]}>All chats</Text>
@@ -731,8 +798,8 @@ export default function ConversationsList({ navigation }: any) {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <View style={styles.emptyIcon}><Ionicons name="chatbubble-outline" size={24} color="#76847e" /></View>
-            <Text style={styles.emptyTitle}>{filterMode === "archived" ? "No archived conversations" : filterMode === "unread" ? "No unread conversations" : "No conversations yet"}</Text>
-            <Text style={styles.emptyText}>Messages will appear here when you start a conversation.</Text>
+            <Text style={styles.emptyTitle}>{filterMode === "archived" ? "No archived conversations" : filterMode === "unread" ? "No unread conversations" : inboxMode === "shop" && isShopAccount ? "No customer messages yet" : "No conversations yet"}</Text>
+            <Text style={styles.emptyText}>{inboxMode === "shop" && isShopAccount ? "Messages from customers will appear here." : "Messages will appear here when you start a conversation."}</Text>
           </View>
         }
       />
@@ -868,6 +935,25 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 8,
     paddingVertical: 12,
   },
+  inboxTabs: {
+    flexDirection: "row",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#dde3df",
+    paddingTop: 8,
+  },
+  inboxTab: {
+    flex: 1,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+  },
+  inboxTabActive: { borderBottomColor: "#2f6b55" },
+  inboxTabLabelRow: { flexDirection: "row", alignItems: "center", gap: 7 },
+  inboxTabText: { color: "#75817c", fontSize: 13, fontWeight: "700" },
+  inboxTabTextActive: { color: "#253b33", fontWeight: "900" },
+  inboxUnreadDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#c5443d" },
   filterPill: { minHeight: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", paddingHorizontal: 15, backgroundColor: "transparent" },
   filterPillActive: { backgroundColor: "#29483e" },
   filterText: { color: "#66716c", fontSize: 11, fontWeight: "700" },

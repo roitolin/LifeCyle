@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import ChatWidget from '@/components/ChatWidget'
 import LoadingBird from '@/components/LoadingBird'
+import { LogoutConfirmationProvider } from '@/components/LogoutConfirmationProvider'
 
 const FuneralLandingPage = lazy(() => import('./pages/FuneralLandingPage'))
 const FuneralShopsPage = lazy(() => import('./pages/FuneralShopsPage'))
@@ -13,6 +14,8 @@ const SellerPaymentPage = lazy(() => import('./pages/SellerPaymentPage'))
 const SellerServiceRequestPage = lazy(() => import('./pages/SellerServiceRequestPage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const RegisterPage = lazy(() => import('./pages/RegisterPage'))
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'))
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'))
 const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage'))
 const UserProfilePage = lazy(() => import('./pages/UserProfilePage'))
 const AccountSettingsPage = lazy(() => import('./pages/AccountSettingsPage'))
@@ -24,7 +27,6 @@ const AboutPage = lazy(() => import('./pages/AboutPage'))
 const FeedbackPage = lazy(() => import('./pages/FeedbackPage'))
 const PurchasePage = lazy(() => import('./pages/PurchasePage'))
 const NotificationPage = lazy(() => import('./pages/NotificationPage'))
-const LogoutPage = lazy(() => import('./pages/LogoutPage'))
 const SwitchAccountPage = lazy(() => import('./pages/SwitchAccountPage'))
 const CartPage = lazy(() => import('./pages/CartPage'))
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage'))
@@ -69,7 +71,8 @@ function App() {
   return (
     <BrowserRouter>
       <Suspense fallback={<PageFallback />}>
-        <Routes>
+        <LogoutConfirmationProvider>
+          <Routes>
           <Route path="/" element={<Navigate to="/funeral" replace />} />
           <Route path="/services" element={<Navigate to="/funeral" replace />} />
           <Route path="/funeral" element={<FuneralLandingPage />} />
@@ -81,9 +84,12 @@ function App() {
           <Route path="/seller" element={<SellerCentrePage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
-          <Route path="/auth/logout" element={<LogoutPage />} />
+          <Route path="/auth/logout" element={<Navigate to="/funeral" replace />} />
           <Route path="/auth/switch-account" element={<SwitchAccountPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
+
+          <Route path='/forgot-password' element={<ForgotPasswordPage />} />
+          <Route path='/reset-password' element={<ResetPasswordPage />} />
 
           {/* User Profile & Protected Routes */}
           <Route element={<ProtectedRoute />}>
@@ -144,8 +150,9 @@ function App() {
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-        <ChatWidget />
+          </Routes>
+          <ChatWidget />
+        </LogoutConfirmationProvider>
       </Suspense>
     </BrowserRouter>
   )

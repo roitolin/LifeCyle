@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 
-type ConfirmTone = 'primary' | 'success' | 'warning' | 'danger'
+type ConfirmTone = 'primary' | 'success' | 'warning' | 'danger' | 'session'
 
 type ConfirmConfig = {
   title: string
@@ -8,19 +8,21 @@ type ConfirmConfig = {
   details?: string[]
   confirmLabel?: string
   cancelLabel?: string
+  pendingLabel?: string
   tone?: ConfirmTone
   onConfirm?: () => void | Promise<void>
 }
 
-const toneMeta: Record<ConfirmTone, { kicker: string }> = {
-  primary: { kicker: 'Please Confirm' },
-  success: { kicker: 'Ready To Continue' },
-  warning: { kicker: 'Check This First' },
-  danger: { kicker: 'Confirm Action' },
-}
-
 function renderToneIcon(tone: ConfirmTone) {
   switch (tone) {
+    case 'session':
+      return (
+        <svg viewBox='0 0 24 24' width='27' height='27' fill='none' stroke='currentColor' strokeWidth='1.9' strokeLinecap='round' strokeLinejoin='round'>
+          <path d='M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4' />
+          <path d='M16 17l5-5-5-5' />
+          <path d='M21 12H9' />
+        </svg>
+      )
     case 'success':
       return (
         <svg viewBox="0 0 24 24" width="27" height="27" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
@@ -58,20 +60,24 @@ function renderToneIcon(tone: ConfirmTone) {
 export function useConfirmDialog() {
   const [config, setConfig] = useState<ConfirmConfig | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [actionError, setActionError] = useState('')
 
   const closeConfirm = useCallback(() => {
     if (submitting) return
     setConfig(null)
+    setActionError('')
   }, [submitting])
 
-  const openConfirm = (nextConfig: ConfirmConfig) => {
+  const openConfirm = useCallback((nextConfig: ConfirmConfig) => {
+    setActionError('')
     setConfig({
       confirmLabel: 'Confirm',
       cancelLabel: 'Cancel',
+      pendingLabel: 'Working...',
       tone: 'primary',
       ...nextConfig,
     })
-  }
+  }, [])
 
   const confirmDialog = useMemo(() => {
     if (!config) return null
@@ -88,16 +94,30 @@ export function useConfirmDialog() {
           aria-describedby="confirm-dialog-message"
           onClick={(event) => event.stopPropagation()}
         >
-          <span className="confirm-modal-icon" aria-hidden="true">
-            {renderToneIcon(tone)}
-          </span>
-          <span className="confirm-modal-kicker">{toneMeta[tone].kicker}</span>
-          <h3 id="confirm-dialog-title" className="confirm-modal-title">
-            {config.title}
-          </h3>
-          <p id="confirm-dialog-message" className="confirm-modal-message">
-            {config.message}
-          </p>
+          {tone === 'session' ? (
+            <div className='confirm-session-copy'>
+              <h3 id="confirm-dialog-title" className="confirm-modal-title">
+                {config.title}
+              </h3>
+              <p id="confirm-dialog-message" className="confirm-modal-message">
+                {config.message}
+              </p>
+            </div>
+          ) : (
+            <div className="confirm-modal-header">
+              <span className="confirm-modal-icon" aria-hidden="true">
+                {renderToneIcon(tone)}
+              </span>
+              <div className="confirm-modal-heading">
+                <h3 id="confirm-dialog-title" className="confirm-modal-title">
+                  {config.title}
+                </h3>
+                <p id="confirm-dialog-message" className="confirm-modal-message">
+                  {config.message}
+                </p>
+              </div>
+            </div>
+          )}
           {config.details?.length ? (
             <ul className="confirm-modal-list">
               {config.details.map((item) => (
@@ -105,6 +125,7 @@ export function useConfirmDialog() {
               ))}
             </ul>
           ) : null}
+          {actionError ? <p className='confirm-modal-error' role='alert'>{actionError}</p> : null}
           <div className="confirm-modal-actions">
             <button type="button" className="confirm-modal-cancel" onClick={closeConfirm} disabled={submitting}>
               {config.cancelLabel}
@@ -118,6 +139,13 @@ export function useConfirmDialog() {
                 try {
                   await config.onConfirm?.()
                   setConfig(null)
+                  setActionError('')
+                } catch {
+                  setActionError(
+                    tone === 'session'
+                      ? 'Could not log out. Please check your connection and try again.'
+                      : 'Could not complete this action. Please try again.',
+                  )
                 } finally {
                   setSubmitting(false)
                 }
@@ -126,7 +154,7 @@ export function useConfirmDialog() {
               {submitting ? (
                 <>
                   <span className="confirm-modal-spinner" aria-hidden="true" />
-                  Working...
+                  {config.pendingLabel}
                 </>
               ) : (
                 config.confirmLabel
@@ -136,7 +164,7 @@ export function useConfirmDialog() {
         </div>
       </div>
     )
-  }, [closeConfirm, config, submitting])
+  }, [actionError, closeConfirm, config, submitting])
 
   return { openConfirm, closeConfirm, confirmDialog }
 }

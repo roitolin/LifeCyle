@@ -1428,7 +1428,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                         onPress={() => setXenditRequest(selectedRequest)}
                       >
                         <Ionicons name="flash" size={19} color="#ffffff" />
-                        <Text style={styles.submitPaymentButtonText}>1-Click Pay with Xendit</Text>
+                        <Text style={styles.submitPaymentButtonText}>Pay Online (GCash, Cards & Maya)</Text>
                       </TouchableOpacity>
                     ) : null}
 
@@ -1810,7 +1810,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                     onPress={() => setXenditRequest(paymentRequest)}
                   >
                     <Ionicons name="flash" size={18} color="#ffffff" />
-                    <Text style={styles.receiptActionButtonPrimaryText}>1-Click Pay with Xendit</Text>
+                    <Text style={styles.receiptActionButtonPrimaryText}>Pay Online (GCash, Cards & Maya)</Text>
                   </TouchableOpacity>
                 ) : null}
 

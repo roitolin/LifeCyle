@@ -5,7 +5,9 @@ import { uploadCertificateWeb } from '@/lib/supabaseStorage'
 import { removeFuneralCartItem, type WebFuneralCartItem } from '@/utils/funeralCart'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
+import { checkServiceAvailability } from '@/utils/serviceAvailability'
 import BrandLogo from '@/components/BrandLogo'
+import LogoutLink from '@/components/LogoutLink'
 import './CheckoutPage.css'
 
 type ViewerProfile = {
@@ -252,6 +254,23 @@ export default function CheckoutPage() {
 
     setSubmitting(true)
     try {
+      const availability = await checkServiceAvailability({
+        shopId: cartItem.shopId,
+        productId: cartItem.productId,
+        wakeStartDate,
+        wakeEndDate,
+      })
+
+      if (!availability.available) {
+        openAlert({
+          title: 'Schedule Unavailable',
+          message: availability.message,
+          tone: 'warning',
+          okLabel: 'Choose Other Dates',
+        })
+        return
+      }
+
       const requestId = generateId()
       const { error } = await supabase.from('funeral_service_requests').insert({
         id: requestId,
@@ -265,6 +284,7 @@ export default function CheckoutPage() {
         productName: cartItem.name,
         productPrice: cartItem.price,
         productImageUrl: cartItem.imageUrl || null,
+        variationId: cartItem.variationId || null,
         variationName: cartItem.variationName || null,
         packageItems: cartItem.packageItems || [],
         requestType: 'catalog_product',
@@ -737,7 +757,7 @@ function TopBar({ profile }: { profile: ViewerProfile | null }) {
               <Link to="/user/profile">My Account</Link>
               <Link to="/user/purchase">Purchases</Link>
               <Link to="/auth/switch-account" className="checkout-dropdown-switch">Switch Account</Link>
-              <Link to="/auth/logout">Log out</Link>
+              <LogoutLink>Log out</LogoutLink>
             </div>
           </div>
         </div>

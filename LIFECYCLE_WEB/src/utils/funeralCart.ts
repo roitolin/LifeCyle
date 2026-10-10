@@ -8,6 +8,7 @@ export type WebFuneralCartItem = {
   name: string
   price: number
   imageUrl?: string | null
+  variationId?: string | null
   variationName?: string | null
   packageItems?: string[]
   quantity: number
@@ -41,8 +42,7 @@ export function addFuneralCartItem(item: Omit<WebFuneralCartItem, 'cartId' | 'qu
   const existing = current.find(cartItem => 
     cartItem.productId === item.productId && 
     cartItem.shopId === item.shopId && 
-    cartItem.variationName === item.variationName &&
-    JSON.stringify(cartItem.packageItems || []) === JSON.stringify(item.packageItems || [])
+    (cartItem.variationId || cartItem.variationName) === (item.variationId || item.variationName)
   )
   const itemWithoutQty: Omit<WebFuneralCartItem, 'cartId' | 'quantity'> = {
     productId: item.productId,
@@ -51,6 +51,7 @@ export function addFuneralCartItem(item: Omit<WebFuneralCartItem, 'cartId' | 'qu
     name: item.name,
     price: item.price,
     imageUrl: item.imageUrl,
+    variationId: item.variationId,
     variationName: item.variationName,
     packageItems: item.packageItems,
   }

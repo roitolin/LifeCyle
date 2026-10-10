@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { auth } from '@/lib/supabaseAuth'
 import './ChatWidget.css'
 
 type Conversation = {
   id: string
   participants: string[]
+  shopId?: string | null
   hiddenFor?: string[]
   updatedAt?: string
   lastMessage?: {
@@ -47,15 +47,15 @@ function getDefaultAvatar(gender?: string) {
 }
 
 function getChatDisplayName(info?: UserInfo | null) {
-  return info?.fullName?.trim()
-    || info?.shopName?.trim()
+  return info?.shopName?.trim()
+    || info?.fullName?.trim()
     || info?.email?.trim()
     || 'User'
 }
 
 function getChatAvatar(info?: UserInfo | null) {
-  return info?.photoURL
-    || info?.shopImageUrl
+  return info?.shopImageUrl
+    || info?.photoURL
     || getDefaultAvatar(info?.gender)
 }
 
@@ -85,6 +85,55 @@ function isMissingDeliveryReceipts(error: { code?: string; message?: string } | 
     || error.code === '42703'
     || error.code === '42883'
     || /acknowledge_chat_deliveries|mark_chat_messages_seen|deliveredTo/i.test(error.message || '')
+}
+
+function isMissingShopInboxColumn(error: { code?: string; message?: string } | null) {
+  if (!error) return false
+  return error.code === 'PGRST204'
+    || error.code === '42703'
+    || /shopId.*(column|schema cache|does not exist)/i.test(error.message || '')
+}
+
+async function findOrCreateConversation(userId: string, otherId: string) {
+  const participants = [userId, otherId].sort()
+  let existingResult = await supabase
+    .from('conversations')
+    .select('id')
+    .contains('participants', participants)
+    .eq('shopId', otherId)
+    .limit(1)
+
+  if (existingResult.error && isMissingShopInboxColumn(existingResult.error)) {
+    existingResult = await supabase
+      .from('conversations')
+      .select('id')
+      .contains('participants', participants)
+      .limit(1)
+  }
+  if (existingResult.error) throw existingResult.error
+  if (existingResult.data?.[0]?.id) return String(existingResult.data[0].id)
+
+  const conversation = {
+    participants,
+    shopId: otherId,
+    updatedAt: new Date().toISOString(),
+  }
+  let createResult = await supabase
+    .from('conversations')
+    .insert(conversation)
+    .select('id')
+    .maybeSingle()
+
+  if (createResult.error && isMissingShopInboxColumn(createResult.error)) {
+    createResult = await supabase
+      .from('conversations')
+      .insert({ participants, updatedAt: conversation.updatedAt })
+      .select('id')
+      .maybeSingle()
+  }
+  if (createResult.error) throw createResult.error
+  if (!createResult.data?.id) throw new Error('The conversation could not be created.')
+  return String(createResult.data.id)
 }
 
 function mergeReceiptIds(...lists: Array<string[] | undefined>) {
@@ -144,6 +193,8 @@ async function markChatMessagesSeen(
 export default function ChatWidget() {
   const [open, setOpen] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
+  const [isShopAccount, setIsShopAccount] = useState(false)
+  const [inboxMode, setInboxMode] = useState<'personal' | 'shop'>('personal')
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [userInfoMap, setUserInfoMap] = useState<Record<string, UserInfo>>({})
   const [activeConvId, setActiveConvId] = useState<string | null>(null)
@@ -152,6 +203,7 @@ export default function ChatWidget() {
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadingMessages, setLoadingMessages] = useState(false)
+  const [chatError, setChatError] = useState('')
   const [searchText, setSearchText] = useState('')
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
@@ -183,13 +235,41 @@ export default function ChatWidget() {
 
   // Auth listener
   useEffect(() => {
-    const uid = auth.currentUser?.uid || null
-    setUserId(uid)
+    let mounted = true
+    void supabase.auth.getSession()
+      .then(({ data }) => {
+        if (mounted) setUserId(data.session?.user?.id ?? null)
+      })
+      .catch(() => {
+        if (mounted) setUserId(null)
+      })
     const { data: l } = supabase.auth.onAuthStateChange((_, s) => {
-      setUserId(s?.user?.id ?? null)
+      if (mounted) setUserId(s?.user?.id ?? null)
     })
-    return () => l.subscription.unsubscribe()
+    return () => {
+      mounted = false
+      l.subscription.unsubscribe()
+    }
   }, [])
+
+  useEffect(() => {
+    let active = true
+    if (!userId) {
+      setIsShopAccount(false)
+      return () => { active = false }
+    }
+
+    void supabase
+      .from('funeral_shops')
+      .select('id')
+      .eq('id', userId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (active) setIsShopAccount(Boolean(data?.id))
+      })
+
+    return () => { active = false }
+  }, [userId])
 
   // Acknowledge incoming messages even while the widget is minimized. This is
   // what lets the sender distinguish a stored message from one delivered to an
@@ -274,36 +354,24 @@ export default function ChatWidget() {
   // Global event listener to open chat
   useEffect(() => {
     const handleOpenChat = async (e: Event) => {
-      const customEvent = e as CustomEvent<{ userId: string }>
+      const customEvent = e as CustomEvent<{ userId?: string; inbox?: 'personal' | 'shop' }>
       const otherId = customEvent.detail?.userId
+      if (customEvent.detail?.inbox) setInboxMode(customEvent.detail.inbox)
       if (otherId && userId) {
         setOpen(true)
-        
-        // Find if conversation already exists in DB
-        const { data: existingConvs } = await supabase.from('conversations')
-          .select('id')
-          .contains('participants', [userId, otherId])
-          .limit(1)
-          
-        let convId = existingConvs?.[0]?.id
-        
-        if (!convId) {
-          // Create new conversation, Supabase generates the UUID
-          const { data: newConv, error } = await supabase.from('conversations').insert({
-             participants: [userId, otherId].sort(),
-             updatedAt: new Date().toISOString()
-          }).select('id').maybeSingle()
-          
-          if (newConv?.id) {
-            convId = newConv.id
-          } else {
-            console.error('Error creating conversation:', error)
-            return
-          }
+        setInboxMode('personal')
+        setChatError('')
+
+        try {
+          const convId = await findOrCreateConversation(userId, otherId)
+          setActiveConvId(convId)
+          await loadConversationsRef.current?.()
+        } catch (error) {
+          console.error('Unable to open chat:', error)
+          setActiveConvId(null)
+          setChatError('Chat could not be opened. Check your connection and try again.')
+          return
         }
-        
-        setActiveConvId(convId)
-        void loadConversationsRef.current?.()
         
         // Ensure user info exists
         if (!userInfoMapRef.current[otherId]) {
@@ -334,6 +402,7 @@ export default function ChatWidget() {
       } else if (!otherId) {
         setOpen(true)
         setActiveConvId(null)
+        setChatError('')
       }
     }
     
@@ -363,6 +432,7 @@ export default function ChatWidget() {
         (c: any) => !Array.isArray(c.hiddenFor) || !c.hiddenFor.includes(userId)
       )
       setConversations(convs)
+      setChatError('')
 
       // Hydrate user info
       const otherIds = Array.from(
@@ -406,6 +476,7 @@ export default function ChatWidget() {
     } catch (error) {
       if (generation === conversationLoadGenerationRef.current) {
         console.error('Unable to load conversations:', error)
+        setChatError('Conversations could not be loaded. Please try again.')
       }
     } finally {
       if (showLoader) setLoading(false)
@@ -641,6 +712,7 @@ export default function ChatWidget() {
     } catch (error) {
       console.error('Error sending message:', error)
       setChatInput(current => current || text)
+      setChatError('Your message was not sent. Please try again.')
     } finally {
       setSending(false)
       inputRef.current?.focus()
@@ -667,8 +739,14 @@ export default function ChatWidget() {
     [messages, otherUserId, userId]
   )
 
+  const personalConversations = conversations.filter(conversation => conversation.shopId !== userId)
+  const shopConversations = conversations.filter(conversation => conversation.shopId === userId)
+  const visibleConversations = isShopAccount && inboxMode === 'shop'
+    ? shopConversations
+    : personalConversations
+
   const filteredConvs = searchText
-    ? conversations.filter(c => {
+    ? visibleConversations.filter(c => {
       const otherId = c.participants.find(p => p !== userId)
       const info = otherId ? userInfoMap[otherId] : null
       const searchableIdentity = [info?.fullName, info?.shopName, info?.email]
@@ -676,7 +754,14 @@ export default function ChatWidget() {
         .join(' ')
       return searchableIdentity.toLowerCase().includes(searchText.toLowerCase())
     })
-    : conversations
+    : visibleConversations
+
+  const selectInbox = (nextMode: 'personal' | 'shop') => {
+    setInboxMode(nextMode)
+    setActiveConvId(null)
+    setSearchText('')
+    setHeaderDropdownOpen(false)
+  }
 
   if (!userId) return null
 
@@ -701,7 +786,7 @@ export default function ChatWidget() {
           <div className="cw-sidebar">
             <div className="cw-sidebar-header">
               <span className="cw-sidebar-title">
-                Chat <span className="cw-sidebar-count">({conversations.length})</span>
+                {isShopAccount && inboxMode === 'shop' ? 'Shop inbox' : 'Chat'} <span className="cw-sidebar-count">({visibleConversations.length})</span>
               </span>
               <div className="cw-sidebar-actions">
                 <button 
@@ -734,26 +819,66 @@ export default function ChatWidget() {
               </div>
             </div>
 
+            {chatError && (
+              <div className="cw-error" role="alert">
+                <span>{chatError}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setChatError('')
+                    void loadConversations(true)
+                  }}
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {isShopAccount && (
+              <div className="cw-inbox-tabs" role="tablist" aria-label="Message inboxes">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={inboxMode === 'personal'}
+                  className={inboxMode === 'personal' ? 'active' : ''}
+                  onClick={() => selectInbox('personal')}
+                >
+                  Personal
+                  {personalConversations.some(conversation => unreadCounts[conversation.id]) && <span />}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={inboxMode === 'shop'}
+                  className={inboxMode === 'shop' ? 'active' : ''}
+                  onClick={() => selectInbox('shop')}
+                >
+                  Shop inbox
+                  {shopConversations.some(conversation => unreadCounts[conversation.id]) && <span />}
+                </button>
+              </div>
+            )}
+
             <div className="cw-search">
               <div className="cw-search-inner">
                 <svg className="cw-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
                 <input
                   type="text"
-                  placeholder="Search name"
+                  placeholder={isShopAccount && inboxMode === 'shop' ? 'Search customers' : 'Search conversations'}
                   value={searchText}
                   onChange={e => setSearchText(e.target.value)}
                   className="cw-search-input"
                 />
               </div>
-              <div className="cw-search-filter">
-                All <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-              </div>
+              <div className="cw-search-filter">{isShopAccount && inboxMode === 'shop' ? 'Customers' : 'All'}</div>
             </div>
 
             <div className="cw-conv-list">
               {loading && conversations.length === 0 && <div className="cw-empty">Loading conversations...</div>}
               {!loading && filteredConvs.length === 0 && (
-                <div className="cw-empty" style={{marginTop: '20px'}}>No conversations yet</div>
+                <div className="cw-empty" style={{marginTop: '20px'}}>
+                  {isShopAccount && inboxMode === 'shop' ? 'No customer messages yet' : 'No conversations yet'}
+                </div>
               )}
               {filteredConvs.map(conv => {
                 const otherId = conv.participants.find(p => p !== userId)
@@ -797,17 +922,22 @@ export default function ChatWidget() {
                 <div className="cw-welcome-icon">
                   <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
                 </div>
-                <p className="cw-welcome-title">Welcome to LifeCycle Chat</p>
-                <p className="cw-welcome-sub">Select a conversation to start chatting</p>
+                <p className="cw-welcome-title">{isShopAccount && inboxMode === 'shop' ? 'Shop inbox' : 'Chat'}</p>
+                <p className="cw-welcome-sub">
+                  {isShopAccount && inboxMode === 'shop' ? 'Select a customer message to read and reply' : 'Select a conversation to start chatting'}
+                </p>
               </div>
             ) : (
               <>
                 <div className="cw-main-header" ref={dropdownRef}>
                   <div className="cw-main-header-left">
                     <img src={otherAvatar} alt="" className="cw-header-avatar" />
-                    <span className="cw-main-title" onClick={() => setHeaderDropdownOpen(!headerDropdownOpen)}>
-                      {otherName} <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                    </span>
+                    <div className="cw-main-identity">
+                      <span className="cw-main-title" onClick={() => setHeaderDropdownOpen(!headerDropdownOpen)}>
+                        {otherName} <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                      </span>
+                      <small>{activeConv?.shopId === userId ? 'Customer' : activeConv?.shopId === otherUserId ? 'Funeral shop' : 'Conversation'}</small>
+                    </div>
                   </div>
                   {headerDropdownOpen && (
                     <div className="cw-header-dropdown">

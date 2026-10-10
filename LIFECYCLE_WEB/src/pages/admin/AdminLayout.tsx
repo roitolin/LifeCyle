@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { fetchNotificationsForUser } from '@/utils/supabaseNotifications'
 import { APP_ICON_TRANSPARENT_URL } from '@/assets/appIconAssets'
 import { logWebAdminActivity, recordWebAdminLoginActivity } from '@/utils/adminActivity'
+import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import './AdminLayout.css'
 
 type ProfileData = {
@@ -52,6 +53,7 @@ function AdminLayout() {
   const [notifications, setNotifications] = useState<AdminNotification[]>([])
   const [profile, setProfile] = useState<ProfileData>({ fullName: 'Admin', photoURL: '', gender: '' })
   const lastTrackedClickRef = useRef({ signature: '', time: 0 })
+  const { openConfirm, confirmDialog } = useConfirmDialog()
 
   useEffect(() => {
     void supabase.auth.getSession().then(({ data }) => {
@@ -124,7 +126,7 @@ function AdminLayout() {
   const homePath = '/admin/dashboard'
   const homeLabel = 'Dashboard'
   const handleLogout = async () => {
-    await Promise.all([
+    await Promise.allSettled([
       recordWebAdminLoginActivity('logout', userRole),
       logWebAdminActivity({
         adminId: user?.id,
@@ -134,8 +136,22 @@ function AdminLayout() {
         summary: 'Signed out of the admin web console.',
       }),
     ])
-    await supabase.auth.signOut()
+    const { error } = await supabase.auth.signOut({ scope: 'local' })
+    if (error) throw error
     navigate('/')
+  }
+
+  const confirmLogout = () => {
+    setMenuOpen(false)
+    openConfirm({
+      title: 'Log Out',
+      message: 'Are you sure you want to log out?',
+      confirmLabel: 'Log Out',
+      cancelLabel: 'Cancel',
+      pendingLabel: 'Logging out...',
+      tone: 'session',
+      onConfirm: handleLogout,
+    })
   }
 
   useEffect(() => {
@@ -372,14 +388,15 @@ function AdminLayout() {
               <button
                 type="button"
                 className="admin-notification-btn"
+                title="Notifications"
+                aria-label="Notifications"
                 onClick={() => setNotificationsOpen((prev) => !prev)}
                 aria-haspopup="dialog"
                 aria-expanded={notificationsOpen}
                 aria-controls="admin-notification-menu"
               >
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M12 3C9.2 3 7 5.2 7 8V10.7L5.4 13.4A1 1 0 0 0 6.3 15H17.7A1 1 0 0 0 18.6 13.4L17 10.7V8C17 5.2 14.8 3 12 3Z" strokeWidth="1.8" />
-                  <path d="M10 18C10.4 19.2 11.1 20 12 20C12.9 20 13.6 19.2 14 18" strokeWidth="1.8" strokeLinecap="round" />
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" />
                 </svg>
                 {unreadCount > 0 ? <span className="admin-notification-badge">{unreadCount > 9 ? '9+' : unreadCount}</span> : null}
               </button>
@@ -416,7 +433,7 @@ function AdminLayout() {
 
               {menuOpen ? (
                 <div id="admin-profile-menu" className="user-dropdown" role="dialog" aria-label="Admin profile menu" aria-modal="false">
-                  <button type="button" className="user-dropdown-item" data-no-activity="true" onClick={handleLogout}>Logout</button>
+                  <button type='button' className='user-dropdown-item' data-no-activity='true' onClick={confirmLogout}>Logout</button>
                 </div>
               ) : null}
             </div>
@@ -427,6 +444,7 @@ function AdminLayout() {
           <Outlet />
         </div>
       </main>
+      {confirmDialog}
     </div>
   )
 }
