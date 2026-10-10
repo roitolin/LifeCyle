@@ -493,6 +493,25 @@
   box-shadow: 0 0 0 3px rgba(47, 64, 87, 0.14);
 }
 
+.admin-console-shell .admin-home-notifications .sc-web-notif-btn {
+  color: #315f50;
+}
+
+.admin-console-shell .admin-home-notifications .sc-web-notif-btn:hover,
+.admin-console-shell .admin-home-notifications .sc-web-notif-btn.is-active {
+  border-color: transparent;
+  background: #eef4f1;
+  color: #22312d;
+}
+
+.admin-console-shell .admin-home-notifications .sc-web-notif-btn:focus-visible {
+  box-shadow: 0 0 0 3px rgba(49, 95, 80, .14);
+}
+
+.admin-console-shell .admin-home-notifications .sc-web-notif-badge {
+  box-shadow: 0 0 0 2px #ffffff;
+}
+
 .admin-console-shell .admin-notification-btn svg {
   width: 19px;
   height: 19px;

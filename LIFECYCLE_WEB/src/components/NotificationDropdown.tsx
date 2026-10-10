@@ -120,9 +120,17 @@ type NotificationDropdownProps = {
   iconOnly?: boolean
   className?: string
   variant?: 'default' | 'seller-centre'
+  routeResolver?: (item: WebNotification) => string
+  viewAllPath?: string
 }
 
-export default function NotificationDropdown({ iconOnly = true, className = '', variant = 'default' }: NotificationDropdownProps) {
+export default function NotificationDropdown({
+  iconOnly = true,
+  className = '',
+  variant = 'default',
+  routeResolver = resolveNotificationRoute,
+  viewAllPath = '/user/notifications',
+}: NotificationDropdownProps) {
   const [isOpen, setIsOpen]             = useState(false)
   const [userId, setUserId]             = useState<string | null>(null)
   const [notifications, setNotifications] = useState<WebNotification[]>([])
@@ -180,7 +188,7 @@ export default function NotificationDropdown({ iconOnly = true, className = '', 
       try { await markNotificationRead(item.id) } catch { /* non-blocking */ }
     }
     setIsOpen(false)
-    navigate(resolveNotificationRoute(item))
+    navigate(routeResolver(item))
   }
 
   const handleMarkAll = async () => {
@@ -229,7 +237,7 @@ export default function NotificationDropdown({ iconOnly = true, className = '', 
             <button
               type="button"
               className="sc-web-notif-compact-viewall"
-              onClick={() => { setIsOpen(false); navigate('/user/notifications') }}
+              onClick={() => { setIsOpen(false); navigate(viewAllPath) }}
             >
               View All
             </button>
@@ -291,7 +299,7 @@ export default function NotificationDropdown({ iconOnly = true, className = '', 
               <button
                 type="button"
                 className="sc-web-notif-viewall"
-                onClick={() => { setIsOpen(false); navigate('/user/notifications') }}
+                onClick={() => { setIsOpen(false); navigate(viewAllPath) }}
               >
                 View All
               </button>
@@ -359,7 +367,7 @@ export default function NotificationDropdown({ iconOnly = true, className = '', 
               <button
                 type="button"
                 className="sc-web-notif-footer-btn"
-                onClick={() => { setIsOpen(false); navigate('/user/notifications') }}
+                onClick={() => { setIsOpen(false); navigate(viewAllPath) }}
               >
                 See all notifications
               </button>

@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
-import { fetchNotificationsForUser } from '@/utils/supabaseNotifications'
 import { APP_ICON_TRANSPARENT_URL } from '@/assets/appIconAssets'
 import { logWebAdminActivity, recordWebAdminLoginActivity } from '@/utils/adminActivity'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
+import NotificationDropdown, { type WebNotification } from '@/components/NotificationDropdown'
 import './AdminLayout.css'
 
 type ProfileData = {
@@ -16,29 +16,30 @@ type ProfileData = {
 
 type AdminRole = 'super_admin' | 'admin' | 'funeral_admin' | 'user'
 
-type AdminNotification = {
-  id: string
-  title?: string
-  message?: string
-  body?: string
-  type?: string
-  read?: boolean
-  createdAt?: { toDate?: () => Date } | string | null
-}
-
 function getDefaultAvatar(gender: string) {
   if (gender === 'female') return '/Female_Default_Profile.png'
   return '/Male_Default_Profile.png'
 }
 
-function getTimeLabel(value: { toDate?: () => Date } | string | null | undefined) {
-  if (!value) return ''
-  if (typeof value === 'object' && value !== null && 'toDate' in value) {
-    return value.toDate?.()?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) || ''
-  }
-  const parsed = new Date(String(value))
-  if (Number.isNaN(parsed.getTime())) return ''
-  return parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
+function resolveAdminNotificationRoute(item: WebNotification) {
+  const type = String(item.type || '').toLowerCase()
+  const data = item.data || {}
+  const requestId = data.requestId || data.serviceRequestId
+  const shopId = data.shopId
+  const userId = data.userId
+
+  if (requestId) return '/admin/orders/' + encodeURIComponent(String(requestId))
+  if (type.includes('order') || type.includes('request') || type.includes('booking') || type.includes('casket')) return '/admin/orders'
+  if (type.includes('payout')) return '/admin/payout-accounts'
+  if (type.includes('payment') || type.includes('refund')) return '/admin/payments'
+  if (shopId) return '/admin/funeral-shops/' + encodeURIComponent(String(shopId)) + '/details'
+  if (type.includes('shop')) return '/admin/funeral-shops'
+  if (type.includes('account_deletion')) return '/admin/account-deletions'
+  if (type.includes('feedback') || type.includes('review')) return '/admin/feedback'
+  if (type.includes('support') || type.includes('message') || type.includes('chat')) return '/admin/support'
+  if (userId) return '/admin/users/' + encodeURIComponent(String(userId))
+  if (type.includes('user') || type.includes('account')) return '/admin/users'
+  return '/admin/dashboard'
 }
 
 
@@ -49,8 +50,6 @@ function AdminLayout() {
   const [userRole, setUserRole] = useState<AdminRole>('user')
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [notificationsOpen, setNotificationsOpen] = useState(false)
-  const [notifications, setNotifications] = useState<AdminNotification[]>([])
   const [profile, setProfile] = useState<ProfileData>({ fullName: 'Admin', photoURL: '', gender: '' })
   const lastTrackedClickRef = useRef({ signature: '', time: 0 })
   const { openConfirm, confirmDialog } = useConfirmDialog()
@@ -89,31 +88,6 @@ function AdminLayout() {
     void loadProfile()
   }, [user])
 
-  useEffect(() => {
-    if (!user) return
-    let active = true
-    const load = async () => {
-      const list = await fetchNotificationsForUser(user.id)
-      if (!active) return
-      setNotifications(list as AdminNotification[])
-    }
-
-    void load()
-    const channel = supabase
-      .channel(`admin-layout-notifications-${Date.now()}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => {
-        void load()
-      })
-      .subscribe()
-
-    return () => {
-      active = false
-      void supabase.removeChannel(channel)
-    }
-  }, [user])
-
-  const visibleNotifications = useMemo(() => (user ? notifications : []), [notifications, user])
-  const unreadCount = useMemo(() => visibleNotifications.filter((item) => !item.read).length, [visibleNotifications])
   const avatarSrc = profile.photoURL || getDefaultAvatar(profile.gender)
   const isRootAdmin = userRole === 'super_admin' || userRole === 'admin'
   const isFuneralAdmin = isRootAdmin || userRole === 'funeral_admin'
@@ -384,36 +358,12 @@ function AdminLayout() {
       <main className="user-main">
         <header className="user-header">
           <div className="user-header-right">
-            <div className="user-menu-wrap">
-              <button
-                type="button"
-                className="admin-notification-btn"
-                title="Notifications"
-                aria-label="Notifications"
-                onClick={() => setNotificationsOpen((prev) => !prev)}
-                aria-haspopup="dialog"
-                aria-expanded={notificationsOpen}
-                aria-controls="admin-notification-menu"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" />
-                </svg>
-                {unreadCount > 0 ? <span className="admin-notification-badge">{unreadCount > 9 ? '9+' : unreadCount}</span> : null}
-              </button>
-
-              {notificationsOpen ? (
-                <div id="admin-notification-menu" className="user-dropdown admin-notification-dropdown" role="dialog" aria-label="Admin notifications" aria-modal="false">
-                  {visibleNotifications.length === 0 ? <p className="panel-sub">No notifications yet.</p> : null}
-                  {visibleNotifications.slice(0, 12).map((item) => (
-                    <article key={item.id} className={`admin-notification-row${item.read ? '' : ' unread'}`}>
-                      <strong>{item.title || item.type || 'Notification'}</strong>
-                      <p>{item.message || item.body || ''}</p>
-                      <span>{getTimeLabel(item.createdAt)}</span>
-                    </article>
-                  ))}
-                </div>
-              ) : null}
-            </div>
+            <NotificationDropdown
+              variant="seller-centre"
+              className="admin-home-notifications"
+              routeResolver={resolveAdminNotificationRoute}
+              viewAllPath="/user/notifications"
+            />
 
             <div className="user-menu-wrap">
               <button
