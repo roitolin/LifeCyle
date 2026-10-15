@@ -26,6 +26,7 @@ import {
   serializeTimeOnly,
   validateServiceSchedule,
 } from "@/utils/serviceRequestSchedule";
+import { checkServiceAvailability } from "@/utils/serviceAvailability";
 type SuccessState = {
   requestId: string;
   shopName: string;
@@ -246,6 +247,19 @@ export default function FuneralCustomCasketRequestScreen({ navigation, route }: 
 
     setSubmitting(true);
     try {
+      const wakeStartKey = serializeDateOnly(wakeStartDate)!;
+      const wakeEndKey = serializeDateOnly(wakeEndDate)!;
+      const availability = await checkServiceAvailability({
+        shopId,
+        productId: "custom_casket_design",
+        wakeStartDate: wakeStartKey,
+        wakeEndDate: wakeEndKey,
+      });
+      if (!availability.available) {
+        Alert.alert("Schedule unavailable", availability.message);
+        return;
+      }
+
       const requestId = generateId();
       const { error } = await supabase.from("funeral_service_requests").insert({
         id: requestId,
@@ -273,8 +287,8 @@ export default function FuneralCustomCasketRequestScreen({ navigation, route }: 
         wakeAddress: safeWakeAddress,
         churchName: safeChurchName,
         cemeteryName: safeCemeteryName,
-        wakeStartDate: serializeDateOnly(wakeStartDate),
-        wakeEndDate: serializeDateOnly(wakeEndDate),
+        wakeStartDate: wakeStartKey,
+        wakeEndDate: wakeEndKey,
         burialTime: serializeTimeOnly(burialTime),
         pickupAddress: safePickupAddress,
         contactNumber: safeContactNumber,

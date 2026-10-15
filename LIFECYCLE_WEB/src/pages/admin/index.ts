@@ -12,6 +12,7 @@ export { default as AdminLayout } from "./AdminLayout";
 export { default as AdminModerationPage } from "./AdminModerationPage";
 export { default as AdminOrdersPage } from "./AdminOrdersPage";
 export { default as AdminPaymentsPage } from "./AdminPaymentsPage";
+export { default as AdminPayoutAccountsPage } from "./AdminPayoutAccountsPage";
 export { default as AdminRoleGuard } from "./AdminRoleGuard";
 export { default as AdminRoleRedirectPage } from "./AdminRoleRedirectPage";
 export { default as AdminShopCentrePage } from "./AdminShopCentrePage";

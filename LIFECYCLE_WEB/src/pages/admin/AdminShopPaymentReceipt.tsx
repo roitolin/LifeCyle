@@ -62,7 +62,7 @@ function AdminShopPaymentReceipt({ payment, busy, onClose, onVerify, onReject }:
       : {
           title: isXendit ? 'Xendit checkout pending' : isHostedCheckout ? 'Legacy checkout pending' : 'Payment under review',
           message: isXendit
-            ? 'Xendit will confirm this test transaction automatically after checkout.'
+            ? 'Xendit will confirm this transaction automatically after checkout.'
             : isHostedCheckout
               ? 'The legacy payment provider will confirm this transaction automatically.'
               : 'Check the seller information and submitted proof before verifying it.',

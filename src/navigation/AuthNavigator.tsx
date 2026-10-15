@@ -10,10 +10,10 @@ import { colors } from "@/theme";
 
 const Stack = createNativeStackNavigator();
 
-export default function AuthNavigator() {
+export default function AuthNavigator({ showOnboarding }: { showOnboarding: boolean }) {
   return (
     <Stack.Navigator
-      initialRouteName="Onboarding"
+      initialRouteName={showOnboarding ? "Onboarding" : "Login"}
       screenOptions={{ animation: "fade_from_bottom", headerShown: false }}
     >
       <Stack.Screen name="Onboarding" component={MobileLandingScreen} />

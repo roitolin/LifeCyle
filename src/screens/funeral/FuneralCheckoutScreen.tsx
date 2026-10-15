@@ -21,6 +21,7 @@ import { generateId } from "@/utils/generateId";
 import { auth, uploadCertificate } from "@/services";
 import { FuneralCartItem, removeFuneralCartItem } from "@/utils/funeralCart";
 import { hapticMedium } from "@/utils/haptics";
+import { checkServiceAvailability } from "@/utils/serviceAvailability";
 import {
   serializeDateOnly,
   serializeTimeOnly,
@@ -244,6 +245,19 @@ export default function FuneralCheckoutScreen({ navigation, route }: any) {
 
     setSubmitting(true);
     try {
+      const wakeStartKey = serializeDateOnly(wakeStartDate)!;
+      const wakeEndKey = serializeDateOnly(wakeEndDate)!;
+      const availability = await checkServiceAvailability({
+        shopId: cartItem.shopId,
+        productId: cartItem.productId,
+        wakeStartDate: wakeStartKey,
+        wakeEndDate: wakeEndKey,
+      });
+      if (!availability.available) {
+        Alert.alert("Schedule unavailable", availability.message);
+        return;
+      }
+
       const requestId = generateId();
       const { error } = await supabase.from("funeral_service_requests").insert({
         id: requestId,
@@ -257,6 +271,7 @@ export default function FuneralCheckoutScreen({ navigation, route }: any) {
         productName: cartItem.name,
         productPrice: cartItem.price,
         productImageUrl: cartItem.imageUrl || null,
+        variationId: cartItem.variationId || null,
         variationName: cartItem.variationName || null,
         packageItems: cartItem.packageItems || [],
         requestType: "catalog_product",
@@ -272,8 +287,8 @@ export default function FuneralCheckoutScreen({ navigation, route }: any) {
         wakeAddress: safeWakeAddress,
         churchName: safeChurchName,
         cemeteryName: safeCemeteryName,
-        wakeStartDate: serializeDateOnly(wakeStartDate),
-        wakeEndDate: serializeDateOnly(wakeEndDate),
+        wakeStartDate: wakeStartKey,
+        wakeEndDate: wakeEndKey,
         burialTime: serializeTimeOnly(burialTime),
         pickupAddress: safePickupAddress,
         contactNumber: safeContactNumber,

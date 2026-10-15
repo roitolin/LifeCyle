@@ -3,6 +3,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { supabase } from './supabaseClient';
 
 const STORAGE_BUCKET = 'avatars';
+const DEATH_CERTIFICATE_BUCKET = 'death-certificates';
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 type UploadFolder = 'profiles' | 'service-media' | 'report-evidence' | 'home-content';
@@ -60,6 +61,56 @@ export const uploadProfilePicture = (uri: string) =>
 
 export const uploadCertificate = (uri: string) =>
   uploadImageToSupabase(uri, 'service-media');
+
+export type SecureVaultUpload = {
+  storagePath: string;
+  originalFileName: string;
+  mimeType: string;
+  fileSizeBytes: number;
+};
+
+export async function uploadDeathCertificateToVault(
+  documentId: string,
+  uri: string,
+  originalFileName = 'Death Certificate.jpg'
+): Promise<SecureVaultUpload> {
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!userData.user) throw new Error('You must be signed in to upload a Death Certificate.');
+
+  const preparedImage = await ImageManipulator.manipulateAsync(
+    uri,
+    [{ resize: { width: 2000 } }],
+    { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG }
+  );
+  const base64 = await FileSystem.readAsStringAsync(preparedImage.uri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+  const imageData = decodeBase64(base64);
+  if (imageData.byteLength > MAX_IMAGE_BYTES) {
+    throw new Error('The Death Certificate must be smaller than 10 MB.');
+  }
+
+  const objectName = Date.now() + '-' + Math.random().toString(16).slice(2) + '.jpg';
+  const storagePath = documentId + '/' + userData.user.id + '/' + objectName;
+  const { error: uploadError } = await supabase.storage
+    .from(DEATH_CERTIFICATE_BUCKET)
+    .upload(storagePath, imageData, {
+      contentType: 'image/jpeg',
+      cacheControl: '3600',
+      upsert: false,
+    });
+  if (uploadError) {
+    throw new Error('Secure vault upload failed: ' + uploadError.message);
+  }
+
+  return {
+    storagePath,
+    originalFileName,
+    mimeType: 'image/jpeg',
+    fileSizeBytes: imageData.byteLength,
+  };
+}
 
 export const uploadReportEvidence = (uri: string) =>
   uploadImageToSupabase(uri, 'report-evidence');

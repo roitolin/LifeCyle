@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import BrandLogo from '@/components/BrandLogo'
+import LogoutLink from '@/components/LogoutLink'
+import PageBackButton from '@/components/PageBackButton'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import { supabase } from '@/lib/supabase'
@@ -33,7 +35,7 @@ type ViewerProfile = {
 }
 
 type NotificationFilter = 'all' | 'requests' | 'payments' | 'updates'
-type NotificationVisual = 'refund' | 'payment' | 'success' | 'request' | 'message' | 'product' | 'shop' | 'announcement' | 'schedule' | 'default'
+type NotificationVisual = 'payment' | 'success' | 'request' | 'message' | 'product' | 'shop' | 'announcement' | 'schedule' | 'default'
 
 const REQUEST_NOTIFICATION_TYPES = new Set([
   'funeral_request_pending',
@@ -43,8 +45,6 @@ const REQUEST_NOTIFICATION_TYPES = new Set([
   'funeral_payment_verified',
   'funeral_payment_rejected',
   'funeral_request_completed',
-  'funeral_refund_requested',
-  'funeral_refund_updated',
   'death_certificate_requested',
   'death_certificate_ready',
 ])
@@ -75,14 +75,14 @@ function formatNotificationTime(timestamp: string) {
 
 function getNotificationCategory(type: string): Exclude<NotificationFilter, 'all'> {
   const normalized = String(type || '').toLowerCase()
-  if (normalized.includes('payment') || normalized.includes('refund')) return 'payments'
+  if (normalized.includes('payment')) return 'payments'
   if (normalized.includes('request') || normalized.includes('booking') || normalized.includes('order')) return 'requests'
   return 'updates'
 }
 
 function getNotificationVisual(type: string): NotificationVisual {
   const normalized = String(type || '').toLowerCase()
-  if (normalized.includes('payment_rejected') || normalized.includes('refund')) return 'refund'
+  if (normalized.includes('payment_rejected')) return 'payment'
   if (normalized.includes('payment')) return 'payment'
   if (normalized.includes('completed') || normalized.includes('verified')) return 'success'
   if (normalized.includes('request') || normalized.includes('booking') || normalized.includes('order')) return 'request'
@@ -96,7 +96,6 @@ function getNotificationVisual(type: string): NotificationVisual {
 
 function NotificationTypeIcon({ kind }: { kind: NotificationVisual }) {
   const common = { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.9, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
-  if (kind === 'refund') return <svg {...common}><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v1"/></svg>
   if (kind === 'payment') return <svg {...common}><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><path d="M16 15h2"/></svg>
   if (kind === 'success') return <svg {...common}><path d="M20 6 9 17l-5-5"/></svg>
   if (kind === 'request') return <svg {...common}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h6"/></svg>
@@ -356,7 +355,7 @@ export default function NotificationPage() {
       <div className="notification-topbar">
         <div className="notification-topbar-inner">
           <div className="notification-topbar-left">
-            <Link to="/seller">Seller Centre</Link>
+            <Link to="/seller">Shop Center</Link>
           </div>
           <div className="notification-topbar-right">
             <Link to="/user/notifications" aria-current="page">Notifications</Link>
@@ -374,7 +373,7 @@ export default function NotificationPage() {
                 <Link to="/user/profile">My Account</Link>
                 <Link to="/user/purchase">Purchases</Link>
                 <Link to="/auth/switch-account">Switch Account</Link>
-                <Link to="/auth/logout">Log out</Link>
+                <LogoutLink>Log out</LogoutLink>
               </div>
             </div>
           </div>
@@ -390,11 +389,8 @@ export default function NotificationPage() {
       </header>
 
       <main className="notification-main">
-        <div className="notification-page-nav">
-          <button type="button" className="notification-back-btn" onClick={() => navigate(-1)}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5" /><polyline points="12 19 5 12 12 5" /></svg>
-            Back
-          </button>
+        <div className="page-back-row notification-page-nav">
+          <PageBackButton />
         </div>
 
         <section className={`notification-inbox-toolbar${selectionMode ? ' selecting' : ''}`}>

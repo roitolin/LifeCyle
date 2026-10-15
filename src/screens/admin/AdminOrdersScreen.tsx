@@ -50,7 +50,6 @@ type ServiceRequest = {
   pickupAddress?: string | null;
   contactNumber?: string | null;
   status: string;
-  paymentQrUrl?: string | null;
   paymentAmount?: number | string | null;
   paymentPayerName?: string | null;
   paymentGcashNumber?: string | null;
@@ -59,6 +58,10 @@ type ServiceRequest = {
   paymentRejectionReason?: string | null;
   paymentSubmittedAt?: any;
   paymentVerifiedAt?: any;
+  payoutStatus?: string | null;
+  payoutAmount?: number | string | null;
+  payoutCompletedAt?: any;
+  payoutFailureCode?: string | null;
   completedAt?: any;
   createdAt?: any;
   acceptedAt?: any;
@@ -89,10 +92,10 @@ const getStatusMeta = (status: string) => {
     return { label: "Payment Submitted", background: "#e0eefa", text: "#1c4f7e" };
   }
   if (normalized === "paid_waiting_for_split") {
-    return { label: "Waiting for Commission", background: "#fef3c7", text: "#86654a" };
+    return { label: "Processing Payout", background: "#fef3c7", text: "#86654a" };
   }
   if (normalized === "commission_failed") {
-    return { label: "Commission Failed", background: "#fde8e8", text: "#991b1b" };
+    return { label: "Payout Review", background: "#fde8e8", text: "#991b1b" };
   }
   if (normalized === "payment_verified") {
     return { label: "Payment Confirmed", background: "#e7f5ec", text: "#166534" };
@@ -337,13 +340,6 @@ export default function AdminOrdersScreen() {
                           : "Not configured"}
                       </Text>
 
-                      {selectedItem.paymentQrUrl ? (
-                        <>
-                          <Text style={styles.detailLabel}>Shop Payment QR</Text>
-                          <Image source={{ uri: selectedItem.paymentQrUrl }} style={styles.modalMainImage} resizeMode="contain" />
-                        </>
-                      ) : null}
-
                       {selectedItem.paymentPayerName ? (
                         <>
                           <Text style={styles.detailLabel}>Payer</Text>
@@ -366,6 +362,20 @@ export default function AdminOrdersScreen() {
                         <>
                           <Text style={styles.detailLabel}>Payment Rejection Reason</Text>
                           <Text style={styles.detailValue}>{selectedItem.paymentRejectionReason}</Text>
+                        </>
+                      ) : null}
+
+                      {selectedItem.payoutStatus || selectedItem.payoutAmount ? (
+                        <>
+                          <Text style={styles.detailLabel}>Shop Payout (70%)</Text>
+                          <Text style={styles.detailValue}>
+                            {selectedItem.payoutAmount ? formatPhilippinePeso(String(selectedItem.payoutAmount)) : "-"}
+                            {` (${selectedItem.payoutStatus || "pending"}${selectedItem.payoutFailureCode ? `: ${selectedItem.payoutFailureCode}` : ""})`}
+                          </Text>
+                          <Text style={styles.detailLabel}>Admin Commission (30%)</Text>
+                          <Text style={styles.detailValue}>
+                            {formatPhilippinePeso(String(Math.round(Number(selectedItem.paymentAmount || selectedItem.productPrice || 0) * 0.3)))}
+                          </Text>
                         </>
                       ) : null}
                     </>

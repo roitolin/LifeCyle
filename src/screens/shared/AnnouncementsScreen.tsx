@@ -16,6 +16,7 @@ type Announcement = {
   audience: 'all' | 'users' | 'funeral_shops';
   isPinned: boolean;
   createdAt: string;
+  expiresAt: string | null;
 };
 
 function getAnnouncementDate(timestamp: string) {
@@ -80,9 +81,10 @@ export default function AnnouncementsScreen({ navigation, route }: any) {
     try {
       const { data, error } = await supabase
         .from('announcements')
-        .select('id, title, body, audience, isPinned, createdAt')
+        .select('id, title, body, audience, isPinned, createdAt, expiresAt')
         .eq('status', 'active')
         .in('audience', ['all', audience])
+        .or(`expiresAt.is.null,expiresAt.gt.${new Date().toISOString()}`)
         .order('isPinned', { ascending: false })
         .order('createdAt', { ascending: false });
       if (error) throw error;

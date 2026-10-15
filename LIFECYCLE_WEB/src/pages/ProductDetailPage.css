@@ -475,12 +475,29 @@
   padding: 15px 20px;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
   margin-bottom: 25px;
+}
+.pd-price-label {
+  width: 100%;
+  color: #75818a;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
 }
 .pd-price-value {
   color: var(--pd-brand);
   font-size: 30px;
   font-weight: 500;
+}
+
+.pd-price-breakdown {
+  margin: 0;
+  color: #75818a;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 /* Options */
@@ -515,18 +532,71 @@
 
 .pd-variation-btn {
   border: 1px solid rgba(0,0,0,.09);
-  padding: 8px 12px;
+  padding: 0;
   background: #fff;
   cursor: pointer;
-  border-radius: 2px;
+  border-radius: 8px;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
-  min-width: 80px;
+  gap: 0;
+  width: 120px;
+  min-height: 126px;
   justify-content: center;
   position: relative;
   overflow: hidden;
 }
+
+.pd-variation-copy {
+  width: 100%;
+  min-height: 42px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 8px;
+  text-align: center;
+}
+
+.pd-page .sp-cart-area {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.pd-page .sp-cart-btn,
+.pd-page .sp-cart-btn:hover,
+.pd-page .sp-cart-btn:active {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0 !important;
+  border-radius: 8px;
+  background: transparent !important;
+  box-shadow: none;
+}
+
+.pd-page .sp-cart-btn svg {
+  width: 29px;
+  height: 29px;
+}
+
+.pd-page .sp-header {
+  padding: 14px 0;
+}
+
+.pd-page .sp-header-inner {
+  gap: 16px;
+}
+
+.pd-page .sp-search-wrap {
+  gap: 0;
+}
+
 .pd-variation-btn:hover {
   border-color: var(--pd-brand);
   color: var(--pd-brand);
@@ -547,8 +617,8 @@
 }
 
 .pd-variation-img {
-  width: 24px;
-  height: 24px;
+  width: 100%;
+  height: 84px;
   object-fit: cover;
 }
 
@@ -611,7 +681,7 @@
   color: #fff;
   border: 1px solid var(--pd-brand);
 }
-.pd-btn-cart:hover { background: #ffe4db; }
+.pd-btn-cart:hover { background: var(--pd-brand-light); }
 .pd-btn-buy:hover { background: #f05d40; }
 
 .pd-btn:disabled {
@@ -1583,67 +1653,112 @@
   display: none;
 }
 
-.pd-package-options {
-  align-items: stretch;
+.pd-package-section {
+  min-width: 0;
+  margin: 0 0 24px;
+  padding-top: 18px;
+  border-top: 1px solid #e5e1d9;
 }
 
-.pd-package-item {
-  min-width: min(100%, 240px);
-  flex: 1 1 220px;
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 12px 14px;
-  border: 1px solid #dce2e4;
-  border-radius: 7px;
-  background: #fff;
-  color: #3e4b56;
-  text-align: left;
+.pd-package-heading {
+  margin-bottom: 12px;
 }
 
-.pd-package-check {
-  width: 28px;
-  height: 28px;
-  flex: 0 0 28px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: var(--pd-brand);
-  color: #fff;
-  font-size: 16px;
+.pd-package-heading .pd-option-label {
+  margin-bottom: 0;
+  color: #26352f;
+  font-size: 14px;
   font-weight: 800;
 }
 
-.pd-package-img {
-  width: 44px;
-  height: 44px;
-  border-radius: 8px;
-  object-fit: cover;
-  flex: 0 0 44px;
-  background: #f1f5f9;
+.pd-package-intro {
+  margin: 4px 0 0;
+  color: #75818a;
+  font-size: 12px;
+  line-height: 18px;
 }
 
-.pd-package-item strong,
-.pd-package-item small {
+.pd-package-options {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  max-width: 100%;
+  padding: 0 4px 6px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #c9d0cd transparent;
+  scroll-snap-type: x proximity;
+}
+
+.pd-package-options::-webkit-scrollbar {
+  height: 5px;
+}
+
+.pd-package-options::-webkit-scrollbar-thumb {
+  background: #c9d0cd;
+  border-radius: 999px;
+}
+
+.pd-package-item {
+  width: 148px;
+  min-width: 148px;
+  flex: 0 0 148px;
+  overflow: hidden;
+  border: 1px solid #dce2e4;
+  border-radius: 18px;
+  background: #fff;
+  color: #3e4b56;
+  text-align: left;
+  scroll-snap-align: start;
+}
+
+.pd-package-media {
+  width: 100%;
+  height: 96px;
+  overflow: hidden;
+  background: #f1f3f1;
+}
+
+.pd-package-img,
+.pd-package-fallback {
+  width: 100%;
+  height: 100%;
+}
+
+.pd-package-img {
   display: block;
+  object-fit: cover;
+}
+
+.pd-package-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f4f5f2;
+  color: var(--pd-brand);
+  font-size: 28px;
+  font-weight: 750;
+}
+
+.pd-package-copy {
+  min-height: 52px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
 }
 
 .pd-package-item strong {
-  margin-bottom: 3px;
+  display: -webkit-box;
+  overflow: hidden;
+  color: #26352f;
   font-size: 13px;
-}
-
-.pd-package-item small {
-  color: #75818a;
-  font-size: 11px;
-  line-height: 1.4;
-}
-
-.pd-package-hint {
-  margin: 8px 0 0;
-  color: #75818a;
-  font-size: 11px;
+  font-weight: 800;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .pd-variation-img {
@@ -2654,7 +2769,7 @@
 
 /* Product-local navigation replaces the detached breadcrumb strip. */
 .pd-product-nav {
-  min-height: 58px;
+  min-height: 52px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2710,4 +2825,160 @@
   .pd-product-path {
     display: none;
   }
+}
+
+/* Keep product content and purchase actions within narrow mobile viewports. */
+.pd-container,
+.pd-main-card,
+.pd-gallery-section,
+.pd-info-section,
+.pd-option-content,
+.pd-actions-row {
+  min-width: 0;
+}
+
+@media (max-width: 560px) {
+  .pd-title,
+  .pd-option-content,
+  .pd-package-copy {
+    overflow-wrap: anywhere;
+  }
+
+  .pd-actions-row {
+    gap: 10px;
+  }
+
+  .pd-btn {
+    min-height: 48px;
+    white-space: normal;
+  }
+}
+
+/* Standalone header cart */
+.pd-page .sp-cart-btn {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #ffffff;
+  text-decoration: none;
+  transition: color 150ms ease, opacity 150ms ease, transform 150ms ease;
+}
+
+.pd-page .sp-cart-btn:hover {
+  border: 0;
+  background: transparent;
+  color: #ffffff;
+  opacity: 0.78;
+  transform: translateY(-1px);
+}
+
+.pd-page .sp-cart-btn:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.8);
+  outline-offset: 3px;
+}
+
+.pd-page .sp-cart-btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+.pd-page .sp-cart-count {
+  top: 1px;
+  right: -1px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border: 2px solid #172033;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 13px;
+  text-align: center;
+}
+
+/* Mobile green palette on the original web layout. */
+.pd-page {
+  --pd-brand: #315f50;
+  --pd-brand-dark: #22312d;
+  --pd-brand-light: #eef1ec;
+  --text-main: #22312d;
+}
+
+.pd-page .sp-topbar,
+.pd-page .sp-header {
+  background: #22312d;
+}
+
+.pd-page .sp-search-btn {
+  background: #315f50;
+}
+
+.pd-page .sp-search-btn:hover {
+  background: #3f6f58;
+}
+
+.pd-page .sp-cart-count {
+  border-color: #22312d;
+  color: #ffffff;
+}
+
+.pd-page .pd-title,
+.pd-page .pd-single-order-note,
+.pd-page .pd-spec-value {
+  color: #22312d;
+}
+
+.pd-page .pd-product-back {
+  color: #53615d;
+}
+
+.pd-page .pd-btn-buy,
+.pd-page .pd-package-check {
+  border-color: #315f50;
+  background: #315f50;
+}
+
+.pd-page .pd-btn-buy:hover {
+  background: #22312d;
+}
+
+.pd-page .pd-btn-cart {
+  border-color: #315f50;
+  color: #315f50;
+}
+
+.pd-page .pd-variation-btn.selected {
+  border-color: #315f50;
+  background: #eef1ec;
+  color: #315f50;
+}
+
+/* Standalone search icon; the search field remains the only container. */
+.pd-page .sp-search-btn,
+.pd-page .sp-search-btn:hover,
+.pd-page .sp-search-btn:active {
+  width: 48px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #315f50;
+  box-shadow: none;
+}
+
+.pd-page .sp-search-btn:hover {
+  color: #22312d;
+}
+
+.pd-page .sp-search-btn svg {
+  width: 24px;
+  height: 24px;
 }

@@ -16,6 +16,7 @@ import {
   AccountSettingsScreen,
   AppFeedbackScreen,
   ChatScreen,
+  ConversationsList,
   DisputeReportScreen,
 } from "@/pages/shared";
 
@@ -73,6 +74,8 @@ export default function ProfileStackNavigator() {
       <Stack.Screen name='ShopInformation' component={FuneralShopInformationScreen} options={{ title: 'Shop Information' }} />
       <Stack.Screen name='BusinessInformation' component={FuneralBusinessInformationScreen} options={{ title: 'Business Information' }} />
       <Stack.Screen name='ShopCenter' component={FuneralShopCenterScreen} options={{ headerShown: false }} />
+      <Stack.Screen name='ShopMessages' component={ConversationsList} initialParams={{ initialInbox: 'shop' }} options={{ title: 'Shop inbox' }} />
+      <Stack.Screen name='Chat' component={ChatScreen} options={{ title: 'Chat' }} />
       <Stack.Screen name='ShopCatalog' component={FuneralShopCatalogScreen} options={{ headerShown: false }} />
       <Stack.Screen name='ShopPackages' component={FuneralShopPackagesScreen} options={{ headerShown: false }} />
       <Stack.Screen name='ShopSettings' component={FuneralShopSettingsScreen} options={{ headerShown: false }} />

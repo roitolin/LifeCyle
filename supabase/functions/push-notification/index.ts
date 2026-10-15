@@ -50,7 +50,7 @@ function jsonResponse(body: unknown, status = 200) {
 
 function preferenceCategory(type: string) {
   const normalized = type.trim().toLowerCase();
-  if (normalized.includes('payment') || normalized.includes('refund')) return 'payments';
+  if (normalized.includes('payment')) return 'payments';
   if (
     normalized === 'support_message' ||
     normalized === 'message' ||

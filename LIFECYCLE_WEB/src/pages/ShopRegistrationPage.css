@@ -415,4 +415,44 @@
   .reg-btn {
     width: 100%;
   }
+
+  .reg-page,
+  .reg-content,
+  .reg-card,
+  .reg-form-body,
+  .reg-review-val {
+    min-width: 0;
+  }
+
+  .reg-form-body {
+    padding: 20px 16px;
+  }
+
+  .reg-form-body input,
+  .reg-form-body select,
+  .reg-form-body textarea {
+    max-width: 100%;
+  }
+
+  .reg-access-denied {
+    padding: 32px 16px;
+  }
+
+  .reg-access-denied-title {
+    font-size: 24px;
+    text-align: center;
+  }
+
+  .reg-access-denied-actions,
+  .reg-access-denied-back,
+  .reg-access-denied-login {
+    width: 100%;
+  }
+
+  .reg-access-denied-back,
+  .reg-access-denied-login {
+    display: inline-flex;
+    justify-content: center;
+    text-align: center;
+  }
 }

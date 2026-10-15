@@ -45,12 +45,20 @@ import { ensureAppAudioReady, playSoundFromStart } from "../../utils/soundPlayba
 
 const CHAT_SENT_SOUND = require("../../../sound/ChatSents.mp3");
 const CHAT_RECEIVE_SOUND = require("../../../sound/ChatRecieves.mp3");
-const chatSoundsReady = Promise.all([
-  preload(CHAT_SENT_SOUND),
-  preload(CHAT_RECEIVE_SOUND),
-]).catch((error) => {
-  console.warn("Unable to preload chat sounds:", error);
-});
+
+let chatSoundsPreloadAttempted = false;
+async function safelyPreloadChatSounds() {
+  if (chatSoundsPreloadAttempted) return;
+  chatSoundsPreloadAttempted = true;
+  try {
+    await Promise.race([
+      Promise.all([preload(CHAT_SENT_SOUND), preload(CHAT_RECEIVE_SOUND)]),
+      new Promise((resolve) => setTimeout(resolve, 3000)),
+    ]);
+  } catch {
+    // createAudioPlayer will handle on demand loading
+  }
+}
 
 type ChatMessage = {
   id: string;
@@ -322,6 +330,7 @@ export default function ChatScreen({ route, navigation }: any) {
     conversationId: initialConversationId,
     otherUserId,
     otherUserName,
+    shopId: initialShopId,
     requestId,
   } = route.params || {};
   const { role, user } = useAuth();
@@ -356,6 +365,7 @@ export default function ChatScreen({ route, navigation }: any) {
   const receiveSoundRef = useRef<AudioPlayer | null>(null);
 
   const [conversationId, setConversationId] = useState<string | undefined>(initialConversationId);
+  const [conversationShopId, setConversationShopId] = useState<string | null>(initialShopId || null);
   const [conversationReady, setConversationReady] = useState(false);
   const [readyForUserId, setReadyForUserId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -422,7 +432,7 @@ export default function ChatScreen({ route, navigation }: any) {
     let cancelled = false;
     const prepareSounds = async () => {
       try {
-        await chatSoundsReady;
+        void safelyPreloadChatSounds();
         await ensureAppAudioReady();
         if (cancelled) return;
         const sent = createAudioPlayer(CHAT_SENT_SOUND, { keepAudioSessionActive: true });
@@ -582,21 +592,26 @@ export default function ChatScreen({ route, navigation }: any) {
       }
       if (shopError) console.warn("Unable to load chat shop:", shopError.message);
       if (!active) return;
+      const partnerIsReceivingShop = conversationShopId === otherUserId;
       setProfile({
-        name: String(userData?.fullName || userData?.email || shopData?.shopName || otherUserName || "User"),
-        shopName: shopData?.shopName || null,
-        photoUrl: userData?.photoURL || shopData?.shopImageUrl || null,
+        name: String(partnerIsReceivingShop
+          ? shopData?.shopName || userData?.fullName || userData?.email || otherUserName || "Funeral Shop"
+          : userData?.fullName || userData?.email || otherUserName || "Customer"),
+        shopName: partnerIsReceivingShop ? shopData?.shopName || null : null,
+        photoUrl: partnerIsReceivingShop
+          ? shopData?.shopImageUrl || userData?.photoURL || null
+          : userData?.photoURL || null,
         gender: (userData?.gender as "female" | "male" | "other") || "other",
         role: "user",
         phone: shopData?.shopPhoneNumber || null,
-        isShop: !!shopData,
+        isShop: partnerIsReceivingShop,
       });
     };
     void loadProfile();
     return () => {
       active = false;
     };
-  }, [otherUserId, otherUserName]);
+  }, [conversationShopId, otherUserId, otherUserName]);
 
   const openProfile = useCallback(() => {
     const isAdmin = ADMIN_ROLES.has(profile.role.toLowerCase());
@@ -666,6 +681,7 @@ export default function ChatScreen({ route, navigation }: any) {
     setConversationReady(false);
     setReadyForUserId(null);
     setConversationId(initialConversationId);
+    setConversationShopId(initialShopId || null);
     setMessages([]);
     setInputText("");
     setSelectedMessage(null);
@@ -702,9 +718,16 @@ export default function ChatScreen({ route, navigation }: any) {
         return;
       }
       try {
-        const id = await ensureConversationForUsers(null, userId, otherUserId, initialConversationId);
+        const id = await ensureConversationForUsers(null, userId, otherUserId, initialConversationId, initialShopId || null);
+        const { data: conversation, error: conversationError } = await supabase
+          .from("conversations")
+          .select("shopId")
+          .eq("id", id)
+          .maybeSingle();
+        if (conversationError) throw conversationError;
         if (!active) return;
         setConversationId(id);
+        setConversationShopId(conversation?.shopId || initialShopId || null);
         setReadyForUserId(otherUserId);
         setConversationReady(true);
       } catch (error: any) {
@@ -717,7 +740,7 @@ export default function ChatScreen({ route, navigation }: any) {
     return () => {
       active = false;
     };
-  }, [initialConversationId, otherUserId, userId]);
+  }, [initialConversationId, initialShopId, otherUserId, userId]);
 
   const loadMessages = useCallback(async (showLoader = false) => {
     if (!conversationId || !conversationReady) return;

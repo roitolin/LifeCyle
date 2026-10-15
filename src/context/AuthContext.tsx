@@ -412,15 +412,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logout = async () => {
     const accountId = user?.id || null;
-    await unregisterCurrentDevicePushToken();
-    await markCurrentAccountSessionSignedOut('signed_out');
-    await recordAccountLoginActivity('logout');
+    const cleanupTasks: Promise<unknown>[] = [
+      unregisterCurrentDevicePushToken(),
+      markCurrentAccountSessionSignedOut('signed_out'),
+      recordAccountLoginActivity('logout'),
+    ];
     if (role === "admin" || role === "super_admin" || role === "funeral_admin") {
-      await recordAdminLoginActivity("logout", role);
+      cleanupTasks.push(recordAdminLoginActivity("logout", role));
     }
+    await Promise.allSettled(cleanupTasks);
     const { error } = await supabase.auth.signOut({ scope: 'local' });
     if (error) throw error;
-    if (accountId) await forgetRememberedAccount(accountId);
+    if (accountId) {
+      await forgetRememberedAccount(accountId).catch(() => undefined);
+    }
   };
 
   const switchAccount = async (accountId: string) => {

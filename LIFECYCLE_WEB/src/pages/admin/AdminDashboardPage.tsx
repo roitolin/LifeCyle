@@ -22,6 +22,7 @@ type DashboardStats = {
   totalRequests: number
   pendingRequests: number
   totalFeedback: number
+  totalCommission: number
 }
 
 type RecentUser = {
@@ -40,11 +41,14 @@ type RecentShop = {
   createdAt: string | null
 }
 
-const EMPTY_OPERATION_COUNTS: OperationCounts = { shop: 0, payment: 0, refund: 0, deletion: 0, service: 0 }
+function formatPeso(value: number): string {
+  return `₱${new Intl.NumberFormat('en-PH', { maximumFractionDigits: 0 }).format(value)}`
+}
+
+const EMPTY_OPERATION_COUNTS: OperationCounts = { shop: 0, payment: 0, deletion: 0, service: 0 }
 const OPERATION_LABELS: Record<OperationKind, string> = {
   shop: 'Shop application',
   payment: 'Payment verification',
-  refund: 'Refund request',
   deletion: 'Privacy request',
   service: 'Service escalation',
 }
@@ -64,6 +68,7 @@ function AdminDashboardPage() {
     totalRequests: 0,
     pendingRequests: 0,
     totalFeedback: 0,
+    totalCommission: 0,
   })
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([])
   const [recentShops, setRecentShops] = useState<RecentShop[]>([])
@@ -114,6 +119,7 @@ function AdminDashboardPage() {
           feedbackRes,
           recentUsersRes,
           recentShopsRes,
+          commissionsRes,
         ] = await Promise.all([
           supabase.from('users').select('*', { count: 'exact', head: true }),
           supabase.from('funeral_shops').select('*', { count: 'exact', head: true }),
@@ -128,7 +134,13 @@ function AdminDashboardPage() {
           supabase.from('app_feedback').select('*', { count: 'exact', head: true }),
           supabase.from('users').select('id, email, fullName, role, createdAt').order('createdAt', { ascending: false }).limit(5),
           supabase.from('funeral_shops').select('id, shopName, status, generalLocation, createdAt').order('createdAt', { ascending: false }).limit(5),
+          supabase.from('funeral_service_requests').select('commissionAmount, paymentAmount').or('paymentVerifiedAt.not.is.null,commissionAmount.not.is.null,status.in.(payment_verified,awaiting_customer_confirmation,completed)'),
         ])
+
+        const totalCommissionSum = (commissionsRes.data || []).reduce((acc: number, row: any) => {
+          const comm = row.commissionAmount != null ? Number(row.commissionAmount) : Number(row.paymentAmount || 0) * 0.30
+          return acc + (Number.isFinite(comm) ? comm : 0)
+        }, 0)
 
         setStats({
           totalUsers: usersRes.count ?? 0,
@@ -142,6 +154,7 @@ function AdminDashboardPage() {
           totalRequests: requestsRes.count ?? 0,
           pendingRequests: pendingRequestsRes.count ?? 0,
           totalFeedback: feedbackRes.count ?? 0,
+          totalCommission: totalCommissionSum,
         })
 
         setRecentUsers((recentUsersRes.data ?? []) as RecentUser[])
@@ -175,7 +188,12 @@ function AdminDashboardPage() {
 
       {!loading && !error && (
         <>
-          <div className="dashboard-metrics" aria-label="Platform totals">
+          <div className="dashboard-metrics" aria-label="Platform totals" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+            <article className="dashboard-metric" style={{ borderTop: '3px solid #10b981' }}>
+              <span>Platform commissions</span>
+              <strong style={{ color: '#047857' }}>{formatPeso(stats.totalCommission)}</strong>
+              <small>30% revenue received</small>
+            </article>
             <article className="dashboard-metric">
               <span>Registered users</span>
               <strong>{stats.totalUsers.toLocaleString()}</strong>
@@ -208,9 +226,12 @@ function AdminDashboardPage() {
             <div className="dashboard-queue">
               {isRootAdmin ? (
                 <>
+                  <Link to="/admin/payments?tab=commissions" className="dashboard-queue-row">
+                    <span><strong>Platform commissions</strong><small>30% revenue from verified orders</small></span>
+                    <b style={{ color: '#047857' }}>{formatPeso(stats.totalCommission)}</b>
+                  </Link>
                   <Link to="/admin/funeral-shops" className="dashboard-queue-row"><span><strong>Shop applications</strong><small>Waiting for registration review</small></span><b>{operationCounts.shop}</b></Link>
                   <Link to="/admin/payments" className="dashboard-queue-row"><span><strong>Payment verification</strong><small>Shop submissions awaiting review</small></span><b>{operationCounts.payment}</b></Link>
-                  <Link to="/admin/payments?tab=refunds" className="dashboard-queue-row"><span><strong>Service refunds</strong><small>Pending or approved refund requests</small></span><b>{operationCounts.refund}</b></Link>
                   <Link to="/admin/account-deletions" className="dashboard-queue-row"><span><strong>Account deletions</strong><small>Verified privacy requests</small></span><b>{operationCounts.deletion}</b></Link>
                   <Link to="/admin/orders" className="dashboard-queue-row"><span><strong>Service escalations</strong><small>Requests or payments awaiting action</small></span><b>{operationCounts.service}</b></Link>
                 </>

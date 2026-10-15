@@ -2,6 +2,20 @@
    FuneralShopsPage.css — Verified Funeral Shops Listing
    ========================================================== */
 
+.fsp-hero,
+.fsp-list,
+.fsp-state {
+  box-sizing: border-box;
+}
+
+.sp-page > .sp-container {
+  width: 100%;
+  max-width: 1200px;
+  min-height: calc(100vh - 150px);
+  margin: 0 auto;
+  padding: 20px 16px 60px;
+}
+
 .fsp-hero {
   background: #f1f4f7;
   color: #172033;
@@ -208,8 +222,39 @@
 }
 
 @media (max-width: 480px) {
+  .sp-page > .sp-container {
+    padding: 14px 12px 40px;
+  }
+
+  .fsp-hero {
+    padding: 20px 16px;
+  }
+
+  .fsp-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .fsp-card-name,
   .fsp-card-meta {
     white-space: normal;
   }
+
+  .fsp-card-img {
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+}
+
+/* Mobile green accents without changing the web layout. */
+.fsp-hero,
+.fsp-back-btn:hover {
+  color: #22312d;
+}
+
+.fsp-card-btn {
+  background: #315f50;
+}
+
+.fsp-card-btn:hover {
+  background: #22312d;
 }

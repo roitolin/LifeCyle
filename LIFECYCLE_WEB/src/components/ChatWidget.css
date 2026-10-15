@@ -11,7 +11,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #334155; /* Shopee orange */
+  background: #315f50;
   color: #fff;
   border: none;
   border-radius: 24px;
@@ -37,7 +37,7 @@
   top: -4px;
   right: -4px;
   background: #fff;
-  color: #334155;
+  color: #315f50;
   font-size: 11px;
   font-weight: 700;
   min-width: 18px;
@@ -47,7 +47,7 @@
   align-items: center;
   justify-content: center;
   padding: 0 4px;
-  border: 1px solid #334155;
+  border: 1px solid #315f50;
 }
 
 /* ── Chat Panel Split View ───────────────── */
@@ -108,21 +108,100 @@
 .cw-sidebar-title {
   font-size: 16px;
   font-weight: 600;
-  color: #334155;
+  color: #315f50;
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
+.cw-main-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.cw-main-identity small {
+  color: #7b8794;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
 .cw-sidebar-count {
   font-size: 14px;
   font-weight: normal;
-  color: #334155;
+  color: #315f50;
 }
 
 .cw-sidebar-actions {
   display: flex;
   gap: 8px;
+}
+
+.cw-error {
+  margin: 10px 10px 0;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  border: 1px solid #e9c6c6;
+  border-radius: 6px;
+  background: #fff7f7;
+  color: #7f1d1d;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.cw-error button {
+  width: fit-content;
+  border: 0;
+  background: transparent;
+  color: #315f50;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cw-error button:hover {
+  text-decoration: underline;
+}
+
+.cw-inbox-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 8px 10px 0;
+  background: #fff;
+}
+
+.cw-inbox-tabs button {
+  position: relative;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #7b8794;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  padding: 8px 6px;
+}
+
+.cw-inbox-tabs button:hover {
+  color: #315f50;
+}
+
+.cw-inbox-tabs button.active {
+  border-bottom-color: #315f50;
+  color: #22312d;
+}
+
+.cw-inbox-tabs button span {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #dc2626;
 }
 
 .cw-icon-btn {
@@ -256,7 +335,7 @@
 }
 
 .cw-conv-badge {
-  background: #334155;
+  background: #315f50;
   color: #fff;
   font-size: 11px;
   font-weight: 700;
@@ -397,7 +476,7 @@
   transition: background 0.2s;
 }
 .cw-toggle.on {
-  background: #334155;
+  background: #315f50;
 }
 .cw-toggle-knob {
   width: 18px;
@@ -457,11 +536,11 @@
   font-size: 12px;
 }
 .cw-link-blue {
-  color: #2563eb;
+  color: #315f50;
 }
 .cw-link-blue:hover { text-decoration: underline; }
 .cw-link-red {
-  color: #334155;
+  color: #315f50;
 }
 .cw-link-red:hover { text-decoration: underline; }
 .cw-safety-separator {
@@ -653,7 +732,7 @@
   transition: color 0.2s;
 }
 .cw-send-btn:not(:disabled) {
-  color: #334155;
+  color: #315f50;
 }
 
 /* ── Welcome State ───────────────────────── */

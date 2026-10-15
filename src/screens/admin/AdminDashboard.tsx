@@ -7,6 +7,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useResponsive } from "../../utils/responsive";
 import { useAppDialog } from "../../hooks/useAppDialog";
 import { useDoubleTapAction } from "../../hooks/useDoubleTapAction";
+import { confirmLogout } from '@/utils/logoutConfirmation';
 import { SimpleBarChart } from "@/components";
 import { formatPhilippinePeso } from "@/utils/funeralCatalog";
 import {
@@ -61,29 +62,7 @@ export default function AdminDashboard({ navigation }: any) {
       : "Monitor funeral shop approvals, users, and support channels.";
 
   const handleLogout = () => {
-    showDialog({
-      title: "Log Out of Admin Panel?",
-      message: "You’ll be signed out of the admin dashboard on this device.",
-      tone: "warning",
-      actions: [
-        { label: "Cancel", mode: "text" },
-        {
-          label: "Log Out",
-          mode: "contained",
-          onPress: async () => {
-            try {
-              await logout();
-            } catch (error: any) {
-              showDialog({
-                title: "Logout Failed",
-                message: error?.message || "Failed to log out.",
-                tone: "danger",
-              });
-            }
-          },
-        },
-      ],
-    });
+    confirmLogout({ logout, showDialog });
   };
 
   const loadMetrics = useCallback(async () => {
@@ -322,7 +301,7 @@ export default function AdminDashboard({ navigation }: any) {
       ) : null}
 
       <View style={styles.logoutWrap}>
-        <Button mode="contained" buttonColor="#c62828" onPress={handleLogout}>
+        <Button mode="contained" buttonColor="#22312d" onPress={handleLogout}>
           Logout
         </Button>
       </View>

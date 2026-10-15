@@ -6,7 +6,7 @@ export type ServiceXenditCheckoutResult = {
   requestId: string;
   reused?: boolean;
   paid?: boolean;
-  waitingForSplit?: boolean;
+  status?: string;
   testMode?: boolean;
   livemode?: boolean;
 };
@@ -36,15 +36,26 @@ export async function createServiceXenditCheckout(requestId: string): Promise<Se
 
   if (error) throw new Error(await getFunctionErrorMessage(error));
 
-  const settledOrSplitting = data?.paid === true || data?.waitingForSplit === true;
-  if (!settledOrSplitting && typeof data?.checkoutUrl !== 'string') {
+  // Direct payout model: no waitingForSplit state
+  const isSettled = data?.paid === true;
+  if (!isSettled && typeof data?.checkoutUrl !== 'string') {
     throw new Error('Xendit did not return a checkout link.');
   }
 
   const isTestMode = data?.testMode === true || data?.livemode === false;
-  if (!settledOrSplitting && !isTestMode) {
-    throw new Error('Checkout was blocked because LifeCycle only allows Xendit test payments.');
+  if (!isSettled && !isTestMode) {
+    throw new Error('Checkout could not be verified. Please try again or contact support.');
   }
+
+  return data as ServiceXenditCheckoutResult;
+}
+
+export async function syncServiceXenditCheckout(requestId: string): Promise<ServiceXenditCheckoutResult> {
+  const { data, error } = await supabase.functions.invoke('create-service-xendit-checkout', {
+    body: { requestId, action: 'sync', platform: 'mobile' },
+  });
+
+  if (error) throw new Error(await getFunctionErrorMessage(error));
 
   return data as ServiceXenditCheckoutResult;
 }

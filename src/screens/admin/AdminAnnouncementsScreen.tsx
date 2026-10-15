@@ -6,6 +6,8 @@ import { auth } from "../../services/supabaseAuth";
 import { useResponsive } from "../../utils/responsive";
 import { createAnnouncement } from "../../utils/announcements";
 
+type AnnouncementDuration = "1d" | "7d" | "30d" | "none";
+
 type Announcement = {
   id: string;
   title: string;
@@ -13,6 +15,7 @@ type Announcement = {
   status?: "active" | "archived";
   isPinned?: boolean;
   createdAt?: string;
+  expiresAt?: string | null;
 };
 
 export default function AdminAnnouncementsScreen() {
@@ -20,6 +23,7 @@ export default function AdminAnnouncementsScreen() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [isPinned, setIsPinned] = useState(false);
+  const [duration, setDuration] = useState<AnnouncementDuration>("7d");
   const [creating, setCreating] = useState(false);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [filter, setFilter] = useState<"active" | "archived">("active");
@@ -72,10 +76,12 @@ export default function AdminAnnouncementsScreen() {
         title,
         body,
         isPinned,
+        expiresAt: duration === "none" ? null : new Date(Date.now() + Number(duration.replace("d", "")) * 86_400_000).toISOString(),
       });
       setTitle("");
       setBody("");
       setIsPinned(false);
+      setDuration("7d");
       Alert.alert("Published", "Announcement was sent to users and notification has been created.");
     } catch (error: any) {
       Alert.alert("Error", error?.message || "Failed to publish announcement.");
@@ -88,7 +94,7 @@ export default function AdminAnnouncementsScreen() {
     try {
       const { error } = await supabase
         .from("announcements")
-        .update({ status, updatedAt: new Date().toISOString() })
+        .update({ status, ...(status === "active" ? { expiresAt: null } : {}), updatedAt: new Date().toISOString() })
         .eq("id", announcementId);
         
       if (error) throw error;
@@ -97,6 +103,28 @@ export default function AdminAnnouncementsScreen() {
     }
   };
 
+  const deleteAnnouncement = (item: Announcement) => {
+    Alert.alert(
+      "Delete Announcement",
+      `Delete "${item.title}" permanently? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const { error } = await supabase.from("announcements").delete().eq("id", item.id);
+              if (error) throw error;
+              setAnnouncements((current) => current.filter((announcement) => announcement.id !== item.id));
+            } catch (error: any) {
+              Alert.alert("Error", error?.message || "Failed to delete announcement.");
+            }
+          },
+        },
+      ]
+    );
+  };
   const renderItem = ({ item }: { item: Announcement }) => (
     <Card style={styles.announcementCard} mode="outlined">
       <Card.Content>
@@ -106,7 +134,7 @@ export default function AdminAnnouncementsScreen() {
         </View>
         <Text style={styles.announcementBody}>{item.body}</Text>
         <Text style={styles.announcementMeta}>
-          {item.createdAt ? new Date(item.createdAt).toLocaleString(undefined, { hour12: true }) : "Unknown date"}
+          {item.createdAt ? new Date(item.createdAt).toLocaleString(undefined, { hour12: true }) : "Unknown date"}{item.expiresAt ? ` | ${new Date(item.expiresAt).getTime() <= Date.now() ? "Expired" : "Expires"} ${new Date(item.expiresAt).toLocaleString(undefined, { hour12: true })}` : " | Until archived"}
         </Text>
       </Card.Content>
       <Card.Actions>
@@ -119,6 +147,7 @@ export default function AdminAnnouncementsScreen() {
             Reactivate
           </Button>
         )}
+        <Button mode="text" textColor="#b91c1c" onPress={() => deleteAnnouncement(item)}>Delete</Button>
       </Card.Actions>
     </Card>
   );
@@ -149,6 +178,18 @@ export default function AdminAnnouncementsScreen() {
             <Text style={styles.pinLabel}>Pin this announcement on top</Text>
             <Switch value={isPinned} onValueChange={setIsPinned} />
           </View>
+          <Text style={styles.durationLabel}>Display duration</Text>
+          <SegmentedButtons
+            value={duration}
+            onValueChange={(value) => setDuration(value as AnnouncementDuration)}
+            buttons={[
+              { value: "1d", label: "1 day" },
+              { value: "7d", label: "7 days" },
+              { value: "30d", label: "30 days" },
+              { value: "none", label: "Manual" },
+            ]}
+            style={styles.durationButtons}
+          />
           <Button mode="contained" onPress={publishAnnouncement} loading={creating} disabled={creating}>
             {creating ? "Publishing..." : "Publish Announcement"}
           </Button>
@@ -199,6 +240,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 10,
+  },
+  durationLabel: {
+    color: "#374151",
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  durationButtons: {
+    marginBottom: 14,
   },
   pinLabel: {
     color: "#374151",

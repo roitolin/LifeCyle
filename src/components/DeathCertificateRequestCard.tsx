@@ -10,9 +10,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { uploadCertificate } from '@/services';
+import { uploadDeathCertificateToVault } from '@/services/supabaseStorage';
 import {
   deathCertificateErrorMessage,
+  getDeathCertificateAccessUrl,
   loadDeathCertificateRequest,
   requestDeathCertificate,
   sendDeathCertificate,
@@ -83,8 +84,13 @@ export default function DeathCertificateRequestCard({ serviceRequestId, requeste
 
     setBusy(true);
     try {
-      const fileUrl = await uploadCertificate(picker.assets[0].uri);
-      await sendDeathCertificate(document.id, fileUrl);
+      const asset = picker.assets[0];
+      const upload = await uploadDeathCertificateToVault(
+        document.id,
+        asset.uri,
+        asset.fileName || 'Death Certificate.jpg'
+      );
+      await sendDeathCertificate(document.id, upload);
       await load(true);
       Alert.alert('Death Certificate Sent', 'The customer can now open the Death Certificate file.');
     } catch (uploadError) {
@@ -95,13 +101,13 @@ export default function DeathCertificateRequestCard({ serviceRequestId, requeste
   }, [busy, document, load]);
 
   const openCertificate = useCallback(async () => {
-    if (!document?.file_url) return;
+    if (!document || (!document.storage_path && !document.file_url)) return;
     try {
-      await Linking.openURL(document.file_url);
+      await Linking.openURL(await getDeathCertificateAccessUrl(document));
     } catch {
       Alert.alert('Cannot Open File', 'The Death Certificate file link is unavailable.');
     }
-  }, [document?.file_url]);
+  }, [document]);
 
   const status = document ? STATUS_COPY[document.status] : null;
   const shopView = !requesterView;
@@ -118,8 +124,8 @@ export default function DeathCertificateRequestCard({ serviceRequestId, requeste
         >
           <Ionicons name="document-text-outline" size={21} color="#315f50" />
           <View style={styles.headerCopy}>
-            <Text style={styles.title}>Death certificate</Text>
-            <Text style={styles.subtitle}>{status?.label || (shopView ? 'Waiting for customer' : 'Not requested')}</Text>
+            <Text style={styles.title}>Documents & secure vault</Text>
+            <Text style={styles.subtitle}>Death certificate · {status?.label || (shopView ? 'Waiting for customer' : 'Not requested')}</Text>
           </View>
           <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={19} color="#6f7e78" />
         </TouchableOpacity>
@@ -148,9 +154,16 @@ export default function DeathCertificateRequestCard({ serviceRequestId, requeste
         </View>
       ) : (
         <View style={styles.body}>
+          <View style={styles.checklistHeader}>
+            <View>
+              <Text style={styles.checklistEyebrow}>DOCUMENT CHECKLIST</Text>
+              <Text style={styles.checklistTitle}>Required document</Text>
+            </View>
+            <Text style={styles.checklistCount}>{document?.status === 'ready' ? '1 of 1 ready' : '0 of 1 ready'}</Text>
+          </View>
           <View style={styles.statusRow}>
-            <View style={[styles.statusIcon, document?.file_url && styles.statusIconReady]}>
-              <Ionicons name={document?.file_url ? 'checkmark' : document ? 'time-outline' : 'document-outline'} size={21} color={document?.file_url ? '#ffffff' : '#315f50'} />
+            <View style={[styles.statusIcon, document?.status === 'ready' && styles.statusIconReady]}>
+              <Ionicons name={document?.status === 'ready' ? 'checkmark' : document ? 'time-outline' : 'document-outline'} size={21} color={document?.status === 'ready' ? '#ffffff' : '#315f50'} />
             </View>
             <View style={styles.statusCopy}>
               <Text style={styles.statusLabel}>{status?.label || (shopView ? 'Waiting for customer' : 'Not requested')}</Text>
@@ -161,6 +174,19 @@ export default function DeathCertificateRequestCard({ serviceRequestId, requeste
               </Text>
             </View>
           </View>
+
+          {document?.status === 'ready' ? (
+            <View style={styles.vaultCard}>
+              <View style={styles.vaultIcon}>
+                <Ionicons name="lock-closed" size={20} color="#315f50" />
+              </View>
+              <View style={styles.vaultCopy}>
+                <Text style={styles.vaultTitle}>{document.original_file_name || 'Death Certificate'}</Text>
+                <Text style={styles.vaultDetail}>Private vault · Customer and assigned shop only</Text>
+              </View>
+              <Ionicons name="shield-checkmark" size={20} color="#315f50" />
+            </View>
+          ) : null}
 
           {ownerView && !document ? (
             <ActionButton
@@ -196,7 +222,7 @@ export default function DeathCertificateRequestCard({ serviceRequestId, requeste
             />
           ) : null}
 
-          {document?.file_url ? (
+          {document && (document.storage_path || document.file_url) ? (
             <ActionButton
               label="Open Death Certificate"
               busy={false}
@@ -208,7 +234,7 @@ export default function DeathCertificateRequestCard({ serviceRequestId, requeste
 
           <View style={styles.ruleNote}>
             <Ionicons name="shield-checkmark-outline" size={17} color="#53645d" />
-            <Text style={styles.ruleText}>Only the funeral shop can upload and send the Death Certificate file.</Text>
+            <Text style={styles.ruleText}>Only the customer and assigned funeral shop can access the vault file. Links expire after 60 seconds.</Text>
           </View>
         </View>
       ))}
@@ -259,12 +285,21 @@ const styles = StyleSheet.create({
   state: { minHeight: 120, alignItems: 'center', justifyContent: 'center', gap: 8 },
   stateText: { color: '#728079', fontSize: 11 },
   body: { padding: 15 },
+  checklistHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 10 },
+  checklistEyebrow: { color: '#718079', fontSize: 9, fontWeight: '900', letterSpacing: 0.8 },
+  checklistTitle: { color: '#23332d', fontSize: 14, fontWeight: '900', marginTop: 3 },
+  checklistCount: { color: '#315f50', fontSize: 10, fontWeight: '900' },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 13, borderRadius: 15, backgroundColor: '#f7f7f4' },
   statusIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#e4eee9' },
   statusIconReady: { backgroundColor: '#3b765e' },
   statusCopy: { flex: 1 },
   statusLabel: { color: '#293a34', fontSize: 13, fontWeight: '900' },
   statusDetail: { marginTop: 3, color: '#718079', fontSize: 10, lineHeight: 15 },
+  vaultCard: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, padding: 12, borderRadius: 13, borderWidth: 1, borderColor: '#cfdcd5', backgroundColor: '#eef4f1' },
+  vaultIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff' },
+  vaultCopy: { flex: 1 },
+  vaultTitle: { color: '#23332d', fontSize: 12, fontWeight: '900' },
+  vaultDetail: { color: '#68756f', fontSize: 9, lineHeight: 13, marginTop: 2 },
   button: { minHeight: 45, marginTop: 10, borderRadius: 12, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, backgroundColor: '#315f50' },
   buttonSecondary: { backgroundColor: '#f1f3f1', borderWidth: 1, borderColor: '#d5dcd8' },
   buttonDisabled: { opacity: 0.55 },

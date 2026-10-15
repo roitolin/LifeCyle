@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom'
 import BrandLogo from '@/components/BrandLogo'
+import PageBackButton from '@/components/PageBackButton'
 import './FuneralLandingPage.css'
 
 const sections = [
@@ -9,15 +9,15 @@ const sections = [
   },
   {
     title: '2. Payment verification',
-    body: 'When payment is required, follow the instructions and QR details published by the funeral shop. Submit a clear payment receipt through LifeCycle. A payment is not considered verified until its status is updated after review.',
+    body: 'When payment is required, use the secure online checkout shown in LifeCycle. A payment is confirmed after the payment provider verifies the transaction.',
   },
   {
     title: '3. Service fulfilment',
     body: 'The funeral shop is responsible for confirming schedules, availability, collection or delivery arrangements, and any other fulfilment details. Check My Service Requests for status updates and use the provided contact details when coordination is needed.',
   },
   {
-    title: '4. Cancellation and refunds',
-    body: 'Cancellation and refund eligibility depends on the request status, work already completed, shop terms, and payment review. Submit a request through the available service-request controls or Contact Support. Do not assume a refund is approved until its status is confirmed.',
+    title: '4. Cancellations',
+    body: 'Cancellation availability depends on the request status and work already completed by the funeral shop. Contact the shop or LifeCycle Support as soon as possible if plans change.',
   },
   {
     title: '5. Shop information',
@@ -43,12 +43,12 @@ export default function PoliciesPage() {
       <header className="sp-header">
         <div className="sp-header-inner policy-header-inner">
           <BrandLogo />
-          <Link to="/funeral" className="policy-back-link">Back to Home</Link>
         </div>
       </header>
 
       <div className="sp-body">
         <div className="sp-body-inner policy-body-inner">
+          <div className="page-back-row"><PageBackButton to="/funeral" label="Back to home" /></div>
           <div className="policy-content">
             <span className="policy-kicker">LifeCycle Funeral Services Philippines</span>
             <h1>Policies</h1>

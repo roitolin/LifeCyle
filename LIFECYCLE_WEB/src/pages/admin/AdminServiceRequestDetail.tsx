@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import type { ServiceRequest } from './AdminOrdersPage'
+import PageBackButton from '@/components/PageBackButton'
 import '../SellerServiceRequestPage.css'
 import './AdminOrdersPage.css'
 
@@ -140,10 +141,7 @@ function AdminServiceRequestDetail({ request, onClose }: Props) {
           aria-labelledby="admin-service-request-title"
         >
           <header className="admin-order-detail-toolbar">
-            <button type="button" className="admin-order-back" onClick={onClose}>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18 9 12l6-6" /></svg>
-              Back to All Service Requests
-            </button>
+            <PageBackButton onClick={onClose} label="Back to all service requests" />
             <span>Arrangement case #{request.id.slice(0, 8).toUpperCase()}</span>
           </header>
 

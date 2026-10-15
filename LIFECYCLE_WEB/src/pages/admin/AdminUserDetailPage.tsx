@@ -4,6 +4,7 @@ import { doc, getDoc, setDoc, serverTimestamp } from '@/lib/supabaseDbCompat'
 import { auth, db } from '@/lib/supabaseAuth'
 import type { TimestampLike } from '@/types/supabase'
 import { getConversationId, toDateText } from '@/pages/admin/adminHelpers'
+import PageBackButton from '@/components/PageBackButton'
 import './AdminUserDetailPage.css'
 
 type UserDetail = {
@@ -142,9 +143,7 @@ function AdminUserDetailPage() {
   return (
     <section className="panel admin-user-detail-panel">
       <div className="admin-user-detail-topbar">
-        <button type="button" className="ghost-btn admin-user-back" onClick={() => navigate('/admin/users')}>
-          Back to Users
-        </button>
+        <PageBackButton to="/admin/users" label="Back to users" />
       </div>
 
       {loading ? <p className="panel-sub">Loading user details...</p> : null}

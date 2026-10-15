@@ -5,6 +5,8 @@ import { loadFuneralCart, removeFuneralCartItem, type WebFuneralCartItem } from 
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import BrandLogo from '@/components/BrandLogo'
+import LogoutLink from '@/components/LogoutLink'
+import PageBackButton from '@/components/PageBackButton'
 import './CartPage.css'
 
 type ViewerProfile = {
@@ -158,11 +160,8 @@ export default function CartPage() {
       <Header />
 
       <div className="cart-main">
-        <div className="cart-page-nav">
-          <button type="button" className="cart-back-btn" onClick={() => navigate(-1)}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5" /><polyline points="12 19 5 12 12 5" /></svg>
-            Back
-          </button>
+        <div className="page-back-row cart-page-nav">
+          <PageBackButton />
         </div>
 
         {items.length === 0 ? (
@@ -269,7 +268,7 @@ function TopBar({ profile }: { profile: ViewerProfile | null }) {
     <div className="cart-topbar">
       <div className="cart-topbar-inner">
         <div className="cart-topbar-left">
-          <Link to="/seller">Seller Centre</Link>
+          <Link to="/seller">Shop Center</Link>
         </div>
         <div className="cart-topbar-right">
           <Link to="/user/notifications">Notifications</Link>
@@ -291,7 +290,7 @@ function TopBar({ profile }: { profile: ViewerProfile | null }) {
               <Link to="/user/profile">My Account</Link>
               <Link to="/user/purchase">Purchases</Link>
               <Link to="/auth/switch-account" className="cart-dropdown-switch">Switch Account</Link>
-              <Link to="/auth/logout">Log out</Link>
+              <LogoutLink>Log out</LogoutLink>
             </div>
           </div>
         </div>

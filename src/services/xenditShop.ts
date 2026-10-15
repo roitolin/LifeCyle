@@ -20,7 +20,7 @@ export type XenditShopSyncResult = {
   livemode?: boolean;
 };
 
-export type XenditShopPaymentMethod = 'all' | 'gcash' | 'ewallets' | 'cards' | 'qrph' | 'bank_transfer';
+export type XenditShopPaymentMethod = 'all' | 'gcash' | 'ewallets' | 'cards' | 'bank_transfer';
 
 const readFunctionError = async (error: unknown) => {
   const fallback = 'Unable to start Xendit checkout.';
@@ -47,7 +47,7 @@ export async function createXenditShopCheckout(paymentMethod: XenditShopPaymentM
     throw new Error('Xendit did not return a checkout link.');
   }
   if (!data?.paid && data?.testMode !== true && data?.livemode !== false) {
-    throw new Error('Checkout was blocked because LifeCycle only allows Xendit test payments.');
+    throw new Error('Checkout could not be verified. Please try again or contact support.');
   }
   return data as XenditShopCheckoutResult;
 }

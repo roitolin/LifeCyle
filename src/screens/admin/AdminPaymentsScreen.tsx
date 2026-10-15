@@ -42,7 +42,7 @@ type PaymentSubmission = {
   providerPaymentMethod: string | null;
 };
 
-const PAYMENT_SETTING_KEY = "payment_qr_code";
+const PAYMENT_SETTING_KEY = "shop_payment_settings";
 
 function formatDate(value?: string | null) {
   if (!value) return "—";
@@ -97,7 +97,7 @@ export default function AdminPaymentsScreen() {
       if (settingResult.error) throw settingResult.error;
       if (paymentsResult.error) throw paymentsResult.error;
 
-      const setting = (settingResult.data?.value || {}) as { imageUrl?: string; feeAmount?: number };
+      const setting = (settingResult.data?.value || {}) as { feeAmount?: number };
       setFeeAmount(Number(setting.feeAmount) > 0 ? String(setting.feeAmount) : "");
       setUpdatedAt(settingResult.data?.updatedAt || null);
 
@@ -163,12 +163,12 @@ export default function AdminPaymentsScreen() {
     try {
       const now = new Date().toISOString();
       const { error } = await supabase.from("settings").upsert(
-        { key: PAYMENT_SETTING_KEY, value: { imageUrl: null, feeAmount: parsedFee }, updatedAt: now },
+        { key: PAYMENT_SETTING_KEY, value: { feeAmount: parsedFee }, updatedAt: now },
         { onConflict: "key" }
       );
       if (error) throw error;
       setUpdatedAt(now);
-      Alert.alert("Payment Settings Saved", "Verified shops can now pay this fee securely through Xendit Test Mode.");
+      Alert.alert("Payment Settings Saved", "Verified shops can now pay this fee securely through Xendit.");
     } catch (error: any) {
       Alert.alert("Save Failed", error?.message || "Unable to save payment settings.");
     } finally {
@@ -296,7 +296,7 @@ export default function AdminPaymentsScreen() {
               <View style={styles.heroIcon}><Ionicons name="wallet-outline" size={24} color="#991b1b" /></View>
               <View style={styles.flex}>
                 <Text variant="titleLarge" style={styles.title}>Shop Payments</Text>
-                <Text style={styles.muted}>Set the registration fee and monitor automatic Xendit test payments.</Text>
+                <Text style={styles.muted}>Set the registration fee and monitor automatic Xendit payments.</Text>
               </View>
               <View style={styles.countBadge}><Text style={styles.countText}>{pendingCount}</Text></View>
             </View>
@@ -326,8 +326,8 @@ export default function AdminPaymentsScreen() {
               <View style={styles.qrPicker}>
                 <View style={styles.qrEmpty}>
                   <Ionicons name="shield-checkmark-outline" size={46} color="#0f766e" />
-                  <Text variant="titleMedium">Xendit Test Mode checkout</Text>
-                  <Text style={styles.muted}>Enabled Xendit test channels are confirmed automatically. No real money is used.</Text>
+                  <Text variant="titleMedium">Secure Xendit checkout</Text>
+                  <Text style={styles.muted}>Enabled payment channels are confirmed automatically.</Text>
                 </View>
               </View>
               <Button mode="contained" icon="content-save" onPress={saveSettings} loading={saving} disabled={saving} buttonColor="#b91c1c">
