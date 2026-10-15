@@ -258,7 +258,7 @@ Deno.serve(async (request) => {
     return jsonResponse({ error: 'Xendit webhook configuration is incomplete.' }, 503);
   }
   if (isObviouslyLiveKey(xenditSecretKey)) {
-    return jsonResponse({ error: 'LifeCycle Xendit webhooks are locked to test mode.' }, 503);
+    return jsonResponse({ error: 'The payment notification service is unavailable.' }, 503);
   }
 
   const callbackToken = request.headers.get('x-callback-token') || '';

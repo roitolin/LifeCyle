@@ -476,7 +476,7 @@ export default function AdminFuneralShopVerificationsScreen() {
                         : styles.payoutCardPending,
                     ]}
                   >
-                    <Text style={styles.payoutTitle}>Payout Account (Test Mode)</Text>
+                    <Text style={styles.payoutTitle}>Payout Account</Text>
                     <Text style={styles.payoutDetail}>
                       Status: {selectedItem.payoutVerifiedByAdmin ? "✅ Verified" : selectedItem.payoutChannelCode ? "⏳ Submitted — awaiting your verification" : "❌ Shop has not submitted payout details yet"}
                     </Text>

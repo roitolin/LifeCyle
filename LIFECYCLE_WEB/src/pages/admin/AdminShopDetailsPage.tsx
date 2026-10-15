@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
+import PageBackButton from '@/components/PageBackButton'
 import { getChannelInfo } from './AdminPayoutAccountsPage'
 import '../SellerCentrePage.css'
 
@@ -149,12 +150,12 @@ export default function AdminShopDetailsPage() {
 
   return (
     <section className="panel sc-page admin-shop-detail-page">
+      <div className="page-back-row"><PageBackButton to="/admin/funeral-shops" label="Back to funeral shops" /></div>
       <header className="admin-detail-page-head">
         <div>
           <h2>Registration details</h2>
           <p className="panel-sub">Verify the submitted shop, owner, and business information before making a decision.</p>
         </div>
-        <Link to="/admin/funeral-shops" className="ghost-btn btn-link">Back to funeral shops</Link>
       </header>
 
       <div className="sc-workspace">
@@ -348,7 +349,6 @@ export default function AdminShopDetailsPage() {
             <div className="sc-state">
               <h2>Shop Not Found</h2>
               <p>This funeral shop could not be found or has been removed.</p>
-              <Link to="/admin/funeral-shops" className="sc-primary-btn">Back to Funeral Shops</Link>
             </div>
           )}
         </main>

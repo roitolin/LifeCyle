@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import PageBackButton from '@/components/PageBackButton'
 import '../SellerCentrePage.css'
 
 type ShopInfo = {
@@ -367,10 +368,10 @@ function AdminShopCentrePage() {
 
   return (
     <section className="panel sc-page admin-shop-workspace">
+      <div className="page-back-row">
+        <PageBackButton to="/admin/funeral-shops" label="Back to funeral shops" />
+      </div>
       <header className="admin-shop-workspace-head">
-        <Link to="/admin/funeral-shops" className="ghost-btn btn-link">
-          Back to funeral shops
-        </Link>
         <div className="admin-shop-identity">
           {shop?.shopImageUrl ? (
             <img src={shop.shopImageUrl} alt="" />
@@ -677,7 +678,6 @@ function AdminShopCentrePage() {
             <div className="sc-state">
               <h2>Shop Not Found</h2>
               <p>This funeral shop could not be found or has been removed.</p>
-              <Link to="/admin/funeral-shops" className="sc-primary-btn">Back to Funeral Shops</Link>
             </div>
           )}
         </main>

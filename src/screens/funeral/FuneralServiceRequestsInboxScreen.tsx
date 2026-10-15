@@ -47,7 +47,6 @@ type FuneralServiceRequest = {
   shopContactNumber?: string | null;
   shopAddress?: string | null;
   status: string;
-  paymentQrUrl?: string | null;
   paymentAmount?: number | string | null;
   paymentPayerName?: string | null;
   paymentGcashNumber?: string | null;

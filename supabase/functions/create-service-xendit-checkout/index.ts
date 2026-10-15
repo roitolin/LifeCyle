@@ -250,10 +250,10 @@ Deno.serve(async (request) => {
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   const xenditSecretKey = Deno.env.get('XENDIT_SECRET_KEY')?.trim();
   if (!supabaseUrl || !serviceRoleKey || !xenditSecretKey) {
-    return jsonResponse(request, { error: 'Xendit test checkout configuration is incomplete.' }, 503);
+    return jsonResponse(request, { error: 'Payment checkout configuration is incomplete.' }, 503);
   }
   if (isObviouslyLiveKey(xenditSecretKey)) {
-    return jsonResponse(request, { error: 'LifeCycle Xendit checkout is locked to test mode.' }, 503);
+    return jsonResponse(request, { error: 'Payment checkout is temporarily unavailable. Please contact support.' }, 503);
   }
 
   const accessToken = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
@@ -495,7 +495,7 @@ Deno.serve(async (request) => {
   if (!xenditResponse?.ok) {
     const code = String(responseJson?.error_code || 'checkout_failed').slice(0, 80);
     console.error('Xendit service checkout creation failed:', code);
-    return jsonResponse(request, { error: 'Xendit test checkout is temporarily unavailable.', code }, 502);
+    return jsonResponse(request, { error: 'Payment checkout is temporarily unavailable.', code }, 502);
   }
 
   const paymentSessionId = String(responseJson?.payment_session_id || '').trim();
@@ -509,7 +509,7 @@ Deno.serve(async (request) => {
     responseJson?.currency === 'PHP' &&
     responseAmount?.cents === gross.cents;
   if (!validResponse) {
-    return jsonResponse(request, { error: 'Xendit returned an invalid test checkout.' }, 502);
+    return jsonResponse(request, { error: 'The payment provider returned an invalid checkout response.' }, 502);
   }
 
   const { data: storedData, error: storeError } = await admin.rpc('store_xendit_service_checkout', {

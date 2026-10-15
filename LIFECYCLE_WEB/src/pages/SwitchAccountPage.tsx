@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
+import PageBackButton from '@/components/PageBackButton'
 import { supabase } from '@/lib/supabase'
 import {
   markWebAccountSessionSignedOut,
@@ -146,9 +147,7 @@ export default function SwitchAccountPage() {
     <main className="auth-page">
       <div className="auth-layout switch-account-layout">
         <section className="auth-card switch-account-card">
-          <button type='button' className='back-btn' onClick={() => navigate('/funeral')}>
-            {'< Back'}
-          </button>
+          <div className='page-back-row auth-page-back'><PageBackButton to='/funeral' /></div>
           <div className='auth-card-head'>
             <h1>Switch account</h1>
             <p className='auth-subtitle'>Choose a saved account or add another one.</p>

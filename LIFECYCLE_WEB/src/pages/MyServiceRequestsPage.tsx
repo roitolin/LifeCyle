@@ -6,6 +6,7 @@ import BrandLogo from '@/components/BrandLogo'
 import LogoutLink from '@/components/LogoutLink'
 import ServiceXenditModal from '@/components/ServiceXenditModal'
 import DeathCertificateVaultCard from '@/components/DeathCertificateVaultCard'
+import PageBackButton from '@/components/PageBackButton'
 import { syncServiceXenditCheckout } from '@/utils/serviceXendit'
 import './MyServiceRequestsPage.css'
 
@@ -44,7 +45,6 @@ type ServiceRequest = {
   shopContactNumber?: string | null
   shopAddress?: string | null
   status: string
-  paymentQrUrl?: string | null
   paymentAmount?: number | string | null
   paymentPayerName?: string | null
   paymentGcashName?: string | null
@@ -178,7 +178,7 @@ function statusDetail(status?: string | null): {
         label: 'Awaiting Payment',
         background: '#e0eefa',
         text: '#1c4f7e',
-        message: 'Payment details are ready. Send the amount to the shop and submit your proof below.',
+        message: 'Payment is ready. Complete the secure online checkout below.',
         icon: 'wallet',
       }
     case 'payment_submitted':
@@ -538,24 +538,13 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
 
   const canShowPaymentSection = (r: ServiceRequest) => {
     const status = String(r.status || '').toLowerCase()
-    const hasPaymentSetup = Boolean(r.paymentQrUrl) && r.paymentAmount != null && Number(r.paymentAmount) > 0
+    const hasPaymentSetup = r.paymentAmount != null && Number(r.paymentAmount) > 0
     return ['awaiting_payment', 'payment_submitted', 'payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(status) && hasPaymentSetup
   }
 
   return (
     <div className="requests-shop-page">
       <div className="requests-topbar">
-        <div className="requests-topbar-left">
-          <button
-            type="button"
-            className="requests-back-btn"
-            onClick={() => navigate(detailRequestId ? '/user/requests' : '/user/profile')}
-            aria-label={detailRequestId ? 'Back to service requests' : 'Go back to profile'}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-            Back
-          </button>
-        </div>
         <div className="requests-topbar-right">
           <Link to="/user/notifications">Notifications</Link>
           <Link to="/user/help">Help Centre</Link>
@@ -589,6 +578,7 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
       </header>
 
       {!detailRequestId ? <main className="requests-main">
+        <div className="page-back-row"><PageBackButton to="/user/profile" /></div>
         <div className="requests-list-toolbar">
           <div>
             <strong>{loading ? 'Loading requests' : requests.length + ' ' + (requests.length === 1 ? 'request' : 'requests')}</strong>
@@ -674,21 +664,6 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                       <span className={`requests-pay-pill pay-${payMeta.tone}`}>{payMeta.label}</span>
                     </div>
                     <div className="requests-payment-body">
-                      <div className="requests-payment-qr">
-                        {request.paymentQrUrl ? (
-                          <button
-                            type="button"
-                            className="requests-qr-btn"
-                            aria-label="View payment QR full size"
-                            title="Click to view full size"
-                            onClick={() => setViewerUrl(request.paymentQrUrl!)}
-                          >
-                            <img src={request.paymentQrUrl} alt="Payment QR" />
-                          </button>
-                        ) : (
-                          <div className="requests-payment-qr-empty">No QR available</div>
-                        )}
-                      </div>
                       <div className="requests-payment-info">
                         <div className="requests-amount">
                           <span>Amount to send</span>
@@ -713,8 +688,8 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
 
                         <p className="requests-payment-hint">
                           {canSubmit
-                            ? 'Recommended: Click Pay Online to pay instantly with GCash, Maya, cards, or QR Ph. Or use the manual payment option below.'
-                            : 'Scan the QR code with your GCash (or other e-wallet) app and send the exact amount above. Then fill in your details and upload proof of payment.'}
+                            ? 'Use secure online checkout to pay with GCash, Maya, cards, or online banking.'
+                            : 'Payment details and confirmation appear here after checkout.'}
                         </p>
 
                         {String(request.status || '').toLowerCase() === 'awaiting_payment' && request.paymentRejectionReason && (
@@ -767,14 +742,14 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                           </div>
                         )}
 
-                        {canSubmit && (
+                        {false && canSubmit && (
                           <div className="requests-manual-accordion">
                             <button
                               type="button"
                               className="requests-manual-accordion-btn"
                               onClick={() => setManualPaymentExpanded(prev => ({ ...prev, [request.id]: !prev[request.id] }))}
                             >
-                              <span>Alternative: Pay via QR & Submit Receipt</span>
+                              <span>Alternative manual payment</span>
                               <span>{manualPaymentExpanded[request.id] ? '▴' : '▾'}</span>
                             </button>
                             {manualPaymentExpanded[request.id] && (
@@ -929,6 +904,7 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
 
       {detailRequestId && !detailsRequest ? (
         <main className="requests-main">
+          <div className="page-back-row"><PageBackButton to="/user/requests" /></div>
           <section className="requests-empty-state">
             <h2>{loading || reconnecting ? 'Loading request…' : 'Request not found'}</h2>
             {!loading && !reconnecting ? (
@@ -963,6 +939,7 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
 
         return (
           <div className="requests-detail-page">
+            <div className="page-back-row"><PageBackButton to="/user/requests" /></div>
             <div
               className="requests-modal-card requests-payment-details-card"
               role="main"
@@ -1160,23 +1137,10 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                 <div className="requests-pd-pay-card">
                   <span className="requests-pd-kicker">Payment to shop</span>
                   <strong className="requests-pd-pay-amount">{amount}</strong>
-                  {detail.paymentQrUrl ? (
-                    <button
-                      type="button"
-                      className="requests-pd-qr-button"
-                      onClick={() => setViewerUrl(detail.paymentQrUrl!)}
-                      aria-label="Enlarge shop payment QR code"
-                    >
-                      <img src={detail.paymentQrUrl} alt="Shop payment QR code" />
-                      <span>Click to enlarge</span>
-                    </button>
-                  ) : (
-                    <div className="requests-pd-qr-missing">Payment QR is not available.</div>
-                  )}
                   <ol className="requests-pd-steps">
-                    <li>Scan the QR code with GCash or your e-wallet.</li>
-                    <li>Send the exact amount shown above.</li>
-                    <li>Enter the transaction details and attach your receipt.</li>
+                    <li>Open secure online checkout.</li>
+                    <li>Choose GCash, Maya, card, or online banking.</li>
+                    <li>Complete payment and return to this request.</li>
                   </ol>
                 </div>
                   </aside>
@@ -1193,7 +1157,7 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                         <span className="requests-secure-pill">🛡️ Automated & Verified</span>
                       </div>
                       <p className="requests-pd-online-desc">
-                        Pay with 1-click using GCash, Maya, Debit/Credit Card, QR Ph, or Online Banking. Your payment is verified automatically via Xendit without manual receipt reviews.
+                        Pay using GCash, Maya, debit or credit card, or online banking. Your payment is verified automatically via Xendit.
                       </p>
                       <button
                         type="button"
@@ -1205,13 +1169,13 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                       </button>
                     </div>
 
-                    <div className="requests-manual-accordion">
+                    {false && <div className="requests-manual-accordion">
                       <button
                         type="button"
                         className="requests-manual-accordion-btn"
                         onClick={() => setManualPaymentExpanded(prev => ({ ...prev, [detail.id]: !prev[detail.id] }))}
                       >
-                        <span>Alternative: Pay via QR & Submit Receipt</span>
+                        <span>Alternative manual payment</span>
                         <span>{manualPaymentExpanded[detail.id] ? '▴' : '▾'}</span>
                       </button>
                       {manualPaymentExpanded[detail.id] && (
@@ -1335,7 +1299,7 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                           </div>
                         </div>
                       )}
-                    </div>
+                    </div>}
                   </>
                 ) : null}
 

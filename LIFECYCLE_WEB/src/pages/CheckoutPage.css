@@ -14,6 +14,7 @@
   color: var(--request-ink);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   padding-bottom: 64px;
+  overflow-x: clip;
 }
 
 /* ── Top bar ─────────────────────────────────── */
@@ -27,7 +28,7 @@
   max-width: 1200px;
   margin: 0 auto;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   padding: 8px 16px;
 }
 .checkout-topbar a,
@@ -185,6 +186,10 @@
   max-width: 1180px;
   margin: 36px auto 64px;
   padding: 0 20px;
+}
+
+.checkout-page-nav {
+  margin-bottom: 8px;
 }
 
 /* ── Request flow ─────────────────────────────── */
@@ -575,13 +580,15 @@
 @media (max-width: 900px) {
   .checkout-layout {
     grid-template-columns: 1fr;
+    gap: 26px;
   }
   .checkout-order-summary {
     grid-column: 1;
     grid-row: auto;
     position: static;
-    padding: 26px 0 0;
-    border-top: 1px solid #dfe5ec;
+    padding: 0 0 24px;
+    border-top: 0;
+    border-bottom: 1px solid #dfe5ec;
     border-left: 0;
   }
 }
@@ -772,6 +779,39 @@
 }
 
 @media (max-width: 640px) {
+  .checkout-topbar-inner {
+    padding: 8px 14px;
+  }
+
+  .checkout-topbar-right {
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    gap: 10px;
+  }
+
+  .checkout-user-name,
+  .checkout-user-arrow,
+  .checkout-divider {
+    display: none;
+  }
+
+  .checkout-header {
+    padding: 14px 0 16px;
+  }
+
+  .checkout-header-inner {
+    flex-flow: row nowrap;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .checkout-header h1 {
+    min-width: 0;
+    font-size: 19px;
+    overflow-wrap: anywhere;
+  }
+
   .checkout-main {
     margin-top: 16px;
     margin-bottom: 36px;
@@ -780,7 +820,29 @@
   }
 
   .checkout-order-summary {
-    padding-top: 18px;
+    padding-top: 0;
+  }
+
+  .checkout-form-section,
+  .checkout-photo-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .checkout-form-section > .checkout-field {
+    grid-column: 1;
+  }
+
+  .checkout-summary {
+    flex-direction: column;
+  }
+
+  .checkout-summary-image,
+  .checkout-summary-fallback {
+    width: 100%;
+    height: auto;
+    min-height: 150px;
+    max-height: 240px;
+    aspect-ratio: 16 / 9;
   }
 
   .checkout-section-title,
@@ -794,5 +856,19 @@
 
   .checkout-submit-btn {
     min-height: 48px;
+  }
+}
+
+@media (max-width: 380px) {
+  .checkout-topbar a {
+    font-size: 12px;
+  }
+
+  .checkout-header .lc-brand__tagline {
+    display: none;
+  }
+
+  .checkout-header h1 {
+    font-size: 17px;
   }
 }

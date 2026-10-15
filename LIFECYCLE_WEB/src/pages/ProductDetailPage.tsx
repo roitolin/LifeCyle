@@ -7,6 +7,7 @@ import BrandLogo from '@/components/BrandLogo'
 import NotificationDropdown from '@/components/NotificationDropdown'
 import AnnouncementDropdown from '@/components/AnnouncementDropdown'
 import LogoutLink from '@/components/LogoutLink'
+import PageBackButton from '@/components/PageBackButton'
 import './ProductDetailPage.css'
 
 type Product = {
@@ -497,14 +498,7 @@ export default function ProductDetailPage() {
 
       <main className="pd-container">
         <div className="pd-product-nav">
-          <button
-            type="button"
-            className="pd-product-back"
-            onClick={() => navigate(-1)}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"></path><polyline points="12 19 5 12 12 5"></polyline></svg>
-            Back to products
-          </button>
+          <PageBackButton label="Back to products" />
           <nav className="pd-product-path" aria-label="Breadcrumb">
             <Link to="/funeral">Catalog</Link>
             <span aria-hidden="true">/</span>

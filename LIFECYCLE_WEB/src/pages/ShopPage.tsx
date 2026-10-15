@@ -5,6 +5,7 @@ import BrandLogo from '@/components/BrandLogo'
 import NotificationDropdown from '@/components/NotificationDropdown'
 import AnnouncementDropdown from '@/components/AnnouncementDropdown'
 import LogoutLink from '@/components/LogoutLink'
+import PageBackButton from '@/components/PageBackButton'
 import { supabase } from '@/lib/supabase'
 import { loadFuneralCart } from '@/utils/funeralCart'
 import './ShopPage.css'
@@ -204,7 +205,7 @@ export default function ShopPage() {
       </header>
 
       <main className="sp-container shop-detail-main">
-        <button type="button" className="shop-detail-back" onClick={() => navigate(-1)}>← Back</button>
+        <div className="page-back-row"><PageBackButton /></div>
 
         <section className="shop-detail-overview" id="shop-overview" aria-label={`${shop.shopName} shop information`}>
           <div

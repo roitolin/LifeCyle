@@ -3,7 +3,6 @@ import { supabase } from '@/services/supabaseClient';
 export type AcceptedServiceRequestPayment = {
   id: string;
   status: 'awaiting_payment';
-  paymentQrUrl: string | null;
   paymentAmount: number | string;
   acceptedAt?: string | null;
   shopRespondedAt?: string | null;

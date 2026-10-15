@@ -10,6 +10,7 @@ import { addMonths, daysRemaining, formatSubscriptionDate, SUBSCRIPTION_MONTHS }
 import { fetchNotificationsForUser } from '@/utils/supabaseNotifications'
 import XenditShopPaymentCard from '@/components/XenditShopPaymentCard'
 import BrandLogo from '@/components/BrandLogo'
+import PageBackButton from '@/components/PageBackButton'
 import {
   createShopScheduleEvent,
   deleteShopScheduleEvent,
@@ -2345,6 +2346,9 @@ export default function SellerCentrePage() {
   if (!isLoggedIn) {
     return (
       <div className="sc-page">
+        <div className="page-back-row sc-status-page-back">
+          <PageBackButton />
+        </div>
         <div className="sc-access-denied">
           <div className="sc-access-denied-icon">
             <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -2355,7 +2359,6 @@ export default function SellerCentrePage() {
           <h2 className="sc-access-denied-title">Access Denied</h2>
           <p className="sc-access-denied-desc">You need to be logged in as a funeral shop owner to access the Shop Center.</p>
           <div className="sc-access-denied-actions">
-            <button className="sc-access-denied-back" onClick={() => navigate(-1)}>Go Back</button>
             <Link to="/login" className="sc-access-denied-login">Login to Continue</Link>
           </div>
         </div>
@@ -2366,11 +2369,13 @@ export default function SellerCentrePage() {
   if (!loading && !shop) {
     return (
       <div className="sc-page">
+        <div className="page-back-row sc-status-page-back">
+          <PageBackButton to="/funeral" />
+        </div>
         <div className="sc-status-page">
           <h2>No Shop Registered</h2>
           <p>You haven't registered a funeral shop yet. Click below to register your shop and start selling on LifeCycle.</p>
           <div className="sc-status-page-actions">
-            <button className="sc-btn sc-btn-secondary" onClick={() => navigate('/funeral')}>Go Back</button>
             <Link to="/seller/register" className="sc-primary-btn">Register Shop</Link>
           </div>
         </div>
@@ -2381,12 +2386,12 @@ export default function SellerCentrePage() {
   if (!loading && shop?.status === 'pending') {
     return (
       <div className="sc-page">
+        <div className="page-back-row sc-status-page-back">
+          <PageBackButton to="/funeral" />
+        </div>
         <div className="sc-status-page">
           <h2>Registration Pending</h2>
           <p>Your shop registration is currently under review. We will notify you once it has been verified.</p>
-          <div className="sc-status-page-actions">
-            <button className="sc-primary-btn" onClick={() => navigate('/funeral')}>Go Back</button>
-          </div>
         </div>
       </div>
     )
@@ -2395,6 +2400,9 @@ export default function SellerCentrePage() {
   if (!loading && shop?.status === 'rejected') {
     return (
       <div className="sc-page">
+        <div className="page-back-row sc-status-page-back">
+          <PageBackButton to="/funeral" />
+        </div>
         <div className="sc-status-page">
           <h2>Registration Rejected</h2>
           <p>Your shop registration was not approved.</p>
@@ -2403,9 +2411,6 @@ export default function SellerCentrePage() {
               <strong>Reason:</strong> {shop.rejectionReason}
             </div>
           )}
-          <div className="sc-status-page-actions">
-            <button className="sc-primary-btn" onClick={() => navigate('/funeral')}>Go Back</button>
-          </div>
         </div>
       </div>
     )

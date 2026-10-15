@@ -2769,7 +2769,7 @@
 
 /* Product-local navigation replaces the detached breadcrumb strip. */
 .pd-product-nav {
-  min-height: 58px;
+  min-height: 52px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2824,6 +2824,33 @@
 
   .pd-product-path {
     display: none;
+  }
+}
+
+/* Keep product content and purchase actions within narrow mobile viewports. */
+.pd-container,
+.pd-main-card,
+.pd-gallery-section,
+.pd-info-section,
+.pd-option-content,
+.pd-actions-row {
+  min-width: 0;
+}
+
+@media (max-width: 560px) {
+  .pd-title,
+  .pd-option-content,
+  .pd-package-copy {
+    overflow-wrap: anywhere;
+  }
+
+  .pd-actions-row {
+    gap: 10px;
+  }
+
+  .pd-btn {
+    min-height: 48px;
+    white-space: normal;
   }
 }
 

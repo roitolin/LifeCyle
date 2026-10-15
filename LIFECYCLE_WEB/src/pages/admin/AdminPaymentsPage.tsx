@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
-import { getPaymentQrSetting, savePaymentQrDetails } from '@/utils/paymentQrSettings'
+import { getPaymentSetting, savePaymentSetting } from '@/utils/paymentSettings'
 import { addMonths, SUBSCRIPTION_MONTHS } from '@/utils/subscription'
 import { buildCsv, csvTimestamp, dateStamp, downloadCsv } from '@/utils/exportCsv'
 import { createNotification } from '@/utils/supabaseNotifications'
@@ -80,7 +80,7 @@ export default function AdminPaymentsPage() {
     setLoading(true)
     setError('')
     try {
-      const setting = await getPaymentQrSetting()
+      const setting = await getPaymentSetting()
       setFeeAmount(setting.feeAmount > 0 ? String(setting.feeAmount) : '')
       setUpdatedAt(setting.updatedAt)
     } catch {
@@ -298,10 +298,7 @@ export default function AdminPaymentsPage() {
     setSaving(true)
     setError('')
     try {
-      await savePaymentQrDetails({
-        imageUrl: null,
-        feeAmount: parsedFee,
-      })
+      await savePaymentSetting(parsedFee)
 
       setUpdatedAt(new Date().toISOString())
 
@@ -421,7 +418,7 @@ export default function AdminPaymentsPage() {
                       onChange={(event) => setFeeAmount(event.target.value)}
                     />
                   </div>
-                  <span className="payments-field-hint">Xendit charges this exact test amount through secure hosted checkout.</span>
+                  <span className="payments-field-hint">Xendit charges this exact amount through secure hosted checkout.</span>
                 </div>
               </div>
             </section>

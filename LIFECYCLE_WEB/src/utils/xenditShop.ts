@@ -19,7 +19,7 @@ export type XenditShopSyncResult = {
   livemode?: boolean
 }
 
-export type XenditShopPaymentMethod = 'all' | 'gcash' | 'ewallets' | 'cards' | 'qrph' | 'bank_transfer'
+export type XenditShopPaymentMethod = 'all' | 'gcash' | 'ewallets' | 'cards' | 'bank_transfer'
 
 export async function createXenditShopCheckout(paymentMethod: XenditShopPaymentMethod = 'all'): Promise<XenditShopCheckoutResult> {
   const returnUrl = `${window.location.origin}/seller/payment`
@@ -45,7 +45,7 @@ export async function createXenditShopCheckout(paymentMethod: XenditShopPaymentM
     throw new Error('Xendit did not return a checkout link.')
   }
   if (!data?.paid && data?.testMode !== true && data?.livemode !== false) {
-    throw new Error('Checkout was blocked because LifeCycle only allows Xendit test payments.')
+    throw new Error('Checkout could not be verified. Please try again or contact support.')
   }
   return data as XenditShopCheckoutResult
 }

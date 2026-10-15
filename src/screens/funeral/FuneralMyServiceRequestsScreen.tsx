@@ -71,7 +71,6 @@ type FuneralServiceRequest = {
   pickupAddress: string;
   contactNumber: string;
   status: string;
-  paymentQrUrl?: string | null;
   paymentAmount?: number | string | null;
   paymentPayerName?: string | null;
   paymentGcashName?: string | null;
@@ -1787,14 +1786,6 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                       </View>
                     ) : null}
                   </View>
-                ) : paymentRequest.paymentQrUrl && !paymentRequest.paymentQrUrl.startsWith("xendit") ? (
-                  <>
-                    <Text style={styles.paymentDetailsMediaTitle}>Shop Payment QR</Text>
-                    <TouchableOpacity activeOpacity={0.9} onPress={() => setPaymentViewerUrl(paymentRequest.paymentQrUrl || null)}>
-                      <Image source={{ uri: paymentRequest.paymentQrUrl }} style={styles.paymentDetailsQrImage} resizeMode="contain" />
-                    </TouchableOpacity>
-                    <Text style={styles.paymentDetailsMediaHint}>Tap the QR code to enlarge it.</Text>
-                  </>
                 ) : null}
 
                 <View style={styles.paymentSuccessDivider} />
@@ -1966,9 +1957,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
               />
             ) : null}
             <Text style={styles.qrZoomCaption}>
-              {paymentViewerUrl === selectedRequest?.paymentQrUrl
-                ? "Scan this QR code to send the payment."
-                : paymentViewerUrl === selectedRequest?.paymentProofImageUrl
+              {paymentViewerUrl === selectedRequest?.paymentProofImageUrl
                 ? "Your submitted proof of payment."
                 : paymentViewerUrl === selectedRequest?.productImageUrl
                 ? "Product reference image."
@@ -2557,20 +2546,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "900",
   },
-  paymentQrImage: {
-    width: "100%",
-    height: 210,
-    borderRadius: 16,
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#e6e3da",
-  },
-  paymentQrHint: {
-    color: "#8a948f",
-    fontSize: 12,
-    textAlign: "center",
-    marginTop: 6,
-  },
   photoEnlargeHint: {
     color: "#8a948f",
     fontSize: 12,
@@ -2888,14 +2863,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e5e7e6",
     backgroundColor: "#f1f3f2",
-  },
-  paymentDetailsQrImage: {
-    width: "100%",
-    height: 230,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#e5e7e6",
-    backgroundColor: "#ffffff",
   },
   paymentDetailsMediaHint: {
     color: "#7d8580",

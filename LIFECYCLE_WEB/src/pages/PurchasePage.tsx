@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { loadFuneralPurchases, type WebFuneralPurchase } from '@/utils/funeralPurchase'
 import BrandLogo from '@/components/BrandLogo'
 import LogoutLink from '@/components/LogoutLink'
+import PageBackButton from '@/components/PageBackButton'
 import './PurchasePage.css'
 
 type ViewerProfile = {
@@ -41,7 +42,6 @@ function groupByShop(purchases: WebFuneralPurchase[]) {
 }
 
 export default function PurchasePage() {
-  const navigate = useNavigate()
   const [purchases, setPurchases] = useState<WebFuneralPurchase[]>(() => loadFuneralPurchases())
   const [profile, setProfile] = useState<ViewerProfile | null>(null)
 
@@ -124,11 +124,8 @@ export default function PurchasePage() {
       </header>
 
       <main className="purchase-main">
-        <div className="purchase-page-nav">
-          <button type="button" className="purchase-back-btn" onClick={() => navigate(-1)}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5" /><polyline points="12 19 5 12 12 5" /></svg>
-            Back
-          </button>
+        <div className="page-back-row purchase-page-nav">
+          <PageBackButton />
         </div>
 
         {purchases.length === 0 ? (

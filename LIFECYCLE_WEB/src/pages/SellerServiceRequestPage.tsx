@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, ty
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import BrandLogo from '@/components/BrandLogo'
 import DeathCertificateVaultCard from '@/components/DeathCertificateVaultCard'
+import PageBackButton from '@/components/PageBackButton'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import { supabase } from '@/lib/supabase'
@@ -11,7 +12,6 @@ import './SellerServiceRequestPage.css'
 type ShopSummary = {
   id: string
   shopName: string
-  paymentQrUrl?: string | null
   serviceFeeAmount?: number | string | null
 }
 
@@ -169,7 +169,7 @@ export default function SellerServiceRequestPage() {
       const [shopResult, requestResult] = await Promise.all([
         supabase
           .from('funeral_shops')
-          .select('id, "shopName", "paymentQrUrl", "serviceFeeAmount"')
+          .select('id, "shopName", "serviceFeeAmount"')
           .eq('id', user.id)
           .maybeSingle(),
         supabase
@@ -534,10 +534,9 @@ export default function SellerServiceRequestPage() {
           </>
         )}
       </div>
-      <Link to="/seller?tab=orders" className="sr-back-link">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
-        Back to Arrangement Cases
-      </Link>
+      <div className="page-back-row">
+        <PageBackButton to="/seller?tab=orders" label="Back to arrangement cases" />
+      </div>
     </header>
   )
 

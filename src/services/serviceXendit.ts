@@ -44,7 +44,7 @@ export async function createServiceXenditCheckout(requestId: string): Promise<Se
 
   const isTestMode = data?.testMode === true || data?.livemode === false;
   if (!isSettled && !isTestMode) {
-    throw new Error('Checkout was blocked because LifeCycle only allows Xendit test payments.');
+    throw new Error('Checkout could not be verified. Please try again or contact support.');
   }
 
   return data as ServiceXenditCheckoutResult;
@@ -59,4 +59,3 @@ export async function syncServiceXenditCheckout(requestId: string): Promise<Serv
 
   return data as ServiceXenditCheckoutResult;
 }
-

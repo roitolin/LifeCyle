@@ -45,7 +45,7 @@ type Props = {
   onChanged?: () => void;
 };
 
-const SETTING_KEY = 'payment_qr_code';
+const SETTING_KEY = 'shop_payment_settings';
 
 function fromRow(row: any): Payment {
   return {

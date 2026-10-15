@@ -1,9 +1,10 @@
 import { Suspense, lazy } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import ProtectedRoute from '@/components/ProtectedRoute'
-import ChatWidget from '@/components/ChatWidget'
 import LoadingBird from '@/components/LoadingBird'
 import { LogoutConfirmationProvider } from '@/components/LogoutConfirmationProvider'
+
+const ChatWidget = lazy(() => import('@/components/ChatWidget'))
 
 const FuneralLandingPage = lazy(() => import('./pages/FuneralLandingPage'))
 const FuneralShopsPage = lazy(() => import('./pages/FuneralShopsPage'))
@@ -65,6 +66,15 @@ const AdminUsersPage = lazy(() => import('./pages/admin/AdminUsersPage'))
 
 function PageFallback() {
   return <LoadingBird fullScreen />
+}
+
+function RouteScopedChatWidget() {
+  const { pathname } = useLocation()
+  const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname
+
+  if (normalizedPath !== '/funeral' && normalizedPath !== '/seller') return null
+
+  return <ChatWidget />
 }
 
 function App() {
@@ -151,7 +161,7 @@ function App() {
 
           <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-          <ChatWidget />
+          <RouteScopedChatWidget />
         </LogoutConfirmationProvider>
       </Suspense>
     </BrowserRouter>

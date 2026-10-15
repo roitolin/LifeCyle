@@ -5,6 +5,7 @@ import BrandLogo from '@/components/BrandLogo'
 import NotificationDropdown from '@/components/NotificationDropdown'
 import AnnouncementDropdown from '@/components/AnnouncementDropdown'
 import LogoutLink from '@/components/LogoutLink'
+import PageBackButton from '@/components/PageBackButton'
 import { supabase } from '@/lib/supabase'
 import { loadFuneralCart } from '@/utils/funeralCart'
 import './FuneralLandingPage.css'
@@ -175,10 +176,7 @@ export default function FuneralShopsPage() {
       </header>
 
       <div className="sp-container">
-        <button type="button" onClick={() => navigate(-1)} className="fsp-back-btn">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"></path><polyline points="12 19 5 12 12 5"></polyline></svg>
-          Back
-        </button>
+        <div className="page-back-row"><PageBackButton /></div>
 
         <div className="fsp-hero">
           <h1>Funeral shops</h1>

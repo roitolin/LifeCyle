@@ -6,6 +6,7 @@ import { ensureOwnUserProfile } from '@/lib/userProfile'
 import { clearLoginAttempts, getLoginBlockState, recordFailedLoginAttempt } from '@/utils/authAttemptGuard'
 import { normalizeEmail } from '@/utils/inputSecurity'
 import { APP_ICON_TRANSPARENT_URL } from '@/assets/appIconAssets'
+import PageBackButton from '@/components/PageBackButton'
 import { recordWebAdminLoginActivity } from '@/utils/adminActivity'
 import {
   recordWebAccountLoginActivity,
@@ -231,9 +232,7 @@ function LoginPage() {
         </section>
 
         <section className="auth-card" aria-label="Login form">
-          <button type="button" className="back-btn" onClick={goBack}>
-            {'< Back'}
-          </button>
+          <div className="page-back-row auth-page-back"><PageBackButton onClick={goBack} /></div>
 
           <div className="auth-card-head">
             <h1>Welcome Back</h1>

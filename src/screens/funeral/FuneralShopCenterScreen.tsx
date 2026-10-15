@@ -48,7 +48,6 @@ type ShopInfo = {
   shopImageUrl?: string | null;
   coverImageUrl?: string | null;
   paidUntil?: string | null;
-  paymentQrUrl?: string | null;
   serviceFeeAmount?: number | string | null;
 };
 
@@ -80,7 +79,6 @@ type ServiceRequest = {
   burialTime?: string | null;
   status: string;
   createdAt?: string;
-  paymentQrUrl?: string | null;
   paymentAmount?: number | string | null;
   paymentPayerName?: string | null;
   paymentGcashName?: string | null;
@@ -537,9 +535,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
 
   const [paymentSettingsVisible, setPaymentSettingsVisible] = useState(false);
-  const [paymentQrDraftUrl, setPaymentQrDraftUrl] = useState<string | null>(null);
   const [paymentFeeInput, setPaymentFeeInput] = useState("");
-  const [uploadingPaymentQr, setUploadingPaymentQr] = useState(false);
   const [savingPayment, setSavingPayment] = useState(false);
 
   const [productTab, setProductTab] = useState<ProductTab>("all");
@@ -626,7 +622,6 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
             shopImageUrl: shopData.shopImageUrl,
             coverImageUrl: shopData.coverImageUrl,
             paidUntil: shopData.paidUntil,
-            paymentQrUrl: shopData.paymentQrUrl || null,
             serviceFeeAmount: shopData.serviceFeeAmount ?? null,
           }
         : null;
@@ -1032,7 +1027,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
           ? "Complete your Xendit checkout before your shop can go live."
           : payment?.status === "pending"
             ? "Your legacy payment is still under admin review."
-            : "Pay the LifeCycle registration fee securely through Xendit Test Mode before going live.",
+            : "Pay the LifeCycle registration fee securely through Xendit before going live.",
         [
           { text: "Cancel", style: "cancel" },
           { text: "Open Xendit", onPress: () => setAdminPaymentsVisible(true) },
@@ -1044,7 +1039,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
     if (subscriptionExpired) {
       Alert.alert(
         "Subscription Expired",
-        "Your subscription expired on " + formatSubscriptionDate(subscriptionEnd) + ". Renew securely through Xendit Test Mode before going live again.",
+        "Your subscription expired on " + formatSubscriptionDate(subscriptionEnd) + ". Renew securely through Xendit before going live again.",
         [
           { text: "Cancel", style: "cancel" },
           { text: "Renew Online", onPress: () => setAdminPaymentsVisible(true) },
@@ -1376,7 +1371,6 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
   };
 
   const resetPaymentSettingsDraft = () => {
-    setPaymentQrDraftUrl(shopInfo?.paymentQrUrl || null);
     setPaymentFeeInput(
       shopInfo?.serviceFeeAmount != null && Number(shopInfo.serviceFeeAmount) > 0
         ? String(Number(shopInfo.serviceFeeAmount))
@@ -1395,25 +1389,6 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
     setPaymentSettingsVisible(false);
   };
 
-  const pickAndUploadPaymentQr = async () => {
-    const picker = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      allowsEditing: true,
-      quality: 0.9,
-    });
-    if (picker.canceled || !picker.assets[0]) return;
-
-    setUploadingPaymentQr(true);
-    try {
-      const url = await uploadCertificate(picker.assets[0].uri);
-      setPaymentQrDraftUrl(url);
-    } catch (error: any) {
-      Alert.alert("Upload failed", error?.message || "Failed to upload the payment QR code.");
-    } finally {
-      setUploadingPaymentQr(false);
-    }
-  };
-
   const savePaymentSettings = async () => {
     const user = auth.currentUser;
     if (!user) return;
@@ -1429,7 +1404,6 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
       const { error } = await supabase
         .from("funeral_shops")
         .update({
-          paymentQrUrl: "xendit://hosted",
           serviceFeeAmount: parsedFee,
           updatedAt: new Date().toISOString(),
         })
@@ -1438,7 +1412,6 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
 
       setShopInfo((prev) => ({
         ...(prev || {}),
-        paymentQrUrl: "xendit://hosted",
         serviceFeeAmount: parsedFee,
       }));
       await loadData();
@@ -1452,17 +1425,6 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
     } finally {
       setSavingPayment(false);
     }
-  };
-
-  const removePaymentQr = () => {
-    Alert.alert("Remove Payment QR?", "Requesters will no longer be shown a QR code to pay you. The fee amount will be kept.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Remove QR",
-        style: "destructive",
-        onPress: () => setPaymentQrDraftUrl(null),
-      },
-    ]);
   };
 
   const openAddProductPage = () => {
@@ -2799,9 +2761,9 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
                 />
               </View>
 
-              <View style={styles.paymentQrInfoCard}>
+              <View style={styles.paymentGatewayInfoCard}>
                 <Ionicons name="information-circle-outline" size={18} color="#7f6653" />
-                <Text style={styles.paymentQrInfoText}>
+                <Text style={styles.paymentGatewayInfoText}>
                   Xendit handles customer payments with automatic split: 30% commission to LifeCycle Admin and 70% directly to your shop.
                 </Text>
               </View>
@@ -4686,47 +4648,7 @@ const styles = StyleSheet.create({
   paymentSetupSaveDisabled: {
     opacity: 0.5,
   },
-  paymentQrPreviewWrap: {
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#e6e3da",
-    backgroundColor: "#ffffff",
-    overflow: "hidden",
-  },
-  paymentQrPreview: {
-    width: "100%",
-    height: 220,
-    backgroundColor: "#ffffff",
-  },
-  paymentQrPreviewActions: {
-    flexDirection: "row",
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingBottom: 8,
-  },
-  paymentQrInlineButton: {
-    flex: 1,
-  },
-  paymentQrRemoveText: {
-    color: "#912929",
-  },
-  paymentQrEmpty: {
-    height: 180,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    borderStyle: "dashed",
-    borderColor: "#d9d6cd",
-    backgroundColor: "#fbfaf7",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-  },
-  paymentQrEmptyText: {
-    color: "#8a948f",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  paymentQrInfoCard: {
+  paymentGatewayInfoCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
@@ -4736,7 +4658,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     marginTop: 10,
   },
-  paymentQrInfoText: {
+  paymentGatewayInfoText: {
     flex: 1,
     color: "#62706b",
     fontSize: 12,

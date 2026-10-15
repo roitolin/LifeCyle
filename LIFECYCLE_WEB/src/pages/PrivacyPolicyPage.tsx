@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom'
 import BrandLogo from '@/components/BrandLogo'
+import PageBackButton from '@/components/PageBackButton'
 import './FuneralLandingPage.css'
 
 const sections = [
@@ -43,12 +43,12 @@ export default function PrivacyPolicyPage() {
       <header className="sp-header">
         <div className="sp-header-inner policy-header-inner">
           <BrandLogo />
-          <Link to="/funeral" className="policy-back-link">Back to Home</Link>
         </div>
       </header>
 
       <div className="sp-body">
         <div className="sp-body-inner policy-body-inner">
+          <div className="page-back-row"><PageBackButton to="/funeral" label="Back to home" /></div>
           <div className="policy-content">
             <span className="policy-kicker">LifeCycle Funeral Services Philippines</span>
             <h1>Privacy Policy</h1>

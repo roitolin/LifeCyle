@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import BrandLogo from '@/components/BrandLogo'
 import LogoutLink from '@/components/LogoutLink'
+import PageBackButton from '@/components/PageBackButton'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import { supabase } from '@/lib/supabase'
@@ -388,11 +389,8 @@ export default function NotificationPage() {
       </header>
 
       <main className="notification-main">
-        <div className="notification-page-nav">
-          <button type="button" className="notification-back-btn" onClick={() => navigate(-1)}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5" /><polyline points="12 19 5 12 12 5" /></svg>
-            Back
-          </button>
+        <div className="page-back-row notification-page-nav">
+          <PageBackButton />
         </div>
 
         <section className={`notification-inbox-toolbar${selectionMode ? ' selecting' : ''}`}>

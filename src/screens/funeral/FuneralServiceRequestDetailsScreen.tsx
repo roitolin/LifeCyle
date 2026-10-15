@@ -77,7 +77,6 @@ type FuneralServiceRequest = {
   shopContactNumber?: string | null;
   shopAddress?: string | null;
   status: string;
-  paymentQrUrl?: string | null;
   paymentAmount?: number | string | null;
   paymentProvider?: "manual" | "paymongo" | "xendit";
   providerPaymentMethod?: string | null;
@@ -146,7 +145,7 @@ const getStatusMeta = (status: string) => {
       background: "#e0eefa",
       text: "#1c4f7e",
       icon: "wallet-outline" as IoniconName,
-      message: "Open the secure Xendit test checkout to pay for the selected casket.",
+      message: "Open the secure Xendit checkout to pay for the selected casket.",
       shopMessage: "The Xendit checkout is ready. Waiting for the family to complete payment.",
     };
   }
@@ -646,7 +645,6 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
       request.productImageUrl,
       request.memorialPhotoUrl,
       request.referencePhotoUrl,
-      request.paymentQrUrl,
       request.paymentProofImageUrl,
       request.completionProofImageUrl,
     ].filter((url): url is string => Boolean(url));
@@ -865,7 +863,7 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
             title: nextStatus === "accepted_by_shop" ? "Request Accepted - Payment Ready" : "Request Declined",
             body:
               nextStatus === "accepted_by_shop"
-                ? (requestItem.shopName || "The shop") + " accepted your request. The saved QR code and payment amount are ready in your request."
+                ? (requestItem.shopName || "The shop") + " accepted your request. Secure online checkout is ready in your request."
                 : `${requestItem.shopName || "The shop"} declined your service request.`,
             data: {
               requestId: requestItem.id,
@@ -889,7 +887,7 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
         Alert.alert(
           "Updated",
           nextStatus === "accepted_by_shop"
-            ? "Request accepted. Your saved QR code and amount are now visible to the family."
+            ? "Request accepted. Secure online checkout is now available to the family."
             : "Request declined."
         );
       } catch (error: any) {
@@ -1195,7 +1193,7 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
       stickyAction = {
         context: "Next action",
         label: "Complete payment",
-        helper: "Use the shop QR and submit your receipt.",
+        helper: "Use secure online checkout to complete payment.",
         icon: "wallet-outline",
         onPress: () => scrollToSection(paymentSectionY.current),
       };
@@ -3450,21 +3448,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 16,
     marginTop: 3,
-  },
-  paymentSetupQrEmpty: {
-    minHeight: 160,
-    borderRadius: 16,
-    backgroundColor: "#ece9e3",
-    borderWidth: 1,
-    borderColor: "#e6e3da",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 4,
-  },
-  paymentSetupQrEmptyText: {
-    color: "#8a948f",
-    fontSize: 13,
-    fontWeight: "800",
   },
   paymentSetupClearButton: {
     minHeight: 42,

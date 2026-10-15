@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { uploadCertificateWeb } from '@/lib/supabaseStorage'
 import { removeFuneralCartItem, type WebFuneralCartItem } from '@/utils/funeralCart'
@@ -8,6 +8,7 @@ import { useAlertDialog } from '@/hooks/useAlertDialog'
 import { checkServiceAvailability } from '@/utils/serviceAvailability'
 import BrandLogo from '@/components/BrandLogo'
 import LogoutLink from '@/components/LogoutLink'
+import PageBackButton from '@/components/PageBackButton'
 import './CheckoutPage.css'
 
 type ViewerProfile = {
@@ -431,6 +432,9 @@ export default function CheckoutPage() {
       <Header />
 
       <div className="checkout-main">
+        <div className="page-back-row checkout-page-nav">
+          <PageBackButton />
+        </div>
         <div className="checkout-layout">
         <aside className="checkout-order-summary">
           <h2>Request summary</h2>
@@ -459,7 +463,6 @@ export default function CheckoutPage() {
             <span>Service price</span>
             <strong>{formatPeso(cartItem.price)}</strong>
           </div>
-          <p className="checkout-summary-help">No payment is collected when you send this request.</p>
         </aside>
 
         <main className="checkout-form-column">
@@ -729,16 +732,9 @@ export default function CheckoutPage() {
 /* ── Shared sub-components ─────────────────────── */
 
 function TopBar({ profile }: { profile: ViewerProfile | null }) {
-  const navigate = useNavigate()
   return (
     <div className="checkout-topbar">
       <div className="checkout-topbar-inner">
-        <div className="checkout-topbar-left">
-          <button type="button" className="checkout-back-btn" onClick={() => navigate(-1)} aria-label="Go back">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-            Back
-          </button>
-        </div>
         <div className="checkout-topbar-right">
           <Link to="/user/notifications">Notifications</Link>
           <Link to="/user/help">Help Centre</Link>

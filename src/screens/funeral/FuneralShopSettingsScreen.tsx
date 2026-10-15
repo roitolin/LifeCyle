@@ -31,7 +31,6 @@ type ShopRecord = {
   shopPhoneNumber?: string | null;
   shopImageUrl?: string | null;
   coverImageUrl?: string | null;
-  paymentQrUrl?: string | null;
   serviceFeeAmount?: number | string | null;
   serviceCapacity?: number | string | null;
   xenditAccountId?: string | null;
@@ -379,7 +378,7 @@ export default function FuneralShopSettingsScreen({ navigation, route }: any) {
         "Payment Required",
         payment?.status === "pending" && payment.paymentProvider === "xendit"
           ? "Complete your Xendit checkout before making the shop live."
-          : "Pay the LifeCycle registration fee securely through Xendit Test Mode before making the shop live.",
+          : "Pay the LifeCycle registration fee securely through Xendit before making the shop live.",
         [
           { text: "Cancel", style: "cancel" },
           { text: "Open Xendit", onPress: () => setAdminPaymentsVisible(true) },
@@ -390,7 +389,7 @@ export default function FuneralShopSettingsScreen({ navigation, route }: any) {
     if (nextLive && subscriptionExpired) {
       Alert.alert(
         "Subscription Expired",
-        "Renew your LifeCycle registration through Xendit Test Mode before making the shop live.",
+        "Renew your LifeCycle registration securely through Xendit before making the shop live.",
         [
           { text: "Cancel", style: "cancel" },
           { text: "Renew Online", onPress: () => setAdminPaymentsVisible(true) },

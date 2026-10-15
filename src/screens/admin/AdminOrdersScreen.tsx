@@ -50,7 +50,6 @@ type ServiceRequest = {
   pickupAddress?: string | null;
   contactNumber?: string | null;
   status: string;
-  paymentQrUrl?: string | null;
   paymentAmount?: number | string | null;
   paymentPayerName?: string | null;
   paymentGcashNumber?: string | null;
@@ -340,13 +339,6 @@ export default function AdminOrdersScreen() {
                           ? formatPhilippinePeso(String(selectedItem.paymentAmount))
                           : "Not configured"}
                       </Text>
-
-                      {selectedItem.paymentQrUrl ? (
-                        <>
-                          <Text style={styles.detailLabel}>Shop Payment QR</Text>
-                          <Image source={{ uri: selectedItem.paymentQrUrl }} style={styles.modalMainImage} resizeMode="contain" />
-                        </>
-                      ) : null}
 
                       {selectedItem.paymentPayerName ? (
                         <>

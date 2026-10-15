@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 import { createXenditShopCheckout, syncXenditShopPayment, type XenditShopPaymentMethod } from '@/utils/xenditShop'
-import { getPaymentQrSetting } from '@/utils/paymentQrSettings'
+import { getPaymentSetting } from '@/utils/paymentSettings'
 import './XenditShopPaymentCard.css'
 
 type Props = {
@@ -30,7 +30,6 @@ const PAYMENT_METHODS: Array<{ id: XenditShopPaymentMethod; label: string; detai
   { id: 'gcash', label: 'GCash', detail: 'Verified shop phone and password required', icon: 'G' },
   { id: 'ewallets', label: 'Other e-wallets', detail: 'GrabPay and ShopeePay', icon: 'W' },
   { id: 'cards', label: 'Cards', detail: 'Credit or debit card', icon: 'C' },
-  { id: 'qrph', label: 'QR Ph', detail: 'Pay using a QR code', icon: 'QR' },
   { id: 'bank_transfer', label: 'Bank transfer', detail: 'Pay from your bank account', icon: 'B' },
 ]
 
@@ -121,7 +120,7 @@ export default function XenditShopPaymentCard({
   const load = useCallback(async () => {
     const [{ data: { user } }, setting] = await Promise.all([
       supabase.auth.getUser(),
-      getPaymentQrSetting(),
+      getPaymentSetting(),
     ])
     setFee(setting.feeAmount)
     if (!user) {
@@ -414,7 +413,7 @@ export default function XenditShopPaymentCard({
         </span>
         <div>
           <strong>Payment methods</strong>
-          <small>GCash, Maya, cards, QR Ph and online banking</small>
+          <small>GCash, Maya, cards and online banking</small>
         </div>
         <span className='pm-method-check' aria-hidden='true'>&#10003;</span>
       </div>

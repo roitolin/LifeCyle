@@ -62,7 +62,7 @@ export async function createServiceXenditCheckout(requestId: string, paymentMeth
 
   const isTestMode = data?.testMode === true || data?.livemode === false
   if (!isSettled && !isTestMode) {
-    throw new Error('Checkout was blocked because LifeCycle only allows Xendit test payments.')
+    throw new Error('Checkout could not be verified. Please try again or contact support.')
   }
 
   return data as ServiceXenditCheckoutResult

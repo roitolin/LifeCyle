@@ -214,6 +214,10 @@
   gap: 18px;
 }
 
+.cart-shop-page {
+  overflow-x: clip;
+}
+
 /* ── Checkboxes ──────────────────────────────── */
 .shopee-checkbox {
   width: 18px;
@@ -561,7 +565,7 @@
 }
 
 .cart-page-nav {
-  min-height: 44px;
+  min-height: 52px;
   display: flex;
   align-items: center;
   margin-bottom: -2px;
@@ -601,6 +605,8 @@
   .cart-main {
     margin-top: 18px;
     margin-bottom: 18px;
+    padding-right: 14px;
+    padding-left: 14px;
   }
 
   .cart-shop-header {
@@ -630,6 +636,7 @@
 
   .cart-footer {
     padding: 12px 2px max(12px, env(safe-area-inset-bottom));
+    gap: 12px;
   }
 
   .footer-left {
@@ -660,7 +667,43 @@
   }
 }
 
+@media (max-width: 640px) {
+  .cart-topbar-inner {
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+  }
+
+  .cart-topbar-left,
+  .cart-divider,
+  .cart-user-name,
+  .cart-user-arrow {
+    display: none;
+  }
+
+  .cart-topbar-right {
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+  }
+
+  .cart-header-inner {
+    flex-wrap: nowrap;
+  }
+}
+
 @media (max-width: 380px) {
+  .cart-main {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .item-image,
+  .item-fallback-image {
+    width: 64px;
+    height: 64px;
+    flex-basis: 64px;
+  }
+
   .footer-right {
     grid-template-columns: 1fr;
   }

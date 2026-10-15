@@ -3195,118 +3195,6 @@ select.sc-form-input {
   }
 }
 
-/* ── Payment QR & Amount View ─────────── */
-.sc-payment-subtitle {
-  font-size: 13px;
-  color: var(--sc-muted);
-  margin: -8px 0 20px;
-  line-height: 1.5;
-}
-
-.sc-payment-card {
-  border: 1px solid var(--sc-border);
-  border-radius: 6px;
-  padding: 20px;
-  margin-bottom: 20px;
-}
-
-.sc-payment-card-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.sc-payment-card-head h3 {
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.sc-payment-saved-at {
-  font-size: 12px;
-  color: var(--sc-muted);
-}
-
-.sc-payment-qr-row {
-  display: flex;
-  gap: 20px;
-  align-items: center;
-}
-
-.sc-payment-qr-box {
-  width: 170px;
-  height: 170px;
-  border: 1px solid var(--sc-border);
-  border-radius: 6px;
-  overflow: hidden;
-  background: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.sc-payment-qr-img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.sc-payment-qr-empty {
-  font-size: 12px;
-  color: var(--sc-muted);
-  text-align: center;
-  padding: 8px;
-}
-
-.sc-payment-qr-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  align-items: flex-start;
-}
-
-.sc-payment-hint {
-  font-size: 12px;
-  color: var(--sc-muted);
-  margin-top: 12px;
-  line-height: 1.5;
-}
-
-.sc-payment-fee-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.sc-payment-fee-label {
-  font-size: 13px;
-  color: #555;
-}
-
-.sc-payment-fee-input {
-  width: 180px;
-}
-
-.sc-payment-save-row {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.sc-payment-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: flex-start;
-}
-
-@media (max-width: 768px) {
-  .sc-payment-qr-row {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-}
-
 /* ══════════════════════════════════════════════════════════
    Shop Center Hero / Status Banner / Pill Navigation
    Mirrors the mobile Shop Center (FuneralShopCenterScreen)
@@ -7062,12 +6950,6 @@ select.sc-form-input {
   overflow: hidden;
 }
 
-.sc-finance-qr-pane {
-  padding: 25px;
-  border-right: 1px solid #e2e6eb;
-  background: #f7f8f9;
-}
-
 .sc-finance-field-heading {
   margin-bottom: 14px;
   display: flex;
@@ -7082,24 +6964,17 @@ select.sc-form-input {
   font-weight: 750;
 }
 
-.sc-finance-field-heading small,
-.sc-finance-qr-note {
+.sc-finance-field-heading small {
   color: #8993a1;
   font-size: 10px;
 }
 
-.sc-finance-setup-panel .sc-payment-qr-box {
+.sc-status-page-back {
+  box-sizing: border-box;
   width: 100%;
-  height: auto;
-  aspect-ratio: 1;
-  border-color: #d8dde3;
-  border-radius: 7px;
-}
-
-.sc-finance-qr-note {
-  display: block;
-  margin-top: 10px;
-  line-height: 1.45;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 16px 24px 0;
 }
 
 .sc-finance-setup-fields {
@@ -7174,15 +7049,6 @@ select.sc-form-input {
   box-shadow: 0 0 0 3px rgba(47, 64, 87, 0.09);
 }
 
-.sc-finance-setup-fields .sc-payment-qr-actions {
-  margin-top: 20px;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 7px;
-  flex-wrap: wrap;
-}
-
 .sc-finance-setup-footer {
   grid-column: 1 / -1;
   min-height: 72px;
@@ -7235,53 +7101,6 @@ select.sc-form-input {
   width: 100%;
 }
 
-.sc-admin-payments-layout .sc-lifecycle-payment-card .payment-qr-section-head {
-  min-height: 72px;
-  padding-bottom: 22px;
-  border-bottom: 1px solid var(--sc-border);
-}
-
-.sc-admin-payments-layout .sc-lifecycle-payment-card .payment-qr-title {
-  color: #172033;
-  font-size: 27px;
-  font-weight: 750;
-  letter-spacing: -0.025em;
-}
-
-.sc-admin-payments-layout .sc-lifecycle-payment-card .payment-qr-description {
-  color: var(--sc-muted);
-}
-
-.sc-admin-payments-layout .sc-lifecycle-payment-card .payment-qr-workspace,
-.sc-admin-payments-layout .sc-lifecycle-payment-card .payment-qr-history-table-wrap,
-.sc-admin-payments-layout .sc-lifecycle-payment-card .payment-qr-history-empty {
-  border-color: #dfe4ea;
-  border-radius: 8px;
-}
-
-.sc-admin-payments-layout .sc-lifecycle-payment-card .payment-qr-top {
-  background: #f7f8f9;
-}
-
-.sc-admin-payments-layout .sc-lifecycle-payment-card .payment-qr-eyebrow {
-  color: #69768a;
-}
-
-.sc-admin-payments-layout .sc-lifecycle-payment-card .payment-qr-amount {
-  border-left-color: var(--sc-brand);
-}
-
-.sc-admin-payments-layout .sc-lifecycle-payment-card .payment-qr-submit {
-  border-radius: 6px;
-  background: var(--sc-brand);
-  box-shadow: none;
-}
-
-.sc-admin-payments-layout .sc-lifecycle-payment-card .payment-qr-form-field input:focus {
-  border-color: #7e8ea2;
-  box-shadow: 0 0 0 3px rgba(47, 64, 87, 0.09);
-}
-
 @media (max-width: 760px) {
   .sc-finance-header {
     align-items: flex-start;
@@ -7313,15 +7132,6 @@ select.sc-form-input {
     grid-template-columns: 1fr;
   }
 
-  .sc-finance-qr-pane {
-    border-right: 0;
-    border-bottom: 1px solid #e2e6eb;
-  }
-
-  .sc-finance-setup-panel .sc-payment-qr-box {
-    max-width: 260px;
-  }
-
   .sc-finance-setup-fields {
     padding: 25px 22px;
   }
@@ -7335,9 +7145,6 @@ select.sc-form-input {
     width: 100%;
   }
 
-  .sc-admin-payments-layout .sc-lifecycle-payment-card .payment-qr-section-head {
-    min-height: 0;
-  }
 }
 
 /* ── Seller product inspector ────────── */

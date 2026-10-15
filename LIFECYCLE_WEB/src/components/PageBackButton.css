@@ -1,0 +1,51 @@
+.page-back-button {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+  border: 0;
+  background: transparent;
+  color: #53615d;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 150ms ease;
+}
+
+.page-back-button svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.page-back-button:hover {
+  color: #22312d;
+}
+
+.page-back-button:focus-visible {
+  outline: 3px solid rgba(49, 95, 80, 0.2);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+.page-back-row {
+  width: 100%;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+}
+
+@media (max-width: 560px) {
+  .page-back-button {
+    min-height: 44px;
+    font-size: 14px;
+  }
+}

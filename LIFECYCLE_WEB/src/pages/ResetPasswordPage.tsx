@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import AuthBrandPanel from '@/components/AuthBrandPanel'
+import PageBackButton from '@/components/PageBackButton'
 import { supabase } from '@/lib/supabase'
 
 function ResetPasswordPage() {
@@ -135,9 +136,7 @@ function ResetPasswordPage() {
         <AuthBrandPanel />
 
         <section className='auth-card' aria-label='Reset password form'>
-          <button type='button' className='back-btn' onClick={() => navigate('/login')}>
-            {'< Back'}
-          </button>
+          <div className='page-back-row auth-page-back'><PageBackButton to='/login' /></div>
 
           <div className='auth-card-head'>
             <h1>Create New Password</h1>

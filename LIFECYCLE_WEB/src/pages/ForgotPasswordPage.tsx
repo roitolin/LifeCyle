@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import AuthBrandPanel from '@/components/AuthBrandPanel'
+import PageBackButton from '@/components/PageBackButton'
 import { supabase } from '@/lib/supabase'
 import { getSupabasePasswordResetRedirectTo } from '@/lib/supabaseAuthRedirect'
 import { normalizeEmail } from '@/utils/inputSecurity'
@@ -20,7 +21,6 @@ function getResetRequestErrorMessage(errorCode: string): string {
 }
 
 function ForgotPasswordPage() {
-  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -61,9 +61,7 @@ function ForgotPasswordPage() {
         <AuthBrandPanel />
 
         <section className='auth-card' aria-label='Password recovery form'>
-          <button type='button' className='back-btn' onClick={() => navigate('/login')}>
-            {'< Back'}
-          </button>
+          <div className='page-back-row auth-page-back'><PageBackButton to='/login' /></div>
 
           <div className='auth-card-head'>
             <h1>Forgot Password?</h1>

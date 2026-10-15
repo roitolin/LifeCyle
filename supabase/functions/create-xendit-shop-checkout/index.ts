@@ -3,14 +3,14 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const CREATE_SESSION_URL = 'https://api.xendit.co/sessions';
-const SHOP_PAYMENT_SETTING_KEY = 'payment_qr_code';
+const SHOP_PAYMENT_SETTING_KEY = 'shop_payment_settings';
 const MAX_BODY_BYTES = 16 * 1024;
 
 type CheckoutRequest = {
   platform?: 'mobile' | 'web';
   returnUrl?: string;
   action?: 'create' | 'sync';
-  paymentMethod?: 'all' | 'gcash' | 'ewallets' | 'cards' | 'qrph' | 'bank_transfer';
+  paymentMethod?: 'all' | 'gcash' | 'ewallets' | 'cards' | 'bank_transfer';
 };
 
 type PendingPayment = {
@@ -27,11 +27,10 @@ type PendingPayment = {
 };
 
 const PAYMENT_CHANNELS: Record<string, string[] | null> = {
-  all: null,
+  all: ['GCASH', 'GRABPAY', 'SHOPEEPAY', 'CARDS', 'BANK_TRANSFER'],
   gcash: ['GCASH'],
   ewallets: ['GRABPAY', 'SHOPEEPAY'],
   cards: ['CARDS'],
-  qrph: ['QRPH'],
   bank_transfer: ['BANK_TRANSFER'],
 };
 
@@ -72,30 +71,30 @@ function checkoutFailure(errorCode: string, responseStatus: number) {
   if (responseStatus === 401 || code === 'INVALID_CREDENTIALS') {
     return {
       code: code || 'INVALID_CREDENTIALS',
-      message: 'The Xendit Test API key is invalid or expired. Ask an administrator to update the Xendit secret.',
+      message: 'The payment provider credentials are invalid or expired. Ask an administrator to update the payment configuration.',
     };
   }
   if (responseStatus === 403 || code === 'REQUEST_FORBIDDEN_ERROR') {
     return {
       code: code || 'REQUEST_FORBIDDEN_ERROR',
-      message: 'The Xendit Test API key does not have permission to create Payment Sessions.',
+      message: 'The payment provider is not authorized to create payment sessions.',
     };
   }
   if (code === 'INVALID_PAYMENT_CHANNEL') {
     return {
       code,
-      message: 'No Xendit test payment channel is available for this checkout.',
+      message: 'No payment channel is currently available for this checkout.',
     };
   }
   if (code === 'API_VALIDATION_ERROR' || code === 'MISSING_CUSTOMER') {
     return {
       code,
-      message: 'Xendit rejected the checkout settings. Ask an administrator to review the Test Mode configuration.',
+      message: 'The payment provider rejected the checkout settings. Ask an administrator to review the payment configuration.',
     };
   }
   return {
     code: code || 'CHECKOUT_FAILED',
-    message: 'Xendit Test Mode checkout is temporarily unavailable.',
+    message: 'Payment checkout is temporarily unavailable.',
   };
 }
 
@@ -220,7 +219,7 @@ Deno.serve(async (request: Request) => {
     return jsonResponse(request, { error: 'Xendit shop payment configuration is incomplete.' }, 503);
   }
   if (isObviouslyLiveKey(xenditSecretKey)) {
-    return jsonResponse(request, { error: 'LifeCycle shop payments are locked to Xendit Test Mode.' }, 503);
+    return jsonResponse(request, { error: 'Shop payments are temporarily unavailable. Please contact support.' }, 503);
   }
 
   const accessToken = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
@@ -268,7 +267,7 @@ Deno.serve(async (request: Request) => {
 
   const selectedPaymentMethod = String(payload.paymentMethod || 'all').trim().toLowerCase();
   if (!(selectedPaymentMethod in PAYMENT_CHANNELS)) {
-    return jsonResponse(request, { error: 'Choose a supported Xendit Test payment method.' }, 400);
+    return jsonResponse(request, { error: 'Choose a supported payment method.' }, 400);
   }
   if (selectedPaymentMethod === 'gcash' && (!user.phone || !user.phone_confirmed_at)) {
     return jsonResponse(request, { error: 'Verify the shop-owner mobile number before using GCash.' }, 403);
@@ -333,7 +332,7 @@ Deno.serve(async (request: Request) => {
       sessionAmountCents === pendingAmountCents &&
       ['ACTIVE', 'COMPLETED', 'EXPIRED'].includes(status);
     if (!validSession) {
-      return jsonResponse(request, { error: 'Xendit returned an invalid Test Mode payment status.' }, 502);
+      return jsonResponse(request, { error: 'The payment provider returned an invalid payment status.' }, 502);
     }
 
     if (status === 'ACTIVE') {
@@ -506,7 +505,7 @@ Deno.serve(async (request: Request) => {
     responseBusinessId === masterBusinessId;
   if (!validResponse) {
     await rejectPending(admin, paymentId, 'Xendit returned an invalid checkout response. Try again.', 'failed');
-    return jsonResponse(request, { error: 'Xendit returned an invalid Test Mode checkout.' }, 502);
+    return jsonResponse(request, { error: 'The payment provider returned an invalid checkout response.' }, 502);
   }
 
   const { data: stored, error: updateError } = await admin
