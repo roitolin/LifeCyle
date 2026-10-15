@@ -19,12 +19,8 @@ const faqs = [
     a: 'Follow the payment instructions published for the request, then upload a clear receipt. The payment status changes only after the submitted proof has been reviewed.',
   },
   {
-    q: 'How do I ask about a cancellation or refund?',
-    a: 'Use the controls shown on the service request when available. If no action is available, send the request details through Contact support. Approval depends on the request and payment status.',
-  },
-  {
     q: 'How do I register a funeral shop?',
-    a: 'Open Seller Centre, register a shop, and submit the required information for review. Shop tools become available after the application and publication requirements are completed.',
+    a: 'Open Shop Center, register a shop, and submit the required information for review. Shop tools become available after the application and publication requirements are completed.',
   },
   {
     q: 'How do I contact support?',

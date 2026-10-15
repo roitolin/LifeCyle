@@ -11,6 +11,7 @@ import {
   recordWebAccountLoginActivity,
   registerWebAccountSession,
 } from '@/utils/accountActivity'
+import { rememberWebAccount } from '@/utils/webDeviceAccounts'
 
 type BanDialog = {
   reason: string
@@ -64,7 +65,9 @@ function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const supportEmail = 'support@lifecycle.app'
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(() => (
+    new URLSearchParams(location.search).get('email') || ''
+  ))
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -186,6 +189,7 @@ function LoginPage() {
 
       clearLoginAttempts(normalizedEmail)
       await registerWebAccountSession(authData.session)
+      if (authData.session) rememberWebAccount(authData.session, userData)
       await recordWebAccountLoginActivity('login_success')
       await recordWebAdminLoginActivity('login_success', userRole)
       navigate(targetAfterLogin)

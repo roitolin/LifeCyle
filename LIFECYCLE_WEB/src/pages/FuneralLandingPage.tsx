@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import BrandLogo from '@/components/BrandLogo'
+import AnnouncementDropdown from '@/components/AnnouncementDropdown'
 import NotificationDropdown from '@/components/NotificationDropdown'
 import LogoutLink from '@/components/LogoutLink'
 import { loadFuneralCart } from '@/utils/funeralCart'
@@ -130,6 +131,7 @@ export default function FuneralLandingPage() {
   const [maxPrice,         setMaxPrice]          = useState('')
   const [sortBy,           setSortBy]            = useState('Relevance')
   const [page,             setPage]              = useState(1)
+  const [filtersOpen,      setFiltersOpen]       = useState(false)
   const PAGE_SIZE = 20
 
   /* Auth */
@@ -248,6 +250,7 @@ export default function FuneralLandingPage() {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const activeFilterCount = Number(selectedShopId !== 'all') + Number(Boolean(minPrice)) + Number(Boolean(maxPrice))
 
   function clearFilters() {
     setSelectedShopId('all')
@@ -278,7 +281,7 @@ export default function FuneralLandingPage() {
       <div className="sp-topbar">
         <div className="sp-topbar-inner">
           <div className="sp-topbar-left">
-            <Link to="/seller">Seller Centre</Link>
+            <Link to="/seller">Shop Center</Link>
             <span className="sp-divider">|</span>
             <span>Follow us on</span>
             <a href="#fb" aria-label="Facebook">
@@ -289,6 +292,7 @@ export default function FuneralLandingPage() {
             </a>
           </div>
           <div className="sp-topbar-right">
+            <AnnouncementDropdown />
             <NotificationDropdown variant="seller-centre" />
             <a href="#help">Help</a>
             <a href="#language">English</a>
@@ -353,11 +357,34 @@ export default function FuneralLandingPage() {
       <div className="sp-body">
         <div className="sp-body-inner">
 
+          <button
+            type="button"
+            className="sp-mobile-filter-btn"
+            aria-expanded={filtersOpen}
+            aria-controls="sp-search-filters"
+            onClick={() => setFiltersOpen(open => !open)}
+          >
+            <span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <line x1="4" y1="6" x2="20" y2="6" />
+                <line x1="8" y1="12" x2="20" y2="12" />
+                <line x1="11" y1="18" x2="20" y2="18" />
+              </svg>
+              Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+            </span>
+            <svg className="sp-mobile-filter-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+
           {/* â”€â”€ Left Sidebar â”€â”€ */}
-          <aside className="sp-sidebar">
+          <aside id="sp-search-filters" className={`sp-sidebar${filtersOpen ? ' is-open' : ''}`}>
             <div className="sp-sidebar-heading">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="11" y1="18" x2="20" y2="18"/></svg>
-              SEARCH FILTER
+              <span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="11" y1="18" x2="20" y2="18"/></svg>
+                Search filters
+              </span>
+              <button type="button" className="sp-sidebar-close" aria-label="Close filters" onClick={() => setFiltersOpen(false)}>&times;</button>
             </div>
 
             {/* Shop Filter */}
@@ -424,6 +451,9 @@ export default function FuneralLandingPage() {
 
             <button type="button" className="sp-clear-btn" onClick={clearFilters}>
               CLEAR ALL
+            </button>
+            <button type="button" className="sp-filter-done-btn" onClick={() => setFiltersOpen(false)}>
+              SHOW RESULTS
             </button>
           </aside>
 
@@ -537,7 +567,6 @@ export default function FuneralLandingPage() {
             <h4>CUSTOMER SERVICE</h4>
             <Link to="/user/help">Help Centre</Link>
             <a href="#payment">Payment Methods</a>
-            <a href="#return">Return &amp; Refund</a>
             <a href="#guarantee">LifeCycle Guarantee</a>
             <Link to="/user/contact">Contact Us</Link>
           </div>
@@ -547,7 +576,7 @@ export default function FuneralLandingPage() {
             <a href="#careers">Careers</a>
             <Link to="/policies">Policies</Link>
             <Link to="/privacy-policy">Privacy Policy</Link>
-            <Link to="/seller">Seller Centre</Link>
+            <Link to="/seller">Shop Center</Link>
           </div>
           <div>
             <h4>PAYMENT</h4>
@@ -575,7 +604,6 @@ export default function FuneralLandingPage() {
         </div>
         <div className="sp-footer-bottom">
           <span>(c) {new Date().getFullYear()} LifeCycle Funeral Services Philippines. All Rights Reserved.</span>
-          <span>Philippines - Metro Manila - Nationwide</span>
         </div>
        </footer>
      </div>

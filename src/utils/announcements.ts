@@ -4,6 +4,7 @@ export const createAnnouncement = async (payload: {
   title: string;
   body: string;
   isPinned?: boolean;
+  expiresAt?: string | null;
 }) => {
   const trimmedTitle = payload.title.trim();
   const trimmedBody = payload.body.trim();
@@ -20,6 +21,7 @@ export const createAnnouncement = async (payload: {
     p_body: trimmedBody,
     p_audience: "all",
     p_is_pinned: Boolean(payload.isPinned),
+    p_expires_at: payload.expiresAt || null,
   });
 
   if (error) throw error;

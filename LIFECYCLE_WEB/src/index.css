@@ -6336,6 +6336,119 @@ select:focus-visible {
   }
 }
 
+/* Small-screen authentication and confirmation flows. */
+.auth-layout,
+.auth-card,
+.auth-form,
+.password-field {
+  min-width: 0;
+}
+
+.auth-form input,
+.auth-form select {
+  width: 100%;
+  max-width: 100%;
+}
+
+@media (max-width: 560px) {
+  .auth-page {
+    min-height: 100dvh;
+    place-items: start center;
+    padding: 12px;
+  }
+
+  .auth-layout {
+    border-radius: 18px;
+  }
+
+  .auth-brand {
+    padding: 16px 18px;
+  }
+
+  .auth-brand-inner {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+    align-items: center;
+    column-gap: 12px;
+  }
+
+  .auth-brand .auth-logo {
+    width: 42px;
+    height: 42px;
+    grid-row: 1 / 3;
+    margin: 0;
+    border-radius: 12px;
+  }
+
+  .auth-brand h2 {
+    margin: 0;
+    font-size: 1.2rem;
+  }
+
+  .auth-brand-tagline {
+    margin: 2px 0 0;
+    font-size: 0.78rem;
+    line-height: 1.4;
+  }
+
+  .auth-card {
+    padding: 20px 18px;
+  }
+
+  .auth-card-head h1 {
+    overflow-wrap: anywhere;
+    font-size: 1.45rem;
+  }
+
+  .auth-card-head .auth-subtitle,
+  .auth-message,
+  .auth-helper-text,
+  .auth-switch {
+    overflow-wrap: anywhere;
+  }
+
+  .auth-form input,
+  .auth-form select {
+    font-size: 16px;
+  }
+
+  .support-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .support-btn {
+    width: 100%;
+  }
+
+  .terms-gate-card,
+  .ban-card {
+    max-height: calc(100dvh - 24px);
+    overflow-y: auto;
+  }
+
+  .ban-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 360px) {
+  .auth-brand-tagline {
+    display: none;
+  }
+
+  .auth-brand-inner {
+    grid-template-columns: 38px minmax(0, 1fr);
+  }
+
+  .auth-brand .auth-logo {
+    width: 38px;
+    height: 38px;
+    grid-row: auto;
+  }
+}
+
 .sp-dropdown-switch, .cart-dropdown-switch, .checkout-dropdown-switch, .notification-dropdown-switch { 
   border-top: 1px solid var(--border); 
   margin-top: 4px; 

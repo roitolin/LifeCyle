@@ -1582,4 +1582,89 @@
   .admin-console-shell .admin-filters-advanced {
     grid-template-columns: 1fr;
   }
+
+  .admin-console-shell .user-main,
+  .admin-console-shell .user-content,
+  .admin-console-shell .panel,
+  .admin-console-shell .table-wrap,
+  .admin-console-shell .admin-content-full-bleed > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .admin-console-shell .table-wrap {
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-console-shell .panel h2,
+  .admin-console-shell .panel h3,
+  .admin-console-shell .panel-sub {
+    overflow-wrap: anywhere;
+  }
+
+  .admin-console-shell .quick-actions {
+    width: 100%;
+  }
+
+  .admin-console-shell .quick-actions > button,
+  .admin-console-shell .quick-actions > a {
+    flex: 1 1 160px;
+    justify-content: center;
+  }
+
+  .admin-console-shell .admin-support-grid,
+  .admin-console-shell .admin-support-list,
+  .admin-console-shell .admin-support-thread,
+  .admin-console-shell .admin-conversation-main,
+  .admin-console-shell .feedback-mobile-web,
+  .admin-console-shell .feedback-mobile-card,
+  .admin-console-shell .notification-item {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .admin-console-shell .admin-support-list,
+  .admin-console-shell .admin-support-thread {
+    min-height: 240px;
+    padding: 10px;
+  }
+
+  .admin-console-shell .admin-conversation-main h3,
+  .admin-console-shell .admin-conversation-main p,
+  .admin-console-shell .thread-bubble p,
+  .admin-console-shell .feedback-post-card p,
+  .admin-console-shell .admin-feedback-reply-item p {
+    overflow-wrap: anywhere;
+  }
+
+  .admin-console-shell .messages-thread-input input {
+    min-width: 0;
+    font-size: 16px;
+  }
+
+  .admin-console-shell .feedback-section-head,
+  .admin-console-shell .feedback-rating-head,
+  .admin-console-shell .feedback-post-head,
+  .admin-console-shell .notification-head-row {
+    display: grid;
+    justify-items: start;
+    gap: 5px;
+  }
+
+  .admin-console-shell .feedback-mobile-card,
+  .admin-console-shell .notification-item {
+    padding: 12px;
+  }
+
+  .admin-console-shell .request-actions {
+    width: 100%;
+  }
+
+  .admin-console-shell .request-actions > button,
+  .admin-console-shell .request-actions > a {
+    flex: 1 1 130px;
+    justify-content: center;
+  }
 }

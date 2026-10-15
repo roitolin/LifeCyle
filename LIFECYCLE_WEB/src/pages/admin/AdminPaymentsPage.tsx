@@ -8,7 +8,6 @@ import { addMonths, SUBSCRIPTION_MONTHS } from '@/utils/subscription'
 import { buildCsv, csvTimestamp, dateStamp, downloadCsv } from '@/utils/exportCsv'
 import { createNotification } from '@/utils/supabaseNotifications'
 import AdminShopPaymentReceipt from './AdminShopPaymentReceipt'
-import AdminRefundsPanel from './AdminRefundsPanel'
 import AdminCommissionsPanel from './AdminCommissionsPanel'
 import './AdminPaymentsPage.css'
 
@@ -70,10 +69,9 @@ export default function AdminPaymentsPage() {
   const [selectedPayment, setSelectedPayment] = useState<PaymentSubmission | null>(null)
   const [rejectingPayment, setRejectingPayment] = useState<PaymentSubmission | null>(null)
   const [rejectionReason, setRejectionReason] = useState('')
-  const [activeTab, setActiveTab] = useState<'submissions' | 'commissions' | 'refunds' | 'setup'>(() => {
+  const [activeTab, setActiveTab] = useState<'submissions' | 'commissions' | 'setup'>(() => {
     const tabParam = new URLSearchParams(window.location.search).get('tab')
     if (tabParam === 'commissions') return 'commissions'
-    if (tabParam === 'refunds') return 'refunds'
     if (tabParam === 'setup') return 'setup'
     return 'submissions'
   })
@@ -360,15 +358,6 @@ export default function AdminPaymentsPage() {
         <button
           type="button"
           role="tab"
-          aria-selected={activeTab === 'refunds'}
-          className={activeTab === 'refunds' ? 'payments-tab is-active' : 'payments-tab'}
-          onClick={() => setActiveTab('refunds')}
-        >
-          Refunds
-        </button>
-        <button
-          type="button"
-          role="tab"
           aria-selected={activeTab === 'setup'}
           className={activeTab === 'setup' ? 'payments-tab is-active' : 'payments-tab'}
           onClick={() => setActiveTab('setup')}
@@ -385,7 +374,6 @@ export default function AdminPaymentsPage() {
       </div>
 
       {activeTab === 'commissions' ? <AdminCommissionsPanel /> : null}
-      {activeTab === 'refunds' ? <AdminRefundsPanel /> : null}
 
       {activeTab === 'setup' ? (
         <>

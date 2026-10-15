@@ -222,9 +222,26 @@
 }
 
 @media (max-width: 480px) {
+  .sp-page > .sp-container {
+    padding: 14px 12px 40px;
+  }
+
+  .fsp-hero {
+    padding: 20px 16px;
+  }
+
+  .fsp-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .fsp-card-name,
   .fsp-card-meta {
     white-space: normal;
+  }
+
+  .fsp-card-img {
+    height: auto;
+    aspect-ratio: 16 / 9;
   }
 }
 

@@ -59,8 +59,6 @@ const REQUEST_NOTIFICATION_TYPES = [
   "funeral_payment_verified",
   "funeral_payment_rejected",
   "funeral_request_completed",
-  "funeral_refund_requested",
-  "funeral_refund_updated",
   "death_certificate_requested",
   "death_certificate_ready",
   "shop_payout_succeeded",
@@ -74,14 +72,14 @@ type NotificationFilter = "all" | "requests" | "payments" | "updates";
 
 const getNotificationCategory = (type: string): Exclude<NotificationFilter, "all"> => {
   const normalized = String(type || "").toLowerCase();
-  if (normalized.includes("payment") || normalized.includes("refund") || normalized.includes("payout") || normalized.includes("commission")) return "payments";
+  if (normalized.includes("payment") || normalized.includes("payout") || normalized.includes("commission")) return "payments";
   if (normalized.includes("request") || normalized.includes("booking") || normalized.includes("order")) return "requests";
   return "updates";
 };
 
 const getNotificationVisual = (type: string) => {
   const normalized = String(type || "").toLowerCase();
-  if (normalized.includes("payout_failed") || normalized.includes("payment_rejected") || normalized.includes("refund")) {
+  if (normalized.includes("payout_failed") || normalized.includes("payment_rejected")) {
     return { icon: "return-down-back-outline" as const, color: "#9a5148", background: "#fbefed" };
   }
   if (normalized.includes("payment") || normalized.includes("payout") || normalized.includes("commission")) {

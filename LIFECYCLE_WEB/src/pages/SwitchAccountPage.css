@@ -1,0 +1,146 @@
+.switch-account-layout {
+  width: min(620px, 100%);
+  grid-template-columns: 1fr;
+}
+
+.switch-account-card { gap: 20px; }
+.switch-account-list { display: grid; gap: 10px; }
+
+.switch-account-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  padding: 10px 12px;
+  border: 1px solid #dce4e0;
+  border-radius: 16px;
+  background: #f8faf9;
+}
+
+.switch-account-main {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.switch-account-main:disabled { cursor: default; }
+
+.switch-account-avatar {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  color: #fff;
+  background: #315f50;
+  font-weight: 800;
+}
+
+.switch-account-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.switch-account-copy {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 3px;
+}
+
+.switch-account-copy strong,
+.switch-account-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.switch-account-copy strong { color: #22312d; }
+.switch-account-copy small { color: #64748b; }
+
+.switch-account-current {
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: #315f50;
+  background: #e7f0eb;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.switch-account-remove {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: #b4232c;
+  background: #fff0f0;
+  cursor: pointer;
+}
+
+.switch-account-remove svg { width: 18px; height: 18px; }
+.switch-account-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.switch-account-actions button { min-height: 44px; flex: 1 1 190px; }
+
+.switch-account-note {
+  color: #64748b;
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.switch-account-empty {
+  padding: 24px;
+  border: 1px dashed #cbd5d1;
+  border-radius: 16px;
+  color: #64748b;
+  text-align: center;
+}
+
+@media (max-width: 480px) {
+  .switch-account-layout,
+  .switch-account-card,
+  .switch-account-row,
+  .switch-account-main {
+    min-width: 0;
+  }
+
+  .switch-account-card {
+    gap: 16px;
+  }
+
+  .switch-account-row {
+    gap: 10px;
+    padding: 10px;
+    border-radius: 12px;
+  }
+
+  .switch-account-current {
+    padding: 4px 6px;
+    font-size: 0.62rem;
+  }
+
+  .switch-account-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .switch-account-actions button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 360px) {
+  .switch-account-current {
+    display: none;
+  }
+}

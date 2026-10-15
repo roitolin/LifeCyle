@@ -3465,3 +3465,44 @@
     margin-left: auto;
   }
 }
+
+@media (max-width: 480px) {
+  .requests-card,
+  .requests-card-header,
+  .requests-card-meta,
+  .requests-card-footer,
+  .requests-card-copy,
+  .requests-meta-item {
+    min-width: 0;
+  }
+
+  .requests-card-meta {
+    grid-template-columns: 1fr;
+    row-gap: 0;
+  }
+
+  .requests-meta-item,
+  .requests-meta-item:first-child,
+  .requests-meta-item:nth-child(odd) {
+    padding: 11px 0;
+    border-left: 0;
+    border-top: 1px solid #edf1f5;
+  }
+
+  .requests-card-footer {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .requests-card-actions {
+    width: 100%;
+    margin-left: 0;
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .requests-card-footer .requests-card-pay-btn,
+  .requests-confirm-btn {
+    width: 100%;
+  }
+}

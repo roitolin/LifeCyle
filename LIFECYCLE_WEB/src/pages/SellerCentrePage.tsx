@@ -141,6 +141,13 @@ type ServiceRequest = {
   paymentRejectionReason?: string | null
   paymentSubmittedAt?: string | null
   paymentVerifiedAt?: string | null
+  paymentProvider?: string | null
+  providerPaymentId?: string | null
+  providerPaymentMethod?: string | null
+  providerReferenceId?: string | null
+  providerStatus?: string | null
+  providerPaymentCompletedAt?: string | null
+  payoutChannelCode?: string | null
   completionProofImageUrl?: string | null
   shopMarkedCompletedAt?: string | null
   completionProofSeenAt?: string | null
@@ -261,6 +268,12 @@ type ShopPayoutAccount = {
 
 type FamilyPaymentFilter = 'all' | 'review' | 'verified'
 type FamilyPaymentIconName = 'wallet' | 'clock' | 'check' | 'receipt' | 'person' | 'key' | 'image' | 'alert' | 'chevron'
+type FamilyPaymentReceipt = {
+  available: boolean
+  label: string
+  icon: FamilyPaymentIconName
+  source: 'uploaded' | 'provider' | 'missing'
+}
 type SellerCentreTab = 'dashboard' | 'products' | 'packages' | 'orders' | 'customers' | 'calendar' | 'reports' | 'payments' | 'payout_accounts' | 'payout_account_setup' | 'admin_payments' | 'settings' | 'registered_information' | 'product_editor'
 type ScheduleFilter = 'all' | 'requests' | 'shop'
 
@@ -362,6 +375,30 @@ function getFamilyPaymentStatus(request: ServiceRequest) {
     return { label: 'Verified', icon: 'check' as FamilyPaymentIconName, className: 'is-verified' }
   }
   return { label: 'Submitted', icon: 'receipt' as FamilyPaymentIconName, className: 'is-submitted' }
+}
+
+function getFamilyPaymentReceipt(request: ServiceRequest): FamilyPaymentReceipt {
+  if (request.paymentProofImageUrl) {
+    return { available: true, label: 'Uploaded receipt', icon: 'image', source: 'uploaded' }
+  }
+
+  const status = String(request.status || '').toLowerCase()
+  const provider = String(request.paymentProvider || '').toLowerCase()
+  const isProviderPayment = ['xendit', 'paymongo'].includes(provider)
+    || Boolean(request.providerPaymentId || request.providerPaymentCompletedAt)
+  const isSettled = Boolean(request.paymentVerifiedAt || request.providerPaymentCompletedAt)
+    || ['payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(status)
+
+  if (isProviderPayment && isSettled) {
+    return {
+      available: true,
+      label: 'Digital receipt available',
+      icon: 'receipt',
+      source: 'provider',
+    }
+  }
+
+  return { available: false, label: 'Receipt missing', icon: 'alert', source: 'missing' }
 }
 
 function formatPeso(value: number | string | null | undefined): string {
@@ -2316,7 +2353,7 @@ export default function SellerCentrePage() {
             </svg>
           </div>
           <h2 className="sc-access-denied-title">Access Denied</h2>
-          <p className="sc-access-denied-desc">You need to be logged in as a funeral shop owner to access the Seller Centre.</p>
+          <p className="sc-access-denied-desc">You need to be logged in as a funeral shop owner to access the Shop Center.</p>
           <div className="sc-access-denied-actions">
             <button className="sc-access-denied-back" onClick={() => navigate(-1)}>Go Back</button>
             <Link to="/login" className="sc-access-denied-login">Login to Continue</Link>
@@ -2654,36 +2691,6 @@ export default function SellerCentrePage() {
                       </div>
                     </div>
 
-                    <div className="sc-dashboard-hero-actions">
-                      {isShopOnline && (
-                        <button
-                          type="button"
-                          className="sc-dash-btn sc-dash-btn-secondary"
-                          onClick={() => navigate(`/shop/${shop.id}`)}
-                          title="Open public buyer storefront"
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                          View Storefront
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        className="sc-dash-btn sc-dash-btn-primary"
-                        onClick={() => void openProductEditor(null)}
-                      >
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                        Add Product
-                      </button>
-                      <button
-                        type="button"
-                        className="sc-dash-btn sc-dash-btn-ghost"
-                        onClick={() => setActiveTab('settings')}
-                        title="Edit shop profile and settings"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                        Settings
-                      </button>
-                    </div>
                   </section>
 
                   {/* Shop summary */}
@@ -3758,7 +3765,7 @@ export default function SellerCentrePage() {
               {activeTab === 'payments' && (
                 <div className="sc-family-payments-layout">
                   <header className="sc-family-payments-header">
-                    <div><h2>Family Payments</h2><p>Review receipts submitted for arrangement cases.</p></div>
+                    <div><h2>Family Payments</h2><p>Review customer payments for arrangement cases.</p></div>
                     <button type="button" className="sc-family-payments-refresh" onClick={() => void loadData()} disabled={loading}>
                       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/></svg>
                       Refresh
@@ -3767,8 +3774,8 @@ export default function SellerCentrePage() {
 
                   <section className="sc-family-payments-summary" aria-label="Family payment summary">
                     <div className="sc-family-payments-summary-icon"><FamilyPaymentIcon name="wallet" /></div>
-                    <h3>Review family receipts</h3>
-                    <p>Check the sender, account, reference number, and proof before verifying a payment.</p>
+                    <h3>Family payment records</h3>
+                    <p>Review uploaded receipts and provider-confirmed online payments.</p>
                     <div className="sc-family-payments-stats">
                       {[
                         { value: financeSummary.awaitingReview, label: 'Need review' },
@@ -3796,12 +3803,13 @@ export default function SellerCentrePage() {
                     <section className="sc-family-payments-empty">
                       <div><FamilyPaymentIcon name="receipt" /></div>
                       <h3>{familyPaymentFilter === 'all' ? 'No family payments yet' : 'Nothing in this filter'}</h3>
-                      <p>Submitted payment receipts will appear here for review.</p>
+                      <p>Customer payment records will appear here.</p>
                     </section>
                   ) : (
                     <div className="sc-family-payments-list">
                       {visibleFamilyPayments.map(request => {
                         const statusMeta = getFamilyPaymentStatus(request)
+                        const paymentReceipt = getFamilyPaymentReceipt(request)
                         const needsReview = String(request.status || '').toLowerCase() === 'payment_submitted'
                         const sender = request.paymentPayerName || request.familyCoordinatorName || request.requesterName || 'Unknown sender'
                         return (
@@ -3817,7 +3825,7 @@ export default function SellerCentrePage() {
                               {request.paymentReferenceNumber ? <span><FamilyPaymentIcon name="key" />Reference {request.paymentReferenceNumber}</span> : null}
                             </div>
                             <footer className="sc-family-payment-footer">
-                              <span className={request.paymentProofImageUrl ? 'has-proof' : 'missing-proof'}><FamilyPaymentIcon name={request.paymentProofImageUrl ? 'image' : 'alert'} />{request.paymentProofImageUrl ? 'Receipt available' : 'Receipt missing'}</span>
+                              <span className={paymentReceipt.available ? 'has-proof' : 'missing-proof'}><FamilyPaymentIcon name={paymentReceipt.icon} />{paymentReceipt.label}</span>
                               <button type="button" onClick={() => openRequestDetail(request)}>View Receipt<FamilyPaymentIcon name="chevron" /></button>
                             </footer>
                           </article>
@@ -4795,10 +4803,17 @@ export default function SellerCentrePage() {
       {viewRequest && (() => {
         const r = viewRequest
         const status = String(r.status || '').toLowerCase()
+        const paymentReceipt = getFamilyPaymentReceipt(r)
+        const isProviderReceipt = paymentReceipt.source === 'provider'
+        const providerLabel = String(r.paymentProvider || '').toLowerCase() === 'paymongo' ? 'PayMongo' : 'Xendit'
+        const rawProviderMethod = r.providerPaymentMethod || r.payoutChannelCode || ''
+        const providerMethodLabel = r.payoutChannelCode
+          ? getPayoutChannelLabel(r.payoutChannelCode)
+          : String(rawProviderMethod).replace(/^PH_/, '').replace(/_/g, ' ')
         const statusLabel = String(r.status || 'pending').replace(/_/g, ' ').replace(/\\b\\w/g, letter => letter.toUpperCase())
         const requestTypeLabel = r.requestType?.replace(/_/g, ' ').replace(/\\b\\w/g, letter => letter.toUpperCase()) || 'Standard service'
         const showPayment = ['awaiting_payment', 'payment_submitted', 'payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(status) && (
-          r.paymentAmount != null || r.paymentPayerName || r.paymentGcashName || r.paymentGcashNumber || r.paymentReferenceNumber || r.paymentProofImageUrl || r.paymentSubmittedAt
+          r.paymentAmount != null || r.paymentPayerName || r.paymentGcashName || r.paymentGcashNumber || r.paymentReferenceNumber || r.paymentProofImageUrl || r.paymentSubmittedAt || isProviderReceipt
         )
         const hasSchedule = Boolean(
           r.wakeAddress || r.churchName || r.cemeteryName
@@ -4994,12 +5009,23 @@ export default function SellerCentrePage() {
                     ) : null}
 
                     <div className="sc-pd-details">
-                      <div className="sc-pd-row"><span>Sender Name</span><strong>{r.paymentPayerName || '—'}</strong></div>
-                      <div className="sc-pd-row"><span>GCash Name</span><strong>{r.paymentGcashName || '—'}</strong></div>
-                      <div className="sc-pd-row"><span>GCash Number</span><strong>{r.paymentGcashNumber || '—'}</strong></div>
-                      <div className="sc-pd-row"><span>Reference Number</span><strong>{r.paymentReferenceNumber || '—'}</strong></div>
-                      <div className="sc-pd-row"><span>Submitted At</span><strong>{formatTimestamp(r.paymentSubmittedAt)}</strong></div>
-                      {r.paymentVerifiedAt && <div className="sc-pd-row"><span>Verified At</span><strong>{formatTimestamp(r.paymentVerifiedAt)}</strong></div>}
+                      {isProviderReceipt ? (
+                        <>
+                          <div className="sc-pd-row"><span>Payment Method</span><strong>{providerLabel}{providerMethodLabel ? ` · ${providerMethodLabel}` : ''}</strong></div>
+                          <div className="sc-pd-row"><span>Provider Reference</span><strong>{r.providerPaymentId || r.providerReferenceId || r.id}</strong></div>
+                          <div className="sc-pd-row"><span>Paid At</span><strong>{formatTimestamp(r.providerPaymentCompletedAt || r.paymentVerifiedAt || r.paymentSubmittedAt)}</strong></div>
+                          <div className="sc-pd-row"><span>Verification</span><strong>Confirmed automatically</strong></div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="sc-pd-row"><span>Sender Name</span><strong>{r.paymentPayerName || '—'}</strong></div>
+                          <div className="sc-pd-row"><span>GCash Name</span><strong>{r.paymentGcashName || '—'}</strong></div>
+                          <div className="sc-pd-row"><span>GCash Number</span><strong>{r.paymentGcashNumber || '—'}</strong></div>
+                          <div className="sc-pd-row"><span>Reference Number</span><strong>{r.paymentReferenceNumber || '—'}</strong></div>
+                          <div className="sc-pd-row"><span>Submitted At</span><strong>{formatTimestamp(r.paymentSubmittedAt)}</strong></div>
+                          {r.paymentVerifiedAt && <div className="sc-pd-row"><span>Verified At</span><strong>{formatTimestamp(r.paymentVerifiedAt)}</strong></div>}
+                        </>
+                      )}
                     </div>
 
                     {r.paymentProofImageUrl && (
@@ -5014,6 +5040,13 @@ export default function SellerCentrePage() {
                         >
                           <img src={r.paymentProofImageUrl} alt="Payment proof" />
                         </button>
+                      </div>
+                    )}
+
+                    {isProviderReceipt && (
+                      <div className="sc-pd-digital-receipt">
+                        <FamilyPaymentIcon name="check" />
+                        <div><strong>Provider-confirmed payment</strong><span>{providerLabel} verified this transaction. No receipt image upload is required.</span></div>
                       </div>
                     )}
 

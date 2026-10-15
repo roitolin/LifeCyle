@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import type { User } from '@supabase/supabase-js'
 import BrandLogo from '@/components/BrandLogo'
 import NotificationDropdown from '@/components/NotificationDropdown'
+import AnnouncementDropdown from '@/components/AnnouncementDropdown'
 import LogoutLink from '@/components/LogoutLink'
 import { supabase } from '@/lib/supabase'
 import { loadFuneralCart } from '@/utils/funeralCart'
@@ -108,9 +109,10 @@ export default function FuneralShopsPage() {
       <div className="sp-topbar">
         <div className="sp-topbar-inner">
           <div className="sp-topbar-left">
-            <Link to="/seller">Seller Centre</Link>
+            <Link to="/seller">Shop Center</Link>
           </div>
           <div className="sp-topbar-right">
+            <AnnouncementDropdown />
             <NotificationDropdown />
             <Link to="/user/help">Help Centre</Link>
             <span className="sp-divider">|</span>

@@ -425,7 +425,6 @@
   background: #e8f2ed;
 }
 .notification-item-icon { width: 44px; height: 44px; margin-top: 0; }
-.notification-item-icon.visual-refund { background: #fbefed; color: #9a5148; }
 .notification-item-icon.visual-payment { background: #f8f1e5; color: #85632e; }
 .notification-item-icon.visual-success { background: #eaf4ef; color: #2f6b55; }
 .notification-item-icon.visual-request { background: #f0eff7; color: #5d5b82; }
@@ -627,6 +626,28 @@
   .notification-select-all { padding: 0 11px; }
   .notification-manage-options > button { grid-template-columns: 40px 1fr auto; }
   .manage-option-icon { width: 40px; height: 40px; }
+}
+
+@media (max-width: 400px) {
+  .notification-item {
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .notification-item-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .notification-toolbar-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .notification-toolbar-actions button,
+  .notification-selection-bar button {
+    min-width: 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

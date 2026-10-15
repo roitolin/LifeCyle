@@ -16,8 +16,8 @@ const sections = [
     body: 'The funeral shop is responsible for confirming schedules, availability, collection or delivery arrangements, and any other fulfilment details. Check My Service Requests for status updates and use the provided contact details when coordination is needed.',
   },
   {
-    title: '4. Cancellation and refunds',
-    body: 'Cancellation and refund eligibility depends on the request status, work already completed, shop terms, and payment review. Submit a request through the available service-request controls or Contact Support. Do not assume a refund is approved until its status is confirmed.',
+    title: '4. Cancellations',
+    body: 'Cancellation availability depends on the request status and work already completed by the funeral shop. Contact the shop or LifeCycle Support as soon as possible if plans change.',
   },
   {
     title: '5. Shop information',

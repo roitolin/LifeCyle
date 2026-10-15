@@ -5,6 +5,8 @@ import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import { logWebAdminActivity } from '@/utils/adminActivity'
 import { createNotification } from '@/utils/supabaseNotifications'
 import { buildCsv, csvTimestamp, dateStamp, downloadCsv } from '@/utils/exportCsv'
+import './AdminPaymentsPage.css'
+import './AdminOperations.css'
 import './AdminPayoutAccountsPage.css'
 
 export type PayoutChannel = {
@@ -58,9 +60,8 @@ export default function AdminPayoutAccountsPage() {
   const [shops, setShops] = useState<ShopPayoutRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [savingId, setSavingId] = useState<string | null>(null)
-  const [activeFilter, setActiveFilter] = useState<FilterTab>('pending')
+  const [activeFilter, setActiveFilter] = useState<FilterTab>('all')
   const [searchQuery, setSearchQuery] = useState('')
-  const [copiedId, setCopiedId] = useState<string | null>(null)
 
   // Modal State
   const [modalShop, setModalShop] = useState<ShopPayoutRecord | null>(null)
@@ -167,7 +168,7 @@ export default function AdminPayoutAccountsPage() {
     setModalShop(shop)
     setFormChannel(shop.payoutChannelCode || 'PH_GCASH')
     setFormName(shop.payoutAccountName || '')
-    setFormNumber(shop.payoutAccountNumber || '')
+    setFormNumber(shop.payoutAccountNumber || 'Not provided')
   }
 
   const handleCloseModal = () => {
@@ -175,14 +176,6 @@ export default function AdminPayoutAccountsPage() {
     setIsVerifying(false)
   }
 
-  // Copy account number
-  const handleCopyNumber = (id: string, text: string) => {
-    navigator.clipboard.writeText(text)
-    setCopiedId(id)
-    setTimeout(() => {
-      setCopiedId(null)
-    }, 2000)
-  }
 
   // Verify / Save Payout
   const handleSaveAndVerify = async () => {
@@ -362,444 +355,80 @@ export default function AdminPayoutAccountsPage() {
   }
 
   return (
-    <div className="payout-page-container">
-      {/* Header */}
-      <header className="payout-header">
-        <div className="payout-header-main">
+    <section className="panel payments-panel payout-page-container">
+      <header className="payments-header">
+        <div className="payments-header-text">
           <h2>Shop Payout Accounts</h2>
-          <p className="payout-header-sub">
-            Verify and manage GCash, Maya, and bank payout details for partner funeral shops.
-            Verified accounts receive direct payouts for completed customer service orders.
-          </p>
+          <p className="panel-sub">Review and verify the accounts partner shops use for their 70% order payout.</p>
         </div>
         <div className="payout-header-actions">
-          <button type="button" className="operations-secondary-btn" onClick={loadShops} disabled={loading}>
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6 }}>
-              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
-            </svg>
-            Refresh
+          <button type="button" className="ghost-btn" onClick={loadShops} disabled={loading}>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v6h-6" /></svg>
+            {loading ? 'Refreshing...' : 'Refresh'}
           </button>
-          <button type="button" className="operations-secondary-btn" onClick={handleExportCsv} disabled={shops.length === 0}>
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6 }}>
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-            </svg>
-            Export CSV
-          </button>
+          <button type="button" className="ghost-btn admin-export-btn" onClick={handleExportCsv} disabled={filteredShops.length === 0}>Export CSV</button>
         </div>
       </header>
 
-      {/* Metrics Summary */}
-      <section className="payout-metrics" aria-label="Payout accounts statistics">
-        <article className="payout-metric-card needs-review">
-          <div className="payout-metric-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="8" x2="12" y2="12" />
-              <line x1="12" y1="16" x2="12.01" y2="16" />
-            </svg>
-          </div>
-          <div className="payout-metric-content">
-            <span className="payout-metric-label">Needs Verification</span>
-            <strong className="payout-metric-value">{pendingCount}</strong>
-          </div>
-        </article>
+      <div className="payments-submission-summary four-up" aria-label="Payout account summary">
+        <article><span>Needs Review</span><strong>{pendingCount}</strong></article>
+        <article><span>Verified</span><strong>{verifiedCount}</strong></article>
+        <article><span>Not Submitted</span><strong>{missingCount}</strong></article>
+        <article><span>Partner Shops</span><strong>{totalCount}</strong></article>
+      </div>
 
-        <article className="payout-metric-card verified">
-          <div className="payout-metric-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-              <polyline points="22 4 12 14.01 9 11.01" />
-            </svg>
-          </div>
-          <div className="payout-metric-content">
-            <span className="payout-metric-label">Verified Accounts</span>
-            <strong className="payout-metric-value">{verifiedCount}</strong>
-          </div>
-        </article>
-
-        <article className="payout-metric-card missing">
-          <div className="payout-metric-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="2" y="5" width="20" height="14" rx="2" />
-              <line x1="2" y1="10" x2="22" y2="10" />
-            </svg>
-          </div>
-          <div className="payout-metric-content">
-            <span className="payout-metric-label">Not Submitted</span>
-            <strong className="payout-metric-value">{missingCount}</strong>
-          </div>
-        </article>
-
-        <article className="payout-metric-card total">
-          <div className="payout-metric-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-              <polyline points="9 22 9 12 15 12 15 22" />
-            </svg>
-          </div>
-          <div className="payout-metric-content">
-            <span className="payout-metric-label">Total Partner Shops</span>
-            <strong className="payout-metric-value">{totalCount}</strong>
-          </div>
-        </article>
-      </section>
-
-      {/* Toolbar & Filter Tabs */}
-      <section className="payout-toolbar">
-        <div className="payout-tabs">
-          <button
-            type="button"
-            className={`payout-tab-btn ${activeFilter === 'pending' ? 'active' : ''}`}
-            onClick={() => setActiveFilter('pending')}
-          >
-            Needs Verification
-            {pendingCount > 0 && <span className="payout-tab-badge urgent">{pendingCount}</span>}
-          </button>
-          <button
-            type="button"
-            className={`payout-tab-btn ${activeFilter === 'verified' ? 'active' : ''}`}
-            onClick={() => setActiveFilter('verified')}
-          >
-            Verified
-            <span className="payout-tab-badge">{verifiedCount}</span>
-          </button>
-          <button
-            type="button"
-            className={`payout-tab-btn ${activeFilter === 'missing' ? 'active' : ''}`}
-            onClick={() => setActiveFilter('missing')}
-          >
-            Not Submitted
-            <span className="payout-tab-badge">{missingCount}</span>
-          </button>
-          <button
-            type="button"
-            className={`payout-tab-btn ${activeFilter === 'all' ? 'active' : ''}`}
-            onClick={() => setActiveFilter('all')}
-          >
-            All Shops
-            <span className="payout-tab-badge">{totalCount}</span>
-          </button>
+      <div className="operations-toolbar payout-toolbar">
+        <div className="operations-filter-tabs" role="tablist" aria-label="Payout account status">
+          <button type="button" className={activeFilter === 'all' ? 'is-active' : ''} onClick={() => setActiveFilter('all')}>All <span>{totalCount}</span></button>
+          <button type="button" className={activeFilter === 'pending' ? 'is-active' : ''} onClick={() => setActiveFilter('pending')}>Needs Review <span>{pendingCount}</span></button>
+          <button type="button" className={activeFilter === 'verified' ? 'is-active' : ''} onClick={() => setActiveFilter('verified')}>Verified <span>{verifiedCount}</span></button>
+          <button type="button" className={activeFilter === 'missing' ? 'is-active' : ''} onClick={() => setActiveFilter('missing')}>Not Submitted <span>{missingCount}</span></button>
         </div>
+        <label className="operations-search"><span className="sr-only">Search payout accounts</span><input type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search shop or account" /></label>
+      </div>
 
-        <div className="payout-search-box">
-          <span className="payout-search-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-          </span>
-          <input
-            type="search"
-            placeholder="Search by shop, account, number…"
-            className="payout-search-input"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-      </section>
+      {loading ? <p className="panel-sub payments-loading">Loading payout accounts...</p> : null}
+      {!loading && filteredShops.length === 0 ? <div className="payout-empty"><h3>No payout accounts found</h3><p>{activeFilter === 'pending' ? 'Every submitted payout account has been reviewed.' : 'No shops match this view.'}</p></div> : null}
 
-      {/* Table Card */}
-      <div className="payout-table-card">
-        {loading ? (
-          <div className="payout-empty-state">
-            <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="2" className="rotating">
-              <circle cx="12" cy="12" r="10" />
-              <path d="M12 2a10 10 0 0 1 10 10" />
-            </svg>
-            <h4>Loading Payout Accounts…</h4>
-            <p>Fetching partner shops and direct payout channels.</p>
-          </div>
-        ) : filteredShops.length === 0 ? (
-          <div className="payout-empty-state">
-            <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <rect x="2" y="5" width="20" height="14" rx="2" />
-              <line x1="2" y1="10" x2="22" y2="10" />
-            </svg>
-            <h4>No Payout Accounts Found</h4>
-            <p>
-              {activeFilter === 'pending'
-                ? 'No partner shops are currently awaiting payout account verification.'
-                : 'No shop records matched your current filter criteria.'}
-            </p>
-          </div>
-        ) : (
-          <table className="payout-table">
-            <thead>
-              <tr>
-                <th>Funeral Shop</th>
-                <th>Payout Channel</th>
-                <th>Account Name</th>
-                <th>Account Number</th>
-                <th>Verification Status</th>
-                <th style={{ textAlign: 'right' }}>Actions</th>
-              </tr>
-            </thead>
+      {!loading && filteredShops.length > 0 ? (
+        <div className="table-wrap">
+          <table className="request-table">
+            <thead><tr><th>Funeral Shop</th><th>Payout Account</th><th>Account Number</th><th>Status</th><th style={{ textAlign: 'right' }}>Actions</th></tr></thead>
             <tbody>
               {filteredShops.map((shop) => {
                 const channel = getChannelInfo(shop.payoutChannelCode)
-                const isVerified = shop.payoutVerifiedByAdmin
-                const hasChannel = Boolean(shop.payoutChannelCode)
-
+                const hasAccount = Boolean(shop.payoutChannelCode)
                 return (
                   <tr key={shop.id}>
-                    <td>
-                      <div className="payout-shop-cell">
-                        <div className="payout-shop-avatar">
-                          {shop.shopImageUrl ? (
-                            <img src={shop.shopImageUrl} alt={shop.shopName} />
-                          ) : (
-                            <span>{shop.shopName.slice(0, 2).toUpperCase()}</span>
-                          )}
-                        </div>
-                        <div className="payout-shop-info">
-                          <span className="payout-shop-name">{shop.shopName}</span>
-                          <span className="payout-shop-owner">{shop.ownerEmail || shop.ownerFullName || 'No owner email'}</span>
-                        </div>
-                      </div>
-                    </td>
-
-                    <td>
-                      {channel ? (
-                        <span className={`payout-channel-pill ${channel.type}`}>
-                          {channel.label}
-                        </span>
-                      ) : (
-                        <span className="payout-channel-pill not-set">Not Configured</span>
-                      )}
-                    </td>
-
-                    <td>
-                      {shop.payoutAccountName ? (
-                        <strong style={{ color: '#1e293b' }}>{shop.payoutAccountName}</strong>
-                      ) : (
-                        <span style={{ color: '#94a3b8' }}>—</span>
-                      )}
-                    </td>
-
-                    <td>
-                      {shop.payoutAccountNumber ? (
-                        <div className="payout-acc-number">
-                          <span>{shop.payoutAccountNumber}</span>
-                          <button
-                            type="button"
-                            className="payout-copy-btn"
-                            title="Copy account number"
-                            onClick={() => handleCopyNumber(shop.id, shop.payoutAccountNumber!)}
-                          >
-                            {copiedId === shop.id ? (
-                              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#16a34a" strokeWidth="2.5">
-                                <polyline points="20 6 9 17 4 12" />
-                              </svg>
-                            ) : (
-                              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2">
-                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                              </svg>
-                            )}
-                          </button>
-                        </div>
-                      ) : (
-                        <span style={{ color: '#94a3b8' }}>—</span>
-                      )}
-                    </td>
-
-                    <td>
-                      {isVerified ? (
-                        <div>
-                          <span className="payout-status-badge verified">
-                            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5">
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                            Verified
-                          </span>
-                          {shop.payoutVerifiedAt && (
-                            <span className="payout-status-date">
-                              {new Date(shop.payoutVerifiedAt).toLocaleDateString([], {
-                                month: 'short',
-                                day: 'numeric',
-                                year: 'numeric',
-                              })}
-                            </span>
-                          )}
-                        </div>
-                      ) : hasChannel ? (
-                        <span className="payout-status-badge pending">
-                          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5">
-                            <circle cx="12" cy="12" r="10" />
-                            <polyline points="12 6 12 12 16 14" />
-                          </svg>
-                          Needs Review
-                        </span>
-                      ) : (
-                        <span className="payout-status-badge unsubmitted">Not Set</span>
-                      )}
-                    </td>
-
-                    <td style={{ textAlign: 'right' }}>
-                      <div className="payout-btn-group" style={{ justifyContent: 'flex-end' }}>
-                        {!isVerified && hasChannel ? (
-                          <button
-                            type="button"
-                            className="payout-btn verify"
-                            onClick={() => handleOpenReview(shop)}
-                            disabled={savingId === shop.id}
-                          >
-                            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5">
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                            Verify Account
-                          </button>
-                        ) : isVerified ? (
-                          <>
-                            <button
-                              type="button"
-                              className="payout-btn edit"
-                              onClick={() => handleOpenReview(shop)}
-                              disabled={savingId === shop.id}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              className="payout-btn unverify"
-                              onClick={() => handleUnverify(shop)}
-                              disabled={savingId === shop.id}
-                            >
-                              Revoke
-                            </button>
-                          </>
-                        ) : (
-                          <button
-                            type="button"
-                            className="payout-btn edit"
-                            onClick={() => handleOpenReview(shop)}
-                            disabled={savingId === shop.id}
-                          >
-                            Configure
-                          </button>
-                        )}
-                      </div>
-                    </td>
+                    <td><div className="payout-shop-cell"><div className="payout-shop-avatar">{shop.shopImageUrl ? <img src={shop.shopImageUrl} alt="" /> : <span>{shop.shopName.slice(0, 2).toUpperCase()}</span>}</div><div><span className="payout-primary">{shop.shopName}</span><span className="payout-secondary">{shop.ownerEmail || shop.ownerFullName || 'Owner details unavailable'}</span></div></div></td>
+                    <td>{channel ? <div className="payout-account-cell"><span className={`payout-channel-mark ${channel.type}`}>{channel.shortName.slice(0, 2).toUpperCase()}</span><div><span className="payout-primary">{channel.shortName}</span><span className="payout-secondary">{shop.payoutAccountName || 'Account name not provided'}</span></div></div> : <span className="row-muted">Not submitted</span>}</td>
+                    <td><span className="payout-account-number">{shop.payoutAccountNumber || 'Not provided'}</span></td>
+                    <td>{shop.payoutVerifiedByAdmin ? <div><span className="payout-status verified">Verified</span>{shop.payoutVerifiedAt ? <div className="payout-verified-date">{new Date(shop.payoutVerifiedAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}</div> : null}</div> : hasAccount ? <span className="payout-status pending">Needs review</span> : <span className="payout-status">Not submitted</span>}</td>
+                    <td><div className="payout-row-actions"><button type="button" className="ghost-btn table-action" onClick={() => handleOpenReview(shop)} disabled={savingId === shop.id}>{shop.payoutVerifiedByAdmin ? 'Edit' : hasAccount ? 'Review' : 'Configure'}</button>{shop.payoutVerifiedByAdmin ? <button type="button" className="ghost-btn table-action payout-danger-action" onClick={() => handleUnverify(shop)} disabled={savingId === shop.id}>Revoke</button> : null}</div></td>
                   </tr>
                 )
               })}
             </tbody>
           </table>
-        )}
-      </div>
+        </div>
+      ) : null}
 
-      {/* Review / Verification Modal */}
-      {modalShop && (
-        <div className="payout-modal-overlay" onClick={handleCloseModal}>
-          <div className="payout-modal-card" onClick={(e) => e.stopPropagation()}>
-            <header className="payout-modal-header">
-              <h3>Verify Payout Account</h3>
-              <button type="button" className="payout-modal-close" onClick={handleCloseModal} aria-label="Close modal">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-            </header>
-
-            <div className="payout-modal-body">
-              <div className="payout-modal-notice">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="12" y1="16" x2="12" y2="12" />
-                  <line x1="12" y1="8" x2="12.01" y2="8" />
-                </svg>
-                <p>
-                  <strong>Payout Rule:</strong> Once verified, <strong>70%</strong> of customer order
-                  payments are routed to this account, and <strong>30%</strong> platform
-                  commission is retained by LifeCycle.
-                </p>
-              </div>
-
-              <div className="payout-modal-field">
-                <label>Funeral Shop</label>
-                <input type="text" value={modalShop.shopName} disabled style={{ background: '#f8fafc', fontWeight: 600 }} />
-                <small>Owner: {modalShop.ownerEmail || modalShop.ownerFullName || 'Unknown'}</small>
-              </div>
-
-              <div className="payout-modal-field">
-                <label htmlFor="payout-channel-select">Payout Channel (E-Wallet or Bank)</label>
-                <select
-                  id="payout-channel-select"
-                  value={formChannel}
-                  onChange={(e) => setFormChannel(e.target.value)}
-                >
-                  <optgroup label="E-Wallets">
-                    {PAYOUT_CHANNELS.filter((c) => c.type === 'wallet').map((c) => (
-                      <option key={c.code} value={c.code}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Supported Commercial Banks">
-                    {PAYOUT_CHANNELS.filter((c) => c.type === 'bank').map((c) => (
-                      <option key={c.code} value={c.code}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-              </div>
-
-              <div className="payout-modal-field">
-                <label htmlFor="payout-name-input">Registered Account Holder Name</label>
-                <input
-                  id="payout-name-input"
-                  type="text"
-                  placeholder="e.g. Juan Dela Cruz"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                />
-                <small>Ensure the spelling strictly matches the official GCash or bank account name.</small>
-              </div>
-
-              <div className="payout-modal-field">
-                <label htmlFor="payout-number-input">Account Number or Mobile Number</label>
-                <input
-                  id="payout-number-input"
-                  type="text"
-                  placeholder="e.g. 09171234567 or 1234567890"
-                  value={formNumber}
-                  onChange={(e) => setFormNumber(e.target.value)}
-                />
-                <small>For GCash and Maya, enter the 11-digit mobile number (e.g., 0917xxxxxxx).</small>
-              </div>
+      {modalShop ? (
+        <div className="payments-modal-overlay" role="presentation" onClick={handleCloseModal}>
+          <div className="payments-modal" role="dialog" aria-modal="true" aria-labelledby="payout-modal-title" onClick={(event) => event.stopPropagation()}>
+            <div className="payments-modal-header"><div className="payments-modal-heading"><h3 id="payout-modal-title">{modalShop.payoutVerifiedByAdmin ? 'Edit Payout Account' : 'Review Payout Account'}</h3><p>Confirm the account details before enabling direct payouts.</p></div><button type="button" className="payments-modal-close" aria-label="Close" onClick={handleCloseModal}>X</button></div>
+            <div className="payments-modal-body payout-modal-form">
+              <div className="payout-modal-summary"><strong>{modalShop.shopName}</strong><span>{modalShop.ownerEmail || modalShop.ownerFullName || 'Owner details unavailable'}</span></div>
+              <div className="payout-modal-field"><label htmlFor="payout-channel-select">Payout channel</label><select id="payout-channel-select" value={formChannel} onChange={(event) => setFormChannel(event.target.value)}><optgroup label="E-wallets">{PAYOUT_CHANNELS.filter((channel) => channel.type === 'wallet').map((channel) => <option key={channel.code} value={channel.code}>{channel.label}</option>)}</optgroup><optgroup label="Banks">{PAYOUT_CHANNELS.filter((channel) => channel.type === 'bank').map((channel) => <option key={channel.code} value={channel.code}>{channel.label}</option>)}</optgroup></select></div>
+              <div className="payout-modal-field"><label htmlFor="payout-name-input">Account holder name</label><input id="payout-name-input" type="text" value={formName} onChange={(event) => setFormName(event.target.value)} placeholder="Name registered on the account" /></div>
+              <div className="payout-modal-field"><label htmlFor="payout-number-input">Account or mobile number</label><input id="payout-number-input" type="text" value={formNumber} onChange={(event) => setFormNumber(event.target.value)} placeholder="Account number or 11-digit mobile number" /><small>Use the mobile number registered with GCash or Maya.</small></div>
             </div>
-
-            <footer className="payout-modal-footer">
-              <button type="button" className="operations-secondary-btn" onClick={handleCloseModal} disabled={isVerifying}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="payout-btn verify"
-                style={{ padding: '8px 18px', fontSize: '12px' }}
-                onClick={handleSaveAndVerify}
-                disabled={isVerifying}
-              >
-                {isVerifying ? (
-                  'Verifying…'
-                ) : (
-                  <>
-                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                    Confirm &amp; Verify Account
-                  </>
-                )}
-              </button>
-            </footer>
+            <div className="payments-modal-footer"><button type="button" className="ghost-btn" onClick={handleCloseModal} disabled={isVerifying}>Cancel</button><button type="button" className="solid-btn" onClick={handleSaveAndVerify} disabled={isVerifying}>{isVerifying ? 'Saving...' : modalShop.payoutVerifiedByAdmin ? 'Save Changes' : 'Verify Account'}</button></div>
           </div>
         </div>
-      )}
-
+      ) : null}
       {alertDialog}
       {confirmDialog}
-    </div>
+    </section>
   )
 }

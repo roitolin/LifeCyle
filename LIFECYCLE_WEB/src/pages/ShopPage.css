@@ -1647,3 +1647,61 @@
     min-height: 52px;
   }
 }
+
+/* Final mobile safeguards for the public storefront. */
+.shop-detail-page,
+.shop-detail-main,
+.shop-detail-overview,
+.shop-detail-summary,
+.shop-detail-profile,
+.shop-detail-identity,
+.shop-detail-products,
+.shop-detail-products-header {
+  min-width: 0;
+}
+
+@media (max-width: 620px) {
+  .shop-detail-page .shop-detail-main {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .shop-detail-page .shop-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .shop-detail-page .shop-product-copy {
+    min-width: 0;
+    padding: 10px;
+  }
+
+  .shop-detail-page .shop-product-copy h3 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    font-size: 13px;
+  }
+
+  .shop-detail-page .shop-detail-tabs {
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+  }
+
+  .shop-detail-page .shop-detail-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .shop-detail-page .shop-detail-tabs a {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .shop-detail-page .shop-detail-facts dt,
+  .shop-detail-page .shop-detail-facts dd {
+    overflow-wrap: anywhere;
+  }
+}

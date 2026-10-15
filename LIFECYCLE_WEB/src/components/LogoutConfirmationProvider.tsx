@@ -8,11 +8,14 @@ import {
   recordWebAccountLoginActivity,
 } from '@/utils/accountActivity'
 
+import { forgetWebRememberedAccount } from '@/utils/webDeviceAccounts'
 export function LogoutConfirmationProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
   const { openConfirm, confirmDialog } = useConfirmDialog()
 
   const logout = useCallback(async () => {
+    const { data } = await supabase.auth.getSession()
+    const accountId = data.session?.user.id || null
     await Promise.allSettled([
       markWebAccountSessionSignedOut(),
       recordWebAccountLoginActivity('logout'),
@@ -20,6 +23,7 @@ export function LogoutConfirmationProvider({ children }: { children: ReactNode }
     const { error } = await supabase.auth.signOut({ scope: 'local' })
     if (error) throw error
     navigate('/funeral', { replace: true })
+    if (accountId) forgetWebRememberedAccount(accountId)
   }, [navigate])
 
   const requestLogout = useCallback(() => {

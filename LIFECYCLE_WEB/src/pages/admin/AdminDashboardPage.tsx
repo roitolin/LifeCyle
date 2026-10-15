@@ -45,11 +45,10 @@ function formatPeso(value: number): string {
   return `₱${new Intl.NumberFormat('en-PH', { maximumFractionDigits: 0 }).format(value)}`
 }
 
-const EMPTY_OPERATION_COUNTS: OperationCounts = { shop: 0, payment: 0, refund: 0, deletion: 0, service: 0 }
+const EMPTY_OPERATION_COUNTS: OperationCounts = { shop: 0, payment: 0, deletion: 0, service: 0 }
 const OPERATION_LABELS: Record<OperationKind, string> = {
   shop: 'Shop application',
   payment: 'Payment verification',
-  refund: 'Refund request',
   deletion: 'Privacy request',
   service: 'Service escalation',
 }
@@ -233,7 +232,6 @@ function AdminDashboardPage() {
                   </Link>
                   <Link to="/admin/funeral-shops" className="dashboard-queue-row"><span><strong>Shop applications</strong><small>Waiting for registration review</small></span><b>{operationCounts.shop}</b></Link>
                   <Link to="/admin/payments" className="dashboard-queue-row"><span><strong>Payment verification</strong><small>Shop submissions awaiting review</small></span><b>{operationCounts.payment}</b></Link>
-                  <Link to="/admin/payments?tab=refunds" className="dashboard-queue-row"><span><strong>Service refunds</strong><small>Pending or approved refund requests</small></span><b>{operationCounts.refund}</b></Link>
                   <Link to="/admin/account-deletions" className="dashboard-queue-row"><span><strong>Account deletions</strong><small>Verified privacy requests</small></span><b>{operationCounts.deletion}</b></Link>
                   <Link to="/admin/orders" className="dashboard-queue-row"><span><strong>Service escalations</strong><small>Requests or payments awaiting action</small></span><b>{operationCounts.service}</b></Link>
                 </>

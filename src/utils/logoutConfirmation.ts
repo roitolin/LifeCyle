@@ -6,6 +6,7 @@ type ShowDialog = (config: {
     label: string;
     mode?: 'text' | 'contained' | 'outlined';
     onPress?: () => void | Promise<void>;
+    pendingLabel?: string;
   }[];
 }) => void;
 
@@ -25,6 +26,7 @@ export function confirmLogout({ logout, showDialog, onError }: ConfirmLogoutPara
       {
         label: 'Log Out',
         mode: 'contained',
+        pendingLabel: 'Logging out...',
         onPress: async () => {
           try {
             await logout();
@@ -33,11 +35,7 @@ export function confirmLogout({ logout, showDialog, onError }: ConfirmLogoutPara
               onError(error);
               return;
             }
-            showDialog({
-              title: 'Could not log out',
-              message: error instanceof Error ? error.message : 'Please try again.',
-              tone: 'danger',
-            });
+            throw error;
           }
         },
       },

@@ -752,3 +752,47 @@
 .checkout-page .checkout-success-primary:hover {
   background: var(--request-accent-dark);
 }
+
+/* Keep every request-form control inside narrow tablet and phone viewports. */
+.checkout-main,
+.checkout-layout,
+.checkout-form-column,
+.checkout-order-summary,
+.checkout-form-section,
+.checkout-field,
+.checkout-summary,
+.checkout-summary-body {
+  min-width: 0;
+}
+
+.checkout-page input,
+.checkout-page select,
+.checkout-page textarea {
+  max-width: 100%;
+}
+
+@media (max-width: 640px) {
+  .checkout-main {
+    margin-top: 16px;
+    margin-bottom: 36px;
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .checkout-order-summary {
+    padding-top: 18px;
+  }
+
+  .checkout-section-title,
+  .checkout-order-summary > h2 {
+    overflow-wrap: anywhere;
+  }
+
+  .checkout-photo-zone {
+    width: 100%;
+  }
+
+  .checkout-submit-btn {
+    min-height: 48px;
+  }
+}

@@ -30,10 +30,10 @@ export const termsSections: readonly LegalDocumentSection[] = [
     ],
   },
   {
-    title: 'Prices, payments, and refunds',
+    title: 'Prices and payments',
     paragraphs: [
       'Prices and fees displayed through LifeCycle are based on information provided for the selected offering and may be subject to confirmed service details. Review the amount and provider before authorizing payment.',
-      'Payments may be processed by third-party providers and can be subject to their terms. Refunds, cancellations, adjustments, and disputes depend on the transaction, provider policy, applicable law, and the payment method used. Contact the provider and LifeCycle support promptly if a payment record appears incorrect.',
+      'Payments may be processed by third-party providers and can be subject to their terms. Cancellations, adjustments, and disputes depend on the transaction, provider policy, applicable law, and the payment method used. Contact the provider and LifeCycle support promptly if a payment record appears incorrect.',
     ],
   },
   {

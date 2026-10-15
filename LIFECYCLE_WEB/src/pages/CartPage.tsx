@@ -270,7 +270,7 @@ function TopBar({ profile }: { profile: ViewerProfile | null }) {
     <div className="cart-topbar">
       <div className="cart-topbar-inner">
         <div className="cart-topbar-left">
-          <Link to="/seller">Seller Centre</Link>
+          <Link to="/seller">Shop Center</Link>
         </div>
         <div className="cart-topbar-right">
           <Link to="/user/notifications">Notifications</Link>

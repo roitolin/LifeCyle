@@ -141,10 +141,44 @@
 /* ── Responsive ──────────────────────────────── */
 @media (max-width: 480px) {
   .favorites-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
   .favorites-state {
     padding: 40px 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  .favorites-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .favorites-card,
+  .favorites-card-link,
+  .favorites-card-info {
+    min-width: 0;
+  }
+
+  .favorites-card-info {
+    padding: 9px;
+  }
+
+  .favorites-card-price {
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 420px) {
+  .favorites-remove-btn {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .favorites-remove-btn span {
+    display: none;
   }
 }

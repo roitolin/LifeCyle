@@ -818,3 +818,38 @@
   .shop-payment-details-body { padding: 27px 22px 34px; }
   .shop-payment-details-item { align-items: flex-start; }
 }
+
+@media (max-width: 420px) {
+  .payment-qr-card,
+  .payment-qr-workspace,
+  .payment-qr-form,
+  .payment-qr-form-fields,
+  .payment-qr-form-field,
+  .shop-payment-details-body {
+    min-width: 0;
+  }
+
+  .payment-qr-top,
+  .payment-qr-form,
+  .payment-qr-current {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .payment-qr-history-head,
+  .shop-payment-details-rows > div,
+  .shop-payment-details-total {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .shop-payment-details-rows strong {
+    max-width: 100%;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+
+  .shop-payment-details-proof {
+    align-items: flex-start;
+  }
+}

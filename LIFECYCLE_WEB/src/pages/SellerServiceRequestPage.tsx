@@ -595,12 +595,12 @@ export default function SellerServiceRequestPage() {
     : normalizedStatus === 'payment_submitted'
       ? {
           title: 'Payment under review',
-          message: 'Check the receipt information and submitted proof before verifying it.',
+          message: 'Review the submitted payment information before verifying it.',
           tone: 'review',
         }
       : {
           title: 'Family payment',
-          message: 'Review the available payment and receipt information for this request.',
+          message: 'Review the available payment information for this request.',
           tone: 'default',
         }
 
@@ -851,27 +851,6 @@ export default function SellerServiceRequestPage() {
                       <p>{request.paymentRejectionReason}</p>
                     </div>
                   )}
-
-                  <section className="sr-receipt-proof">
-                    <div>
-                      <h3>Submitted receipt</h3>
-                      <span>{request.paymentProofImageUrl ? 'Select the image to view it full size.' : 'No receipt was attached.'}</span>
-                    </div>
-                    {request.paymentProofImageUrl ? (
-                      <button
-                        type="button"
-                        onClick={() => setLightboxUrl(request.paymentProofImageUrl as string)}
-                        aria-label="View submitted receipt full size"
-                      >
-                        <img src={request.paymentProofImageUrl} alt="Submitted payment receipt" />
-                      </button>
-                    ) : (
-                      <div className="sr-receipt-missing">
-                        <strong>Receipt unavailable</strong>
-                        <span>No payment proof is attached to this request.</span>
-                      </div>
-                    )}
-                  </section>
                 </div>
                   </section>
                 </div>

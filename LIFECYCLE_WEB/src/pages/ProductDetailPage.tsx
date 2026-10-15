@@ -5,6 +5,7 @@ import { addFuneralCartItem, loadFuneralCart } from '@/utils/funeralCart'
 import type { User } from '@supabase/supabase-js'
 import BrandLogo from '@/components/BrandLogo'
 import NotificationDropdown from '@/components/NotificationDropdown'
+import AnnouncementDropdown from '@/components/AnnouncementDropdown'
 import LogoutLink from '@/components/LogoutLink'
 import './ProductDetailPage.css'
 
@@ -429,9 +430,10 @@ export default function ProductDetailPage() {
       <div className="sp-topbar">
         <div className="sp-topbar-inner">
           <div className="sp-topbar-left">
-            <Link to="/seller">Seller Centre</Link>
+            <Link to="/seller">Shop Center</Link>
           </div>
           <div className="sp-topbar-right">
+            <AnnouncementDropdown />
             <NotificationDropdown />
             <Link to="/user/help">Help Centre</Link>
             <span className="sp-divider">|</span>
@@ -624,26 +626,31 @@ export default function ProductDetailPage() {
             )}
 
             {product.packageItems.length > 0 && (
-            <div className="pd-option-row align-start">
-              <div className="pd-option-label">Package inclusions</div>
-              <div className="pd-option-content pd-package-options">
+            <section className="pd-package-section" aria-labelledby="pd-package-title">
+              <div className="pd-package-heading">
+                <div className="pd-option-label" id="pd-package-title">Package inclusions</div>
+                <p className="pd-package-intro">Included in the displayed price</p>
+              </div>
+              <div className="pd-package-options" role="list">
                 {product.packageItems.map(option => (
                     <div
                       key={option.name}
                       className="pd-package-item"
                       aria-label={`${option.name}, included in the casket price`}
+                      role="listitem"
                     >
-                      <span className="pd-package-check" aria-hidden="true">{'\u2713'}</span>
-                      {option.imageUrl ? <img src={option.imageUrl} alt="" className="pd-package-img" /> : null}
-                      <span>
-                        <strong>{option.name}</strong>
-                        <small>Included with this casket</small>
-                      </span>
+                      <div className="pd-package-media">
+                        {option.imageUrl ? (
+                          <img src={option.imageUrl} alt={option.name} className="pd-package-img" loading="lazy" />
+                        ) : (
+                          <div className="pd-package-fallback" aria-hidden="true">{option.name.slice(0, 1).toUpperCase()}</div>
+                        )}
+                      </div>
+                      <div className="pd-package-copy"><strong title={option.name}>{option.name}</strong></div>
                     </div>
                 ))}
               </div>
-              <p className="pd-package-hint">These items are already included in the casket price.</p>
-            </div>
+            </section>
             )}
 
             <div className="pd-option-row">

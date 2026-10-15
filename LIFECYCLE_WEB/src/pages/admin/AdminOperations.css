@@ -334,12 +334,6 @@
   color: #1d4ed8;
 }
 
-.operations-kind-icon.is-refund,
-.finance-type-icon.is-refund {
-  background: #fff7ed;
-  color: #c2410c;
-}
-
 .operations-kind-icon.is-deletion {
   background: #fef2f2;
   color: #b91c1c;
@@ -461,8 +455,7 @@
 
 .operations-status.is-approved,
 .operations-status.is-verified,
-.operations-status.is-completed,
-.operations-status.is-refunded {
+.operations-status.is-completed {
   background: #ecfdf5;
   color: #047857;
 }
@@ -723,8 +716,7 @@
 }
 
 .deletion-reason,
-.deletion-admin-note,
-.finance-refund-reason {
+.deletion-admin-note {
   margin-top: 14px;
   padding: 12px;
   border-radius: 6px;
@@ -736,8 +728,7 @@
 }
 
 .deletion-reason span,
-.deletion-admin-note span,
-.finance-refund-reason span {
+.deletion-admin-note span {
   color: #64748b;
   font-size: 11px;
   font-weight: 800;
@@ -746,8 +737,7 @@
 }
 
 .deletion-reason p,
-.deletion-admin-note p,
-.finance-refund-reason p {
+.deletion-admin-note p {
   margin-top: 4px;
   color: #475569;
   font-size: 11px;
@@ -1025,4 +1015,35 @@
   .finance-details-grid > div:last-child {
     border-bottom: 0;
   }
+}
+
+.operations-field-help {
+  margin-top: -2px;
+  color: #718096;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.announcement-badges span.is-expired {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.announcement-expiry {
+  margin-top: 11px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.announcement-expiry.is-expired { color: #b91c1c; }
+
+.announcement-card button.is-danger {
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.announcement-card button.is-danger:hover {
+  border-color: #ef4444;
+  background: #fef2f2;
 }

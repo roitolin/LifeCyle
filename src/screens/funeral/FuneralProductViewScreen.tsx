@@ -1002,37 +1002,36 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
 
           {availablePackages.length > 0 ? (
           <View style={styles.packageSection}>
-            <View style={styles.marketSectionHeadingRow}>
+            <View style={styles.packageHeading}>
               <Text style={styles.marketSectionLabel}>Package inclusions</Text>
-              <Text style={styles.packageIncludedLabel}>Included</Text>
+              <Text style={styles.packageIntro}>Included in the displayed price</Text>
             </View>
-            <Text style={styles.packageIntro}>These items are already included in the casket price.</Text>
-            <View style={styles.packageOptions}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.packageOptions}
+            >
               {availablePackages.map((option) => (
                   <View
                     key={option.name}
                     accessibilityLabel={`${option.name}, included in the casket price`}
                     style={styles.packageCard}
                   >
-                    {option.imageUrl ? (
-                      <Image source={{ uri: option.imageUrl }} style={styles.packageImage} resizeMode="cover" />
-                    ) : (
-                      <View style={styles.packageIcon}>
-                        <Ionicons name={option.icon} size={20} color={colors.primary} />
-                      </View>
-                    )}
-                    <View style={styles.packageCopy}>
-                      <Text style={styles.packageName}>{option.name}</Text>
-                      <Text style={styles.packageDescription}>Included with this casket</Text>
+                    <View style={styles.packageMedia}>
+                      {option.imageUrl ? (
+                        <Image source={{ uri: option.imageUrl }} style={styles.packageImage} resizeMode="cover" />
+                      ) : (
+                        <View style={styles.packageIcon}>
+                          <Ionicons name={option.icon} size={26} color={colors.primary} />
+                        </View>
+                      )}
                     </View>
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={21}
-                      color={colors.primary}
-                    />
+                    <View style={styles.packageCopy}>
+                      <Text numberOfLines={2} style={styles.packageName}>{option.name}</Text>
+                    </View>
                   </View>
               ))}
-            </View>
+            </ScrollView>
           </View>
           ) : null}
 
@@ -2640,59 +2639,56 @@ const styles = StyleSheet.create({
     borderTopColor: colors.borderWarm,
     paddingTop: spacing.lg,
   },
-  packageIncludedLabel: {
-    color: colors.primary,
-    fontSize: 11,
-    fontWeight: "800",
+  packageHeading: {
+    marginBottom: spacing.md,
   },
   packageIntro: {
     color: colors.textMuted,
     fontSize: 12,
     lineHeight: 18,
-    marginBottom: spacing.md,
+    marginTop: 4,
   },
   packageOptions: {
-    gap: spacing.sm,
+    gap: spacing.md,
+    paddingRight: spacing.sm,
+    paddingBottom: 3,
   },
   packageCard: {
-    minHeight: 68,
-    borderRadius: radii.lg,
+    width: 148,
+    overflow: "hidden",
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
+  },
+  packageMedia: {
+    width: "100%",
+    height: 96,
+    backgroundColor: colors.surfaceMuted,
   },
   packageIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: colors.surfaceMuted,
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#f4f5f2",
     alignItems: "center",
     justifyContent: "center",
   },
   packageImage: {
-    width: 46,
-    height: 46,
-    borderRadius: radii.md,
+    width: "100%",
+    height: "100%",
     backgroundColor: colors.surfaceMuted,
   },
   packageCopy: {
-    flex: 1,
+    minHeight: 52,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    justifyContent: "center",
   },
   packageName: {
     color: colors.text,
-    fontSize: 14,
+    fontSize: 13,
+    lineHeight: 18,
     fontWeight: "800",
-  },
-  packageDescription: {
-    color: colors.textMuted,
-    fontSize: 11,
-    lineHeight: 16,
-    marginTop: 2,
   },
   marketPanel: {
     marginHorizontal: spacing.lg,

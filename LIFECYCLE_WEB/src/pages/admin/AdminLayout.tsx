@@ -31,7 +31,7 @@ function resolveAdminNotificationRoute(item: WebNotification) {
   if (requestId) return '/admin/orders/' + encodeURIComponent(String(requestId))
   if (type.includes('order') || type.includes('request') || type.includes('booking') || type.includes('casket')) return '/admin/orders'
   if (type.includes('payout')) return '/admin/payout-accounts'
-  if (type.includes('payment') || type.includes('refund')) return '/admin/payments'
+  if (type.includes('payment')) return '/admin/payments'
   if (shopId) return '/admin/funeral-shops/' + encodeURIComponent(String(shopId)) + '/details'
   if (type.includes('shop')) return '/admin/funeral-shops'
   if (type.includes('account_deletion')) return '/admin/account-deletions'

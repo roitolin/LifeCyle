@@ -6,6 +6,7 @@ import { useAuth } from "../context/AuthContext";
 import { useAppNotificationSound, useChatDeliveryReceipts, useChatNotificationSound, usePushNotifications } from "@/hooks";
 import LoadingBird from '@/components/LoadingBird';
 import { ResetPasswordScreen } from '@/pages/auth';
+import { hasCompletedOnboarding, markOnboardingCompleted } from '@/services/onboarding';
 import { navigationTheme } from "../theme";
 import AuthNavigator from "./AuthNavigator";
 import AdminStackNavigator from "./AdminStackNavigator";
@@ -34,6 +35,7 @@ const isPasswordRecoveryUrl = (url: string | null) =>
 
 export default function RootNavigator() {
   const { user, role, termsAccepted, loading } = useAuth();
+  const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null);
   const [passwordRecoveryUrl, setPasswordRecoveryUrl] = useState<string | null>(null);
   const hasHiddenNativeSplashRef = useRef(false);
   const navigationKey = user?.id
@@ -56,6 +58,36 @@ export default function RootNavigator() {
   }, [loading, revealApp]);
 
   useEffect(() => {
+    let active = true;
+
+    void hasCompletedOnboarding()
+      .then((completed) => {
+        if (active) setOnboardingCompleted(completed);
+      })
+      .catch(() => {
+        if (active) setOnboardingCompleted(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!user || onboardingCompleted === true) return;
+
+    // Existing signed-in installations should never be sent through onboarding
+    // after receiving this update.
+    void markOnboardingCompleted()
+      .then(() => {
+        setOnboardingCompleted(true);
+      })
+      .catch((error) => {
+        console.warn('Unable to save onboarding completion:', error);
+      });
+  }, [onboardingCompleted, user]);
+
+  useEffect(() => {
     const captureRecoveryUrl = (url: string | null) => {
       if (isPasswordRecoveryUrl(url)) setPasswordRecoveryUrl(url);
     };
@@ -69,7 +101,7 @@ export default function RootNavigator() {
   // (including saved agreement acceptance) has finished loading. Otherwise a
   // previously accepted user briefly mounts TermsNavigator with the default
   // `termsAccepted = false` value during sign-in or account switching.
-  if (loading) return <LoadingBird fullScreen />;
+  if (loading || onboardingCompleted === null) return <LoadingBird fullScreen />;
 
   if (passwordRecoveryUrl) {
     return (
@@ -94,7 +126,7 @@ export default function RootNavigator() {
     >
       {user && <NotificationRuntimeListener canNavigate={canNavigateFromPush} />}
       {user && emailVerified && <ChatRuntimeListener />}
-      {!user && <AuthNavigator />}
+      {!user && <AuthNavigator showOnboarding={!onboardingCompleted} />}
       {user && !emailVerified && <VerificationStackNavigator />}
       {user && emailVerified && !termsAccepted && <TermsNavigator />}
       {user && emailVerified && termsAccepted && isAdminRole && <AdminStackNavigator />}

@@ -80,7 +80,7 @@ export default function PurchasePage() {
       <div className="purchase-topbar">
         <div className="purchase-topbar-inner">
           <div className="purchase-topbar-left">
-            <Link to="/seller">Seller Centre</Link>
+            <Link to="/seller">Shop Center</Link>
           </div>
           <div className="purchase-topbar-right">
             <Link to="/user/notifications">Notifications</Link>

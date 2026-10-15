@@ -52,7 +52,7 @@ export default function SellerPaymentPage() {
         </div>
         <div className="sc-header-right">
           <button className="sc-btn sc-btn-secondary" onClick={() => navigate('/seller')}>
-            Back to Seller Centre
+            Back to Shop Center
           </button>
         </div>
       </header>
@@ -80,7 +80,7 @@ export default function SellerPaymentPage() {
               <p style={{ color: '#666', marginTop: '12px', marginBottom: '24px' }}>
                 Registration payment is only available once your shop has been verified. Once approved, you can pay here and go live.
               </p>
-              <button className="sc-primary-btn" onClick={() => navigate('/seller')}>Back to Seller Centre</button>
+              <button className="sc-primary-btn" onClick={() => navigate('/seller')}>Back to Shop Center</button>
             </div>
           ) : (
             <div className="sc-payment-layout">

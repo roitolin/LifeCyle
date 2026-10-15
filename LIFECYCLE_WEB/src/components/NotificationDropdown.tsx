@@ -55,12 +55,12 @@ function getSellerCentreTimeLabel(value: string | null | undefined): string {
 }
 
 /* ── Mobile-matching icon/color per category ────────── */
-type IconKind = 'refund' | 'payment' | 'success' | 'request' | 'message' | 'product' | 'shopApproved' | 'shopRejected' | 'announcement' | 'schedule' | 'default'
+type IconKind = 'payment' | 'success' | 'request' | 'message' | 'product' | 'shopApproved' | 'shopRejected' | 'announcement' | 'schedule' | 'default'
 
 function getVisual(type: string | undefined): { kind: IconKind; color: string; bg: string } {
   const t = String(type || '').toLowerCase()
-  if (t.includes('payout_failed') || t.includes('payment_rejected') || t.includes('refund'))
-    return { kind: 'refund',       color: '#9a5148', bg: '#fbefed' }
+  if (t.includes('payout_failed') || t.includes('payment_rejected'))
+    return { kind: 'payment',      color: '#9a5148', bg: '#fbefed' }
   if (t.includes('payment') || t.includes('payout') || t.includes('commission'))
     return { kind: 'payment',      color: '#85632e', bg: '#f8f1e5' }
   if (t.includes('completed') || t.includes('verified'))
@@ -84,7 +84,6 @@ function getVisual(type: string | undefined): { kind: IconKind; color: string; b
 
 function NotifSVG({ kind, color }: { kind: IconKind; color: string }) {
   const c = { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: color, strokeWidth: 1.9, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
-  if (kind === 'refund')       return <svg {...c}><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v1"/></svg>
   if (kind === 'payment')      return <svg {...c}><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 15h2"/></svg>
   if (kind === 'success')      return <svg {...c}><path d="M20 6 9 17l-5-5"/></svg>
   if (kind === 'request')      return <svg {...c}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h6"/></svg>
@@ -104,7 +103,7 @@ function resolveNotificationRoute(item: WebNotification): string {
   const requestId = data?.requestId || data?.serviceRequestId || (typeof data?.id === 'string' && type.includes('request') ? data.id : null)
   if (requestId) return `/user/requests/${encodeURIComponent(String(requestId))}`
   if (type.includes('request') || type.includes('order') || type.includes('casket') || type.includes('booking')) return '/user/requests'
-  if (type.includes('payment') || type.includes('refund') || type.includes('payout')) return '/user/requests'
+  if (type.includes('payment') || type.includes('payout')) return '/user/requests'
   if (type === 'funeral_new_product') {
     const productId = data?.productId
     const shopId = data?.shopId

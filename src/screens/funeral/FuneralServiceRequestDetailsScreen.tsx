@@ -38,13 +38,6 @@ import {
   validatePaymentSubmission,
 } from '@/utils/paymentValidation';
 import {
-  createServiceRefund,
-  getLatestServiceRefund,
-  refundStatusCopy,
-  updateServiceRefund,
-  type ServiceRefundRequest,
-} from '@/utils/serviceRefunds';
-import {
   EMPTY_SERVICE_PREPARATION_CHECKLIST,
   getServicePreparationChecklist,
   saveServicePreparationChecklist,
@@ -539,11 +532,6 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
   const [rejectReasonRequest, setRejectReasonRequest] = useState<FuneralServiceRequest | null>(null);
   const [rejectReasonText, setRejectReasonText] = useState("");
   const [rejectingPayment, setRejectingPayment] = useState(false);
-  const [refundRequest, setRefundRequest] = useState<ServiceRefundRequest | null>(null);
-  const [refundLoading, setRefundLoading] = useState(true);
-  const [refundDialog, setRefundDialog] = useState<'request' | 'reject' | 'refunded' | null>(null);
-  const [refundDialogText, setRefundDialogText] = useState('');
-  const [refundUpdating, setRefundUpdating] = useState(false);
   const [shopChecklist, setShopChecklist] = useState<ServicePreparationChecklist>({
     ...EMPTY_SERVICE_PREPARATION_CHECKLIST,
   });
@@ -553,7 +541,6 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
   const scrollViewRef = useRef<ScrollView>(null);
   const paymentSectionY = useRef(0);
   const paymentFocusHandledRef = useRef(false);
-  const refundSectionY = useRef(0);
   const actionSectionY = useRef(0);
 
   useFocusEffect(
@@ -590,19 +577,6 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
     scrollViewRef.current?.scrollTo({ y: Math.max(0, position - 12), animated: true });
   }, []);
 
-  const loadRefundRequest = useCallback(async () => {
-    try {
-      setRefundRequest(await getLatestServiceRefund(request.id));
-    } catch (error) {
-      console.warn('Unable to load the refund request:', error);
-    } finally {
-      setRefundLoading(false);
-    }
-  }, [request.id]);
-
-  useEffect(() => {
-    void loadRefundRequest();
-  }, [loadRefundRequest]);
 
   const loadShopChecklist = useCallback(async () => {
     if (requesterView) {
@@ -650,123 +624,6 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
     [checklistSavingKey, request.id, request.shopId, requesterView, shopChecklist]
   );
 
-  const openRefundDialog = useCallback((mode: 'request' | 'reject' | 'refunded') => {
-    setRefundDialogText('');
-    setRefundDialog(mode);
-  }, []);
-
-  const closeRefundDialog = useCallback(() => {
-    if (refundUpdating) return;
-    setRefundDialog(null);
-    setRefundDialogText('');
-  }, [refundUpdating]);
-
-  const submitRefundDialog = useCallback(async () => {
-    const user = auth.currentUser;
-    const text = refundDialogText.trim();
-    if (!user || !refundDialog || refundUpdating) return;
-
-    const isDeliveryComplete =
-      String(request.status || '').toLowerCase() === 'completed' ||
-      (String(request.status || '').toLowerCase() === 'awaiting_customer_confirmation' && Boolean(request.shopMarkedCompletedAt));
-
-    if (refundDialog === 'request' && !isDeliveryComplete) {
-      Alert.alert('Complete Delivery Required', 'Under LifeCycle policy, refunds can only be requested after the complete delivery of your arrangement.');
-      return;
-    }
-    if (refundDialog === 'refunded' && !isDeliveryComplete) {
-      Alert.alert('Complete Delivery Required', 'Refunds can only be issued after complete delivery.');
-      return;
-    }
-
-    if ((refundDialog === 'request' || refundDialog === 'reject') && text.length < 10) {
-      Alert.alert('More Detail Needed', 'Please enter at least 10 characters.');
-      return;
-    }
-    if (refundDialog === 'refunded' && text.replace(/[^A-Za-z0-9]/g, '').length < 6) {
-      Alert.alert('Reference Required', 'Enter the transaction reference for the refund you sent.');
-      return;
-    }
-
-    setRefundUpdating(true);
-    try {
-      const updated = refundDialog === 'request'
-        ? await createServiceRefund(request.id, user.uid, request.shopId, text)
-        : refundDialog === 'reject' && refundRequest
-          ? await updateServiceRefund(refundRequest.id, 'rejected', { responseNote: text })
-          : refundRequest
-            ? await updateServiceRefund(refundRequest.id, 'refunded', { refundReference: text })
-            : null;
-      if (!updated) throw new Error('The refund request is no longer available.');
-      setRefundRequest(updated);
-      setRefundDialog(null);
-      setRefundDialogText('');
-      hapticSuccess();
-      Alert.alert(
-        refundDialog === 'request' ? 'Refund Requested' : refundDialog === 'reject' ? 'Request Rejected' : 'Refund Recorded',
-        refundDialog === 'request'
-          ? 'The shop has been notified. You can track the decision on this screen.'
-          : refundDialog === 'reject'
-            ? 'The family can now review your explanation.'
-            : 'The family can now see that the refund was sent.'
-      );
-    } catch (error: any) {
-      Alert.alert('Refund Update Failed', error?.message || 'Unable to update this refund request.');
-    } finally {
-      setRefundUpdating(false);
-    }
-  }, [refundDialog, refundDialogText, refundRequest, refundUpdating, request.id, request.shopId, request.status, request.shopMarkedCompletedAt]);
-
-  const approveRefund = useCallback(() => {
-    if (!refundRequest || refundUpdating) return;
-    const isDeliveryComplete =
-      String(request.status || '').toLowerCase() === 'completed' ||
-      (String(request.status || '').toLowerCase() === 'awaiting_customer_confirmation' && Boolean(request.shopMarkedCompletedAt));
-    if (!isDeliveryComplete) {
-      Alert.alert('Complete Delivery Required', 'Refunds can only be approved after complete delivery of the service.');
-      return;
-    }
-    Alert.alert('Approve Refund', 'Approve this request? Record the refund reference after you send the money.', [
-      { text: 'Not Yet', style: 'cancel' },
-      {
-        text: 'Approve',
-        onPress: async () => {
-          setRefundUpdating(true);
-          try {
-            const updated = await updateServiceRefund(refundRequest.id, 'approved');
-            setRefundRequest(updated);
-            hapticSuccess();
-          } catch (error: any) {
-            Alert.alert('Refund Update Failed', error?.message || 'Unable to approve this request.');
-          } finally {
-            setRefundUpdating(false);
-          }
-        },
-      },
-    ]);
-  }, [refundRequest, refundUpdating, request.status, request.shopMarkedCompletedAt]);
-
-  const cancelRefund = useCallback(() => {
-    if (!refundRequest || refundUpdating) return;
-    Alert.alert('Cancel Refund Request', 'Withdraw this pending refund request?', [
-      { text: 'Keep Request', style: 'cancel' },
-      {
-        text: 'Withdraw',
-        style: 'destructive',
-        onPress: async () => {
-          setRefundUpdating(true);
-          try {
-            const updated = await updateServiceRefund(refundRequest.id, 'cancelled');
-            setRefundRequest(updated);
-          } catch (error: any) {
-            Alert.alert('Refund Update Failed', error?.message || 'Unable to withdraw this request.');
-          } finally {
-            setRefundUpdating(false);
-          }
-        },
-      },
-    ]);
-  }, [refundRequest, refundUpdating]);
 
   const [photoViewerUrl, setPhotoViewerUrl] = useState<string | null>(null);
   const [photoRatios, setPhotoRatios] = useState<Record<string, number>>({});
@@ -1289,16 +1146,6 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
     ["awaiting_payment", "payment_submitted", "payment_verified", "awaiting_customer_confirmation", "completed"].includes(
       normalizedRequestStatus
     ) && hasPaymentSetup(request);
-  const isDeliveryComplete =
-    normalizedRequestStatus === 'completed' ||
-    (normalizedRequestStatus === 'awaiting_customer_confirmation' && Boolean(request.shopMarkedCompletedAt));
-  const hasPaid = ['payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(normalizedRequestStatus);
-  const refundEligible = isDeliveryComplete;
-  const refundMeta = refundRequest ? refundStatusCopy(refundRequest.status) : null;
-  const canCreateRefund =
-    isRequestOwner &&
-    refundEligible &&
-    (!refundRequest || ['rejected', 'cancelled'].includes(refundRequest.status));
   const currentStatusMessage = requesterView ? statusMeta.message : statusMeta.shopMessage;
   const timelineEvents: { label: string; value: string }[] = [
     { label: "Request submitted", value: formatTimestamp(request.createdAt) },
@@ -1333,16 +1180,7 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
   if (requesterView && !isRequestOwner) {
     stickyAction = null;
   } else if (isRequestOwner) {
-    if (refundRequest?.status === "pending") {
-      stickyAction = {
-        context: "Refund status",
-        label: "Waiting for shop review",
-        helper: "No action is needed while the shop reviews your request.",
-        icon: "hourglass-outline",
-        disabled: true,
-        onPress: () => undefined,
-      };
-    } else if (normalizedRequestStatus === "pending_shop_acceptance") {
+    if (normalizedRequestStatus === "pending_shop_acceptance") {
       stickyAction = null;
     } else if (normalizedRequestStatus === "accepted_by_shop") {
       stickyAction = {
@@ -1406,22 +1244,6 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
         onPress: () => void confirmRequestDone(request),
       };
     }
-  } else if (refundRequest?.status === "pending") {
-    stickyAction = {
-      context: "Next action",
-      label: "Review refund request",
-      helper: "Approve it or respond with a clear reason.",
-      icon: "return-down-back-outline",
-      onPress: () => scrollToSection(refundSectionY.current),
-    };
-  } else if (refundRequest?.status === "approved") {
-    stickyAction = {
-      context: "Next action",
-      label: "Record refund as sent",
-      helper: "Add the transaction reference after sending it.",
-      icon: "receipt-outline",
-      onPress: () => openRefundDialog("refunded"),
-    };
   } else if (normalizedRequestStatus === "pending_shop_acceptance") {
     stickyAction = {
       context: "Next action",
@@ -1484,7 +1306,7 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
     };
   }
   const stickyActionBusy =
-    updatingRequestId === request.id || refundUpdating || submittingPayment || uploadingCompletionProof;
+    updatingRequestId === request.id || submittingPayment || uploadingCompletionProof;
 
   const handleRequestBack = () => {
     if (navigation.canGoBack?.()) {
@@ -2144,92 +1966,6 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
           </View>
         ) : null}
 
-        {!refundLoading && (refundRequest || canCreateRefund || (isRequestOwner && hasPaid)) ? (
-          <View
-            style={styles.refundCard}
-            onLayout={(event) => {
-              refundSectionY.current = event.nativeEvent.layout.y;
-            }}
-          >
-            <View style={styles.refundHeaderRow}>
-              <View style={styles.refundHeaderIcon}>
-                <Ionicons name="return-down-back-outline" size={20} color="#9a4d45" />
-              </View>
-              <View style={styles.refundHeaderCopy}>
-                <Text style={styles.refundTitle}>Cancellation & Refund</Text>
-                <Text style={styles.refundSubtitle}>
-                  {isDeliveryComplete
-                    ? 'Service is delivered. Tracked refund review is available below.'
-                    : 'Refund policy: Refunds can only be requested after complete delivery of your arrangement.'}
-                </Text>
-              </View>
-              {refundMeta ? (
-                <View style={[styles.refundBadge, { backgroundColor: refundMeta.background }]}>
-                  <Text style={[styles.refundBadgeText, { color: refundMeta.color }]}>{refundMeta.label}</Text>
-                </View>
-              ) : null}
-            </View>
-
-            {refundRequest ? (
-              <View style={styles.refundDetails}>
-                <Text style={styles.detailLabel}>Reason</Text>
-                <Text style={styles.detailValue}>{refundRequest.reason}</Text>
-                {refundRequest.response_note ? (
-                  <>
-                    <Text style={styles.detailLabel}>Shop Response</Text>
-                    <Text style={styles.detailValue}>{refundRequest.response_note}</Text>
-                  </>
-                ) : null}
-                {refundRequest.refund_reference_number ? (
-                  <>
-                    <Text style={styles.detailLabel}>Refund Reference</Text>
-                    <Text style={styles.detailValue}>{refundRequest.refund_reference_number}</Text>
-                  </>
-                ) : null}
-                <Text style={styles.refundTimestamp}>Requested {formatTimestamp(refundRequest.requested_at)}</Text>
-              </View>
-            ) : null}
-
-            {canCreateRefund ? (
-              <TouchableOpacity style={styles.declineButton} onPress={() => openRefundDialog('request')}>
-                <Text style={styles.declineButtonText}>Request a Refund</Text>
-              </TouchableOpacity>
-            ) : !isDeliveryComplete && !refundRequest && isRequestOwner && hasPaid ? (
-              <View style={{ backgroundColor: '#fffbeb', borderRadius: 8, padding: 12, marginTop: 8, borderWidth: 1, borderColor: '#fef3c7' }}>
-                <Text style={{ fontSize: 13, color: '#92400e', fontWeight: '700' }}>
-                  ⏳ Refund Locked Until Complete Delivery
-                </Text>
-                <Text style={{ fontSize: 12, color: '#78350f', marginTop: 4, lineHeight: 16 }}>
-                  Under LifeCycle policy, refund requests become available once the funeral shop attaches delivery proof and marks this service as delivered.
-                </Text>
-              </View>
-            ) : null}
-
-            {isRequestOwner && refundRequest?.status === 'pending' ? (
-              <TouchableOpacity style={styles.closeButton} onPress={cancelRefund} disabled={refundUpdating}>
-                <Text style={styles.closeButtonText}>{refundUpdating ? 'Updating...' : 'Withdraw Refund Request'}</Text>
-              </TouchableOpacity>
-            ) : null}
-
-            {!requesterView && refundRequest?.status === 'pending' ? (
-              <View style={styles.actionStack}>
-                <TouchableOpacity style={styles.acceptButton} onPress={approveRefund} disabled={refundUpdating}>
-                  <Text style={styles.acceptButtonText}>{refundUpdating ? 'Updating...' : 'Approve Refund'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.declineButton} onPress={() => openRefundDialog('reject')} disabled={refundUpdating}>
-                  <Text style={styles.declineButtonText}>Reject With Reason</Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
-
-            {!requesterView && refundRequest?.status === 'approved' ? (
-              <TouchableOpacity style={styles.acceptButton} onPress={() => openRefundDialog('refunded')} disabled={refundUpdating}>
-                <Text style={styles.acceptButtonText}>Record Refund as Sent</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        ) : null}
-
         <DetailCard
           icon="time-outline"
           title="Activity history"
@@ -2565,50 +2301,6 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
         </TouchableOpacity>
       </Modal>
 
-      <Modal visible={Boolean(refundDialog)} transparent animationType="fade" onRequestClose={closeRefundDialog}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={closeRefundDialog}>
-          <TouchableOpacity activeOpacity={1} style={styles.modalCard}>
-            <Text style={styles.modalTitle}>
-              {refundDialog === 'request'
-                ? 'Request a Refund'
-                : refundDialog === 'reject'
-                  ? 'Reject Refund Request'
-                  : 'Record Refund as Sent'}
-            </Text>
-            <Text style={styles.modalSubtitle}>
-              {refundDialog === 'request'
-                ? 'Explain why you are requesting the cancellation and refund. The original payment record will remain available for review.'
-                : refundDialog === 'reject'
-                  ? 'Give the family a clear reason they can review.'
-                  : 'Enter the transaction reference from the refund receipt.'}
-            </Text>
-            <Text style={styles.detailLabel}>
-              {refundDialog === 'refunded' ? 'Refund Transaction Reference *' : 'Explanation *'}
-            </Text>
-            <TextInput
-              style={[
-                styles.paymentSetupInput,
-                refundDialog === 'refunded' ? null : styles.paymentSetupReasonInput,
-              ]}
-              value={refundDialogText}
-              onChangeText={setRefundDialogText}
-              placeholder={refundDialog === 'refunded' ? 'Reference shown on the refund receipt' : 'Enter at least 10 characters'}
-              placeholderTextColor="#9aa39d"
-              autoCapitalize={refundDialog === 'refunded' ? 'characters' : 'sentences'}
-              multiline={refundDialog !== 'refunded'}
-              maxLength={refundDialog === 'refunded' ? 40 : 500}
-            />
-            <View style={styles.actionStack}>
-              <TouchableOpacity style={[styles.acceptButton, refundUpdating ? styles.buttonDisabled : null]} onPress={() => void submitRefundDialog()} disabled={refundUpdating}>
-                <Text style={styles.acceptButtonText}>{refundUpdating ? 'Saving...' : 'Confirm'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.closeButton} onPress={closeRefundDialog} disabled={refundUpdating}>
-                <Text style={styles.closeButtonText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
 
       <Modal visible={Boolean(photoViewerUrl)} transparent animationType="fade" onRequestClose={() => setPhotoViewerUrl(null)}>
         <View style={styles.photoViewerOverlay}>
@@ -3715,61 +3407,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     marginTop: 4,
-  },
-  refundCard: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#ead8d5',
-    backgroundColor: '#ffffff',
-    padding: 16,
-  },
-  refundHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-  },
-  refundHeaderCopy: {
-    flex: 1,
-  },
-  refundHeaderIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    backgroundColor: '#faece9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  refundTitle: {
-    color: '#22312d',
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  refundSubtitle: {
-    color: '#62706b',
-    fontSize: 12,
-    lineHeight: 18,
-    marginTop: 4,
-  },
-  refundBadge: {
-    borderRadius: 8,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-  },
-  refundBadgeText: {
-    fontSize: 10,
-    fontWeight: '900',
-  },
-  refundDetails: {
-    borderRadius: 14,
-    backgroundColor: '#f8f6f2',
-    padding: 12,
-    marginTop: 14,
-    marginBottom: 12,
-  },
-  refundTimestamp: {
-    color: '#7a847f',
-    fontSize: 11,
-    marginTop: 10,
   },
   timelineList: {
     paddingTop: 10,
