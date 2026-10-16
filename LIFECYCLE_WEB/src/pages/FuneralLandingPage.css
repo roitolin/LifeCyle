@@ -2922,3 +2922,182 @@
     height: 20px;
   }
 }
+.sp-mobile-nav-trigger {
+  display: none;
+}
+
+/* Keep the Home menu, brand, alerts and search in one compact phone header. */
+@media (max-width: 600px) {
+  body.mobile-app-nav-visible .funeral-landing-page > .sp-header .sp-header-inner {
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    grid-template-rows: 42px 46px;
+    gap: 14px 8px;
+    padding-right: 13px;
+    padding-left: 13px !important;
+  }
+
+  body.mobile-app-nav-visible .funeral-landing-page .sp-mobile-nav-trigger {
+    grid-column: 1;
+    grid-row: 1;
+    width: 42px;
+    height: 42px;
+    display: grid;
+    place-items: center;
+    align-self: center;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: #315f50;
+    box-shadow: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body.mobile-app-nav-visible .funeral-landing-page .sp-mobile-nav-trigger svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+
+  body.mobile-app-nav-visible .funeral-landing-page .sp-mobile-nav-trigger:focus-visible {
+    outline: 3px solid rgba(49, 95, 80, 0.28);
+    outline-offset: 2px;
+  }
+
+  body.mobile-app-nav-visible .funeral-landing-page > .sp-header .sp-brand-logo {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  body.mobile-app-nav-visible .funeral-landing-page .sp-mobile-header-actions {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  body.mobile-app-nav-visible .funeral-landing-page > .sp-header .sp-search-wrap {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+/* Mobile Home uses the same notification dropdown behavior as desktop. */
+@media (max-width: 600px) {
+  body.mobile-app-nav-visible .sp-mobile-notification-dropdown {
+    display: inline-flex;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-notification-dropdown .sc-web-notif-btn {
+    width: 42px;
+    height: 42px;
+    border: 1px solid #d9d6cd;
+    border-radius: 50%;
+    background: #fff;
+    color: #22312d;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-notification-dropdown .sc-web-notif-btn:hover,
+  body.mobile-app-nav-visible .sp-mobile-notification-dropdown .sc-web-notif-btn.is-active {
+    background: #f4f6f3;
+    color: #22312d;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-notification-dropdown .sc-web-notif-dropdown--seller-centre {
+    position: fixed;
+    z-index: 11000;
+    top: max(62px, calc(env(safe-area-inset-top) + 54px));
+    right: 12px;
+    left: 12px;
+    width: auto;
+    max-height: min(460px, calc(100dvh - 76px));
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-notification-dropdown .sc-web-notif-compact-list {
+    max-height: min(390px, calc(100dvh - 136px));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+
+/* Actionable catalog empty state and mobile Shop Center shortcut. */
+.sp-state-title {
+  margin: 14px 0 0;
+  color: #22312d;
+  font-size: 16px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.sp-state-copy {
+  max-width: 560px;
+  margin: 6px 0 0;
+  text-align: center;
+  line-height: 1.55;
+}
+
+.sp-state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.sp-state-action {
+  min-height: 42px;
+  min-width: 132px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 18px;
+  padding: 0 18px;
+  border: 1px solid #315f50;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.sp-state-actions .sp-state-action {
+  margin-top: 0;
+}
+
+.sp-state-action-primary {
+  background: #315f50;
+  color: #fff;
+}
+
+.sp-state-action-secondary {
+  background: #fff;
+  color: #315f50;
+}
+
+
+@media (max-width: 600px) {
+
+  body.mobile-app-nav-visible .sp-state {
+    padding: 34px 18px;
+    border: 1px solid #e0e3dc;
+    border-radius: 18px;
+  }
+
+  body.mobile-app-nav-visible .sp-state-copy {
+    font-size: 12px;
+  }
+
+  body.mobile-app-nav-visible .sp-state-actions {
+    width: 100%;
+  }
+
+  body.mobile-app-nav-visible .sp-state-action {
+    min-width: 0;
+    flex: 1 1 130px;
+  }
+}

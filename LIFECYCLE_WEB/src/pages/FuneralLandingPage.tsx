@@ -138,8 +138,6 @@ export default function FuneralLandingPage() {
   const [error,           setError]           = useState<string | null>(null)
   const [cartCount, setCartCount] = useState(0)
   const [heroContent, setHeroContent] = useState<HomeHeroContent | null>(null)
-  const [notificationUnread, setNotificationUnread] = useState(0)
-  const [messageUnread, setMessageUnread] = useState(0)
   const [favoriteProductIds, setFavoriteProductIds] = useState<Set<string>>(() => {
     try {
       const stored = JSON.parse(localStorage.getItem('lifecycle_favorites') || '{}')
@@ -318,6 +316,7 @@ export default function FuneralLandingPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const activeFilterCount = Number(selectedShopId !== 'all') + Number(Boolean(minPrice)) + Number(Boolean(maxPrice)) + Number(sortBy !== 'Relevance')
+  const hasCatalogFilters = Boolean(queryText.trim()) || activeFilterCount > 0
 
   function clearFilters() {
     setSelectedShopId('all')
@@ -341,43 +340,6 @@ export default function FuneralLandingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoggedIn])
 
-  useEffect(() => {
-    if (!viewer?.id || !window.matchMedia('(max-width: 600px)').matches) {
-      setNotificationUnread(0)
-      return
-    }
-
-    let mounted = true
-    const loadUnread = async () => {
-      const { count } = await supabase
-        .from('notifications')
-        .select('id', { count: 'exact', head: true })
-        .eq('userId', viewer.id)
-        .eq('read', false)
-      if (mounted) setNotificationUnread(count || 0)
-    }
-
-    void loadUnread()
-    const channel = supabase
-      .channel(`web-home-notifications-${viewer.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `userId=eq.${viewer.id}` }, () => void loadUnread())
-      .subscribe()
-
-    return () => {
-      mounted = false
-      void supabase.removeChannel(channel)
-    }
-  }, [viewer?.id])
-
-  useEffect(() => {
-    const updateUnread = (event: Event) => {
-      setMessageUnread(Number((event as CustomEvent<{ count?: number }>).detail?.count) || 0)
-    }
-    window.addEventListener('chat-unread-count', updateUnread)
-    window.dispatchEvent(new Event('request-chat-unread-count'))
-    return () => window.removeEventListener('chat-unread-count', updateUnread)
-  }, [])
-
   const toggleFavorite = (productId: string) => {
     setFavoriteProductIds(current => {
       const next = new Set(current)
@@ -391,7 +353,7 @@ export default function FuneralLandingPage() {
   }
   /* â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   return (
-    <div className="sp-page">
+    <div className="sp-page funeral-landing-page">
 
       {/* â”€â”€ Topbar â”€â”€ */}
       <div className="sp-topbar">
@@ -442,32 +404,20 @@ export default function FuneralLandingPage() {
       {/* â”€â”€ Header â”€â”€ */}
       <header className="sp-header">
         <div className="sp-header-inner">
+          <button
+            type="button"
+            className="sp-mobile-nav-trigger"
+            aria-label="Open navigation menu"
+            aria-controls="mobile-web-navigation-drawer"
+            onClick={() => window.dispatchEvent(new CustomEvent('open-mobile-navigation'))}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+          </button>
+
           <BrandLogo to="/funeral" compact className="sp-brand-logo" />
 
           <div className="sp-mobile-header-actions">
-            <Link
-              to={isLoggedIn ? '/user/notifications' : '/login?next=/user/notifications'}
-              className="sp-mobile-header-action"
-              aria-label="Open notifications"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
-              {notificationUnread > 0 ? <span>{notificationUnread > 9 ? '9+' : notificationUnread}</span> : null}
-            </Link>
-            <button
-              type="button"
-              className="sp-mobile-header-action"
-              aria-label="Open messages"
-              onClick={() => {
-                if (!isLoggedIn) {
-                  navigate('/login?next=/funeral')
-                  return
-                }
-                window.dispatchEvent(new CustomEvent('open-chat'))
-              }}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /><path d="M8 10h.01M12 10h.01M16 10h.01" /></svg>
-              {messageUnread > 0 ? <span>{messageUnread > 9 ? '9+' : messageUnread}</span> : null}
-            </button>
+            <NotificationDropdown variant="seller-centre" className="sp-mobile-notification-dropdown" />
           </div>
 
           <div className="sp-search-wrap">
@@ -688,8 +638,19 @@ export default function FuneralLandingPage() {
             {!loading && !error && filtered.length === 0 && (
               <div className="sp-state">
                 <CasketSVG />
-                <p>No products found. Try adjusting your filters.</p>
-                <button className="sp-apply-btn" style={{ marginTop: 12 }} onClick={clearFilters}>Clear Filters</button>
+                <p className="sp-state-title">
+                  {products.length === 0 ? 'No active products are available right now.' : 'No products match your search or filters.'}
+                </p>
+                {products.length === 0 ? (
+                  <>
+                    <p className="sp-state-copy">Products appear here when they are active, in stock, and their shop is online with an active subscription.</p>
+                    <div className="sp-state-actions">
+                      <Link to="/funeral/shops" className="sp-state-action sp-state-action-secondary">Browse Shops</Link>
+                    </div>
+                  </>
+                ) : hasCatalogFilters ? (
+                  <button className="sp-state-action sp-state-action-primary" type="button" onClick={clearFilters}>Clear Filters</button>
+                ) : null}
               </div>
             )}
 

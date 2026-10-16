@@ -819,11 +819,8 @@ export default function ChatWidget() {
                     </svg>
                   )}
                 </button>
-                <button className="cw-icon-btn cw-icon-dark" onClick={() => { setOpen(false); setActiveConvId(null) }} aria-label="Minimize" title="Minimize">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                    <path d="M8 10l4 4 4-4" />
-                  </svg>
+                <button className="cw-icon-btn cw-icon-dark cw-sidebar-close" onClick={() => { setOpen(false); setActiveConvId(null) }} aria-label="Close chat" title="Close chat">
+                  <span aria-hidden="true">&times;</span>
                 </button>
               </div>
             </div>
@@ -944,9 +941,9 @@ export default function ChatWidget() {
                       type="button"
                       className="cw-mobile-chat-back"
                       onClick={() => setActiveConvId(null)}
-                      aria-label="Back to conversations"
+                      aria-label="Show conversation sidebar"
                     >
-                      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+                      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
                     </button>
                     <img src={otherAvatar} alt="" className="cw-header-avatar" />
                     <div className="cw-main-identity">

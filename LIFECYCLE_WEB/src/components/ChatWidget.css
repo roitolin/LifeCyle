@@ -1097,3 +1097,36 @@
     color: #fff;
   }
 }
+.cw-sidebar-close > span {
+  display: block;
+  font-size: 24px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+@media (max-width: 600px) {
+  .cw-sidebar-close,
+  .cw-mobile-chat-back,
+  .cw-mobile-chat-close {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .cw-sidebar-close:hover,
+  .cw-mobile-chat-back:hover,
+  .cw-mobile-chat-close:hover {
+    background: #edf1ee;
+  }
+
+  .cw-sidebar-close > span {
+    color: #29473d;
+    font-size: 26px;
+  }
+
+  .cw-mobile-chat-back svg {
+    width: 22px;
+    height: 22px;
+  }
+}

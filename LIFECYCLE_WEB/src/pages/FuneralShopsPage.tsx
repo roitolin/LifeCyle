@@ -236,8 +236,12 @@ export default function FuneralShopsPage() {
           <div className="fsp-state fsp-state-error">{error}</div>
         ) : filtered.length === 0 ? (
           <div className="fsp-state">
-            <p>{queryText ? 'No shops match your search.' : 'No funeral shops are currently available.'}</p>
-            {queryText ? <button type="button" className="fsp-clear-search" onClick={() => setQueryText('')}>Clear search</button> : null}
+            <p className="fsp-state-title">{queryText ? 'No shops match your search.' : 'No active funeral shops are currently available.'}</p>
+            {queryText ? (
+              <button type="button" className="fsp-clear-search" onClick={() => setQueryText('')}>Clear search</button>
+            ) : (
+              <p className="fsp-state-copy">Shops appear here after approval, with an active subscription, and when their storefront is online.</p>
+            )}
           </div>
         ) : (
           <div className="fsp-list">
