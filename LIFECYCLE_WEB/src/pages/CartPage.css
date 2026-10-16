@@ -712,3 +712,739 @@
     width: 100%;
   }
 }
+
+/* App-style cart tab on phone screens only. */
+@media (max-width: 600px) {
+  body.mobile-app-nav-visible .cart-shop-page {
+    min-height: calc(100dvh - 68px);
+    padding-bottom: 18px;
+    background: #eef1ec;
+  }
+
+  body.mobile-app-nav-visible .cart-topbar {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .cart-header {
+    position: sticky;
+    z-index: 100;
+    top: 0;
+    min-height: 58px;
+    padding: max(11px, env(safe-area-inset-top)) 0 11px;
+    border-bottom: 1px solid #d9dedb;
+    background: rgba(248, 249, 247, 0.96);
+    box-shadow: 0 5px 18px rgba(34, 49, 45, 0.06);
+    backdrop-filter: blur(16px);
+  }
+
+  body.mobile-app-nav-visible .cart-header-inner {
+    min-height: 38px;
+    justify-content: center;
+    padding: 0 14px;
+  }
+
+  body.mobile-app-nav-visible .cart-header .lc-brand,
+  body.mobile-app-nav-visible .cart-header-divider {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .cart-header h1 {
+    margin: 0;
+    color: #22312d;
+    font-size: 18px;
+    font-weight: 800;
+  }
+
+  body.mobile-app-nav-visible .cart-main {
+    gap: 12px;
+    margin: 14px auto;
+    padding: 0 14px;
+  }
+
+  body.mobile-app-nav-visible .cart-page-nav {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .cart-shop-block {
+    overflow: hidden;
+    border: 1px solid #dfe5e1;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 4px 14px rgba(34, 49, 45, 0.05);
+  }
+
+  body.mobile-app-nav-visible .cart-shop-header {
+    padding: 13px 14px;
+    background: #f8faf8;
+    font-size: 13px;
+  }
+
+  body.mobile-app-nav-visible .cart-item-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  body.mobile-app-nav-visible .item-col-product {
+    grid-column: 1 / -1;
+  }
+
+  body.mobile-app-nav-visible .item-col-price {
+    grid-column: 1;
+    padding-left: 28px;
+    color: #315f50;
+    text-align: left;
+  }
+
+  body.mobile-app-nav-visible .item-col-actions {
+    grid-column: 2;
+  }
+
+  body.mobile-app-nav-visible .item-delete-btn {
+    min-height: 36px;
+    padding: 0 8px;
+  }
+
+  body.mobile-app-nav-visible .cart-footer {
+    bottom: calc(68px + env(safe-area-inset-bottom));
+    margin: 2px -14px -14px;
+    padding: 12px 14px;
+    border-top: 1px solid #d9dedb;
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 -8px 22px rgba(34, 49, 45, 0.08);
+  }
+
+  body.mobile-app-nav-visible .footer-left {
+    font-size: 12px;
+  }
+
+  body.mobile-app-nav-visible .footer-right {
+    width: 100%;
+  }
+
+  body.mobile-app-nav-visible .footer-checkout-btn {
+    min-width: 122px;
+    min-height: 46px;
+    border-radius: 12px;
+  }
+
+  body.mobile-app-nav-visible .cart-empty {
+    margin-top: 10dvh;
+    padding: 36px 20px;
+    border: 1px solid #dfe5e1;
+    border-radius: 18px;
+    background: #fff;
+  }
+
+  body.mobile-app-nav-visible .cart-empty .shopee-btn-primary {
+    min-height: 46px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+  }
+}
+/* Phone cart cards follow the native cart's compact product-first layout. */
+.item-shop-mobile {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  body.mobile-app-nav-visible .cart-main {
+    gap: 10px;
+    margin-top: 12px;
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  body.mobile-app-nav-visible .cart-shop-block {
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  body.mobile-app-nav-visible .cart-shop-header {
+    min-height: 38px;
+    gap: 9px;
+    padding: 3px 4px 8px;
+    border: 0;
+    background: transparent;
+    color: #53615c;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  body.mobile-app-nav-visible .cart-shop-header .chat-icon {
+    color: #315f50;
+  }
+
+  body.mobile-app-nav-visible .cart-item-row {
+    position: relative;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    gap: 8px 10px;
+    margin-bottom: 10px;
+    padding: 13px;
+    border: 1px solid #dfe5e1;
+    border-radius: 17px;
+    background: #fff;
+    box-shadow: 0 5px 16px rgba(34, 49, 45, 0.055);
+  }
+
+  body.mobile-app-nav-visible .item-col-product {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 22px 78px minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+  }
+
+  body.mobile-app-nav-visible .shopee-checkbox {
+    width: 20px;
+    height: 20px;
+    margin-top: 2px;
+    accent-color: #315f50;
+  }
+
+  body.mobile-app-nav-visible .item-image,
+  body.mobile-app-nav-visible .item-fallback-image {
+    width: 78px;
+    height: 78px;
+    flex-basis: 78px;
+    border-radius: 13px;
+  }
+
+  body.mobile-app-nav-visible .item-details {
+    gap: 3px;
+  }
+
+  body.mobile-app-nav-visible .item-name {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    color: #263630;
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1.35;
+  }
+
+  body.mobile-app-nav-visible .item-shop-mobile {
+    overflow: hidden;
+    display: block;
+    color: #66736d;
+    font-size: 10px;
+    font-weight: 650;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.mobile-app-nav-visible .item-variation {
+    overflow: hidden;
+    color: #8a938e;
+    font-size: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.mobile-app-nav-visible .item-col-price {
+    grid-column: 1;
+    align-self: center;
+    padding-left: 30px;
+    color: #315f50;
+    font-size: 15px;
+    font-weight: 850;
+    text-align: left;
+  }
+
+  body.mobile-app-nav-visible .item-col-actions {
+    grid-column: 2;
+    align-self: center;
+  }
+
+  body.mobile-app-nav-visible .item-delete-btn {
+    min-height: 38px;
+    padding: 0 11px;
+    border: 1px solid #eadedc;
+    border-radius: 11px;
+    background: #fff8f7;
+    color: #9b4f49;
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  body.mobile-app-nav-visible .cart-footer {
+    gap: 9px;
+    margin-right: -12px;
+    margin-left: -12px;
+    padding: 10px 12px max(10px, env(safe-area-inset-bottom));
+  }
+
+  body.mobile-app-nav-visible .footer-left {
+    min-height: 34px;
+    gap: 12px;
+  }
+
+  body.mobile-app-nav-visible .footer-select-all,
+  body.mobile-app-nav-visible .footer-delete-btn {
+    font-size: 11px;
+  }
+
+  body.mobile-app-nav-visible .footer-right {
+    grid-template-columns: minmax(0, 1fr) minmax(116px, auto);
+    gap: 9px;
+  }
+
+  body.mobile-app-nav-visible .footer-total-text {
+    gap: 1px;
+    color: #65716c;
+    font-size: 10px;
+  }
+
+  body.mobile-app-nav-visible .footer-total-price {
+    color: #315f50;
+    font-size: 18px;
+    font-weight: 900;
+  }
+
+  body.mobile-app-nav-visible .footer-checkout-btn {
+    min-width: 116px;
+    min-height: 46px;
+    padding: 0 15px;
+    border-radius: 13px;
+    font-size: 12px;
+    font-weight: 850;
+  }
+
+  body.mobile-app-nav-visible .cart-empty::before {
+    width: 54px;
+    height: 54px;
+    display: grid;
+    place-items: center;
+    margin: 0 auto 14px;
+    border-radius: 17px;
+    background: #e8efeb;
+    color: #315f50;
+    content: 'Cart';
+    font-size: 11px;
+    font-weight: 900;
+  }
+
+  body.mobile-app-nav-visible .cart-empty h2 {
+    color: #263630;
+    font-size: 18px;
+  }
+
+  body.mobile-app-nav-visible .cart-empty p {
+    font-size: 12px;
+    line-height: 1.5;
+  }
+}
+
+/* Native mobile Cart header and item hierarchy. */
+.cart-mobile-summary {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  body.mobile-app-nav-visible .cart-header {
+    min-height: 72px;
+    padding: max(9px, env(safe-area-inset-top)) 0 9px;
+  }
+
+  body.mobile-app-nav-visible .cart-header-inner {
+    min-height: 52px;
+    justify-content: stretch;
+    padding: 0 14px;
+  }
+
+  body.mobile-app-nav-visible .cart-header h1 {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .cart-mobile-summary {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+  }
+
+  body.mobile-app-nav-visible .cart-mobile-total {
+    min-width: 0;
+    display: grid;
+    gap: 1px;
+  }
+
+  body.mobile-app-nav-visible .cart-mobile-total span {
+    color: #62706b;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  body.mobile-app-nav-visible .cart-mobile-total strong {
+    overflow: hidden;
+    color: #22312d;
+    font-size: 20px;
+    font-weight: 900;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.mobile-app-nav-visible .cart-mobile-summary button {
+    min-height: 44px;
+    flex: 0 0 auto;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 14px;
+    background: #22312d;
+    color: #fff;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 900;
+    cursor: pointer;
+  }
+
+  body.mobile-app-nav-visible .cart-mobile-summary button:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+
+  body.mobile-app-nav-visible .cart-shop-header {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .cart-item-row {
+    gap: 9px 10px;
+    padding: 12px;
+    border-color: #d9d6cd;
+    border-radius: 20px;
+    box-shadow: none;
+  }
+
+  body.mobile-app-nav-visible .item-col-product {
+    grid-template-columns: 22px 94px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  body.mobile-app-nav-visible .item-image,
+  body.mobile-app-nav-visible .item-fallback-image {
+    width: 94px;
+    height: 94px;
+    flex-basis: 94px;
+    border-radius: 16px;
+  }
+
+  body.mobile-app-nav-visible .item-name {
+    color: #22312d;
+    font-size: 15px;
+    font-weight: 900;
+  }
+
+  body.mobile-app-nav-visible .item-shop-mobile {
+    margin-top: 2px;
+    color: #8b7255;
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  body.mobile-app-nav-visible .item-variation {
+    margin-top: 2px;
+    color: #62706b;
+    font-size: 11px;
+  }
+
+  body.mobile-app-nav-visible .item-col-price {
+    color: #22312d;
+    font-size: 18px;
+    font-weight: 900;
+  }
+
+  body.mobile-app-nav-visible .item-delete-btn {
+    border: 0;
+    background: transparent;
+    color: #b91c1c;
+    font-size: 12px;
+  }
+
+  body.mobile-app-nav-visible .cart-footer {
+    padding-top: 9px;
+    padding-bottom: 9px;
+  }
+
+  body.mobile-app-nav-visible .cart-footer .footer-right {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .cart-footer .footer-left {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  body.mobile-app-nav-visible .footer-delete-btn {
+    min-height: 38px;
+    padding: 0 12px;
+    border-radius: 11px;
+    background: #feeceb;
+    color: #b91c1c;
+    font-weight: 850;
+  }
+
+  body.mobile-app-nav-visible .cart-empty {
+    margin-top: 24px;
+    padding: 28px 18px;
+    border-color: #d9d6cd;
+    border-radius: 24px;
+    background: #f8f6f2;
+    box-shadow: none;
+  }
+}
+.cart-mobile-selection-hint,
+.cart-mobile-select-ring,
+.cart-mobile-select-check {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  body.mobile-app-nav-visible .cart-header {
+    min-height: 72px;
+    padding: max(9px, env(safe-area-inset-top)) 0 9px;
+    border-bottom-color: #d9d6cd;
+    background: #f8f6f2;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  body.mobile-app-nav-visible .cart-header-inner {
+    min-height: 52px;
+    padding: 0 14px;
+  }
+
+  body.mobile-app-nav-visible .cart-mobile-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  body.mobile-app-nav-visible .cart-mobile-header-actions button {
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 12px;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 900;
+    white-space: nowrap;
+  }
+
+  body.mobile-app-nav-visible .cart-mobile-header-actions button svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  body.mobile-app-nav-visible .cart-mobile-text-action {
+    background: transparent;
+    color: #8a928d;
+  }
+
+  body.mobile-app-nav-visible .cart-mobile-text-action.select {
+    color: #22312d;
+  }
+
+  body.mobile-app-nav-visible .cart-mobile-delete-action {
+    background: #b91c1c;
+    color: #fff;
+  }
+
+  body.mobile-app-nav-visible .cart-mobile-checkout-action {
+    min-height: 44px;
+    padding-right: 14px;
+    padding-left: 14px;
+    background: #22312d;
+    color: #fff;
+  }
+
+  body.mobile-app-nav-visible .cart-mobile-header-actions button:disabled {
+    opacity: .45;
+  }
+
+  body.mobile-app-nav-visible .cart-main {
+    gap: 16px;
+    margin-top: 0;
+    padding: 18px 18px 28px;
+  }
+
+  body.mobile-app-nav-visible .cart-mobile-selection-hint {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border: 1px solid #d9d6cd;
+    border-radius: 16px;
+    background: #f8f6f2;
+    color: #62706b;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  body.mobile-app-nav-visible .cart-mobile-selection-hint span {
+    color: #8a928d;
+    font-size: 16px;
+  }
+
+  body.mobile-app-nav-visible .cart-item-row {
+    min-height: 120px;
+    margin-bottom: 0;
+    padding: 12px;
+    cursor: pointer;
+    transition: border-color 140ms ease, background 140ms ease;
+  }
+
+  body.mobile-app-nav-visible .cart-item-row.is-mobile-selected {
+    border-color: #f59e0b;
+    background: #fffbeb;
+  }
+
+  body.mobile-app-nav-visible .item-col-product {
+    grid-template-columns: 94px minmax(0, 1fr);
+    padding-right: 2px;
+  }
+
+  body.mobile-app-nav-visible .item-col-product > .shopee-checkbox {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .item-details {
+    padding-right: 2px;
+  }
+
+  body.mobile-app-nav-visible .item-col-price {
+    padding-left: 104px;
+  }
+
+  body.mobile-app-nav-visible .cart-item-row:has(.cart-mobile-select-ring) .item-col-product,
+  body.mobile-app-nav-visible .cart-item-row:has(.cart-mobile-select-check) .item-col-product {
+    padding-right: 32px;
+  }
+
+  body.mobile-app-nav-visible .cart-mobile-select-ring,
+  body.mobile-app-nav-visible .cart-mobile-select-check {
+    position: absolute;
+    top: 50%;
+    right: 16px;
+    width: 22px;
+    height: 22px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    transform: translateY(-50%);
+  }
+
+  body.mobile-app-nav-visible .cart-mobile-select-ring {
+    display: flex;
+    border: 2px solid #d9d6cd;
+    background: #fff;
+  }
+
+  body.mobile-app-nav-visible .cart-mobile-select-check {
+    display: flex;
+    background: #f59e0b;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 900;
+  }
+
+  body.mobile-app-nav-visible .cart-footer {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .cart-empty {
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 360px) {
+  body.mobile-app-nav-visible .cart-mobile-total strong {
+    font-size: 17px;
+  }
+
+  body.mobile-app-nav-visible .cart-mobile-header-actions {
+    gap: 3px;
+  }
+
+  body.mobile-app-nav-visible .cart-mobile-header-actions button {
+    padding-right: 7px;
+    padding-left: 7px;
+    font-size: 11px;
+  }
+}
+/* Screenshot-matched Cart spacing and card hierarchy on phones. */
+@media (max-width: 600px) {
+  body.mobile-app-nav-visible .cart-shop-page {
+    background: #eef2eb;
+  }
+
+  body.mobile-app-nav-visible .cart-mobile-header-actions button:disabled {
+    background: #adb4b0;
+    color: #eef1ec;
+    opacity: 1;
+  }
+
+  body.mobile-app-nav-visible .cart-main {
+    gap: 0;
+    margin-bottom: 0;
+    padding: 48px 17px 28px;
+  }
+
+  body.mobile-app-nav-visible .cart-item-row {
+    min-height: 170px;
+    grid-template-rows: 108px 27px;
+    gap: 8px 10px;
+    padding: 12px;
+  }
+
+  body.mobile-app-nav-visible .item-col-product {
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  body.mobile-app-nav-visible .item-image,
+  body.mobile-app-nav-visible .item-fallback-image {
+    width: 92px;
+    height: 92px;
+    flex-basis: 92px;
+    border-radius: 16px;
+  }
+
+  body.mobile-app-nav-visible .item-name {
+    font-size: 14px;
+    line-height: 1.25;
+  }
+
+  body.mobile-app-nav-visible .item-col-price {
+    align-self: start;
+    padding-left: 104px;
+  }
+
+  body.mobile-app-nav-visible .item-col-actions {
+    align-self: start;
+  }
+
+  body.mobile-app-nav-visible .item-delete-btn {
+    padding: 2px 0;
+    font-weight: 850;
+  }
+}

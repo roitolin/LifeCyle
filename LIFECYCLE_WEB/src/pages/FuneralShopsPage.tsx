@@ -30,6 +30,7 @@ type ShopRecord = {
   shopImageUrl: string | null
   businessName: string
   generalLocation: string
+  productCount: number
 }
 
 export default function FuneralShopsPage() {
@@ -81,7 +82,25 @@ export default function FuneralShopsPage() {
           .order('shopName', { ascending: true })
 
         if (err) throw err
-        setShops((data ?? []).map((row: any) => ({
+        const shopRows = data ?? []
+        const productCounts = new Map<string, number>()
+        const shopIds = shopRows.map(row => String(row.id))
+
+        if (shopIds.length > 0) {
+          const { data: productRows } = await supabase
+            .from('funeral_products')
+            .select('shopId')
+            .in('shopId', shopIds)
+            .eq('active', true)
+            .gt('stock', 0)
+
+          for (const product of productRows ?? []) {
+            const shopId = String(product.shopId)
+            productCounts.set(shopId, (productCounts.get(shopId) ?? 0) + 1)
+          }
+        }
+
+        setShops(shopRows.map((row: any) => ({
           id: String(row.id),
           shopName: String(row.shopName || ''),
           shopAddress: String(row.shopAddress || ''),
@@ -89,6 +108,7 @@ export default function FuneralShopsPage() {
           shopImageUrl: row.shopImageUrl || null,
           businessName: String(row.businessName || ''),
           generalLocation: String(row.generalLocation || ''),
+          productCount: productCounts.get(String(row.id)) ?? 0,
         })))
       } catch (e: any) {
         setError(e?.message ?? 'Unable to load shops.')
@@ -105,7 +125,7 @@ export default function FuneralShopsPage() {
   })
 
   return (
-    <div className="sp-page">
+    <div className="sp-page funeral-shops-page">
       {/* ── Topbar ── */}
       <div className="sp-topbar">
         <div className="sp-topbar-inner">
@@ -147,6 +167,7 @@ export default function FuneralShopsPage() {
       {/* ── Header ── */}
       <header className="sp-header">
         <div className="sp-header-inner">
+          <h1 className="fsp-mobile-page-title">Shops</h1>
           <BrandLogo />
 
           <div className="sp-search-wrap">
@@ -179,13 +200,32 @@ export default function FuneralShopsPage() {
         <div className="page-back-row"><PageBackButton /></div>
 
         <div className="fsp-hero">
-          <h1>Funeral shops</h1>
-          <p>Browse active funeral shops and view their available products and contact details.</p>
+          <h1>
+            <span className="fsp-desktop-copy">Funeral shops</span>
+            <span className="fsp-mobile-copy">Find the right funeral shop</span>
+          </h1>
+          <p>
+            <span className="fsp-desktop-copy">Browse active funeral shops and view their available products and contact details.</span>
+            <span className="fsp-mobile-copy">Browse active funeral shops and their available products.</span>
+          </p>
           <div className="fsp-hero-pill">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+            <span className="fsp-desktop-copy">
             {loading ? 'Loading…' : `${shops.length} available ${shops.length === 1 ? 'shop' : 'shops'}`}
+            </span>
+            <span className="fsp-mobile-copy">
+              {loading ? 'Loading...' : shops.length + ' active ' + (shops.length === 1 ? 'shop' : 'shops')}
+            </span>
           </div>
         </div>
+        <div className="fsp-mobile-search">
+          <SearchIcon />
+          <input type="search" value={queryText} onChange={event => setQueryText(event.target.value)} placeholder="Search by shop or location" aria-label="Search by shop or location" />
+          {queryText ? (
+            <button type="button" onClick={() => setQueryText('')} aria-label="Clear shop search">&times;</button>
+          ) : null}
+        </div>
+
 
         {loading ? (
           <div className="fsp-state">
@@ -196,7 +236,8 @@ export default function FuneralShopsPage() {
           <div className="fsp-state fsp-state-error">{error}</div>
         ) : filtered.length === 0 ? (
           <div className="fsp-state">
-            <p>No funeral shops are currently available.</p>
+            <p>{queryText ? 'No shops match your search.' : 'No funeral shops are currently available.'}</p>
+            {queryText ? <button type="button" className="fsp-clear-search" onClick={() => setQueryText('')}>Clear search</button> : null}
           </div>
         ) : (
           <div className="fsp-list">
@@ -206,7 +247,7 @@ export default function FuneralShopsPage() {
                   <img src={shop.shopImageUrl} alt={shop.shopName} className="fsp-card-img" />
                 ) : (
                   <div className="fsp-card-img fsp-card-img-fallback">
-                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#22312d" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#22312d" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 9v11h16V9M3 9l2-6h14l2 6M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0M9 20v-6h6v6" /></svg>
                   </div>
                 )}
 
@@ -224,9 +265,17 @@ export default function FuneralShopsPage() {
                   ) : null}
                   {shop.businessName ? <div className="fsp-card-business">{shop.businessName}</div> : null}
                 </div>
+                <div className="fsp-card-inventory">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8V6a6 6 0 0 1 12 0v2M4 8h16l1 13H3L4 8Z" /></svg>
+                  <span>
+                    <strong>{shop.productCount}</strong> available &middot; <strong>{shop.productCount}</strong> {shop.productCount === 1 ? 'product' : 'products'}
+                  </span>
+                </div>
 
                 <Link className="fsp-card-btn" to={`/shop/${shop.id}`}>
-                  View products
+                  <span className="fsp-card-btn-desktop">View products</span>
+                  <span className="fsp-card-btn-mobile">Browse Catalog</span>
+                  <span className="fsp-card-btn-arrow" aria-hidden="true">&rarr;</span>
                 </Link>
               </article>
             ))}

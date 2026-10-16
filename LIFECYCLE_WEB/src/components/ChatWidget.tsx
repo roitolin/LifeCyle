@@ -721,6 +721,15 @@ export default function ChatWidget() {
 
   const totalUnread = Object.values(unreadCounts).reduce((s, n) => s + n, 0)
 
+  useEffect(() => {
+    const publishUnread = () => window.dispatchEvent(new CustomEvent('chat-unread-count', {
+      detail: { count: totalUnread },
+    }))
+    publishUnread()
+    window.addEventListener('request-chat-unread-count', publishUnread)
+    return () => window.removeEventListener('request-chat-unread-count', publishUnread)
+  }, [totalUnread])
+
   const activeConv = conversations.find(c => c.id === activeConvId)
   const otherUserId = activeConv?.participants.find(p => p !== userId) ?? null
   const otherUser = otherUserId ? userInfoMap[otherUserId] : null
@@ -780,7 +789,7 @@ export default function ChatWidget() {
 
       {/* Chat Panel Split View */}
       {open && (
-        <div className={`cw-panel ${isCollapsed ? 'collapsed' : ''}`}>
+        <div className={`cw-panel${isCollapsed ? ' collapsed' : ''}${activeConvId ? ' conversation-open' : ''}`}>
           
           {/* Sidebar (Left) */}
           <div className="cw-sidebar">
@@ -931,6 +940,14 @@ export default function ChatWidget() {
               <>
                 <div className="cw-main-header" ref={dropdownRef}>
                   <div className="cw-main-header-left">
+                    <button
+                      type="button"
+                      className="cw-mobile-chat-back"
+                      onClick={() => setActiveConvId(null)}
+                      aria-label="Back to conversations"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+                    </button>
                     <img src={otherAvatar} alt="" className="cw-header-avatar" />
                     <div className="cw-main-identity">
                       <span className="cw-main-title" onClick={() => setHeaderDropdownOpen(!headerDropdownOpen)}>
@@ -939,6 +956,12 @@ export default function ChatWidget() {
                       <small>{activeConv?.shopId === userId ? 'Customer' : activeConv?.shopId === otherUserId ? 'Funeral shop' : 'Conversation'}</small>
                     </div>
                   </div>
+                  <button
+                    type="button"
+                    className="cw-mobile-chat-close"
+                    onClick={() => { setOpen(false); setActiveConvId(null) }}
+                    aria-label="Close chat"
+                  >&times;</button>
                   {headerDropdownOpen && (
                     <div className="cw-header-dropdown">
                       <div className="cw-dropdown-profile">

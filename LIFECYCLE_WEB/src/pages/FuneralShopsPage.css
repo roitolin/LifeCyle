@@ -258,3 +258,445 @@
 .fsp-card-btn:hover {
   background: #22312d;
 }
+
+/* Native-app-like shop list on phone screens only. */
+@media (max-width: 600px) {
+  body.mobile-app-nav-visible .sp-page > .sp-container {
+    min-height: auto;
+    padding: 14px 14px 24px;
+    background: #eef1ec;
+  }
+
+  body.mobile-app-nav-visible .sp-container > .page-back-row {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .fsp-hero {
+    margin: 0 0 14px;
+    padding: 16px;
+    border: 0;
+    border-radius: 18px;
+    background: #dfe9df;
+  }
+
+  body.mobile-app-nav-visible .fsp-hero h1 {
+    margin-bottom: 5px;
+    font-size: 22px;
+    line-height: 1.2;
+  }
+
+  body.mobile-app-nav-visible .fsp-hero p {
+    margin-bottom: 12px;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  body.mobile-app-nav-visible .fsp-hero-pill {
+    padding: 7px 10px;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.7);
+    font-size: 11px;
+  }
+
+  body.mobile-app-nav-visible .fsp-list {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  body.mobile-app-nav-visible .fsp-card {
+    display: grid;
+    grid-template-columns: 82px minmax(0, 1fr);
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid #dfe5e1;
+    border-radius: 16px;
+    text-align: left;
+    box-shadow: 0 4px 14px rgba(34, 49, 45, 0.05);
+  }
+
+  body.mobile-app-nav-visible .fsp-card-img {
+    grid-column: 1;
+    grid-row: 1;
+    width: 82px;
+    height: 82px;
+    aspect-ratio: auto;
+    border-radius: 12px;
+  }
+
+  body.mobile-app-nav-visible .fsp-card-body {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+  }
+
+  body.mobile-app-nav-visible .fsp-card-name,
+  body.mobile-app-nav-visible .fsp-card-meta {
+    white-space: normal;
+  }
+
+  body.mobile-app-nav-visible .fsp-card-name {
+    margin-bottom: 5px;
+    font-size: 15px;
+    line-height: 1.3;
+  }
+
+  body.mobile-app-nav-visible .fsp-card-btn {
+    grid-column: 1 / -1;
+    min-height: 44px;
+    display: grid;
+    place-items: center;
+    border-radius: 12px;
+  }
+
+  body.mobile-app-nav-visible .fsp-state {
+    padding: 44px 18px;
+    border-radius: 16px;
+  }
+}
+
+/* Native mobile Shops directory. */
+.fsp-mobile-search,
+.fsp-card-btn-mobile,
+.fsp-card-btn-arrow {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  body.mobile-app-nav-visible .funeral-shops-page > .sp-header .sp-search-wrap {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .funeral-shops-page > .sp-header {
+    padding-bottom: 10px;
+  }
+
+  body.mobile-app-nav-visible .fsp-hero {
+    margin-bottom: 14px;
+    padding: 17px;
+    border-radius: 22px;
+    background: #d6e2d2;
+  }
+
+  body.mobile-app-nav-visible .fsp-hero h1 {
+    color: #22312d;
+    font-size: 23px;
+    font-weight: 900;
+    line-height: 1.22;
+  }
+
+  body.mobile-app-nav-visible .fsp-hero p {
+    color: #53615d;
+    font-size: 13px;
+    line-height: 1.46;
+  }
+
+  body.mobile-app-nav-visible .fsp-hero-pill {
+    min-height: 34px;
+    gap: 8px;
+    padding: 8px 12px;
+    color: #22312d;
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  body.mobile-app-nav-visible .fsp-mobile-search {
+    min-height: 48px;
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr) 32px;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding: 0 8px 0 12px;
+    border: 1px solid #d9d6cd;
+    border-radius: 16px;
+    background: #fff;
+    color: #62706b;
+  }
+
+  body.mobile-app-nav-visible .fsp-mobile-search > svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  body.mobile-app-nav-visible .fsp-mobile-search input {
+    width: 100%;
+    min-height: 46px;
+    padding: 8px 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: #22312d;
+    font: inherit;
+    font-size: 16px;
+  }
+
+  body.mobile-app-nav-visible .fsp-mobile-search input::placeholder {
+    color: #8a928d;
+  }
+
+  body.mobile-app-nav-visible .fsp-mobile-search button {
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: #edf1ee;
+    color: #53615d;
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  body.mobile-app-nav-visible .fsp-list {
+    gap: 14px;
+  }
+
+  body.mobile-app-nav-visible .fsp-card {
+    display: block;
+    padding: 14px;
+    border: 1px solid #d9d6cd;
+    border-radius: 24px;
+    background: #f8f6f2;
+    text-align: left;
+    box-shadow: none;
+  }
+
+  body.mobile-app-nav-visible .fsp-card-img {
+    width: 100%;
+    height: 156px;
+    display: flex;
+    border-radius: 18px;
+    object-fit: cover;
+  }
+
+  body.mobile-app-nav-visible .fsp-card-body {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 7px;
+    margin-top: 14px;
+  }
+
+  body.mobile-app-nav-visible .fsp-card-name {
+    order: 1;
+    margin: 0;
+    color: #22312d;
+    font-size: 19px;
+    font-weight: 900;
+  }
+
+  body.mobile-app-nav-visible .fsp-card-business {
+    order: 2;
+    align-self: flex-start;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    color: #8b7255;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  body.mobile-app-nav-visible .fsp-card-meta {
+    order: 3;
+    align-items: flex-start;
+    gap: 7px;
+    margin: 0;
+    color: #62706b;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  body.mobile-app-nav-visible .fsp-card-meta svg {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+    margin-top: 1px;
+  }
+
+  body.mobile-app-nav-visible .fsp-card-btn {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 14px;
+    padding: 0 16px;
+    border-radius: 14px;
+    background: #22312d;
+    font-size: 13px;
+    font-weight: 900;
+  }
+
+  body.mobile-app-nav-visible .fsp-card-btn-desktop {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .fsp-card-btn-mobile,
+  body.mobile-app-nav-visible .fsp-card-btn-arrow {
+    display: inline;
+  }
+
+  body.mobile-app-nav-visible .fsp-card-btn-arrow {
+    font-size: 16px;
+  }
+
+  body.mobile-app-nav-visible .fsp-state {
+    padding: 28px 18px;
+    border: 1px solid #d9d6cd;
+    border-radius: 24px;
+    background: #f8f6f2;
+    box-shadow: none;
+  }
+
+  body.mobile-app-nav-visible .fsp-clear-search {
+    min-height: 42px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 12px;
+    background: #22312d;
+    color: #fff;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 900;
+  }
+}
+.fsp-mobile-page-title,
+.fsp-mobile-copy,
+.fsp-card-inventory {
+  display: none;
+}
+
+/* Screenshot-matched Shops directory on phone screens. */
+@media (max-width: 600px) {
+  body.mobile-app-nav-visible .funeral-shops-page > .sp-header {
+    min-height: 70px;
+    padding: max(8px, env(safe-area-inset-top)) 0 8px;
+    border-bottom: 1px solid #e5e9e2;
+    background: #f7f8f2 !important;
+  }
+
+  body.mobile-app-nav-visible .funeral-shops-page > .sp-header .sp-header-inner {
+    min-height: 53px;
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+  }
+
+  body.mobile-app-nav-visible .funeral-shops-page > .sp-header .lc-brand,
+  body.mobile-app-nav-visible .funeral-shops-page > .sp-header .sp-search-wrap,
+  body.mobile-app-nav-visible .funeral-shops-page > .sp-header .sp-cart-area {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .fsp-mobile-page-title {
+    display: block;
+    margin: 0;
+    color: #22312d;
+    font-size: 20px;
+    font-weight: 900;
+    line-height: 1.2;
+  }
+
+  body.mobile-app-nav-visible .funeral-shops-page > .sp-container {
+    padding: 48px 14px 24px;
+  }
+
+  body.mobile-app-nav-visible .fsp-desktop-copy {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .fsp-mobile-copy {
+    display: inline;
+  }
+
+  body.mobile-app-nav-visible .fsp-hero {
+    margin-bottom: 14px;
+    padding: 16px;
+    border-radius: 21px;
+    background: #d5e3d1;
+  }
+
+  body.mobile-app-nav-visible .fsp-hero h1 {
+    margin-bottom: 6px;
+    font-size: 20px;
+  }
+
+  body.mobile-app-nav-visible .fsp-hero p {
+    margin-bottom: 12px;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  body.mobile-app-nav-visible .fsp-hero-pill {
+    min-height: 33px;
+    padding: 7px 11px;
+    font-size: 11px;
+  }
+
+  body.mobile-app-nav-visible .fsp-mobile-search {
+    min-height: 47px;
+    margin-bottom: 14px;
+    border-radius: 16px;
+  }
+
+  body.mobile-app-nav-visible .fsp-mobile-search input {
+    min-height: 45px;
+    font-size: 13px;
+  }
+
+  body.mobile-app-nav-visible .fsp-card {
+    padding: 13px;
+  }
+
+  body.mobile-app-nav-visible .fsp-card-img {
+    height: 152px;
+    border-radius: 18px;
+  }
+
+  body.mobile-app-nav-visible .fsp-card-body {
+    gap: 5px;
+    margin-top: 14px;
+  }
+
+  body.mobile-app-nav-visible .fsp-card-name {
+    font-size: 17px;
+  }
+
+  body.mobile-app-nav-visible .fsp-card-business {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .fsp-card-meta {
+    font-size: 12px;
+  }
+
+  body.mobile-app-nav-visible .fsp-card-inventory {
+    min-height: 31px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 9px;
+    padding: 6px 9px;
+    border-radius: 8px;
+    background: #ebf1ea;
+    color: #37705c;
+    font-size: 10px;
+    font-weight: 700;
+  }
+
+  body.mobile-app-nav-visible .fsp-card-inventory svg {
+    width: 15px;
+    height: 15px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  body.mobile-app-nav-visible .fsp-card-btn {
+    margin-top: 13px;
+  }
+}

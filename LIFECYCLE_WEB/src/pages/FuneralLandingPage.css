@@ -1942,3 +1942,983 @@
     font-size: 14px;
   }
 }
+
+/* Phone app shell. Tablet and desktop rules above remain unchanged. */
+@media (max-width: 600px) {
+  body.mobile-app-nav-visible .sp-page {
+    min-height: calc(100dvh - 68px);
+    background: #eef1ec;
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-topbar {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header {
+    position: sticky;
+    z-index: 100;
+    top: 0;
+    padding: max(10px, env(safe-area-inset-top)) 0 12px;
+    border-bottom: 1px solid #d9dedb;
+    background: rgba(248, 249, 247, 0.96) !important;
+    box-shadow: 0 5px 18px rgba(34, 49, 45, 0.06);
+    backdrop-filter: blur(16px);
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-header-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    gap: 10px 12px;
+    padding: 0 14px;
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-brand-logo {
+    --lc-brand-ink: #22312d;
+    --lc-brand-soft: #62706b;
+    justify-self: start;
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-brand-logo .lc-brand__mark {
+    box-shadow: none;
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-cart-area {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-cart-btn {
+    color: #22312d;
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-search-wrap {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+    margin: 0;
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-search-box {
+    min-height: 46px;
+    padding: 2px 4px 2px 8px;
+    border: 1px solid #d9dedb;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: none;
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-search-box:focus-within {
+    border-color: #315f50;
+    box-shadow: 0 0 0 3px rgba(49, 95, 80, 0.1);
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-search-box input {
+    min-height: 40px;
+    padding: 8px;
+    font-size: 16px;
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-search-btn {
+    width: 42px;
+    height: 40px;
+    color: #315f50;
+  }
+
+  body.mobile-app-nav-visible .sp-body {
+    padding: 14px 0 24px;
+    background: #eef1ec;
+  }
+
+  body.mobile-app-nav-visible .sp-body-inner {
+    gap: 12px;
+    padding: 0 14px;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-filter-btn {
+    min-height: 46px;
+    border: 1px solid #d9dedb;
+    border-radius: 14px;
+    box-shadow: 0 3px 12px rgba(34, 49, 45, 0.04);
+  }
+
+  body.mobile-app-nav-visible .sp-sidebar.is-open {
+    position: fixed;
+    z-index: 9700;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: block;
+    max-height: min(82dvh, 720px);
+    overflow-y: auto;
+    padding: 20px 18px calc(22px + env(safe-area-inset-bottom));
+    border: 0;
+    border-radius: 22px 22px 0 0;
+    box-shadow: 0 -100vh 0 100vh rgba(18, 28, 24, 0.48), 0 -12px 36px rgba(18, 28, 24, 0.18);
+  }
+
+  body.mobile-app-nav-visible .sp-sidebar-heading {
+    position: sticky;
+    z-index: 1;
+    top: -20px;
+    margin: -20px -18px 16px;
+    padding: 18px;
+    border-bottom: 1px solid #e3e7e4;
+    background: #fff;
+  }
+
+  body.mobile-app-nav-visible .sp-filter-done-btn {
+    min-height: 48px;
+    border-radius: 12px;
+  }
+
+  body.mobile-app-nav-visible .sp-result-label {
+    margin: 2px 0 10px;
+    font-size: 17px;
+  }
+
+  body.mobile-app-nav-visible .sp-sort-bar {
+    gap: 8px;
+    margin-bottom: 14px;
+    padding: 0 0 2px;
+    overflow-x: auto;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    scrollbar-width: none;
+  }
+
+  body.mobile-app-nav-visible .sp-sort-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .sp-sort-label,
+  body.mobile-app-nav-visible .sp-pagination-label,
+  body.mobile-app-nav-visible .sp-page-btns {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .sp-page .sp-sort-btn {
+    flex: 0 0 auto;
+    min-height: 38px;
+    padding: 8px 14px;
+    border: 1px solid #d9dedb;
+    border-radius: 999px;
+    background: #fff;
+    white-space: nowrap;
+  }
+
+  body.mobile-app-nav-visible .sp-page .sp-grid {
+    gap: 10px;
+  }
+
+  body.mobile-app-nav-visible .sp-card {
+    overflow: hidden;
+    border: 1px solid #e0e5e2;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 4px 14px rgba(34, 49, 45, 0.05);
+  }
+
+  body.mobile-app-nav-visible .sp-card-img-wrap {
+    aspect-ratio: 1 / 0.88;
+  }
+
+  body.mobile-app-nav-visible .sp-card-name {
+    min-height: 2.8em;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  body.mobile-app-nav-visible .sp-card-location {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.mobile-app-nav-visible .sp-footer {
+    display: none;
+  }
+}
+
+/* Native mobile Home composition. */
+.sp-mobile-home-feature,
+.sp-mobile-catalog-heading {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  body.mobile-app-nav-visible .sp-mobile-home-feature {
+    position: relative;
+    grid-column: 1 / -1;
+    height: 176px;
+    overflow: hidden;
+    display: block;
+    margin-bottom: 4px;
+    border-radius: 20px;
+    background: #22312d;
+    color: #fff;
+    text-decoration: none;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-home-feature > img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-home-feature-overlay {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 76%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 17px;
+    background: rgba(20, 28, 26, 0.74);
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-home-feature-overlay strong {
+    overflow: hidden;
+    display: -webkit-box;
+    color: #fff;
+    font-size: 20px;
+    font-weight: 850;
+    line-height: 1.2;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-home-feature-overlay small {
+    overflow: hidden;
+    display: -webkit-box;
+    margin-top: 7px;
+    color: #eef1ec;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.45;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-home-feature-action {
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+    margin-top: 12px;
+    padding: 0 12px;
+    border-radius: 9px;
+    background: #fff;
+    color: #22312d;
+    font-size: 11px;
+    font-weight: 850;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-catalog-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 2px 0 13px;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-catalog-heading h2 {
+    margin: 0;
+    color: #22312d;
+    font-size: 20px;
+    font-weight: 850;
+    letter-spacing: -0.02em;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-catalog-heading span {
+    flex: 0 0 auto;
+    color: #62706b;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  body.mobile-app-nav-visible .sp-result-label {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-filter-btn {
+    min-height: 44px;
+    margin-bottom: 15px;
+    padding: 0 14px;
+    border-color: #d9d6cd;
+    border-radius: 999px;
+    background: #fff;
+    box-shadow: none;
+  }
+
+  body.mobile-app-nav-visible .sp-page .sp-grid {
+    gap: 15px 11px;
+  }
+
+  body.mobile-app-nav-visible .sp-card {
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  body.mobile-app-nav-visible .sp-card-img-wrap {
+    overflow: hidden;
+    aspect-ratio: 0.82;
+    border-radius: 18px;
+    background: #e8ede9;
+  }
+
+  body.mobile-app-nav-visible .sp-verified-badge {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .sp-card-body {
+    display: flex;
+    flex-direction: column;
+    padding: 7px 2px 0;
+  }
+
+  body.mobile-app-nav-visible .sp-card-location {
+    order: -1;
+    margin: 0 0 2px;
+    color: #8b7255;
+    font-size: 10px;
+    font-weight: 800;
+  }
+
+  body.mobile-app-nav-visible .sp-card-name {
+    min-height: 2.7em;
+    margin: 0;
+    color: #22312d;
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1.35;
+  }
+
+  body.mobile-app-nav-visible .sp-card-price-row {
+    margin-top: 3px;
+  }
+
+  body.mobile-app-nav-visible .sp-card-price {
+    color: #22312d;
+    font-size: 13px;
+    font-weight: 850;
+  }
+
+  body.mobile-app-nav-visible .sp-card-meta {
+    display: none;
+  }
+}
+.sp-mobile-header-actions,
+.sp-mobile-search-filter,
+.sp-mobile-favorite,
+.sp-filter-backdrop,
+.sp-mobile-sort-filter {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  body.mobile-app-nav-visible .sp-page > .sp-header {
+    position: relative;
+    padding: max(8px, env(safe-area-inset-top)) 0 0;
+    border-bottom: 0;
+    background: #eef1ec !important;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-header-inner {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 16px 10px;
+    padding: 0 18px;
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-brand-logo {
+    align-self: center;
+    min-height: 40px;
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-brand-logo .lc-brand__mark {
+    width: 36px;
+    height: 36px;
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-brand-logo .lc-brand__name {
+    color: #22312d;
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-header-action {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 1px solid #d9d6cd;
+    border-radius: 999px;
+    background: #fff;
+    color: #22312d;
+    text-decoration: none;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-header-action svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.9;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-header-action > span {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    min-width: 16px;
+    height: 16px;
+    display: grid;
+    place-items: center;
+    padding: 0 3px;
+    border-radius: 999px;
+    background: #f59e0b;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 800;
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-cart-area {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-search-wrap {
+    min-height: 48px;
+    display: flex;
+    align-items: stretch;
+    overflow: visible;
+    border: 1px solid #d9d6cd;
+    border-radius: 999px;
+    background: #fff;
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-search-box {
+    min-width: 0;
+    min-height: 46px;
+    flex: 1;
+    flex-direction: row-reverse;
+    padding: 0 4px 0 8px;
+    border: 0;
+    border-radius: 999px 0 0 999px;
+    background: transparent;
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-search-box:focus-within {
+    border: 0;
+    box-shadow: none;
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-search-box input {
+    min-width: 0;
+    min-height: 46px;
+    padding: 10px 8px 10px 2px;
+    font-size: 14px;
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-search-btn {
+    width: 36px;
+    height: 46px;
+    flex: 0 0 36px;
+    color: #62706b;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-search-filter {
+    position: relative;
+    width: 49px;
+    height: 46px;
+    flex: 0 0 49px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-left: 1px solid #d9d6cd;
+    background: transparent;
+    color: #315f50;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-search-filter svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-search-filter > span {
+    position: absolute;
+    top: -4px;
+    right: -3px;
+    min-width: 18px;
+    height: 18px;
+    display: grid;
+    place-items: center;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: #315f50;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 800;
+  }
+
+  body.mobile-app-nav-visible .sp-body {
+    padding-top: 16px;
+  }
+
+  body.mobile-app-nav-visible .sp-body-inner {
+    gap: 0;
+    padding: 0 18px;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-home-feature {
+    margin-bottom: 24px;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-filter-btn {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .sp-filter-backdrop {
+    position: fixed;
+    z-index: 9690;
+    inset: 0;
+    display: block;
+    padding: 0;
+    border: 0;
+    background: rgba(20, 29, 43, 0.38);
+  }
+
+  body.mobile-app-nav-visible .sp-sidebar.is-open {
+    z-index: 9700;
+    max-height: 78dvh;
+    padding: 0 18px calc(16px + env(safe-area-inset-bottom));
+    border-radius: 24px 24px 0 0;
+    background: #fff;
+    box-shadow: 0 -8px 30px rgba(20, 29, 43, 0.16);
+  }
+
+  body.mobile-app-nav-visible .sp-sidebar-heading {
+    top: 0;
+    margin: 0 -18px;
+    min-height: 62px;
+    padding: 0 18px;
+    color: #315f50;
+  }
+
+  body.mobile-app-nav-visible .sp-sidebar-heading > span {
+    font-size: 13px;
+    letter-spacing: 0.3px;
+  }
+
+  body.mobile-app-nav-visible .sp-sidebar-close {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    color: #315f50;
+    font-size: 26px;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-sort-filter {
+    display: grid;
+    gap: 8px;
+  }
+
+  body.mobile-app-nav-visible .sp-filter-block {
+    padding: 18px 0;
+    border-bottom-color: #ece8df;
+  }
+
+  body.mobile-app-nav-visible .sp-filter-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  body.mobile-app-nav-visible .sp-filter-title-row button {
+    padding: 4px;
+    border: 0;
+    background: transparent;
+    color: #315f50;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  body.mobile-app-nav-visible .sp-filter-title {
+    color: #22312d;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-sort-option {
+    min-height: 62px;
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border: 1px solid #d9d6cd;
+    border-radius: 14px;
+    background: #fff;
+    color: #22312d;
+    text-align: left;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-sort-option.active {
+    border-color: #315f50;
+    background: #eef1ec;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-sort-icon {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    background: #eef1ec;
+    color: #315f50;
+    font-size: 18px;
+    font-weight: 900;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-sort-option.active .sp-mobile-sort-icon {
+    background: #315f50;
+    color: #fff;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-sort-option > span:nth-child(2) {
+    display: grid;
+    gap: 2px;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-sort-option strong {
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-sort-option small {
+    color: #62706b;
+    font-size: 10px;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-sort-option b {
+    color: #315f50;
+    font-size: 18px;
+  }
+
+  body.mobile-app-nav-visible .sp-price-input {
+    min-height: 44px;
+    border-color: #d9d6cd;
+    border-radius: 10px;
+    font-size: 13px;
+  }
+
+  body.mobile-app-nav-visible .sp-apply-btn {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .sp-filter-done-btn {
+    position: sticky;
+    bottom: -1px;
+    min-height: 48px;
+    border-radius: 999px;
+    background: #315f50;
+  }
+
+  body.mobile-app-nav-visible .sp-clear-btn {
+    margin-top: 14px;
+    color: #315f50;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-catalog-heading {
+    align-items: center;
+    margin-bottom: 16px;
+  }
+
+  body.mobile-app-nav-visible .sp-page .sp-sort-bar {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-favorite {
+    position: absolute;
+    z-index: 2;
+    top: 9px;
+    right: 9px;
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(255,255,255,.92);
+    color: #22312d;
+    box-shadow: 0 3px 10px rgba(34,49,45,.12);
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-favorite svg {
+    width: 17px;
+    height: 17px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-favorite.active {
+    color: #f59e0b;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-favorite.active svg {
+    fill: currentColor;
+  }
+
+  body.mobile-app-nav-visible .cw-fab {
+    display: none;
+  }
+}
+.sp-card-price-mobile {
+  display: none;
+}
+
+/* Screenshot-matched phone proportions for the storefront home. */
+@media (max-width: 600px) {
+  body.mobile-app-nav-visible .sp-page {
+    background: #f7f8f2;
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header {
+    background: #f7f8f2 !important;
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-header-inner {
+    gap: 14px 8px;
+    padding-right: 13px;
+    padding-left: 13px;
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-brand-logo {
+    min-height: 42px;
+    gap: 8px;
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-brand-logo .lc-brand__mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-brand-logo .lc-brand__name {
+    font-size: 21px;
+    letter-spacing: -0.7px;
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-brand-logo .lc-brand__tagline {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-header-actions {
+    gap: 7px;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-header-action {
+    width: 42px;
+    height: 42px;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-header-action > span {
+    background: #d9423a;
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-search-wrap {
+    min-height: 46px;
+  }
+
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-search-box,
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-search-box input,
+  body.mobile-app-nav-visible .sp-page > .sp-header .sp-search-btn,
+  body.mobile-app-nav-visible .sp-mobile-search-filter {
+    height: 44px;
+    min-height: 44px;
+  }
+
+  body.mobile-app-nav-visible .sp-body {
+    padding-top: 15px;
+  }
+
+  body.mobile-app-nav-visible .sp-body-inner {
+    padding-right: 13px;
+    padding-left: 13px;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-home-feature {
+    height: 172px;
+    margin-bottom: 28px;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-home-feature-overlay {
+    width: 74%;
+    padding: 16px;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-home-feature-overlay strong {
+    font-size: 19px;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-catalog-heading {
+    margin: 0 0 18px;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-catalog-heading h2 {
+    font-size: 19px;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-catalog-heading button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 0;
+    border: 0;
+    background: transparent;
+    color: #315f50;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 850;
+  }
+
+  body.mobile-app-nav-visible .sp-mobile-catalog-heading button span {
+    color: inherit;
+    font-size: 16px;
+    line-height: 1;
+  }
+
+  body.mobile-app-nav-visible .sp-page .sp-grid {
+    gap: 14px;
+  }
+
+  body.mobile-app-nav-visible .sp-card-img-wrap {
+    border-radius: 17px;
+  }
+
+  body.mobile-app-nav-visible .sp-card-body {
+    padding-top: 6px;
+  }
+
+  body.mobile-app-nav-visible .sp-card-name {
+    min-height: 0;
+  }
+
+  body.mobile-app-nav-visible .sp-card-price-desktop {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .sp-card-price-mobile {
+    display: inline;
+  }
+}
+/* Keep the Home phone search and filter controls in one stable pill. */
+@media (max-width: 600px) {
+  body.mobile-app-nav-visible .sp-page:not(.funeral-shops-page) > .sp-header .sp-search-wrap {
+    width: 100%;
+    height: 46px;
+    min-height: 46px;
+    flex: 0 0 46px;
+    flex-direction: row;
+    align-items: center;
+    gap: 0;
+    overflow: hidden;
+    box-sizing: border-box;
+  }
+
+  body.mobile-app-nav-visible .sp-page:not(.funeral-shops-page) > .sp-header .sp-search-wrap:focus-within {
+    border-color: #8aa096;
+    box-shadow: 0 0 0 3px rgba(49, 95, 80, 0.1);
+  }
+
+  body.mobile-app-nav-visible .sp-page:not(.funeral-shops-page) > .sp-header .sp-search-box {
+    width: auto;
+    height: 44px;
+    min-width: 0;
+    min-height: 0;
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    box-sizing: border-box;
+    padding: 0;
+  }
+
+  body.mobile-app-nav-visible .sp-page:not(.funeral-shops-page) > .sp-header .sp-search-box input {
+    width: 100%;
+    height: 44px;
+    min-width: 0;
+    min-height: 0;
+    flex: 1 1 auto;
+    box-sizing: border-box;
+    padding: 0 10px 0 4px;
+    border: 0;
+    border-radius: 0;
+    font-size: 13px;
+    line-height: 20px;
+    appearance: none;
+  }
+
+  body.mobile-app-nav-visible .sp-page:not(.funeral-shops-page) > .sp-header .sp-search-box input::-webkit-search-cancel-button {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .sp-page:not(.funeral-shops-page) > .sp-header .sp-search-btn {
+    width: 38px;
+    height: 44px;
+    min-height: 0;
+    flex: 0 0 38px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+  }
+
+  body.mobile-app-nav-visible .sp-page:not(.funeral-shops-page) > .sp-header .sp-search-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  body.mobile-app-nav-visible .sp-page:not(.funeral-shops-page) > .sp-header .sp-mobile-search-filter {
+    width: 48px;
+    height: 44px;
+    min-height: 0;
+    flex: 0 0 48px;
+    box-sizing: border-box;
+  }
+
+  body.mobile-app-nav-visible .sp-page:not(.funeral-shops-page) > .sp-header .sp-mobile-search-filter svg {
+    width: 20px;
+    height: 20px;
+  }
+}

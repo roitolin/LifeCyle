@@ -1401,3 +1401,747 @@
   }
 }
 
+
+.mobile-profile-actions {
+  display: none;
+}
+
+/* App-style profile tab on phone screens only. */
+@media (max-width: 600px) {
+  body.mobile-app-nav-visible .profile-page {
+    min-height: calc(100dvh - 68px);
+    background: #eef1ec;
+  }
+
+  body.mobile-app-nav-visible .profile-page > .sp-topbar {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .profile-page > .profile-app-header {
+    position: sticky;
+    z-index: 100;
+    top: 0;
+    min-height: 58px;
+    padding: max(11px, env(safe-area-inset-top)) 0 11px;
+    border-bottom: 1px solid #d9dedb;
+    background: rgba(248, 249, 247, 0.96);
+    box-shadow: 0 5px 18px rgba(34, 49, 45, 0.06);
+    backdrop-filter: blur(16px);
+  }
+
+  body.mobile-app-nav-visible .profile-app-header-inner {
+    min-height: 38px;
+    justify-content: center;
+    padding: 0 14px;
+  }
+
+  body.mobile-app-nav-visible .profile-app-header-inner > * {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .profile-app-header-inner::before {
+    color: #22312d;
+    content: 'Profile';
+    font-size: 18px;
+    font-weight: 800;
+  }
+
+  body.mobile-app-nav-visible .profile-page > .sp-body {
+    padding: 14px 0 24px;
+    background: #eef1ec;
+  }
+
+  body.mobile-app-nav-visible .profile-body-grid {
+    display: block;
+    padding: 0 14px;
+  }
+
+  body.mobile-app-nav-visible .profile-sidebar {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .profile-main {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  body.mobile-app-nav-visible .profile-header {
+    margin-bottom: 12px;
+    padding: 2px 2px 10px;
+    border: 0;
+  }
+
+  body.mobile-app-nav-visible .profile-header h1 {
+    margin-bottom: 3px;
+    color: #22312d;
+    font-size: 20px;
+    font-weight: 800;
+  }
+
+  body.mobile-app-nav-visible .profile-header p {
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-actions {
+    overflow: hidden;
+    display: grid;
+    margin-bottom: 14px;
+    border: 1px solid #dfe5e1;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 4px 14px rgba(34, 49, 45, 0.05);
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-actions a {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 15px;
+    border-bottom: 1px solid #edf0ee;
+    color: #22312d;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-actions a:last-child {
+    border-bottom: 0;
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-actions span {
+    color: #8a928d;
+    font-size: 22px;
+    font-weight: 400;
+  }
+
+  body.mobile-app-nav-visible .profile-content {
+    gap: 14px;
+  }
+
+  body.mobile-app-nav-visible .profile-identity-card {
+    display: grid;
+    grid-template-columns: 58px minmax(0, 1fr);
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid #dfe5e1;
+    border-radius: 16px;
+    box-shadow: 0 4px 14px rgba(34, 49, 45, 0.05);
+  }
+
+  body.mobile-app-nav-visible .profile-identity-avatar-wrapper {
+    width: 58px;
+    height: 58px;
+  }
+
+  body.mobile-app-nav-visible .profile-identity-name {
+    font-size: 16px;
+  }
+
+  body.mobile-app-nav-visible .profile-identity-actions {
+    grid-column: 1 / -1;
+  }
+
+  body.mobile-app-nav-visible .profile-photo-button {
+    width: 100%;
+    min-height: 42px;
+    display: grid;
+    place-items: center;
+    border-radius: 11px;
+  }
+
+  body.mobile-app-nav-visible .profile-photo-hint {
+    margin-top: -8px;
+    padding-right: 4px;
+  }
+
+  body.mobile-app-nav-visible .profile-settings-card {
+    border: 1px solid #dfe5e1;
+    border-radius: 16px;
+    box-shadow: 0 4px 14px rgba(34, 49, 45, 0.05);
+  }
+
+  body.mobile-app-nav-visible .profile-settings-header,
+  body.mobile-app-nav-visible .profile-settings-body,
+  body.mobile-app-nav-visible .profile-settings-footer {
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+
+  body.mobile-app-nav-visible .profile-input-stack input[type='text'],
+  body.mobile-app-nav-visible .profile-input-stack input[type='date'] {
+    min-height: 46px;
+    font-size: 16px;
+  }
+
+  body.mobile-app-nav-visible .profile-radio-group {
+    flex-wrap: wrap;
+    gap: 10px 18px;
+  }
+
+  body.mobile-app-nav-visible .profile-settings-footer .btn-save {
+    min-height: 46px;
+    border-radius: 12px;
+  }
+}
+/* Mobile profile hub: keep desktop untouched while presenting account tasks like the app. */
+.mobile-profile-hub,
+.profile-mobile-editor-toggle {
+  display: none;
+}
+
+.profile-mobile-editor {
+  display: block;
+}
+
+@media (max-width: 600px) {
+  body.mobile-app-nav-visible .profile-header {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .profile-page > .sp-body {
+    padding-top: 12px;
+  }
+
+  body.mobile-app-nav-visible .profile-content {
+    display: block;
+  }
+
+  body.mobile-app-nav-visible .profile-identity-card {
+    position: relative;
+    grid-template-columns: 64px minmax(0, 1fr);
+    margin-bottom: 5px;
+    padding: 18px 16px;
+    overflow: hidden;
+    border: 0;
+    background: linear-gradient(135deg, #1f3b34 0%, #34594d 100%);
+    box-shadow: 0 10px 24px rgba(31, 59, 52, 0.18);
+  }
+
+  body.mobile-app-nav-visible .profile-identity-card::after {
+    position: absolute;
+    top: -42px;
+    right: -36px;
+    width: 132px;
+    height: 132px;
+    border: 25px solid rgba(255, 255, 255, 0.06);
+    border-radius: 50%;
+    content: '';
+    pointer-events: none;
+  }
+
+  body.mobile-app-nav-visible .profile-identity-avatar-wrapper {
+    z-index: 1;
+    width: 64px;
+    height: 64px;
+    border: 2px solid rgba(255, 255, 255, 0.74);
+    background: #f3f6f3;
+  }
+
+  body.mobile-app-nav-visible .profile-identity-info {
+    z-index: 1;
+  }
+
+  body.mobile-app-nav-visible .profile-identity-name,
+  body.mobile-app-nav-visible .profile-identity-email {
+    color: #fff;
+  }
+
+  body.mobile-app-nav-visible .profile-identity-email {
+    margin-top: 3px;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  body.mobile-app-nav-visible .profile-identity-actions {
+    z-index: 1;
+  }
+
+  body.mobile-app-nav-visible .profile-photo-button {
+    min-height: 40px;
+    border-color: rgba(255, 255, 255, 0.34);
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+  }
+
+  body.mobile-app-nav-visible .profile-photo-hint {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-hub {
+    display: block;
+    margin-top: 20px;
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-section-label {
+    margin: 0 4px 8px;
+    color: #6c7671;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-actions {
+    margin: 0 0 18px;
+    border-color: #e0e6e2;
+    border-radius: 18px;
+    box-shadow: 0 6px 18px rgba(34, 49, 45, 0.06);
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-actions a {
+    min-height: 64px;
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) 16px;
+    gap: 12px;
+    justify-content: initial;
+    padding: 9px 14px;
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-action-icon {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    border-radius: 12px;
+    background: #e5f0eb;
+    color: #2f5b4d;
+    font-size: 13px;
+    font-weight: 900;
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-action-icon.payments {
+    background: #e8eef8;
+    color: #385c8a;
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-action-icon.favorites,
+  body.mobile-app-nav-visible .mobile-profile-action-icon.notifications {
+    background: #f8ebea;
+    color: #9d4a49;
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-action-icon.settings,
+  body.mobile-app-nav-visible .mobile-profile-action-icon.help {
+    background: #f0eee8;
+    color: #675f50;
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-action-copy {
+    min-width: 0;
+    display: grid;
+    align-content: center;
+    gap: 2px;
+    color: #22312d;
+    font-size: inherit;
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-action-copy strong {
+    overflow: hidden;
+    font-size: 13px;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-action-copy small {
+    overflow: hidden;
+    color: #7b847f;
+    font-size: 11px;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-chevron {
+    color: #9ca49f;
+    font-size: 22px;
+    font-weight: 400;
+  }
+
+  body.mobile-app-nav-visible .profile-mobile-editor-toggle {
+    width: 100%;
+    min-height: 68px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    margin-top: 2px;
+    padding: 12px 16px;
+    border: 1px solid #dfe5e1;
+    border-radius: 16px;
+    background: #fff;
+    color: #22312d;
+    text-align: left;
+    box-shadow: 0 5px 16px rgba(34, 49, 45, 0.05);
+  }
+
+  body.mobile-app-nav-visible .profile-mobile-editor-toggle > span:first-child {
+    display: grid;
+    gap: 3px;
+  }
+
+  body.mobile-app-nav-visible .profile-mobile-editor-toggle strong {
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  body.mobile-app-nav-visible .profile-mobile-editor-toggle small {
+    color: #78817c;
+    font-size: 11px;
+  }
+
+  body.mobile-app-nav-visible .profile-mobile-editor-chevron {
+    color: #77817b;
+    font-size: 16px;
+    transition: transform 160ms ease;
+  }
+
+  body.mobile-app-nav-visible .profile-mobile-editor-chevron.is-open {
+    transform: rotate(180deg);
+  }
+
+  body.mobile-app-nav-visible .profile-mobile-editor {
+    display: none;
+    margin-top: 10px;
+  }
+
+  body.mobile-app-nav-visible .profile-mobile-editor.is-open {
+    display: block;
+  }
+
+  body.mobile-app-nav-visible .profile-settings-header {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .profile-settings-body {
+    padding-top: 17px;
+  }
+
+  body.mobile-app-nav-visible .uid-pill {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Native-style profile organization for phone-sized Vite screens. */
+.profile-identity-edit-button,
+.profile-mobile-editor-header {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  body.mobile-app-nav-visible .profile-identity-card {
+    min-height: 82px;
+    grid-template-columns: 58px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding: 11px 14px;
+    overflow: visible;
+    border: 1px solid #d9d6cd;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: none;
+  }
+
+  body.mobile-app-nav-visible .profile-identity-card::after {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .profile-identity-avatar-wrapper {
+    z-index: auto;
+    width: 58px;
+    height: 58px;
+    overflow: hidden;
+    border: 0;
+    border-radius: 50%;
+    background: #ebf1e8;
+  }
+
+  body.mobile-app-nav-visible .profile-identity-info {
+    z-index: auto;
+    min-width: 0;
+  }
+
+  body.mobile-app-nav-visible .profile-identity-name {
+    overflow: hidden;
+    margin: 0;
+    color: #22312d;
+    font-size: 16px;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.mobile-app-nav-visible .profile-identity-email {
+    overflow: hidden;
+    margin: 3px 0 0;
+    color: #8a928d;
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.mobile-app-nav-visible .profile-identity-actions {
+    z-index: auto;
+    grid-column: auto;
+  }
+
+  body.mobile-app-nav-visible .profile-identity-edit-button {
+    min-height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 999px;
+    background: #ebf1e8;
+    color: #41514d;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  body.mobile-app-nav-visible .profile-identity-edit-button:focus-visible {
+    outline: 3px solid rgba(49, 95, 80, 0.24);
+    outline-offset: 2px;
+  }
+
+  body.mobile-app-nav-visible .profile-photo-button {
+    position: absolute;
+    z-index: 2;
+    top: 52px;
+    left: 53px;
+    width: 25px;
+    min-height: 25px;
+    height: 25px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    overflow: hidden;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: #315f50;
+    color: transparent;
+    font-size: 0;
+    box-shadow: 0 2px 6px rgba(34, 49, 45, 0.18);
+  }
+
+  body.mobile-app-nav-visible .profile-photo-button::before {
+    color: #fff;
+    content: '+';
+    font-size: 17px;
+    font-weight: 500;
+    line-height: 1;
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-hub {
+    display: grid;
+    gap: 20px;
+    margin-top: 0;
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-section {
+    min-width: 0;
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-section-label {
+    margin: 0 2px 8px;
+    color: #62706b;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-actions {
+    overflow: hidden;
+    display: grid;
+    margin: 0;
+    border: 1px solid #d9d6cd;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: none;
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-actions .mobile-profile-action-row {
+    min-height: 64px;
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) 18px;
+    align-items: center;
+    gap: 11px;
+    justify-content: initial;
+    padding: 10px 14px;
+    border-bottom: 1px solid #e7e5df;
+    border-radius: 0;
+    color: #22312d;
+    text-decoration: none;
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-actions .mobile-profile-action-row:last-child {
+    border-bottom: 0;
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-action-icon,
+  body.mobile-app-nav-visible .mobile-profile-actions span.mobile-profile-action-icon {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: #ebf1e8;
+    color: #41514d;
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-action-icon svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-action-copy,
+  body.mobile-app-nav-visible .mobile-profile-actions span.mobile-profile-action-copy {
+    min-width: 0;
+    display: grid;
+    align-content: center;
+    gap: 2px;
+    color: #22312d;
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-action-copy strong {
+    overflow: hidden;
+    color: inherit;
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-action-copy small {
+    display: -webkit-box;
+    overflow: hidden;
+    color: #8a928d;
+    font-size: 10.5px;
+    font-weight: 500;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-chevron,
+  body.mobile-app-nav-visible .mobile-profile-actions span.mobile-profile-chevron {
+    width: 18px;
+    color: #9ca49f;
+    font-size: 22px;
+    font-weight: 400;
+    text-align: right;
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-action-row.is-danger {
+    grid-template-columns: 34px minmax(0, 1fr);
+    color: #b34444;
+  }
+
+  body.mobile-app-nav-visible .mobile-profile-action-row.is-danger .mobile-profile-action-icon {
+    background: #fff0f0;
+    color: #b34444;
+  }
+
+  body.mobile-app-nav-visible .profile-mobile-editor-toggle {
+    display: none !important;
+  }
+
+  body.mobile-app-nav-visible .profile-mobile-editor,
+  body.mobile-app-nav-visible .profile-mobile-editor.is-open {
+    position: fixed;
+    z-index: 12000;
+    inset: 0;
+    display: none;
+    overflow-y: auto;
+    padding: max(8px, env(safe-area-inset-top)) 14px max(24px, env(safe-area-inset-bottom));
+    background: #eef1ec;
+    overscroll-behavior: contain;
+  }
+
+  body.mobile-app-nav-visible .profile-mobile-editor.is-open {
+    display: block;
+  }
+
+  body.mobile-app-nav-visible .profile-mobile-editor-header {
+    position: sticky;
+    z-index: 2;
+    top: -8px;
+    min-height: 56px;
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) 40px;
+    align-items: center;
+    margin: -8px -14px 14px;
+    padding: max(8px, env(safe-area-inset-top)) 14px 8px;
+    border-bottom: 1px solid #d9dedb;
+    background: rgba(248, 249, 247, 0.96);
+    backdrop-filter: blur(16px);
+  }
+
+  body.mobile-app-nav-visible .profile-mobile-editor-header button {
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: #22312d;
+    cursor: pointer;
+  }
+
+  body.mobile-app-nav-visible .profile-mobile-editor-header button:active {
+    background: #e3e8e4;
+  }
+
+  body.mobile-app-nav-visible .profile-mobile-editor-header svg {
+    width: 24px;
+    height: 24px;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  body.mobile-app-nav-visible .profile-mobile-editor-header strong {
+    overflow: hidden;
+    color: #22312d;
+    font-size: 16px;
+    font-weight: 800;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.mobile-app-nav-visible .profile-mobile-editor .profile-settings-card {
+    margin: 0;
+    border: 1px solid #d9d6cd;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: none;
+  }
+
+  body.mobile-app-nav-visible .profile-mobile-editor .profile-settings-header {
+    display: none;
+  }
+
+  body.mobile-app-nav-visible .profile-mobile-editor .profile-settings-body {
+    padding-top: 18px;
+  }
+}
+

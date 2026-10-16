@@ -188,6 +188,7 @@ export default function ShopPage() {
 
       <header className="sp-header">
         <div className="sp-header-inner">
+          <PageBackButton label="Back" fallbackTo="/funeral/shops" className="shop-mobile-back" />
           <BrandLogo />
           <div className="sp-search-wrap">
             <div className="sp-search-box">

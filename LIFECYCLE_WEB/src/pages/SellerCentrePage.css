@@ -11916,3 +11916,436 @@ button.sc-settings-row:hover {
     width: 100%;
   }
 }
+/* Phone Shop Center shell: an app-like drawer and compact dashboard. */
+.sc-mobile-menu-button,
+.sc-mobile-sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  .sc-page {
+    min-height: 100dvh;
+    padding-top: 60px;
+    background: #eef1ec;
+  }
+
+  .sc-header-bar {
+    z-index: 1000;
+    height: 60px;
+    gap: 8px;
+    padding: max(8px, env(safe-area-inset-top)) 12px 8px;
+    border-bottom: 1px solid #dce3de;
+    background: rgba(250, 251, 249, 0.96);
+    box-shadow: 0 4px 16px rgba(34, 49, 45, 0.07);
+    backdrop-filter: blur(16px);
+  }
+
+  .sc-header-left {
+    min-width: 0;
+    gap: 8px;
+  }
+
+  .sc-mobile-menu-button {
+    width: 40px;
+    height: 40px;
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 12px;
+    background: #edf2ef;
+    color: #29473d;
+  }
+
+  .sc-mobile-menu-button svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+
+  .sc-logo-area {
+    min-width: 0;
+  }
+
+  .sc-logo-area .lc-brand {
+    display: none;
+  }
+
+  .sc-logo-sub,
+  .sc-page .sc-logo-sub {
+    overflow: hidden;
+    display: block;
+    padding: 0;
+    border: 0;
+    color: #22312d;
+    font-size: 16px;
+    font-weight: 850;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sc-header-right {
+    margin-left: auto;
+    gap: 3px;
+  }
+
+  .sc-header-store-status {
+    min-width: 0;
+    gap: 6px;
+    padding: 6px 8px;
+    border-radius: 999px;
+  }
+
+  .sc-header-store-status-copy {
+    display: block;
+  }
+
+  .sc-header-store-status-copy > span {
+    display: none;
+  }
+
+  .sc-header-store-status-copy > strong {
+    font-size: 10px;
+  }
+
+  .sc-header-user,
+  .sc-header-divider {
+    display: none;
+  }
+
+  .sc-header-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+
+  .sc-notif-dropdown {
+    top: 64px;
+    right: 10px;
+    left: 10px;
+    z-index: 1010;
+    max-height: calc(100dvh - 80px);
+    border-radius: 16px;
+  }
+
+  .sc-mobile-sidebar-backdrop {
+    position: fixed;
+    inset: 60px 0 0;
+    z-index: 970;
+    display: block;
+    border: 0;
+    background: rgba(24, 34, 31, 0.42);
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 180ms ease, visibility 180ms ease;
+  }
+
+  .sc-page.sidebar-collapsed .sc-mobile-sidebar-backdrop {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .sc-sidebar,
+  .sc-page.sidebar-collapsed .sc-sidebar {
+    position: fixed;
+    top: 60px;
+    right: auto;
+    bottom: 0;
+    left: 0;
+    z-index: 980;
+    width: min(86vw, 340px);
+    height: auto;
+    max-height: none;
+    padding: 10px 10px calc(18px + env(safe-area-inset-bottom));
+    overflow-x: hidden;
+    overflow-y: auto;
+    border-right: 1px solid #dce3de;
+    border-bottom: 0;
+    border-radius: 0 18px 18px 0;
+    background: #fff;
+    box-shadow: 12px 0 32px rgba(26, 42, 36, 0.16);
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(0);
+    transition: transform 190ms ease, visibility 190ms ease;
+    pointer-events: auto;
+  }
+
+  .sc-page.sidebar-collapsed .sc-sidebar {
+    transform: translateX(-105%);
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .sc-sidebar-nav,
+  .sc-page.sidebar-collapsed .sc-sidebar-nav {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 3px;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+  }
+
+  .sc-page.sidebar-collapsed .sc-sidebar-nav > :not(.sc-sidebar-toggle-row) {
+    display: initial;
+  }
+
+  .sc-sidebar-toggle.sc-sidebar-toggle-row,
+  .sc-page.sidebar-collapsed .sc-sidebar-toggle-row {
+    min-height: 48px;
+    margin: 0 0 7px;
+    padding: 0 12px;
+    border-bottom: 1px solid #e8ece9;
+    border-radius: 10px;
+    color: #29473d;
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  .sc-sidebar-item,
+  .sc-sidebar-group-header {
+    min-height: 46px;
+    padding: 0 12px;
+    border-radius: 11px;
+  }
+
+  .sc-sidebar-item.active,
+  .sc-sidebar-group:has(.sc-sidebar-sub-item.active) > .sc-sidebar-group-header {
+    background: #e9f1ed;
+    color: #214c3d;
+  }
+
+  .sc-sidebar-sub {
+    margin: 2px 0 7px 31px;
+    padding: 2px 0 2px 10px;
+    border-left-color: #dce5e0;
+  }
+
+  .sc-sidebar-sub-item {
+    min-height: 41px;
+    border-radius: 9px;
+  }
+
+  .sc-workspace,
+  .sc-page.sidebar-collapsed .sc-workspace {
+    display: block;
+    padding-left: 0;
+  }
+
+  .sc-content-area {
+    min-height: calc(100dvh - 60px);
+    padding: 14px 12px calc(28px + env(safe-area-inset-bottom));
+  }
+
+  .sc-content-grid {
+    width: 100%;
+  }
+
+  .sc-dashboard-overview {
+    gap: 14px;
+  }
+
+  .sc-dashboard-hero {
+    padding: 16px;
+    border: 1px solid #dfe6e1;
+    border-radius: 18px;
+    background: linear-gradient(145deg, #ffffff 0%, #f2f7f4 100%);
+    box-shadow: 0 7px 20px rgba(34, 49, 45, 0.07);
+  }
+
+  .sc-dashboard-hero-main {
+    align-items: center;
+    gap: 12px;
+  }
+
+  .sc-dashboard-hero-avatar-wrap {
+    display: block;
+    width: 54px;
+    height: 54px;
+    flex: 0 0 54px;
+  }
+
+  .sc-dashboard-hero-avatar,
+  .sc-dashboard-hero-avatar-placeholder {
+    width: 54px;
+    height: 54px;
+    border-radius: 15px;
+  }
+
+  .sc-dashboard-hero-avatar-dot {
+    display: block;
+  }
+
+  .sc-dashboard-hero-details {
+    min-width: 0;
+  }
+
+  .sc-dashboard-hero-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+
+  .sc-dashboard-badge {
+    min-height: 21px;
+    padding: 3px 7px;
+    font-size: 8px;
+  }
+
+  .sc-dashboard-hero-title {
+    margin-top: 3px;
+    font-size: 20px;
+  }
+
+  .sc-dashboard-hero-meta {
+    min-width: 0;
+    margin-top: 3px;
+  }
+
+  .sc-dashboard-hero-meta-item {
+    max-width: 100%;
+    overflow: hidden;
+    font-size: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sc-dashboard-hero-meta-item:nth-child(n + 2) {
+    display: none;
+  }
+
+  .sc-dashboard-kpis {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .sc-kpi-card,
+  .sc-kpi-card:nth-child(2),
+  .sc-kpi-card:last-child {
+    min-height: 126px;
+    padding: 14px;
+    justify-content: space-between;
+    border: 1px solid #dfe6e1;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 5px 16px rgba(34, 49, 45, 0.055);
+  }
+
+  .sc-kpi-card:hover,
+  .sc-kpi-card:focus-visible {
+    transform: none;
+  }
+
+  .sc-kpi-top {
+    display: flex;
+  }
+
+  .sc-kpi-label {
+    font-size: 10px;
+    letter-spacing: 0.045em;
+    text-transform: uppercase;
+  }
+
+  .sc-kpi-value {
+    margin: 6px 0;
+    font-size: 22px;
+    line-height: 1.1;
+  }
+
+  .sc-kpi-bottom {
+    display: block;
+  }
+
+  .sc-kpi-sub-pill,
+  .sc-kpi-sub-pill.emerald,
+  .sc-kpi-sub-pill.blue,
+  .sc-kpi-sub-pill.amber,
+  .sc-kpi-sub-pill.crimson {
+    display: block;
+    overflow: hidden;
+    color: #6c7771;
+    font-size: 9px;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sc-kpi-sub-text {
+    display: none;
+  }
+
+  .sc-dashboard-main-grid,
+  .sc-chart-dual-grid,
+  .sc-quick-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .sc-dashboard-panel,
+  .sc-card,
+  .sc-settings-card {
+    border-color: #dfe6e1;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 5px 16px rgba(34, 49, 45, 0.05);
+  }
+
+  .sc-dashboard-panel {
+    padding: 15px 14px;
+  }
+
+  .sc-section-head {
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .sc-products-layout h2,
+  .sc-orders-layout h2,
+  .sc-shop-layout h2,
+  .sc-payment-layout h2,
+  .sc-packages-layout h2,
+  .sc-section-head h2 {
+    font-size: 19px;
+    line-height: 1.25;
+  }
+
+  .sc-section-head > .sc-primary-btn,
+  .sc-section-head > .sc-btn {
+    min-height: 44px;
+    border-radius: 11px;
+  }
+
+  .sc-tabs {
+    padding-bottom: 2px;
+  }
+
+  .sc-tab {
+    min-height: 42px;
+  }
+
+  .sc-input,
+  .sc-select,
+  .sc-textarea,
+  .sc-form-field input,
+  .sc-form-field select,
+  .sc-form-field textarea {
+    font-size: 16px;
+  }
+
+  .sc-modal {
+    padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
+    border-radius: 18px 18px 0 0;
+  }
+}

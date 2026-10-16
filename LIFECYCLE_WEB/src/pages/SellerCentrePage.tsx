@@ -701,7 +701,7 @@ export default function SellerCentrePage() {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [notifications, setNotifications] = useState<SellerNotification[]>([])
   const [sidebarExpanded, setSidebarExpanded] = useState<Record<string, boolean>>({ order: true, product: true, finance: true, setting: true })
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(() => typeof window === 'undefined' || !window.matchMedia('(max-width: 600px)').matches)
   const [paymentVerifyingId, setPaymentVerifyingId] = useState('')
   const [familyPaymentFilter, setFamilyPaymentFilter] = useState<FamilyPaymentFilter>('all')
   const [customerSearch, setCustomerSearch] = useState('')
@@ -723,6 +723,21 @@ export default function SellerCentrePage() {
       setActiveTab(requestedTab)
     }
   }, [searchParams])
+  useEffect(() => {
+    if (!sidebarOpen || typeof window === 'undefined' || !window.matchMedia('(max-width: 600px)').matches) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [sidebarOpen])
+
+  const selectSidebarTab = (tab: SellerCentreTab) => {
+    setActiveTab(tab)
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 600px)').matches) {
+      setSidebarOpen(false)
+    }
+  }
 
   const toggleSidebarGroup = (group: 'order' | 'product' | 'finance' | 'setting') => {
     setSidebarExpanded((current) => ({
@@ -2423,6 +2438,16 @@ export default function SellerCentrePage() {
       {/* ── Header Bar ── */}
       <div className="sc-header-bar">
         <div className="sc-header-left">
+          <button
+            type="button"
+            className="sc-mobile-menu-button"
+            aria-label={sidebarOpen ? 'Close Shop Center menu' : 'Open Shop Center menu'}
+            aria-expanded={sidebarOpen}
+            aria-controls="seller-centre-sidebar"
+            onClick={() => setSidebarOpen((current) => !current)}
+          >
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+          </button>
           <div className="sc-logo-area">
             <BrandLogo to="/funeral" compact />
             <span className="sc-logo-sub">Shop Centre</span>
@@ -2502,6 +2527,13 @@ export default function SellerCentrePage() {
           </div>
         </div>
       </div>
+      <button
+        type="button"
+        className="sc-mobile-sidebar-backdrop"
+        aria-label="Close Shop Center menu"
+        tabIndex={sidebarOpen ? 0 : -1}
+        onClick={() => setSidebarOpen(false)}
+      />
 
       {/* ── Workspace (Sidebar + Content) ── */}
       <div className="sc-workspace">
@@ -2525,7 +2557,7 @@ export default function SellerCentrePage() {
             </button>
 
             {/* Dashboard */}
-            <div className={`sc-sidebar-item${activeTab === 'dashboard' ? ' active' : ''}`} onClick={() => setActiveTab('dashboard')} title="Dashboard">
+            <div className={`sc-sidebar-item${activeTab === 'dashboard' ? ' active' : ''}`} onClick={() => selectSidebarTab('dashboard')} title="Dashboard">
               <svg className="sc-sidebar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
               <span className="sc-sidebar-label">Dashboard</span>
             </div>
@@ -2541,14 +2573,14 @@ export default function SellerCentrePage() {
               </div>
               {sidebarExpanded.order && (
                 <div className="sc-sidebar-sub">
-                  <div className={`sc-sidebar-sub-item${activeTab === 'orders' ? ' active' : ''}`} onClick={() => setActiveTab('orders')}>Arrangement Cases</div>
-                  <div className={`sc-sidebar-sub-item${activeTab === 'customers' ? ' active' : ''}`} onClick={() => setActiveTab('customers')}>Customers</div>
-                  <div className={`sc-sidebar-sub-item${activeTab === 'calendar' ? ' active' : ''}`} onClick={() => setActiveTab('calendar')}>Service Schedule</div>
+                  <div className={`sc-sidebar-sub-item${activeTab === 'orders' ? ' active' : ''}`} onClick={() => selectSidebarTab('orders')}>Arrangement Cases</div>
+                  <div className={`sc-sidebar-sub-item${activeTab === 'customers' ? ' active' : ''}`} onClick={() => selectSidebarTab('customers')}>Customers</div>
+                  <div className={`sc-sidebar-sub-item${activeTab === 'calendar' ? ' active' : ''}`} onClick={() => selectSidebarTab('calendar')}>Service Schedule</div>
                 </div>
               )}
             </div>
 
-            <div className={`sc-sidebar-item${activeTab === 'reports' ? ' active' : ''}`} onClick={() => setActiveTab('reports')} title="Reports">
+            <div className={`sc-sidebar-item${activeTab === 'reports' ? ' active' : ''}`} onClick={() => selectSidebarTab('reports')} title="Reports">
               <span className='sc-sidebar-icon' aria-hidden='true'>R</span>
               <span className="sc-sidebar-label">Reports</span>
             </div>
@@ -2564,8 +2596,8 @@ export default function SellerCentrePage() {
               </div>
               {sidebarExpanded.product && (
                 <div className="sc-sidebar-sub">
-                  <div className={`sc-sidebar-sub-item${activeTab === 'products' ? ' active' : ''}`} onClick={() => setActiveTab('products')}>Product Catalog</div>
-                  <div className={`sc-sidebar-sub-item${activeTab === 'packages' ? ' active' : ''}`} onClick={() => setActiveTab('packages')}>Packages</div>
+                  <div className={`sc-sidebar-sub-item${activeTab === 'products' ? ' active' : ''}`} onClick={() => selectSidebarTab('products')}>Product Catalog</div>
+                  <div className={`sc-sidebar-sub-item${activeTab === 'packages' ? ' active' : ''}`} onClick={() => selectSidebarTab('packages')}>Packages</div>
                 </div>
               )}
             </div>
@@ -2581,9 +2613,9 @@ export default function SellerCentrePage() {
               </div>
               {sidebarExpanded.finance && (
                 <div className="sc-sidebar-sub">
-                  <div className={`sc-sidebar-sub-item${activeTab === 'payments' ? ' active' : ''}`} onClick={() => setActiveTab('payments')}>Family Payments</div>
-                  <div className={`sc-sidebar-sub-item${activeTab === 'payout_accounts' || activeTab === 'payout_account_setup' ? ' active' : ''}`} onClick={() => setActiveTab('payout_accounts')}>Payout Accounts</div>
-                  <div className={`sc-sidebar-sub-item${activeTab === 'admin_payments' ? ' active' : ''}`} onClick={openAdminPayments}>LifeCycle Payments</div>
+                  <div className={`sc-sidebar-sub-item${activeTab === 'payments' ? ' active' : ''}`} onClick={() => selectSidebarTab('payments')}>Family Payments</div>
+                  <div className={`sc-sidebar-sub-item${activeTab === 'payout_accounts' || activeTab === 'payout_account_setup' ? ' active' : ''}`} onClick={() => selectSidebarTab('payout_accounts')}>Payout Accounts</div>
+                  <div className={`sc-sidebar-sub-item${activeTab === 'admin_payments' ? ' active' : ''}`} onClick={() => { openAdminPayments(); setSidebarOpen(false) }}>LifeCycle Payments</div>
                 </div>
               )}
             </div>
@@ -2601,7 +2633,7 @@ export default function SellerCentrePage() {
                 <div className="sc-sidebar-sub">
                   <div
                     className={`sc-sidebar-sub-item${activeTab === 'settings' || activeTab === 'registered_information' ? ' active' : ''}`}
-                    onClick={() => navigate('/seller?tab=settings')}
+                    onClick={() => { setSidebarOpen(false); navigate('/seller?tab=settings') }}
                   >
                     Profile &amp; Settings
                   </div>

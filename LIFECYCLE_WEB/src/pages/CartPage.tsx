@@ -28,6 +28,8 @@ export default function CartPage() {
   const { openConfirm, confirmDialog } = useConfirmDialog()
   const [items, setItems] = useState<WebFuneralCartItem[]>(() => loadFuneralCart())
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [selectedCartId, setSelectedCartId] = useState<string | null>(null)
+  const [selectionMode, setSelectionMode] = useState(false)
   const [profile, setProfile] = useState<ViewerProfile | null>(null)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
 
@@ -89,6 +91,8 @@ export default function CartPage() {
         const next = new Set(selectedIds)
         next.delete(cartId)
         setSelectedIds(next)
+        if (selectedCartId === cartId) setSelectedCartId(null)
+        if (items.length <= 1) setSelectionMode(false)
       },
     })
   }
@@ -116,6 +120,7 @@ export default function CartPage() {
         })
         setItems(currentItems)
         setSelectedIds(new Set())
+        setSelectionMode(false)
       },
     })
   }
@@ -151,13 +156,57 @@ export default function CartPage() {
     }
   }
 
+  const checkoutMobile = () => {
+    if (!isLoggedIn) {
+      navigate('/login?next=/user/cart')
+      return
+    }
+    const selectedItem = items.find(item => item.cartId === selectedCartId)
+    if (!selectedItem) {
+      openAlert({
+        title: 'Select Item',
+        message: 'Please select a cart item first.',
+        tone: 'warning',
+        okLabel: 'Got It',
+      })
+      return
+    }
+    navigate('/user/checkout', { state: { cartItem: selectedItem } })
+  }
+
+  const enterSelectionMode = () => {
+    setSelectedCartId(null)
+    setSelectedIds(new Set())
+    setSelectionMode(true)
+  }
+
+  const exitSelectionMode = () => {
+    setSelectionMode(false)
+    setSelectedIds(new Set())
+  }
+
+  const handleMobileCardSelect = (cartId: string) => {
+    if (selectionMode) handleSelect(cartId)
+    else setSelectedCartId(current => current === cartId ? null : cartId)
+  }
   const selectedItems = items.filter(i => selectedIds.has(i.cartId))
+  const cartTotal = items.reduce((acc, item) => acc + item.price * item.quantity, 0)
   const totalPrice = selectedItems.reduce((acc, curr) => acc + curr.price, 0)
 
   return (
     <div className="cart-shop-page">
       <TopBar profile={profile} />
-      <Header />
+      <Header
+        totalPrice={cartTotal}
+        mobileSelected={Boolean(selectedCartId)}
+        itemCount={items.length}
+        selectionMode={selectionMode}
+        selectionCount={selectedIds.size}
+        onMobileCheckout={checkoutMobile}
+        onEnterSelection={enterSelectionMode}
+        onExitSelection={exitSelectionMode}
+        onDeleteSelected={handleDeleteSelected}
+      />
 
       <div className="cart-main">
         <div className="page-back-row cart-page-nav">
@@ -188,6 +237,12 @@ export default function CartPage() {
             </div>
 
             {/* Shop Blocks */}
+            {selectionMode ? (
+              <div className="cart-mobile-selection-hint">
+                <span>?</span>
+                Tap items to select, then delete them together.
+              </div>
+            ) : null}
             {Object.entries(groupedItems).map(([shopId, { shopName, items: shopItems }]) => {
               const allShopItemsSelected = shopItems.every(i => selectedIds.has(i.cartId))
               
@@ -205,17 +260,26 @@ export default function CartPage() {
                   </div>
                   
                   {shopItems.map(item => (
-                    <div key={item.cartId} className="cart-item-row">
+                    <div
+                      key={item.cartId}
+                      className={`cart-item-row${(selectionMode ? selectedIds.has(item.cartId) : selectedCartId === item.cartId) ? ' is-mobile-selected' : ''}`}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => handleMobileCardSelect(item.cartId)}
+                      onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') handleMobileCardSelect(item.cartId) }}
+                    >
                       <div className="item-col-product">
                         <input 
                           type="checkbox" 
                           className="shopee-checkbox" 
                           checked={selectedIds.has(item.cartId)} 
-                          onChange={() => handleSelect(item.cartId)} 
+                          onChange={() => handleSelect(item.cartId)}
+                          onClick={event => event.stopPropagation()}
                         />
-                        {item.imageUrl ? <img src={item.imageUrl} className="item-image" alt="Item" /> : <div className="item-fallback-image">LC</div>}
+                        {item.imageUrl ? <img src={item.imageUrl} className="item-image" alt={item.name} /> : <div className="item-fallback-image">LC</div>}
                         <div className="item-details">
                           <div className="item-name">{item.name}</div>
+                          <div className="item-shop-mobile">{shopName}</div>
                           {item.variationName && <div className="item-variation">Variation: {item.variationName}</div>}
                           {item.packageItems?.length ? (
                             <div className="item-variation">Packages: {item.packageItems.join(', ')}</div>
@@ -224,8 +288,13 @@ export default function CartPage() {
                       </div>
                       <div className="item-col-price">{formatPeso(item.price)}</div>
                       <div className="item-col-actions">
-                        <button className="item-delete-btn" onClick={() => handleDelete(item.cartId)}>Delete</button>
+                        {!selectionMode ? <button className="item-delete-btn" onClick={event => { event.stopPropagation(); handleDelete(item.cartId) }}>Remove</button> : null}
                       </div>
+                      {selectionMode ? (
+                        <span className={selectedIds.has(item.cartId) ? 'cart-mobile-select-check' : 'cart-mobile-select-ring'}>
+                          {selectedIds.has(item.cartId) ? '?' : ''}
+                        </span>
+                      ) : null}
                     </div>
                   ))}
                 </div>
@@ -299,13 +368,58 @@ function TopBar({ profile }: { profile: ViewerProfile | null }) {
   )
 }
 
-function Header() {
+function Header({
+  totalPrice,
+  mobileSelected,
+  itemCount,
+  selectionMode,
+  selectionCount,
+  onMobileCheckout,
+  onEnterSelection,
+  onExitSelection,
+  onDeleteSelected,
+}: {
+  totalPrice: number
+  mobileSelected: boolean
+  itemCount: number
+  selectionMode: boolean
+  selectionCount: number
+  onMobileCheckout: () => void
+  onEnterSelection: () => void
+  onExitSelection: () => void
+  onDeleteSelected: () => void
+}) {
   return (
     <header className="cart-header">
       <div className="cart-header-inner">
         <BrandLogo to="/" />
         <div className="cart-header-divider" />
         <h1>Shopping Cart</h1>
+        <div className="cart-mobile-summary">
+          <div className="cart-mobile-total">
+            <span>Cart Total</span>
+            <strong>{formatPeso(totalPrice)}</strong>
+          </div>
+          <div className="cart-mobile-header-actions">
+            {selectionMode ? (
+              <>
+                <button type="button" className="cart-mobile-text-action" onClick={onExitSelection}>Cancel</button>
+                <button type="button" className="cart-mobile-delete-action" onClick={onDeleteSelected} disabled={selectionCount === 0}>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 15H6L5 6M10 10v7M14 10v7" /></svg>
+                  Delete ({selectionCount})
+                </button>
+              </>
+            ) : (
+              <>
+                {itemCount > 0 ? <button type="button" className="cart-mobile-text-action select" onClick={onEnterSelection}>Select</button> : null}
+                <button type="button" className="cart-mobile-checkout-action" onClick={onMobileCheckout} disabled={!mobileSelected}>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13 2-9 12h7l-1 8 9-12h-7z" /></svg>
+                  Checkout
+                </button>
+              </>
+            )}
+          </div>
+        </div>
       </div>
     </header>
   )

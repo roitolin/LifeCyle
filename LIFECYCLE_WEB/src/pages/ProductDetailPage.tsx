@@ -427,6 +427,19 @@ export default function ProductDetailPage() {
 
   return (
     <div className="pd-page">
+      <div className="pd-mobile-topbar">
+        <button type="button" onClick={() => navigate(-1)} aria-label="Go back">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+        </button>
+        <div>
+          <button type="button" onClick={() => void shareProduct()} aria-label="Share product">
+            <ShareIcon />
+          </button>
+          <button type="button" className={isFavorite ? 'saved' : ''} onClick={toggleFavorite} aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'} aria-pressed={isFavorite}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z" /></svg>
+          </button>
+        </div>
+      </div>
       {/* ── Topbar ── */}
       <div className="sp-topbar">
         <div className="sp-topbar-inner">
@@ -525,6 +538,7 @@ export default function ProductDetailPage() {
                 <span className="pd-image-placeholder">No image available</span>
               )}
               {mainImage && <span className="pd-image-zoom">View larger</span>}
+              {gallery.length > 1 ? <span className="pd-mobile-image-counter">{galleryIndex + 1}/{gallery.length}</span> : null}
             </button>
             
             {gallery.length > 0 && (
@@ -770,6 +784,34 @@ export default function ProductDetailPage() {
         )}
 
       </main>
+      <div className="pd-mobile-purchase-bar">
+        <button
+          type="button"
+          className="pd-mobile-chat-action"
+          onClick={() => {
+            if (!isLoggedIn) {
+              navigate('/login?next=' + encodeURIComponent(window.location.pathname))
+              return
+            }
+            window.dispatchEvent(new CustomEvent('open-chat', { detail: { userId: product.shopId } }))
+          }}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+          <span>Chat</span>
+        </button>
+        {product.stock > 0 ? (
+          <>
+            <button type="button" className="pd-mobile-cart-action" onClick={handleAddToCart} aria-label="Add to cart">
+              <CartIcon /><b>+</b>
+            </button>
+            <button type="button" className="pd-mobile-buy-action" onClick={handleBuyNow}>
+              <span>Buy now</span><strong>{formatPeso(calculatedTotal)}</strong>
+            </button>
+          </>
+        ) : (
+          <button type="button" className="pd-mobile-buy-action sold-out" disabled>Sold Out</button>
+        )}
+      </div>
 
       {/* Image Modal */}
       {isImageModalOpen && (

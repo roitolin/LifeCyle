@@ -3414,3 +3414,342 @@
     width: 100%;
   }
 }
+.requests-mobile-overview,
+.requests-mobile-payment-alert,
+.requests-mobile-filters,
+.requests-mobile-card {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  .requests-shop-page {
+    min-height: 100dvh;
+    background: #f3f5f7;
+  }
+
+  .requests-shop-page > .requests-topbar {
+    display: none;
+  }
+
+  .requests-shop-page > .requests-header {
+    position: sticky;
+    z-index: 80;
+    top: 0;
+    min-height: 56px;
+    display: flex;
+    padding: max(8px, env(safe-area-inset-top)) 18px 8px;
+    border-bottom: 1px solid #d8e0e8;
+    background: #f8f6f2;
+    box-shadow: none;
+  }
+
+  .requests-shop-page > .requests-header .requests-brand,
+  .requests-shop-page > .requests-header .requests-header-divider {
+    display: none;
+  }
+
+  .requests-shop-page > .requests-header h1 {
+    margin: 0;
+    color: #22312d;
+    font-size: 18px;
+    font-weight: 800;
+  }
+
+  .requests-shop-page:has(> .requests-main) > .requests-main {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-height: 0;
+    padding: 18px 18px 32px;
+  }
+
+  .requests-main > .page-back-row {
+    margin: -4px 0 -2px;
+  }
+
+  .requests-mobile-overview {
+    display: block;
+    padding: 4px 0 0;
+  }
+
+  .requests-mobile-overview h2 {
+    margin: 0;
+    color: #22312d;
+    font-size: 23px;
+    font-weight: 900;
+    line-height: 29px;
+  }
+
+  .requests-mobile-overview > p {
+    margin: 4px 0 0;
+    color: #69788b;
+    font-size: 13px;
+    line-height: 19px;
+  }
+
+  .requests-mobile-stats {
+    min-height: 66px;
+    display: grid;
+    grid-template-columns: 1fr 1px 1fr 1px 1fr;
+    align-items: center;
+    margin-top: 14px;
+    padding: 10px 0;
+    border: 1px solid #d8e0e8;
+    border-radius: 12px;
+    background: #fff;
+  }
+
+  .requests-mobile-stats span {
+    display: grid;
+    place-items: center;
+    gap: 2px;
+  }
+
+  .requests-mobile-stats strong {
+    color: #22312d;
+    font-size: 19px;
+    font-weight: 900;
+  }
+
+  .requests-mobile-stats small {
+    color: #69788b;
+    font-size: 10px;
+    font-weight: 700;
+  }
+
+  .requests-mobile-stats i {
+    width: 1px;
+    height: 30px;
+    background: #d8e0e8;
+  }
+
+  .requests-list-toolbar {
+    order: initial;
+    width: 100%;
+    margin: 0;
+  }
+
+  .requests-list-toolbar > div {
+    display: none;
+  }
+
+  .requests-list-toolbar .requests-refresh-btn {
+    width: 100%;
+    min-height: 42px;
+    justify-content: center;
+    margin: 0;
+    border-color: #d9d6cd;
+    border-radius: 14px;
+    background: #fff;
+    color: #22312d;
+    font-size: 13px;
+    font-weight: 900;
+  }
+
+  .requests-mobile-payment-alert {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid #f4d0a6;
+    border-radius: 12px;
+    background: #fdf3e7;
+  }
+
+  .requests-mobile-payment-icon {
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    flex: 0 0 40px;
+    border-radius: 14px;
+    background: #fae3c8;
+    color: #22312d;
+    font-size: 20px;
+  }
+
+  .requests-mobile-payment-alert > span:last-child {
+    display: grid;
+    gap: 3px;
+  }
+
+  .requests-mobile-payment-alert strong {
+    color: #8a4a13;
+    font-size: 14px;
+    font-weight: 900;
+  }
+
+  .requests-mobile-payment-alert small {
+    color: #5c4a35;
+    font-size: 13px;
+    line-height: 19px;
+  }
+
+  .requests-mobile-filters {
+    display: flex;
+    gap: 8px;
+    margin-right: -18px;
+    padding-right: 18px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .requests-mobile-filters::-webkit-scrollbar {
+    display: none;
+  }
+
+  .requests-mobile-filters button {
+    min-height: 38px;
+    flex: 0 0 auto;
+    padding: 0 14px;
+    border: 1px solid #d6d2c9;
+    border-radius: 10px;
+    background: #fff;
+    color: #62706b;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  .requests-mobile-filters button.active {
+    border-color: #516961;
+    background: #516961;
+    color: #fff;
+  }
+
+  .requests-card {
+    margin: 0;
+    overflow: visible;
+    border-color: #d9d6cd;
+    border-radius: 12px;
+    box-shadow: none;
+  }
+
+  .requests-card > .requests-card-header,
+  .requests-card > .requests-card-meta,
+  .requests-card > .requests-payment,
+  .requests-card > .requests-card-footer {
+    display: none;
+  }
+
+  .requests-mobile-card {
+    display: flex;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .requests-mobile-card > img,
+  .requests-mobile-card-fallback {
+    width: 78px;
+    height: 88px;
+    flex: 0 0 78px;
+    border-radius: 10px;
+    background: #ebf1e8;
+    object-fit: cover;
+  }
+
+  .requests-mobile-card-fallback {
+    display: grid;
+    place-items: center;
+    color: #66746f;
+    font-size: 14px;
+    font-weight: 900;
+  }
+
+  .requests-mobile-card-body {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .requests-mobile-card-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .requests-mobile-card-heading > div {
+    min-width: 0;
+    display: grid;
+    gap: 4px;
+  }
+
+  .requests-mobile-card-heading strong {
+    overflow: hidden;
+    color: #22312d;
+    font-size: 16px;
+    font-weight: 900;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .requests-mobile-card-heading small {
+    overflow: hidden;
+    color: #8b7255;
+    font-size: 13px;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .requests-mobile-card-heading em {
+    max-width: 116px;
+    flex: 0 0 auto;
+    padding: 6px 9px;
+    border-radius: 8px;
+    font-size: 10px;
+    font-style: normal;
+    font-weight: 900;
+    line-height: 1.25;
+    text-align: center;
+  }
+
+  .requests-mobile-card-body > p {
+    margin: 8px 0 0;
+    color: #62706b;
+    font-size: 13px;
+    line-height: 18px;
+  }
+
+  .requests-mobile-status-message {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+
+  .requests-mobile-pay-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: #b45309;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 900;
+  }
+
+  .requests-mobile-card-body > button {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+    gap: 3px;
+    margin-top: 12px;
+    padding: 4px 0;
+    border: 0;
+    background: transparent;
+    color: #7f6653;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  .requests-empty-state {
+    margin: 0;
+    border-color: #d9d6cd;
+    border-radius: 12px;
+    box-shadow: none;
+  }
+}

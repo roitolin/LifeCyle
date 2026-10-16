@@ -28,6 +28,15 @@ type Product = {
 
 type Shop = { id: string; shopName: string; generalLocation: string }
 
+type HomeHeroTarget = 'shops' | 'catalog'
+type HomeHeroContent = {
+  title: string
+  subtitle: string
+  buttonLabel: string
+  imageUrl: string
+  target: HomeHeroTarget
+}
+
 /* â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const SORT_OPTIONS = ['Relevance', 'Latest', 'Top Sales', 'Price']
 
@@ -40,6 +49,12 @@ function formatPeso(v: number | string | null | undefined): string {
   const num = Number(String(v ?? '').replace(/[^\d.]/g, ''))
   if (!Number.isFinite(num) || num <= 0) return v ? String(v) : '-'
   return `PHP ${new Intl.NumberFormat('en-PH', { maximumFractionDigits: 0 }).format(num)}`
+}
+
+function formatPesoMobile(v: number | string | null | undefined): string {
+  const num = Number(String(v ?? '').replace(/[^\d.]/g, ''))
+  if (!Number.isFinite(num) || num <= 0) return v ? String(v) : '-'
+  return `?${new Intl.NumberFormat('en-PH', { maximumFractionDigits: 0 }).format(num)}`
 }
 
 function getPrimaryImage(row: any): string | null {
@@ -122,6 +137,17 @@ export default function FuneralLandingPage() {
   const [loading,         setLoading]         = useState(true)
   const [error,           setError]           = useState<string | null>(null)
   const [cartCount, setCartCount] = useState(0)
+  const [heroContent, setHeroContent] = useState<HomeHeroContent | null>(null)
+  const [notificationUnread, setNotificationUnread] = useState(0)
+  const [messageUnread, setMessageUnread] = useState(0)
+  const [favoriteProductIds, setFavoriteProductIds] = useState<Set<string>>(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('lifecycle_favorites') || '{}')
+      return new Set(Object.keys(stored).filter(id => stored[id]))
+    } catch {
+      return new Set()
+    }
+  })
   const navigate = useNavigate()
 
   /* Filters */
@@ -228,6 +254,46 @@ export default function FuneralLandingPage() {
     void load()
   }, [])
 
+  useEffect(() => {
+    if (!window.matchMedia('(max-width: 600px)').matches) return
+
+    let mounted = true
+
+    const loadHero = async () => {
+      const { data } = await supabase
+        .from('home_hero_content')
+        .select('title,subtitle,button_label,image_url,target,is_active')
+        .eq('id', 1)
+        .eq('is_active', true)
+        .maybeSingle()
+
+      if (!mounted) return
+      if (!data?.image_url) {
+        setHeroContent(null)
+        return
+      }
+
+      setHeroContent({
+        title: String(data.title || 'Explore available caskets'),
+        subtitle: String(data.subtitle || 'Compare current listings from approved funeral shops.'),
+        buttonLabel: String(data.button_label || 'Browse now'),
+        imageUrl: String(data.image_url),
+        target: data.target === 'catalog' ? 'catalog' : 'shops',
+      })
+    }
+
+    void loadHero()
+    const channel = supabase
+      .channel(`web-home-hero-${Date.now()}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'home_hero_content' }, () => void loadHero())
+      .subscribe()
+
+    return () => {
+      mounted = false
+      void supabase.removeChannel(channel)
+    }
+  }, [])
+
   /* Derived filtered + sorted list */
   const filtered = useMemo(() => {
     const q   = normalize(queryText)
@@ -242,6 +308,7 @@ export default function FuneralLandingPage() {
     })
 
     if (sortBy === 'Price')      list = [...list].sort((a, b) => a.price - b.price)
+    else if (sortBy === 'Price High') list = [...list].sort((a, b) => b.price - a.price)
     else if (sortBy === 'Latest') list = [...list].reverse()
     else if (sortBy === 'Top Sales') list = [...list].sort((a, b) => b.stock - a.stock)
 
@@ -250,7 +317,7 @@ export default function FuneralLandingPage() {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-  const activeFilterCount = Number(selectedShopId !== 'all') + Number(Boolean(minPrice)) + Number(Boolean(maxPrice))
+  const activeFilterCount = Number(selectedShopId !== 'all') + Number(Boolean(minPrice)) + Number(Boolean(maxPrice)) + Number(sortBy !== 'Relevance')
 
   function clearFilters() {
     setSelectedShopId('all')
@@ -273,6 +340,55 @@ export default function FuneralLandingPage() {
     return () => window.removeEventListener('funeral-cart-updated', refreshCartCount)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoggedIn])
+
+  useEffect(() => {
+    if (!viewer?.id || !window.matchMedia('(max-width: 600px)').matches) {
+      setNotificationUnread(0)
+      return
+    }
+
+    let mounted = true
+    const loadUnread = async () => {
+      const { count } = await supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('userId', viewer.id)
+        .eq('read', false)
+      if (mounted) setNotificationUnread(count || 0)
+    }
+
+    void loadUnread()
+    const channel = supabase
+      .channel(`web-home-notifications-${viewer.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `userId=eq.${viewer.id}` }, () => void loadUnread())
+      .subscribe()
+
+    return () => {
+      mounted = false
+      void supabase.removeChannel(channel)
+    }
+  }, [viewer?.id])
+
+  useEffect(() => {
+    const updateUnread = (event: Event) => {
+      setMessageUnread(Number((event as CustomEvent<{ count?: number }>).detail?.count) || 0)
+    }
+    window.addEventListener('chat-unread-count', updateUnread)
+    window.dispatchEvent(new Event('request-chat-unread-count'))
+    return () => window.removeEventListener('chat-unread-count', updateUnread)
+  }, [])
+
+  const toggleFavorite = (productId: string) => {
+    setFavoriteProductIds(current => {
+      const next = new Set(current)
+      if (next.has(productId)) next.delete(productId)
+      else next.add(productId)
+      const stored = Object.fromEntries([...next].map(id => [id, true]))
+      localStorage.setItem('lifecycle_favorites', JSON.stringify(stored))
+      window.dispatchEvent(new Event('lifecycle-favorites-updated'))
+      return next
+    })
+  }
   /* â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   return (
     <div className="sp-page">
@@ -328,6 +444,32 @@ export default function FuneralLandingPage() {
         <div className="sp-header-inner">
           <BrandLogo to="/funeral" compact className="sp-brand-logo" />
 
+          <div className="sp-mobile-header-actions">
+            <Link
+              to={isLoggedIn ? '/user/notifications' : '/login?next=/user/notifications'}
+              className="sp-mobile-header-action"
+              aria-label="Open notifications"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
+              {notificationUnread > 0 ? <span>{notificationUnread > 9 ? '9+' : notificationUnread}</span> : null}
+            </Link>
+            <button
+              type="button"
+              className="sp-mobile-header-action"
+              aria-label="Open messages"
+              onClick={() => {
+                if (!isLoggedIn) {
+                  navigate('/login?next=/funeral')
+                  return
+                }
+                window.dispatchEvent(new CustomEvent('open-chat'))
+              }}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /><path d="M8 10h.01M12 10h.01M16 10h.01" /></svg>
+              {messageUnread > 0 ? <span>{messageUnread > 9 ? '9+' : messageUnread}</span> : null}
+            </button>
+          </div>
+
           <div className="sp-search-wrap">
             <div className="sp-search-box">
               <input
@@ -335,13 +477,24 @@ export default function FuneralLandingPage() {
                 type="search"
                 value={queryText}
                 onChange={e => { setQueryText(e.target.value); setPage(1) }}
-                placeholder="Search products"
+                placeholder="Search..."
                 aria-label="Search"
               />
               <button type="button" className="sp-search-btn" aria-label="Search">
                 <SearchIcon />
               </button>
             </div>
+            <button
+              type="button"
+              className="sp-mobile-search-filter"
+              aria-label="Show product filters"
+              aria-expanded={filtersOpen}
+              aria-controls="sp-search-filters"
+              onClick={() => setFiltersOpen(true)}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M7 12h10M10 17h4" /></svg>
+              {activeFilterCount > 0 ? <span>{activeFilterCount}</span> : null}
+            </button>
           </div>
 
           <div className="sp-cart-area">
@@ -356,6 +509,21 @@ export default function FuneralLandingPage() {
       {/* â”€â”€ Body â”€â”€ */}
       <div className="sp-body">
         <div className="sp-body-inner">
+          {heroContent ? (
+            <Link
+              className="sp-mobile-home-feature"
+              to={heroContent.target === 'shops' ? '/funeral/shops' : '/funeral'}
+              aria-label={`${heroContent.title}. ${heroContent.buttonLabel}`}
+            >
+              <img src={heroContent.imageUrl} alt="" />
+              <span className="sp-mobile-home-feature-overlay">
+                <strong>{heroContent.title}</strong>
+                <small>{heroContent.subtitle}</small>
+                <span className="sp-mobile-home-feature-action">{heroContent.buttonLabel}</span>
+              </span>
+            </Link>
+          ) : null}
+
 
           <button
             type="button"
@@ -378,13 +546,26 @@ export default function FuneralLandingPage() {
           </button>
 
           {/* â”€â”€ Left Sidebar â”€â”€ */}
+          {filtersOpen ? <button type="button" className="sp-filter-backdrop" aria-label="Close product filters" onClick={() => setFiltersOpen(false)} /> : null}
           <aside id="sp-search-filters" className={`sp-sidebar${filtersOpen ? ' is-open' : ''}`}>
             <div className="sp-sidebar-heading">
               <span>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="11" y1="18" x2="20" y2="18"/></svg>
-                Search filters
+                FILTER
               </span>
               <button type="button" className="sp-sidebar-close" aria-label="Close filters" onClick={() => setFiltersOpen(false)}>&times;</button>
+            </div>
+            <div className="sp-filter-block sp-mobile-sort-filter">
+              <div className="sp-filter-title-row">
+                <div className="sp-filter-title">SORT BY</div>
+                {activeFilterCount > 0 ? <button type="button" onClick={clearFilters}>Reset</button> : null}
+              </div>
+              <button type="button" className={`sp-mobile-sort-option${sortBy === 'Price' ? ' active' : ''}`} onClick={() => { setSortBy('Price'); setPage(1) }}>
+                <span className="sp-mobile-sort-icon">?</span><span><strong>Price: Low to High</strong><small>Show the most affordable first</small></span><b>{sortBy === 'Price' ? '?' : '?'}</b>
+              </button>
+              <button type="button" className={`sp-mobile-sort-option${sortBy === 'Price High' ? ' active' : ''}`} onClick={() => { setSortBy('Price High'); setPage(1) }}>
+                <span className="sp-mobile-sort-icon">?</span><span><strong>Price: High to Low</strong><small>Show premium products first</small></span><b>{sortBy === 'Price High' ? '?' : '?'}</b>
+              </button>
             </div>
 
             {/* Shop Filter */}
@@ -409,7 +590,7 @@ export default function FuneralLandingPage() {
 
             {/* Price Range */}
             <div className="sp-filter-block">
-              <div className="sp-filter-title">Price Range</div>
+              <div className="sp-filter-title">PRICE RANGE</div>
               <div className="sp-price-row">
                 <input
                   type="number"
@@ -438,7 +619,7 @@ export default function FuneralLandingPage() {
 
             {/* Rating */}
             <div className="sp-filter-block">
-              <div className="sp-filter-title">Rating</div>
+              <div className="sp-filter-title">RATING</div>
               {[5, 4, 3, 2, 1].map(r => (
                 <div key={r} className="sp-rating-row">
                   {Array.from({ length: 5 }, (_, i) => (
@@ -450,15 +631,21 @@ export default function FuneralLandingPage() {
             </div>
 
             <button type="button" className="sp-clear-btn" onClick={clearFilters}>
-              CLEAR ALL
+              RESET FILTERS
             </button>
             <button type="button" className="sp-filter-done-btn" onClick={() => setFiltersOpen(false)}>
-              SHOW RESULTS
+              APPLY
             </button>
           </aside>
 
           {/* â”€â”€ Main Content â”€â”€ */}
           <main className="sp-main">
+            <div className="sp-mobile-catalog-heading">
+              <h2>{queryText ? 'Search results' : 'Available caskets'}</h2>
+              <button type="button" onClick={clearFilters}>
+                View all <span aria-hidden="true">?</span>
+              </button>
+            </div>
 
             {/* Search result header */}
             <div className="sp-result-label">
@@ -520,12 +707,22 @@ export default function FuneralLandingPage() {
                         ? <img src={product.imageUrl} alt={product.name} loading="lazy" />
                         : <div className="sp-card-img-ph"><CasketSVG /></div>}
                       <span className="sp-verified-badge">Verified</span>
+                      <button
+                        type="button"
+                        className={`sp-mobile-favorite${favoriteProductIds.has(product.id) ? ' active' : ''}`}
+                        aria-label={favoriteProductIds.has(product.id) ? `Remove ${product.name} from favorites` : `Add ${product.name} to favorites`}
+                        aria-pressed={favoriteProductIds.has(product.id)}
+                        onClick={event => { event.stopPropagation(); toggleFavorite(product.id) }}
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z" /></svg>
+                      </button>
                     </div>
 
                     <div className="sp-card-body">
                       <p className="sp-card-name">{product.name}</p>
                       <div className="sp-card-price-row">
-                        <span className="sp-card-price">{formatPeso(product.price)}</span>
+                        <span className="sp-card-price sp-card-price-desktop">{formatPeso(product.price)}</span>
+                        <span className="sp-card-price sp-card-price-mobile">{formatPesoMobile(product.price)}</span>
                       </div>
                       <div className="sp-card-meta">
                         <Stars rating={4.8} />

@@ -2982,3 +2982,477 @@
   width: 24px;
   height: 24px;
 }
+.pd-mobile-topbar,
+.pd-mobile-purchase-bar,
+.pd-mobile-image-counter {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  body:has(.pd-page) .cw-fab {
+    display: none;
+  }
+
+  .pd-page {
+    min-height: 100dvh;
+    padding: 0 0 calc(72px + env(safe-area-inset-bottom));
+    overflow-x: hidden;
+    background: #eef1ec;
+  }
+
+  .pd-page > .sp-topbar,
+  .pd-page > .sp-header {
+    display: none;
+  }
+
+  .pd-mobile-topbar {
+    position: absolute;
+    z-index: 90;
+    top: 0;
+    right: 0;
+    left: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: max(10px, env(safe-area-inset-top)) 18px 8px;
+    pointer-events: none;
+  }
+
+  .pd-mobile-topbar > button,
+  .pd-mobile-topbar > div > button {
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(255,255,255,.86);
+    color: #22312d;
+    box-shadow: 0 2px 10px rgba(20,29,43,.08);
+    pointer-events: auto;
+  }
+
+  .pd-mobile-topbar > div {
+    display: flex;
+    gap: 8px;
+  }
+
+  .pd-mobile-topbar > div > button {
+    background: rgba(34,49,45,.52);
+    color: #fff;
+  }
+
+  .pd-mobile-topbar button.saved {
+    color: #f59e0b;
+  }
+
+  .pd-mobile-topbar button.saved svg {
+    fill: currentColor;
+  }
+
+  .pd-mobile-topbar svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .pd-container {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .pd-product-nav {
+    display: none;
+  }
+
+  .pd-main-card {
+    display: block;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .pd-gallery-section {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    background: #e6ebe7;
+  }
+
+  .pd-main-image {
+    width: 100%;
+    height: min(108vw, 460px);
+    display: block;
+    aspect-ratio: auto;
+    overflow: hidden;
+    border: 0;
+    border-radius: 0;
+    background: #e6ebe7;
+  }
+
+  .pd-main-image img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+  }
+
+  .pd-mobile-image-counter {
+    position: absolute;
+    right: 16px;
+    bottom: 32px;
+    display: inline-flex;
+    min-width: 44px;
+    min-height: 28px;
+    align-items: center;
+    justify-content: center;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: rgba(34,49,45,.72);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .pd-thumbs,
+  .pd-social-share {
+    display: none;
+  }
+
+  .pd-info-section {
+    position: relative;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    margin-top: -22px;
+    padding: 24px 18px 20px;
+    overflow: hidden;
+    border-radius: 24px 24px 0 0;
+    background: #eef1ec;
+  }
+
+  .pd-product-kicker {
+    display: none;
+  }
+
+  .pd-title {
+    order: 1;
+    max-width: none;
+    margin: 0;
+    color: #22312d;
+    font-size: 20px;
+    font-weight: 800;
+    line-height: 26px;
+    letter-spacing: 0;
+  }
+
+  .pd-price-block {
+    order: 2;
+    margin: 8px 0 0;
+    padding: 0;
+    gap: 2px;
+    border: 0;
+  }
+
+  .pd-price-label {
+    order: 1;
+    color: #62706b;
+    font-size: 11px;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  .pd-price-value {
+    order: 2;
+    color: #315f50;
+    font-size: 18px;
+    font-weight: 800;
+    line-height: 22px;
+    letter-spacing: 0;
+  }
+
+  .pd-price-breakdown {
+    order: 3;
+    font-size: 11px;
+  }
+
+  .pd-meta {
+    order: 3;
+    display: flex;
+    align-items: center;
+    flex-direction: row;
+    gap: 8px;
+    margin: 10px 0 0;
+    color: #62706b;
+    font-size: 11px;
+  }
+
+  .pd-meta-item,
+  .pd-meta-item:first-child {
+    min-height: 24px;
+    padding: 0 9px;
+    border: 1px solid #d9d6cd;
+    border-radius: 999px;
+  }
+
+  .pd-info-section > .pd-option-row,
+  .pd-info-section > .pd-package-section {
+    order: 4;
+  }
+
+  .pd-option-row,
+  .pd-option-row.align-start {
+    margin: 20px 0 0;
+    padding-top: 18px;
+    border-top: 1px solid #d9d6cd;
+  }
+
+  .pd-option-label,
+  .pd-package-heading .pd-option-label {
+    color: #22312d;
+    font-size: 14px;
+    font-weight: 800;
+  }
+
+  .pd-option-content {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+  }
+
+  .pd-variation-btn {
+    min-height: 46px;
+    border-color: #d9d6cd;
+    border-radius: 12px;
+  }
+
+  .pd-package-section {
+    margin: 20px 0 0;
+    padding-top: 18px;
+  }
+
+  .pd-package-options {
+    margin-right: -18px;
+    padding-right: 18px;
+  }
+
+  .pd-package-item {
+    width: 138px;
+    min-width: 138px;
+    flex-basis: 138px;
+    border-color: #d9d6cd;
+    border-radius: 16px;
+  }
+
+  .pd-actions-row,
+  .pd-login-note {
+    display: none;
+  }
+
+  .pd-shop-card,
+  .pd-details-card,
+  .pd-related {
+    width: auto;
+    margin: 10px 0 0;
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .pd-shop-card {
+    min-height: 0;
+    padding: 18px;
+    border-color: #d9d6cd;
+    background: #fff;
+  }
+
+  .pd-shop-left {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    gap: 12px;
+  }
+
+  .pd-shop-avatar {
+    width: 58px;
+    height: 58px;
+  }
+
+  .pd-shop-eyebrow {
+    display: none;
+  }
+
+  .pd-shop-name {
+    color: #22312d;
+    font-size: 16px;
+    font-weight: 900;
+  }
+
+  .pd-shop-actions {
+    margin-top: 10px;
+  }
+
+  .pd-shop-right {
+    display: none;
+  }
+
+  .pd-details-card {
+    padding: 20px 18px;
+    border-color: #d9d6cd;
+    background: #fff;
+  }
+
+  .pd-section-header {
+    font-size: 18px;
+    font-weight: 900;
+  }
+
+  .pd-details-layout {
+    gap: 18px;
+  }
+
+  .pd-spec-list {
+    padding: 14px;
+    border-radius: 12px;
+  }
+
+  .pd-related {
+    padding: 20px 18px 28px;
+    background: #eef1ec;
+  }
+
+  .pd-related-header {
+    align-items: center;
+    font-size: 18px;
+    font-weight: 900;
+  }
+
+  .pd-related-card {
+    overflow: hidden;
+    border-color: #d9d6cd;
+    border-radius: 14px;
+    background: #fff;
+  }
+
+  .pd-mobile-purchase-bar {
+    position: fixed;
+    z-index: 9000;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    min-height: 64px;
+    display: grid;
+    grid-template-columns: 62px 54px minmax(0, 1fr);
+    gap: 8px;
+    align-items: stretch;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+    border-top: 1px solid #d9d6cd;
+    background: #fff;
+  }
+
+  .pd-mobile-purchase-bar button {
+    border: 0;
+    font: inherit;
+  }
+
+  .pd-mobile-chat-action {
+    display: grid;
+    place-items: center;
+    gap: 1px;
+    background: transparent;
+    color: #22312d;
+    font-size: 10px;
+    font-weight: 700;
+  }
+
+  .pd-mobile-chat-action svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.9;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .pd-mobile-cart-action {
+    position: relative;
+    display: grid;
+    place-items: center;
+    border: 1px solid #d9d6cd !important;
+    border-radius: 12px;
+    background: #fff;
+    color: #5a6b64;
+  }
+
+  .pd-mobile-cart-action > svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .pd-mobile-cart-action b {
+    position: absolute;
+    top: 8px;
+    right: 7px;
+    width: 14px;
+    height: 14px;
+    display: grid;
+    place-items: center;
+    border: 2px solid #fff;
+    border-radius: 999px;
+    background: #315f50;
+    color: #fff;
+    font-size: 10px;
+    line-height: 1;
+  }
+
+  .pd-mobile-buy-action {
+    min-width: 0;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 1px;
+    padding: 6px 16px;
+    border-radius: 12px;
+    background: #22312d;
+    color: #fff;
+  }
+
+  .pd-mobile-buy-action span {
+    font-size: 13px;
+    font-weight: 900;
+  }
+
+  .pd-mobile-buy-action strong {
+    overflow: hidden;
+    max-width: 100%;
+    font-size: 11px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .pd-mobile-buy-action.sold-out {
+    grid-column: 2 / -1;
+    opacity: .7;
+    font-size: 13px;
+    font-weight: 900;
+  }
+
+  .pd-added-overlay {
+    z-index: 10000;
+  }
+}

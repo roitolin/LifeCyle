@@ -244,6 +244,8 @@ type MyServiceRequestsPageProps = {
   detailRequestId?: string
 }
 
+
+type RequestFilter = 'all' | 'action' | 'active' | 'completed'
 export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServiceRequestsPageProps) {
   const navigate = useNavigate()
   const { openAlert, alertDialog } = useAlertDialog()
@@ -253,6 +255,7 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
   const [loading, setLoading] = useState(true)
   const [reconnecting, setReconnecting] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [requestFilter, setRequestFilter] = useState<RequestFilter>('all')
 
   const [submittingId, setSubmittingId] = useState('')
   const [proofFileInputRef] = useState<{ current: HTMLInputElement | null }>({ current: null })
@@ -541,6 +544,25 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
     const hasPaymentSetup = r.paymentAmount != null && Number(r.paymentAmount) > 0
     return ['awaiting_payment', 'payment_submitted', 'payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(status) && hasPaymentSetup
   }
+  const paymentNeededCount = requests.filter(request =>
+    String(request.status || '').toLowerCase() === 'awaiting_payment'
+    && request.paymentAmount != null
+    && Number(request.paymentAmount) > 0
+  ).length
+  const actionNeededCount = requests.filter(request =>
+    ['awaiting_payment', 'awaiting_customer_confirmation'].includes(String(request.status || '').toLowerCase())
+  ).length
+  const activeCount = requests.filter(request =>
+    !['completed', 'declined_by_shop', 'cancelled_by_requester'].includes(String(request.status || '').toLowerCase())
+  ).length
+  const completedCount = requests.filter(request => String(request.status || '').toLowerCase() === 'completed').length
+  const visibleRequests = requests.filter(request => {
+    const status = String(request.status || '').toLowerCase()
+    if (requestFilter === 'action') return ['awaiting_payment', 'awaiting_customer_confirmation'].includes(status)
+    if (requestFilter === 'active') return !['completed', 'declined_by_shop', 'cancelled_by_requester'].includes(status)
+    if (requestFilter === 'completed') return status === 'completed'
+    return true
+  })
 
   return (
     <div className="requests-shop-page">
@@ -579,6 +601,17 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
 
       {!detailRequestId ? <main className="requests-main">
         <div className="page-back-row"><PageBackButton to="/user/profile" /></div>
+        <section className="requests-mobile-overview">
+          <h2>Service requests</h2>
+          <p>Track shop responses, payments, and completion.</p>
+          <div className="requests-mobile-stats">
+            <span><strong>{actionNeededCount}</strong><small>Your action</small></span>
+            <i />
+            <span><strong>{activeCount}</strong><small>Active</small></span>
+            <i />
+            <span><strong>{completedCount}</strong><small>Completed</small></span>
+          </div>
+        </section>
         <div className="requests-list-toolbar">
           <div>
             <strong>{loading ? 'Loading requests' : requests.length + ' ' + (requests.length === 1 ? 'request' : 'requests')}</strong>
@@ -598,6 +631,24 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
             {loading ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
+        {!loading && paymentNeededCount > 0 ? (
+          <section className="requests-mobile-payment-alert">
+            <span className="requests-mobile-payment-icon">?</span>
+            <span><strong>Payment required</strong><small>{paymentNeededCount === 1 ? '1 request needs your payment to proceed. Tap it below and pay the shop.' : `${paymentNeededCount} requests need your payment to proceed. Tap each one below and pay the shop.`}</small></span>
+          </section>
+        ) : null}
+        {!loading && requests.length > 0 ? (
+          <div className="requests-mobile-filters" role="group" aria-label="Filter service requests">
+            {([
+              ['all', `All (${requests.length})`],
+              ['action', `Your action (${actionNeededCount})`],
+              ['active', `Active (${activeCount})`],
+              ['completed', `Completed (${completedCount})`],
+            ] as [RequestFilter, string][]).map(([key, label]) => (
+              <button type="button" key={key} className={requestFilter === key ? 'active' : ''} onClick={() => setRequestFilter(key)}>{label}</button>
+            ))}
+          </div>
+        ) : null}
         {loading ? (
           <section className="requests-empty-state">
             <h2>{reconnecting ? 'Reconnecting…' : 'Loading…'}</h2>
@@ -609,15 +660,35 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
             <p>Your funeral service requests will appear here once you send them to a shop.</p>
             <Link to="/funeral" className="requests-browse-btn">Browse Products</Link>
           </section>
+        ) : visibleRequests.length === 0 ? (
+          <section className="requests-empty-state">
+            <h2>Nothing in this view</h2>
+            <p>Choose another filter to see your other service requests.</p>
+          </section>
         ) : (
-          requests.map(request => {
+          visibleRequests.map(request => {
             const payMeta = statusMeta(request.status)
+            const mobileStatus = statusDetail(request.status)
             const showPayment = canShowPaymentSection(request)
             const paymentForm = getForm(request.id)
             const canSubmit = String(request.status || '').toLowerCase() === 'awaiting_payment'
 
             return (
               <section key={request.id} className="requests-card">
+                <div className="requests-mobile-card">
+                  {request.productImageUrl ? <img src={request.productImageUrl} alt="" /> : <span className="requests-mobile-card-fallback">LC</span>}
+                  <div className="requests-mobile-card-body">
+                    <div className="requests-mobile-card-heading">
+                      <div><strong>{request.deceasedFullName || 'Not provided'}</strong><small>{request.shopName || 'Funeral Shop'}</small></div>
+                      <em style={{ background: mobileStatus.background, color: mobileStatus.text }}>{mobileStatus.label}</em>
+                    </div>
+                    <p>Service: {request.productName || 'Custom Casket'}</p>
+                    <p>Sent: {request.createdAt ? formatDate(request.createdAt) : 'Not provided'}</p>
+                    <p className="requests-mobile-status-message">{mobileStatus.message}</p>
+                    {canSubmit ? <div className="requests-mobile-pay-banner">? <span>Payment needed ? tap to open</span></div> : null}
+                    <button type="button" onClick={() => navigate(`/user/requests/${request.id}`)}>View details <span>?</span></button>
+                  </div>
+                </div>
                 <div className="requests-card-header">
                     <div className="requests-card-product">
                       <button

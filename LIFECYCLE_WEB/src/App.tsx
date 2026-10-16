@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 import ProtectedRoute from '@/components/ProtectedRoute'
 import LoadingBird from '@/components/LoadingBird'
 import { LogoutConfirmationProvider } from '@/components/LogoutConfirmationProvider'
+import MobileWebNavigation from '@/components/MobileWebNavigation'
 
 const ChatWidget = lazy(() => import('@/components/ChatWidget'))
 
@@ -72,7 +73,7 @@ function RouteScopedChatWidget() {
   const { pathname } = useLocation()
   const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname
 
-  if (normalizedPath !== '/funeral' && normalizedPath !== '/seller') return null
+  if (normalizedPath !== '/funeral' && normalizedPath !== '/seller' && !normalizedPath.startsWith('/shop/')) return null
 
   return <ChatWidget />
 }
@@ -161,6 +162,7 @@ function App() {
 
           <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          <MobileWebNavigation />
           <RouteScopedChatWidget />
         </LogoutConfirmationProvider>
       </Suspense>
