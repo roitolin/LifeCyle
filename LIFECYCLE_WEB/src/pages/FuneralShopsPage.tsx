@@ -9,7 +9,6 @@ import PageBackButton from '@/components/PageBackButton'
 import { supabase } from '@/lib/supabase'
 import { loadFuneralCart } from '@/utils/funeralCart'
 import './FuneralLandingPage.css'
-import './FuneralShopsPage.css'
 
 const HeaderCartIcon = () => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -175,57 +174,57 @@ export default function FuneralShopsPage() {
         </div>
       </header>
 
-      <div className="sp-container">
+      <div className="sp-container mx-auto min-h-[calc(100vh-150px)] w-full max-w-[1200px] px-4 pb-[60px] pt-5 max-[480px]:px-3 max-[480px]:pb-10 max-[480px]:pt-3.5">
         <div className="page-back-row"><PageBackButton /></div>
 
-        <div className="fsp-hero">
-          <h1>Funeral shops</h1>
-          <p>Browse active funeral shops and view their available products and contact details.</p>
-          <div className="fsp-hero-pill">
+        <div className="mb-6 box-border rounded-md border border-[#d8e0e8] bg-[#f1f4f7] p-7 text-[#22312d] max-[768px]:mb-4 max-[768px]:px-[18px] max-[768px]:py-6 max-[480px]:px-4 max-[480px]:py-5">
+          <h1 className="mb-2 text-[26px] font-bold max-[768px]:text-[22px]">Funeral shops</h1>
+          <p className="mb-4 max-w-[640px] text-sm leading-[1.6] text-[#617087]">Browse active funeral shops and view their available products and contact details.</p>
+          <div className="inline-flex items-center gap-1.5 rounded border border-[#d8e0e8] bg-white px-3.5 py-1.5 text-[13px] font-bold">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
             {loading ? 'Loading…' : `${shops.length} available ${shops.length === 1 ? 'shop' : 'shops'}`}
           </div>
         </div>
 
         {loading ? (
-          <div className="fsp-state">
-            <div className="sp-spinner" />
-            <p>Loading shops…</p>
+          <div className="box-border flex min-h-[148px] flex-col items-center gap-3 rounded-lg bg-white px-6 py-[60px] text-center text-sm leading-[1.6] text-[#66746f] shadow-[0_1px_1px_rgba(0,0,0,0.05)]">
+            <div className="size-7 animate-spin rounded-full border-[3px] border-[rgba(34,49,45,0.15)] border-t-[#22312d]" />
+            <p className="m-0 max-w-[420px]">Loading shops…</p>
           </div>
         ) : error ? (
-          <div className="fsp-state fsp-state-error">{error}</div>
+          <div className="box-border flex min-h-[148px] flex-col items-center gap-3 rounded-lg bg-white px-6 py-[60px] text-center text-sm leading-[1.6] text-[#b91c1c] shadow-[0_1px_1px_rgba(0,0,0,0.05)]">{error}</div>
         ) : filtered.length === 0 ? (
-          <div className="fsp-state">
-            <p>No funeral shops are currently available.</p>
+          <div className="box-border flex min-h-[148px] flex-col items-center gap-3 rounded-lg bg-white px-6 py-[60px] text-center text-sm leading-[1.6] text-[#66746f] shadow-[0_1px_1px_rgba(0,0,0,0.05)]">
+            <p className="m-0 max-w-[420px]">No funeral shops are currently available.</p>
           </div>
         ) : (
-          <div className="fsp-list">
+          <div className="box-border grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-4 max-[768px]:grid-cols-[repeat(auto-fill,minmax(260px,1fr))] max-[768px]:gap-3 max-[480px]:grid-cols-[minmax(0,1fr)]">
             {filtered.map(shop => (
-              <article key={shop.id} className="fsp-card">
+              <article key={shop.id} className="flex items-center gap-4 rounded-lg border border-[#eef1ee] bg-white p-4 shadow-[0_1px_1px_rgba(0,0,0,0.05)] max-[768px]:flex-col max-[768px]:items-stretch max-[768px]:text-center">
                 {shop.shopImageUrl ? (
-                  <img src={shop.shopImageUrl} alt={shop.shopName} className="fsp-card-img" />
+                  <img src={shop.shopImageUrl} alt={shop.shopName} className="size-[84px] shrink-0 rounded-lg object-cover max-[768px]:h-[140px] max-[768px]:w-full max-[768px]:self-center max-[480px]:h-auto max-[480px]:aspect-video" />
                 ) : (
-                  <div className="fsp-card-img fsp-card-img-fallback">
+                  <div className="flex size-[84px] shrink-0 items-center justify-center rounded-lg bg-[#eef1ec] max-[768px]:h-[140px] max-[768px]:w-full max-[768px]:self-center max-[480px]:h-auto max-[480px]:aspect-video">
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#22312d" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
                   </div>
                 )}
 
-                <div className="fsp-card-body">
-                  <div className="fsp-card-name">{shop.shopName}</div>
-                  <div className="fsp-card-meta">
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1 truncate text-base font-extrabold text-[#22312d] max-[480px]:whitespace-normal">{shop.shopName}</div>
+                  <div className="mt-[3px] flex items-center gap-[5px] truncate text-xs text-[#7d8682] max-[480px]:whitespace-normal">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
                     {shop.generalLocation || shop.shopAddress || 'Location not available'}
                   </div>
                   {shop.shopPhoneNumber ? (
-                    <div className="fsp-card-meta">
+                    <div className="mt-[3px] flex items-center gap-[5px] truncate text-xs text-[#7d8682] max-[480px]:whitespace-normal">
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
                       {shop.shopPhoneNumber}
                     </div>
                   ) : null}
-                  {shop.businessName ? <div className="fsp-card-business">{shop.businessName}</div> : null}
+                  {shop.businessName ? <div className="mt-1.5 inline-block rounded bg-[#f2ede5] px-2 py-[3px] text-[11px] font-bold text-[#7f6653]">{shop.businessName}</div> : null}
                 </div>
 
-                <Link className="fsp-card-btn" to={`/shop/${shop.id}`}>
+                <Link className="shrink-0 rounded-md bg-[#315f50] px-4 py-2.5 text-center text-[13px] font-bold text-white no-underline hover:bg-[#22312d] max-[768px]:w-full" to={`/shop/${shop.id}`}>
                   View products
                 </Link>
               </article>

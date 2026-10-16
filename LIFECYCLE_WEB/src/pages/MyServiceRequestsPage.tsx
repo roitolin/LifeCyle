@@ -78,6 +78,8 @@ const EMPTY_PAYMENT_FORM: PaymentSubmissionForm = {
   referenceNumber: '',
 }
 
+const MANUAL_PAYMENT_ENABLED = false
+
 function formatPeso(value: number | string | null | undefined): string {
   const num = Number(value)
   if (!Number.isFinite(num)) return '—'
@@ -742,7 +744,7 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                           </div>
                         )}
 
-                        {false && canSubmit && (
+                        {MANUAL_PAYMENT_ENABLED && canSubmit && (
                           <div className="requests-manual-accordion">
                             <button
                               type="button"
@@ -1169,7 +1171,7 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                       </button>
                     </div>
 
-                    {false && <div className="requests-manual-accordion">
+                    {MANUAL_PAYMENT_ENABLED && <div className="requests-manual-accordion">
                       <button
                         type="button"
                         className="requests-manual-accordion-btn"

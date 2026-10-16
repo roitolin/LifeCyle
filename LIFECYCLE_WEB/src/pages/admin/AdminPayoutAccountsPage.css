@@ -1,148 +1,129 @@
-.payout-page-container {
-  display: grid;
-  gap: 18px;
-}
+@reference "tailwindcss";
 
+.payout-page-container {
+  @apply grid gap-[18px];
+}
 .payout-header-actions,
 .payout-row-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  @apply flex items-center gap-[8px];
 }
-
-.payout-header-actions svg { flex: 0 0 auto; }
-.payout-toolbar { margin: 0; }
-
+.payout-header-actions svg {
+  @apply flex-none;
+}
+.payout-toolbar {
+  @apply m-0;
+}
 .payout-shop-cell,
 .payout-account-cell {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  min-width: 0;
+  @apply flex items-center gap-[11px] min-w-0;
 }
-
 .payout-shop-avatar {
-  width: 36px;
-  height: 36px;
-  flex: 0 0 36px;
-  overflow: hidden;
-  border: 1px solid #dbe3ec;
-  border-radius: 10px;
-  background: #f1f5f9;
-  color: #475569;
-  display: grid;
-  place-items: center;
-  font-size: 11px;
-  font-weight: 800;
+  @apply w-[36px] h-[36px] flex-[0_0_36px] overflow-hidden border [background:#f1f5f9] text-slate-600 grid place-items-center text-[11px] font-extrabold rounded-[10px] border-solid border-[#dbe3ec];
 }
-
-.payout-shop-avatar img { width: 100%; height: 100%; object-fit: cover; }
-
+.payout-shop-avatar img {
+  @apply w-full h-full object-cover;
+}
 .payout-primary,
 .payout-secondary {
-  display: block;
-  max-width: 230px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply block max-w-[230px] overflow-hidden text-ellipsis whitespace-nowrap;
 }
-
-.payout-primary { color: #172033; font-weight: 700; }
-.payout-secondary { margin-top: 3px; color: #718096; font-size: 12px; }
-
+.payout-primary {
+  @apply text-[#172033] font-bold;
+}
+.payout-secondary {
+  @apply text-[#718096] text-[12px] mt-[3px];
+}
 .payout-channel-mark {
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
-  border-radius: 9px;
-  background: #eef3f8;
-  color: #40536c;
-  display: grid;
-  place-items: center;
-  font-size: 10px;
-  font-weight: 800;
+  @apply w-[32px] h-[32px] flex-[0_0_32px] [background:#eef3f8] text-[#40536c] grid place-items-center text-[10px] font-extrabold rounded-[9px];
 }
-
-.payout-channel-mark.wallet { background: #eaf8f2; color: #196b52; }
-
+.payout-channel-mark.wallet {
+  @apply [background:#eaf8f2] text-[#196b52];
+}
 .payout-account-number {
-  color: #334155;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 12px;
-  letter-spacing: .02em;
+  @apply text-slate-700 [font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace] text-[12px] tracking-[0.02em];
 }
-
 .payout-status {
-  display: inline-flex;
-  align-items: center;
-  padding: 5px 9px;
-  border-radius: 999px;
-  background: #f1f5f9;
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 800;
-  white-space: nowrap;
+  @apply inline-flex items-center [background:#f1f5f9] text-slate-500 text-[11px] font-extrabold whitespace-nowrap px-[9px] py-[5px] rounded-[999px];
 }
-
-.payout-status.verified { background: #e9f8f0; color: #147a50; }
-.payout-status.pending { background: #fff7df; color: #946514; }
-.payout-verified-date { margin-top: 5px; color: #94a3b8; font-size: 11px; }
-.payout-row-actions { justify-content: flex-end; white-space: nowrap; }
-.payout-danger-action { color: #a33f3f; }
-
-.payout-empty { padding: 46px 20px; text-align: center; }
-.payout-empty h3, .payout-empty p { margin: 0; }
-.payout-empty h3 { color: #172033; font-size: 15px; }
-.payout-empty p { margin-top: 6px; color: #718096; font-size: 13px; }
-
-.payout-modal-form { display: grid; gap: 16px; }
-.payout-modal-summary { padding: 13px 14px; border: 1px solid #dbe5ee; border-radius: 10px; background: #f8fafc; }
-.payout-modal-summary strong, .payout-modal-summary span { display: block; }
-.payout-modal-summary span { margin-top: 3px; color: #718096; font-size: 12px; }
-.payout-modal-field { display: grid; gap: 7px; }
-.payout-modal-field label { color: #334155; font-size: 12px; font-weight: 800; }
-
+.payout-status.verified {
+  @apply [background:#e9f8f0] text-[#147a50];
+}
+.payout-status.pending {
+  @apply [background:#fff7df] text-[#946514];
+}
+.payout-verified-date {
+  @apply text-slate-400 text-[11px] mt-[5px];
+}
+.payout-row-actions {
+  @apply justify-end whitespace-nowrap;
+}
+.payout-danger-action {
+  @apply text-[#a33f3f];
+}
+.payout-empty {
+  @apply text-center px-[20px] py-[46px];
+}
+.payout-empty h3, .payout-empty p {
+  @apply m-0;
+}
+.payout-empty h3 {
+  @apply text-[#172033] text-[15px];
+}
+.payout-empty p {
+  @apply text-[#718096] text-[13px] mt-[6px];
+}
+.payout-modal-form {
+  @apply grid gap-[16px];
+}
+.payout-modal-summary {
+  @apply border [background:#f8fafc] px-[14px] py-[13px] rounded-[10px] border-solid border-[#dbe5ee];
+}
+.payout-modal-summary strong, .payout-modal-summary span {
+  @apply block;
+}
+.payout-modal-summary span {
+  @apply text-[#718096] text-[12px] mt-[3px];
+}
+.payout-modal-field {
+  @apply grid gap-[7px];
+}
+.payout-modal-field label {
+  @apply text-slate-700 text-[12px] font-extrabold;
+}
 .payout-modal-field input,
 .payout-modal-field select {
-  width: 100%;
-  min-height: 42px;
-  padding: 0 12px;
-  border: 1px solid #cfd9e5;
-  border-radius: 9px;
-  background: #fff;
-  color: #172033;
-  font: inherit;
+  @apply w-full min-h-[42px] border [background:#fff] text-[#172033] [font:inherit] px-[12px] py-0 rounded-[9px] border-solid border-[#cfd9e5];
 }
-
 .payout-modal-field input:focus,
 .payout-modal-field select:focus {
-  outline: 2px solid rgba(40, 91, 78, .15);
-  border-color: #285b4e;
+  @apply [outline:2px_solid_rgba(40,91,78,0.15)] border-[#285b4e];
 }
-
-.payout-modal-field small { color: #718096; font-size: 11px; line-height: 1.45; }
-
+.payout-modal-field small {
+  @apply text-[#718096] text-[11px] leading-[1.45];
+}
 @media (max-width: 760px) {
-  .payout-header-actions { width: 100%; }
-  .payout-header-actions button { flex: 1; }
-  .payout-row-actions { justify-content: flex-start; }
+  .payout-header-actions {
+    @apply w-full;
+  }
+  .payout-header-actions button {
+    @apply flex-1;
+  }
+  .payout-row-actions {
+    @apply justify-start;
+  }
 }
-
 @media (max-width: 480px) {
   .payout-header-actions,
   .payout-toolbar {
-    align-items: stretch;
-    flex-direction: column;
+    @apply items-stretch flex-col;
   }
-
   .payout-header-actions button,
   .payout-toolbar button,
   .payout-toolbar select {
-    width: 100%;
+    @apply w-full;
   }
-
   .payout-primary,
   .payout-secondary {
-    max-width: 180px;
+    @apply max-w-[180px];
   }
 }

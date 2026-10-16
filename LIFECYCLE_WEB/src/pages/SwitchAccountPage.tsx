@@ -14,15 +14,16 @@ import {
   rememberWebAccount,
   type WebRememberedAccount,
 } from '@/utils/webDeviceAccounts'
-import './SwitchAccountPage.css'
+
+const avatarClass = 'grid size-11 shrink-0 place-items-center overflow-hidden rounded-full bg-[#315f50] font-extrabold text-white [&_img]:size-full [&_img]:object-cover'
 
 function AccountAvatar({ account }: { account: WebRememberedAccount }) {
   if (account.photoURL) {
-    return <span className='switch-account-avatar'><img src={account.photoURL} alt='' /></span>
+    return <span className={avatarClass}><img src={account.photoURL} alt='' /></span>
   }
 
   return (
-    <span className='switch-account-avatar' aria-hidden='true'>
+    <span className={avatarClass} aria-hidden='true'>
       {(account.fullName || account.email).charAt(0).toUpperCase()}
     </span>
   )
@@ -145,43 +146,43 @@ export default function SwitchAccountPage() {
 
   return (
     <main className="auth-page">
-      <div className="auth-layout switch-account-layout">
-        <section className="auth-card switch-account-card">
+      <div className="auth-layout grid w-full max-w-[620px] grid-cols-1">
+        <section className="auth-card gap-5 min-[481px]:gap-5 max-[480px]:min-w-0 max-[480px]:gap-4">
           <div className='page-back-row auth-page-back'><PageBackButton to='/funeral' /></div>
           <div className='auth-card-head'>
             <h1>Switch account</h1>
             <p className='auth-subtitle'>Choose a saved account or add another one.</p>
           </div>
 
-          {loading ? <p className='switch-account-empty'>Loading saved accounts...</p> : null}
+          {loading ? <p className='rounded-2xl border border-dashed border-[#cbd5d1] p-6 text-center text-[#64748b]'>Loading saved accounts...</p> : null}
           {!loading && accounts.length === 0 ? (
-            <p className='switch-account-empty'>No accounts are saved in this browser yet.</p>
+            <p className='rounded-2xl border border-dashed border-[#cbd5d1] p-6 text-center text-[#64748b]'>No accounts are saved in this browser yet.</p>
           ) : null}
 
           {!loading && accounts.length > 0 ? (
-            <div className='switch-account-list'>
+            <div className='grid gap-2.5'>
               {accounts.map((account) => {
                 const isCurrent = account.id === currentAccountId
                 const busy = busyAccountId === account.id
                 return (
-                  <div className='switch-account-row' key={account.id}>
+                  <div className='flex min-h-[72px] items-center gap-3 rounded-2xl border border-[#dce4e0] bg-[#f8faf9] px-3 py-2.5 max-[480px]:min-w-0 max-[480px]:gap-2.5 max-[480px]:rounded-xl max-[480px]:p-2.5' key={account.id}>
                     <button
                       type='button'
-                      className='switch-account-main'
+                      className='flex min-w-0 flex-1 cursor-pointer items-center gap-3 border-0 bg-transparent p-0 text-left text-inherit disabled:cursor-default max-[480px]:min-w-0'
                       disabled={isCurrent || Boolean(busyAccountId)}
                       onClick={() => void signInAs(account)}
                     >
                       <AccountAvatar account={account} />
-                      <span className='switch-account-copy'>
-                        <strong>{account.fullName}</strong>
-                        <small>{account.email}</small>
+                      <span className='grid min-w-0 flex-1 gap-[3px]'>
+                        <strong className='truncate text-[#22312d]'>{account.fullName}</strong>
+                        <small className='truncate text-[#64748b]'>{account.email}</small>
                       </span>
-                      {isCurrent ? <span className='switch-account-current'>Current</span> : null}
+                      {isCurrent ? <span className='rounded-full bg-[#e7f0eb] px-2 py-[5px] text-[0.7rem] font-extrabold uppercase text-[#315f50] max-[480px]:px-1.5 max-[480px]:py-1 max-[480px]:text-[0.62rem] max-[360px]:hidden'>Current</span> : null}
                       {busy ? <span>Working...</span> : null}
                     </button>
                     <button
                       type='button'
-                      className='switch-account-remove'
+                      className='grid size-[38px] shrink-0 cursor-pointer place-items-center rounded-full border-0 bg-[#fff0f0] text-[#b4232c] [&_svg]:size-[18px]'
                       aria-label={`Remove ${account.email} from this browser`}
                       disabled={Boolean(busyAccountId)}
                       onClick={() => requestRemove(account)}
@@ -197,7 +198,7 @@ export default function SwitchAccountPage() {
             </div>
           ) : null}
 
-          <div className='switch-account-actions'>
+          <div className='flex flex-wrap gap-2.5 max-[480px]:grid max-[480px]:grid-cols-1 [&_button]:min-h-11 [&_button]:flex-[1_1_190px] max-[480px]:[&_button]:w-full'>
             <button type='button' className='solid-btn' disabled={Boolean(busyAccountId)} onClick={() => void addAccount()}>
               Add another account
             </button>
@@ -207,7 +208,7 @@ export default function SwitchAccountPage() {
               </button>
             ) : null}
           </div>
-          <p className='switch-account-note'>
+          <p className='text-[0.8rem] leading-[1.55] text-[#64748b]'>
             For security, saved web accounts store only profile details. You will enter the password when switching accounts.
           </p>
         </section>

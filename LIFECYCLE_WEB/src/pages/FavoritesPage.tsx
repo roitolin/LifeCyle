@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import ProfileLayout from './ProfileLayout'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
-import './FavoritesPage.css'
 
 type FavProduct = {
   id: string
@@ -114,42 +113,42 @@ export default function FavoritesPage() {
 
   return (
     <ProfileLayout title="My Favorites" subtitle="Funeral products and services you have saved for later.">
-      <div className="favorites-content">
+      <div className="w-full">
         {loading ? (
-          <div className="favorites-state">
-            <div className="pd-spinner" />
-            <p>Loading your favorites...</p>
+          <div className="px-5 py-[60px] text-center text-[var(--text-muted)] max-[480px]:px-4 max-[480px]:py-10">
+            <div className="mx-auto size-8 animate-spin rounded-full border-[3px] border-[#d8e0dc] border-t-[var(--sp-accent)]" />
+            <p className="mt-2">Loading your favorites...</p>
           </div>
         ) : products.length === 0 ? (
-          <div className="favorites-state">
-            <div className="favorites-empty-icon" aria-hidden="true">
+          <div className="px-5 py-[60px] text-center text-[var(--text-muted)] max-[480px]:px-4 max-[480px]:py-10">
+            <div className="mx-auto mb-4 flex size-[72px] items-center justify-center rounded-full bg-[var(--sp-bg)] text-[var(--sp-accent)]" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
             </div>
-            <h3>No favorites yet</h3>
-            <p>Tap the bookmark icon on a product to save it here for quick access.</p>
-            <Link to="/funeral" className="favorites-browse-btn">Browse Products</Link>
+            <h3 className="mb-1 text-base text-[var(--text-main)]">No favorites yet</h3>
+            <p className="mt-2">Tap the bookmark icon on a product to save it here for quick access.</p>
+            <Link to="/funeral" className="mt-5 inline-block rounded-sm bg-[var(--sp-accent)] px-6 py-2.5 text-sm text-white no-underline hover:bg-[var(--sp-accent-dark)]">Browse Products</Link>
           </div>
         ) : (
-          <div className="favorites-grid">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3.5 max-[640px]:grid-cols-2 max-[640px]:gap-2.5">
             {products.map(product => (
-              <div key={product.id} className="favorites-card">
-                <Link to={`/funeral/product/${product.id}`} className="favorites-card-link">
+              <div key={product.id} className="relative overflow-hidden rounded border border-[var(--border)] bg-[var(--white)] transition-[box-shadow,transform] duration-150 hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] max-[640px]:min-w-0">
+                <Link to={`/funeral/product/${product.id}`} className="block min-w-0 text-inherit no-underline">
                   {product.imageUrl ? (
-                    <img src={product.imageUrl} alt={product.name} className="favorites-card-img" />
+                    <img src={product.imageUrl} alt={product.name} className="flex aspect-square w-full items-center justify-center bg-[var(--sp-bg)] object-cover text-xs text-[#a0aec0]" />
                   ) : (
-                    <div className="favorites-card-img favorites-card-img-fallback">No Image</div>
+                    <div className="flex aspect-square w-full items-center justify-center bg-[var(--sp-bg)] text-xs text-[#a0aec0]">No Image</div>
                   )}
-                  <div className="favorites-card-info">
-                    <div className="favorites-card-name">{product.name}</div>
-                    <div className="favorites-card-price">{formatPeso(product.price)}</div>
-                    <div className="favorites-card-stock">
+                  <div className="min-w-0 p-2.5 max-[640px]:p-[9px]">
+                    <div className="mb-1.5 line-clamp-2 h-9 overflow-hidden text-[13px] leading-[1.4] text-[var(--text-main)]">{product.name}</div>
+                    <div className="text-base font-semibold text-[var(--sp-accent)] max-[640px]:text-[15px]">{formatPeso(product.price)}</div>
+                    <div className="mt-1 text-xs text-[var(--text-muted)]">
                       {product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}
                     </div>
                   </div>
                 </Link>
                 <button
                   type="button"
-                  className="favorites-remove-btn"
+                  className="absolute right-2 top-2 inline-flex cursor-pointer items-center gap-1 rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.92)] px-2.5 py-1 text-xs font-semibold text-[var(--sp-accent)] transition-colors duration-150 hover:bg-[var(--sp-bg)] max-[420px]:size-[34px] max-[420px]:justify-center max-[420px]:p-0 max-[420px]:[&_span]:hidden"
                   onClick={() => confirmRemoveFavorite(product.id)}
                   aria-label={`Remove ${product.name} from favorites`}
                 >

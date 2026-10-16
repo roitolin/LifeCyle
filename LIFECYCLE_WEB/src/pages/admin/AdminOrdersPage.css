@@ -1,113 +1,58 @@
+@reference "tailwindcss";
+
 .admin-order-detail-page {
-  width: min(100%, 1440px);
-  margin: 0 auto;
+  @apply w-[min(100%,1440px)] mx-auto my-0;
 }
-
 .admin-order-detail-surface {
-  width: 100%;
-  min-height: calc(100vh - 120px);
-  overflow: visible;
-  border: 1px solid #d7dde5;
-  border-radius: 10px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, .03);
+  @apply w-full min-h-[calc(100vh_-_120px)] overflow-visible border [background:#fff] shadow-[0_1px_2px_rgba(15,23,42,0.03)] rounded-[10px] border-solid border-[#d7dde5];
 }
-
 .admin-order-detail-toolbar {
-  min-height: 62px;
-  padding: 0 22px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  border-bottom: 1px solid #dfe5ec;
-  background: #fff;
+  @apply min-h-[62px] flex items-center justify-between gap-[20px] [background:#fff] px-[22px] py-0 border-b-[#dfe5ec] border-b border-solid;
 }
-
 .admin-order-detail-toolbar > span {
-  color: #7a8696;
-  font-size: 10px;
-  font-weight: 750;
-  letter-spacing: .08em;
-  text-transform: uppercase;
+  @apply text-[#7a8696] text-[10px] font-[750] tracking-[0.08em] uppercase;
 }
-
 .admin-order-detail-toolbar .admin-order-back {
-  min-height: 36px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  border: 0;
-  background: transparent;
-  color: #475569;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
+  @apply min-h-[36px] inline-flex items-center gap-[7px] [background:transparent] text-slate-600 text-[12px] font-bold cursor-pointer p-0 border-0 hover:text-[#1f314a];
 }
-
-.admin-order-detail-toolbar .admin-order-back:hover {
-  color: #1f314a;
-}
-
 .admin-order-detail-toolbar .admin-order-back svg {
-  width: 17px;
-  height: 17px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.9;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  @apply w-[17px] h-[17px] fill-none stroke-current stroke-[1.9] [stroke-linecap:round] [stroke-linejoin:round];
 }
-
 .admin-order-detail-surface .sr-main {
-  width: min(1280px, calc(100% - 56px));
-  padding-top: 26px;
+  @apply w-[min(1280px,calc(100%_-_56px))] pt-[26px];
 }
-
 .admin-order-detail-surface .sr-side-column {
-  top: 82px;
+  @apply top-[82px];
 }
-
 .admin-order-detail-surface .sr-record-service button,
 .admin-order-detail-surface .sr-receipt-service-image {
-  border: 0;
+  @apply border-0;
 }
-
 .admin-receipt-overlay {
-  z-index: 1200;
+  @apply z-[1200];
 }
-
 .admin-order-lightbox {
-  z-index: 1300;
+  @apply z-[1300];
 }
-
 @media (max-width: 960px) {
   .admin-order-detail-surface .sr-main {
-    width: calc(100% - 36px);
+    @apply w-[calc(100%_-_36px)];
   }
-
   .admin-order-detail-surface .sr-side-column {
-    position: static;
+    @apply static;
   }
 }
-
 @media (max-width: 640px) {
   .admin-order-detail-surface {
-    border-radius: 8px;
+    @apply rounded-[8px];
   }
-
   .admin-order-detail-toolbar {
-    min-height: 56px;
-    padding: 0 14px;
+    @apply min-h-[56px] px-[14px] py-0;
   }
-
   .admin-order-detail-toolbar > span {
-    display: none;
+    @apply hidden;
   }
-
   .admin-order-detail-surface .sr-main {
-    width: calc(100% - 28px);
-    padding: 18px 0 36px;
+    @apply w-[calc(100%_-_28px)] pt-[18px] pb-[36px] px-0;
   }
 }

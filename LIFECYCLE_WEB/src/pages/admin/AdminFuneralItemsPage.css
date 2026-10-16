@@ -1,55 +1,26 @@
-.admin-product-list-cell {
-  min-width: 240px;
-  display: grid;
-  grid-template-columns: 54px minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
-}
+@reference "tailwindcss";
 
+.admin-product-list-cell {
+  @apply min-w-[240px] grid grid-cols-[54px_minmax(0,1fr)] items-center gap-[12px];
+}
 .admin-product-list-cell img,
 .admin-product-list-placeholder {
-  width: 54px;
-  height: 54px;
-  border-radius: 6px;
+  @apply w-[54px] h-[54px] rounded-[6px];
 }
-
 .admin-product-list-cell img {
-  object-fit: cover;
+  @apply object-cover;
 }
-
 .admin-product-list-placeholder {
-  display: grid;
-  place-items: center;
-  background: #eef2f6;
-  color: #31445d;
-  font-size: 12px;
-  font-weight: 800;
+  @apply grid place-items-center [background:#eef2f6] text-[#31445d] text-[12px] font-extrabold;
 }
-
 .admin-product-list-cell strong {
-  display: block;
-  min-width: 0;
-  overflow-wrap: anywhere;
-  color: #071b36;
-  font-size: 13px;
-  line-height: 1.35;
+  @apply block min-w-0 [overflow-wrap:anywhere] text-[#071b36] text-[13px] leading-[1.35];
 }
-
 .admin-product-list-cell span:not(.admin-product-list-placeholder) {
-  display: -webkit-box;
-  max-width: 360px;
-  margin-top: 3px;
-  overflow: hidden;
-  color: #728096;
-  font-size: 12px;
-  line-height: 1.35;
-  -webkit-box-orient: vertical;
-  line-clamp: 2;
-  -webkit-line-clamp: 2;
+  @apply [display:-webkit-box] max-w-[360px] overflow-hidden text-[#728096] text-[12px] leading-[1.35] [-webkit-box-orient:vertical] [line-clamp:2] [-webkit-line-clamp:2] mt-[3px];
 }
-
 @media (max-width: 720px) {
   .admin-product-list-cell {
-    min-width: 220px;
+    @apply min-w-[220px];
   }
 }

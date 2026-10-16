@@ -1,458 +1,210 @@
+@reference "tailwindcss";
+
 .reg-page {
-  min-height: 100vh;
-  background-color: #f5f5f5;
-  display: flex;
-  flex-direction: column;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  @apply min-h-screen bg-neutral-100 flex flex-col [font-family:-apple-system,BlinkMacSystemFont,'Segoe_UI',Roboto,sans-serif];
 }
-
 .reg-header {
-  background: #fff;
-  padding: 16px 24px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
-  display: flex;
-  align-items: center;
+  @apply [background:#fff] shadow-[0_1px_4px_rgba(0,0,0,0.05)] flex items-center px-[24px] py-[16px];
 }
-
 .reg-logo-area {
-  display: flex;
-  align-items: center;
-  text-decoration: none;
-  gap: 12px;
+  @apply flex items-center no-underline gap-[12px];
 }
-
 .reg-logo-box {
-  width: 32px;
-  height: 32px;
-  background: #334155;
-  color: #fff;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  font-size: 16px;
+  @apply w-[32px] h-[32px] [background:#334155] text-white flex items-center justify-center font-bold text-[16px] rounded-[4px];
 }
-
 .reg-logo-text {
-  font-size: 20px;
-  font-weight: 600;
-  color: #333;
+  @apply text-[20px] font-semibold text-[#333];
 }
-
 .reg-logo-sub {
-  color: #888;
-  font-weight: 400;
-  font-size: 18px;
-  margin-left: 8px;
+  @apply text-[#888] font-normal text-[18px] ml-[8px];
 }
-
 .reg-content {
-  flex: 1;
-  padding: 40px 20px;
-  display: flex;
-  justify-content: center;
+  @apply flex-1 flex justify-center px-[20px] py-[40px];
 }
-
 .reg-card {
-  background: #fff;
-  width: 100%;
-  max-width: 800px;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
+  @apply [background:#fff] w-full max-w-[800px] shadow-[0_4px_12px_rgba(0,0,0,0.05)] overflow-hidden flex flex-col rounded-[8px];
 }
-
 .reg-steps {
-  display: flex;
-  background: #fafafa;
-  border-bottom: 1px solid #eee;
+  @apply flex [background:#fafafa] border-b-[#eee] border-b border-solid;
 }
-
 .reg-step-item {
-  flex: 1;
-  text-align: center;
-  padding: 16px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #999;
-  position: relative;
-  transition: all 0.3s ease;
+  @apply flex-1 text-center text-[14px] font-medium text-[#999] relative transition-all duration-300 ease-[ease] p-[16px];
 }
-
 .reg-step-item.active {
-  color: #334155;
+  @apply text-slate-700 after:content-[''] after:absolute after:h-[3px] after:[background:#334155] after:bottom-0 after:inset-x-0;
 }
-
-.reg-step-item.active::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: #334155;
-}
-
 .reg-step-item.completed {
-  color: #333;
+  @apply text-[#333];
 }
-
 .reg-form-body {
-  padding: 32px 40px;
-  flex: 1;
+  @apply flex-1 px-[40px] py-[32px];
 }
-
 .reg-section-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 24px;
+  @apply text-[18px] font-semibold text-[#333] mb-[24px];
 }
-
 .reg-form-group {
-  margin-bottom: 20px;
+  @apply mb-[20px];
 }
-
 .reg-form-group label {
-  display: block;
-  font-size: 13px;
-  color: #555;
-  margin-bottom: 8px;
-  font-weight: 500;
+  @apply block text-[13px] text-[#555] font-medium mb-[8px];
 }
-
 .reg-input {
-  width: 100%;
-  padding: 12px 14px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
-  color: #333;
-  box-sizing: border-box;
-  transition: border-color 0.2s;
+  @apply w-full border text-[14px] text-[#333] box-border transition-[border-color] duration-200 px-[14px] py-[12px] rounded-[4px] border-solid border-[#ddd] focus:border-slate-700 focus:[outline:none];
 }
-
-.reg-input:focus {
-  border-color: #334155;
-  outline: none;
-}
-
 .reg-checkbox-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  color: #333;
-  cursor: pointer;
+  @apply flex items-center gap-[8px] text-[14px] text-[#333] cursor-pointer;
 }
-
 .reg-image-upload {
-  border: 2px dashed #ddd;
-  border-radius: 8px;
-  padding: 32px;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.2s;
-  background: #fafafa;
+  @apply text-center cursor-pointer transition-all duration-200 [background:#fafafa] p-[32px] rounded-[8px] border-2 border-dashed border-[#ddd] hover:border-slate-700 hover:[background:#f1f5f9];
 }
-
-.reg-image-upload:hover {
-  border-color: #334155;
-  background: #f1f5f9;
-}
-
 .reg-upload-icon {
-  color: #999;
-  margin-bottom: 8px;
+  @apply text-[#999] mb-[8px];
 }
-
 .reg-upload-text {
-  font-size: 14px;
-  color: #666;
+  @apply text-[14px] text-[#666];
 }
-
 .reg-preview-box {
-  position: relative;
-  width: 120px;
-  height: 120px;
-  border-radius: 8px;
-  overflow: hidden;
-  border: 1px solid #eee;
+  @apply relative w-[120px] h-[120px] overflow-hidden border rounded-[8px] border-solid border-[#eee];
 }
-
 .reg-preview-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  @apply w-full h-full object-cover;
 }
-
 .reg-preview-remove {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 24px;
-  height: 24px;
-  background: rgba(0,0,0,0.6);
-  color: #fff;
-  border: none;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
+  @apply absolute w-[24px] h-[24px] [background:rgba(0,0,0,0.6)] text-white flex items-center justify-center cursor-pointer rounded-[12px] border-none right-[4px] top-[4px];
 }
-
 .reg-footer {
-  padding: 20px 40px;
-  border-top: 1px solid #eee;
-  display: flex;
-  justify-content: space-between;
-  background: #fafafa;
+  @apply flex justify-between [background:#fafafa] px-[40px] py-[20px] border-t-[#eee] border-t border-solid;
 }
-
 .reg-btn {
-  padding: 10px 24px;
-  border-radius: 4px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  border: none;
-  transition: all 0.2s;
+  @apply text-[14px] font-medium cursor-pointer transition-all duration-200 px-[24px] py-[10px] rounded-[4px] border-none;
 }
-
 .reg-btn-back {
-  background: #fff;
-  border: 1px solid #ddd;
-  color: #555;
+  @apply [background:#fff] border text-[#555] border-solid border-[#ddd] hover:[background:#f0f0f0];
 }
-
-.reg-btn-back:hover {
-  background: #f0f0f0;
-}
-
 .reg-btn-primary {
-  background: #334155;
-  color: #fff;
-}
-
-.reg-btn-primary:hover {
-  background: #0f172a;
-}
-
-.reg-btn-primary:disabled {
-  background: #94a3b8;
-  cursor: not-allowed;
+  @apply [background:#334155] text-white hover:[background:#0f172a] disabled:[background:#94a3b8] disabled:cursor-not-allowed;
 }
 
 /* Review Step */
 .reg-review-item {
-  display: flex;
-  padding: 12px 0;
-  border-bottom: 1px solid #eee;
-}
-.reg-review-item:last-child {
-  border-bottom: none;
+  @apply flex px-0 py-[12px] border-b-[#eee] border-b border-solid last:border-b-0;
 }
 .reg-review-label {
-  width: 200px;
-  color: #777;
-  font-size: 14px;
+  @apply w-[200px] text-[#777] text-[14px];
 }
 .reg-review-val {
-  flex: 1;
-  color: #222;
-  font-size: 14px;
-  font-weight: 500;
+  @apply flex-1 text-[#222] text-[14px] font-medium;
 }
 
 /* ── Access Denied Card ─────────────── */
 .reg-access-denied {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 70vh;
-  padding: 40px 20px;
+  @apply flex flex-col items-center justify-center min-h-[70vh] px-[20px] py-[40px];
 }
 .reg-access-denied-icon {
-  width: 100px;
-  height: 100px;
-  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 28px;
-  box-shadow: 0 8px 32px rgba(231, 76, 60, 0.15);
+  @apply w-[100px] h-[100px] [background:linear-gradient(135deg,#fee2e2_0%,#fecaca_100%)] flex items-center justify-center shadow-[0_8px_32px_rgba(231,76,60,0.15)] mb-[28px] rounded-[50%];
 }
 .reg-access-denied-title {
-  font-size: 28px;
-  font-weight: 700;
-  color: #1e293b;
-  margin: 0 0 12px;
+  @apply text-[28px] font-bold text-slate-800 mt-0 mb-[12px] mx-0;
 }
 .reg-access-denied-desc {
-  font-size: 15px;
-  color: #64748b;
-  margin: 0 0 32px;
-  max-width: 400px;
-  text-align: center;
-  line-height: 1.6;
+  @apply text-[15px] text-slate-500 max-w-[400px] text-center leading-[1.6] mt-0 mb-[32px] mx-0;
 }
 .reg-access-denied-actions {
-  display: flex;
-  gap: 12px;
+  @apply flex gap-[12px];
 }
 .reg-access-denied-back {
-  padding: 12px 28px;
-  border-radius: 8px;
-  border: 1px solid #d1d5db;
-  background: #fff;
-  color: #374151;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  text-decoration: none;
-  transition: all 0.2s;
-}
-.reg-access-denied-back:hover {
-  background: #f9fafb;
-  border-color: #9ca3af;
+  @apply border border-gray-300 [background:#fff] text-gray-700 text-[14px] font-semibold cursor-pointer no-underline transition-all duration-200 px-[28px] py-[12px] rounded-[8px] border-solid hover:[background:#f9fafb] hover:border-gray-400;
 }
 .reg-access-denied-login {
-  padding: 12px 28px;
-  border-radius: 8px;
-  border: none;
-  background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
-  color: #fff;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  text-decoration: none;
-  transition: all 0.2s;
-  box-shadow: 0 4px 14px rgba(30, 41, 59, 0.3);
-}
-.reg-access-denied-login:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(30, 41, 59, 0.4);
+  @apply [background:linear-gradient(135deg,#334155_0%,#1e293b_100%)] text-white text-[14px] font-semibold cursor-pointer no-underline transition-all duration-200 shadow-[0_4px_14px_rgba(30,41,59,0.3)] px-[28px] py-[12px] rounded-[8px] border-none hover:-translate-y-px hover:shadow-[0_6px_20px_rgba(30,41,59,0.4)];
 }
 
 /* ── Responsive ──────────────────────────────── */
 @media (max-width: 768px) {
   .reg-header {
-    padding: 12px 16px;
+    @apply px-[16px] py-[12px];
   }
   .reg-content {
-    padding: 20px 12px;
+    @apply px-[12px] py-[20px];
   }
   .reg-card {
-    border-radius: 6px;
+    @apply rounded-[6px];
   }
   .reg-form-body {
-    padding: 24px 20px;
+    @apply px-[20px] py-[24px];
   }
   .reg-footer {
-    padding: 16px 20px;
-    flex-wrap: wrap;
-    gap: 10px;
+    @apply flex-wrap gap-[10px] px-[20px] py-[16px];
   }
   .reg-step-item {
-    padding: 12px 6px;
-    font-size: 12px;
-    white-space: nowrap;
+    @apply text-[12px] whitespace-nowrap px-[6px] py-[12px];
   }
   .reg-review-label {
-    width: 140px;
+    @apply w-[140px];
   }
   .reg-access-denied-actions {
-    flex-direction: column;
-    align-items: center;
+    @apply flex-col items-center;
   }
 }
-
 @media (max-width: 480px) {
   .reg-logo-text {
-    font-size: 18px;
+    @apply text-[18px];
   }
   .reg-logo-sub {
-    font-size: 15px;
-    margin-left: 0;
-    display: block;
+    @apply text-[15px] block ml-0;
   }
   .reg-logo-area {
-    flex-wrap: wrap;
-    gap: 8px;
+    @apply flex-wrap gap-[8px];
   }
   .reg-steps {
-    flex-direction: column;
+    @apply flex-col;
   }
   .reg-step-item {
-    text-align: left;
-    padding: 10px 16px;
+    @apply text-left px-[16px] py-[10px];
   }
-  .reg-step-item.active::after {
-    top: 0;
-    bottom: 0;
-    left: auto;
-    right: 0;
-    width: 3px;
-    height: auto;
+  .reg-step-item.active {
+    @apply after:w-[3px] after:h-auto after:left-auto after:right-0 after:inset-y-0;
   }
   .reg-review-item {
-    flex-direction: column;
-    gap: 4px;
+    @apply flex-col gap-[4px];
   }
   .reg-review-label {
-    width: auto;
+    @apply w-auto;
   }
   .reg-footer {
-    flex-direction: column-reverse;
-    align-items: stretch;
+    @apply flex-col-reverse items-stretch;
   }
   .reg-btn {
-    width: 100%;
+    @apply w-full;
   }
-
   .reg-page,
   .reg-content,
   .reg-card,
   .reg-form-body,
   .reg-review-val {
-    min-width: 0;
+    @apply min-w-0;
   }
-
   .reg-form-body {
-    padding: 20px 16px;
+    @apply px-[16px] py-[20px];
   }
-
   .reg-form-body input,
   .reg-form-body select,
   .reg-form-body textarea {
-    max-width: 100%;
+    @apply max-w-full;
   }
-
   .reg-access-denied {
-    padding: 32px 16px;
+    @apply px-[16px] py-[32px];
   }
-
   .reg-access-denied-title {
-    font-size: 24px;
-    text-align: center;
+    @apply text-[24px] text-center;
   }
-
   .reg-access-denied-actions,
   .reg-access-denied-back,
   .reg-access-denied-login {
-    width: 100%;
+    @apply w-full;
   }
-
   .reg-access-denied-back,
   .reg-access-denied-login {
-    display: inline-flex;
-    justify-content: center;
-    text-align: center;
+    @apply inline-flex justify-center text-center;
   }
 }

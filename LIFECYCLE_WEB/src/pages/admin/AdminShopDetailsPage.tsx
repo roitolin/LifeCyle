@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import PageBackButton from '@/components/PageBackButton'
-import { getChannelInfo } from './AdminPayoutAccountsPage'
+import { getChannelInfo } from './adminPayoutChannels'
 import '../SellerCentrePage.css'
 
 type ShopDetail = {
