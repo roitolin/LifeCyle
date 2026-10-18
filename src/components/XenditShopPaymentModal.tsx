@@ -5,6 +5,7 @@ import {
   Animated,
   AppState,
   Easing,
+  Image,
   Linking,
   Modal,
   Platform,
@@ -20,6 +21,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/services/supabaseClient';
 import { createXenditShopCheckout, syncXenditShopPayment } from '@/services/xenditShop';
 import { formatPhilippinePeso } from '@/utils/funeralCatalog';
+
+const appLogo = require('../../assets/Icon/IconTraparent.png');
 
 type Payment = {
   id: string;
@@ -351,7 +354,13 @@ export default function XenditShopPaymentModal({ visible, onClose, onChanged }: 
           {/* Header Row */}
           <View style={styles.header}>
             <View style={styles.brandRow}>
-              <Text style={styles.brandText}>LifeCycle</Text>
+              <View style={styles.brandIdentity}>
+                <Image source={appLogo} style={styles.brandLogo} resizeMode="contain" />
+                <View>
+                  <Text style={styles.brandText}>LifeCycle</Text>
+                  <Text style={styles.brandTagline}>FUNERAL SERVICES</Text>
+                </View>
+              </View>
               <View style={styles.secureBadge}>
                 <Ionicons name="shield-checkmark" size={13} color="#059669" />
                 <Text style={styles.secureBadgeText}>SECURE CHECKOUT</Text>
@@ -727,12 +736,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    flexShrink: 1,
+  },
+  brandIdentity: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    flexShrink: 1,
+  },
+  brandLogo: {
+    width: 36,
+    height: 36,
   },
   brandText: {
     color: '#0f172a',
-    fontSize: 21,
+    fontSize: 19,
     fontWeight: '800',
     letterSpacing: -0.4,
+    lineHeight: 20,
+  },
+  brandTagline: {
+    color: '#64748b',
+    fontSize: 7,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    lineHeight: 9,
   },
   secureBadge: {
     flexDirection: 'row',

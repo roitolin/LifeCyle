@@ -72,7 +72,7 @@ function RouteScopedChatWidget() {
   const { pathname } = useLocation()
   const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname
 
-  if (normalizedPath !== '/funeral' && normalizedPath !== '/seller') return null
+  if (normalizedPath !== '/funeral') return null
 
   return <ChatWidget />
 }

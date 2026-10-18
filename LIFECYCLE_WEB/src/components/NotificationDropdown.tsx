@@ -177,6 +177,22 @@ export default function NotificationDropdown({
     return () => { document.removeEventListener('mousedown', onClickOut); document.removeEventListener('keydown', onKey) }
   }, [isOpen])
 
+  /* Keep the mobile panel anchored to the visible viewport instead of letting
+     the page move underneath it while its notification list is scrolled. */
+  useEffect(() => {
+    if (!isOpen || !window.matchMedia('(max-width: 768px)').matches) return
+
+    const previousOverflow = document.body.style.overflow
+    const previousOverscrollBehavior = document.body.style.overscrollBehavior
+    document.body.style.overflow = 'hidden'
+    document.body.style.overscrollBehavior = 'none'
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.body.style.overscrollBehavior = previousOverscrollBehavior
+    }
+  }, [isOpen])
+
   const unreadCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications])
   const hasUnread   = unreadCount > 0
   const sellerCentreVariant = variant === 'seller-centre'

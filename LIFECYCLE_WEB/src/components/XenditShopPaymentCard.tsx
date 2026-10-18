@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, isolatedAuthClient } from '@/lib/supabase'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
+import BrandLogo from '@/components/BrandLogo'
 import { createXenditShopCheckout, syncXenditShopPayment, type XenditShopPaymentMethod } from '@/utils/xenditShop'
 import { getPaymentSetting } from '@/utils/paymentSettings'
 import './XenditShopPaymentCard.css'
@@ -108,7 +109,8 @@ export default function XenditShopPaymentCard({
   const [paymentMethodMenuOpen, setPaymentMethodMenuOpen] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<XenditShopPaymentMethod>('gcash')
   const [accountPassword, setAccountPassword] = useState('')
-  const [passwordConfirmed, setPasswordConfirmed] = useState(false)
+  const [passwordAccessToken, setPasswordAccessToken] = useState('')
+  const passwordConfirmed = Boolean(passwordAccessToken)
   const [checkingPassword, setCheckingPassword] = useState(false)
   const [phoneInput, setPhoneInput] = useState('')
   const [pendingPhone, setPendingPhone] = useState('')
@@ -233,12 +235,15 @@ export default function XenditShopPaymentCard({
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user?.email) throw new Error('Your signed-in email is unavailable.')
-      const result = await supabase.auth.signInWithPassword({ email: user.email, password: accountPassword })
-      if (result.error || result.data.user?.id !== user.id) throw new Error('Your LifeCycle password is incorrect.')
+      const result = await isolatedAuthClient.auth.signInWithPassword({ email: user.email, password: accountPassword })
+      const reauthToken = result.data.session?.access_token
+      if (result.error || result.data.user?.id !== user.id || !reauthToken) {
+        throw new Error('Your LifeCycle password is incorrect.')
+      }
       setAccountPassword('')
-      setPasswordConfirmed(true)
+      setPasswordAccessToken(reauthToken)
     } catch (error) {
-      setPasswordConfirmed(false)
+      setPasswordAccessToken('')
       openAlert({ title: 'Password not confirmed', message: error instanceof Error ? error.message : 'Please try again.', tone: 'danger', okLabel: 'Close' })
     } finally {
       setCheckingPassword(false)
@@ -304,7 +309,7 @@ export default function XenditShopPaymentCard({
     setPaymentMethod(nextMethod)
     setPaymentMethodMenuOpen(false)
     setAccountPassword('')
-    setPasswordConfirmed(false)
+    setPasswordAccessToken('')
   }
 
   const startCheckout = async () => {
@@ -334,7 +339,10 @@ export default function XenditShopPaymentCard({
     }
     setStarting(true)
     try {
-      const result = await createXenditShopCheckout(paymentMethod)
+      const result = await createXenditShopCheckout(
+        paymentMethod,
+        paymentMethod === 'gcash' ? passwordAccessToken : undefined,
+      )
       if (result.paid) {
         setPurchaseConfirmOpen(false)
         await load()
@@ -365,7 +373,7 @@ export default function XenditShopPaymentCard({
   return (
     <section className={'pm-card' + (className ? ` ${className}` : '')}>
       <div className='pm-hero'>
-        <strong className='pm-brand-name'>LifeCycle</strong>
+        <BrandLogo to='/funeral' compact className='pm-payment-brand' />
         <span className='pm-secure-chip'>Secure checkout</span>
       </div>
 
@@ -435,7 +443,7 @@ export default function XenditShopPaymentCard({
           </div>
         </div>
       ) : (
-        <button className='pm-pay' disabled={starting || fee <= 0 || manualPending} onClick={() => setPurchaseConfirmOpen(true)}>
+        <button type='button' className='pm-pay' disabled={starting || fee <= 0 || manualPending} onClick={() => setPurchaseConfirmOpen(true)}>
           {starting
             ? 'Opening payment...'
             : latestPending?.paymentProvider === 'xendit'
@@ -489,7 +497,7 @@ export default function XenditShopPaymentCard({
             <div className='pm-purchase-handle' />
             <div className='pm-purchase-brand-row'>
               <div>
-                <strong>LifeCycle payment</strong>
+                <BrandLogo to='/funeral' compact className='pm-payment-brand pm-purchase-brand-logo' />
               </div>
               <button
                 type='button'
@@ -545,16 +553,22 @@ export default function XenditShopPaymentCard({
                   <div className='pm-verified-row'><span aria-hidden='true'>✓</span><div><b>Password confirmed</b><small>LifeCycle account re-authenticated</small></div></div>
                 ) : (
                   <div className='pm-password-row'>
-                    <input type='password' value={accountPassword} onChange={event => setAccountPassword(event.target.value)} placeholder='LifeCycle password' disabled={checkingPassword} autoComplete='current-password' />
-                    <button type='button' disabled={!accountPassword || checkingPassword} onClick={() => void confirmLifecyclePassword()}>{checkingPassword ? 'Checking...' : 'Confirm'}</button>
+                    <input type='password' value={accountPassword} onChange={event => setAccountPassword(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void confirmLifecyclePassword() } }} placeholder='LifeCycle password' disabled={checkingPassword} autoComplete='current-password' />
+                    <button type='button' disabled={!accountPassword || checkingPassword} onClick={(event) => { event.preventDefault(); event.stopPropagation(); void confirmLifecyclePassword() }}>{checkingPassword ? 'Checking...' : 'Confirm'}</button>
                   </div>
                 )}
                 <small className='pm-security-note'>The verified number confirms the shop owner. Payment alerts are sent through LifeCycle notifications.</small>
               </div>
             )}
             <p>Your payment details are handled securely.</p>
-            <button type='button' className='pm-purchase-buy' disabled={starting || (paymentMethod === 'gcash' && (!verifiedPhone || !passwordConfirmed))} onClick={() => void startCheckout()}>
-              {starting ? 'Opening checkout...' : 'Continue to payment'}
+            <button type='button' className='pm-purchase-buy' aria-busy={starting} disabled={starting || (paymentMethod === 'gcash' && (!verifiedPhone || !passwordConfirmed))} onClick={() => void startCheckout()}>
+              {starting
+                ? 'Opening checkout...'
+                : paymentMethod === 'gcash' && !passwordConfirmed
+                  ? 'Confirm password to continue'
+                  : paymentMethod === 'gcash' && !verifiedPhone
+                    ? 'Verify mobile number to continue'
+                    : 'Continue to payment'}
             </button>
           </section>
         </div>

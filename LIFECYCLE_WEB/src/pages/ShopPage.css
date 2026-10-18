@@ -903,6 +903,314 @@
     @apply border-b-0;
   }
 }
+
+/* Homepage-style mobile marketplace header. */
+.shop-detail-page .sp-mobile-menu-trigger,
+.shop-detail-page .sp-mobile-menu-layer,
+.shop-detail-page .sp-mobile-header-notification {
+  display: none;
+}
+.shop-detail-page .sp-mobile-brand-row {
+  display: contents;
+}
+.shop-detail-page .sp-header-actions {
+  display: flex;
+  align-items: center;
+}
+
+@media (max-width: 768px) {
+  .shop-detail-page > .sp-topbar {
+    display: none;
+  }
+  body:has(.shop-detail-page) .cw-fab {
+    display: none;
+  }
+  .shop-detail-page > .sp-header {
+    padding: 12px 0 14px;
+  }
+  .shop-detail-page > .sp-header .sp-header-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 0 14px;
+  }
+  .shop-detail-page .sp-mobile-brand-row {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+  }
+  .shop-detail-page .sp-mobile-menu-trigger {
+    width: 34px;
+    height: 42px;
+    flex: 0 0 34px;
+    display: inline-grid;
+    place-items: center;
+    padding: 0;
+    color: #ffffff;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+  }
+  .shop-detail-page .sp-mobile-menu-trigger:hover,
+  .shop-detail-page .sp-mobile-menu-trigger:focus-visible {
+    opacity: 0.78;
+  }
+  .shop-detail-page .sp-mobile-menu-trigger:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.85);
+    outline-offset: 2px;
+  }
+  .shop-detail-page .sp-mobile-menu-trigger svg {
+    width: 25px;
+    height: 25px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+  .shop-detail-page .sp-header .sp-brand-logo {
+    min-width: 0;
+    color: #ffffff;
+  }
+  .shop-detail-page .sp-header .sp-brand-logo .lc-brand__mark {
+    width: 40px;
+    height: 40px;
+  }
+  .shop-detail-page .sp-header .sp-brand-logo .lc-brand__name {
+    display: block;
+    color: #ffffff !important;
+    font-size: 20px;
+    line-height: 1.05;
+  }
+  .shop-detail-page .sp-header .sp-brand-logo .lc-brand__tagline {
+    display: block;
+    color: #c7d1dc !important;
+    font-size: 9px;
+    letter-spacing: 0.16em;
+  }
+  .shop-detail-page .sp-search-wrap {
+    grid-column: 1;
+    grid-row: 2;
+    min-width: 0;
+    margin: 0;
+  }
+  .shop-detail-page .sp-search-box {
+    min-height: 44px;
+  }
+  .shop-detail-page .sp-header-actions {
+    grid-column: 2;
+    grid-row: 2;
+    gap: 2px;
+  }
+  .shop-detail-page .sp-mobile-header-notification {
+    display: flex;
+    align-items: center;
+    color: #ffffff;
+  }
+  .shop-detail-page .sp-mobile-header-notification .sc-web-notif-btn,
+  .shop-detail-page .sp-mobile-header-notification .sc-web-notif-btn:hover,
+  .shop-detail-page .sp-mobile-header-notification .sc-web-notif-btn.is-active {
+    width: 44px;
+    height: 44px;
+    color: #ffffff;
+    background: transparent;
+    border: 0;
+  }
+  .shop-detail-page .sp-mobile-header-notification .sc-web-notif-badge {
+    color: #22312d;
+    background: #ffffff;
+    box-shadow: 0 0 0 2px #22312d;
+  }
+  .shop-detail-page .sp-mobile-header-notification .sc-web-notif-dropdown--seller-centre {
+    position: fixed;
+    inset: 128px 10px auto;
+    width: auto;
+    max-height: calc(100dvh - 138px);
+  }
+  .shop-detail-page .sp-cart-area {
+    margin: 0;
+    padding: 0;
+  }
+
+  .shop-detail-page .sp-mobile-menu-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: block;
+  }
+  .shop-detail-page .sp-mobile-menu-backdrop {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(18, 27, 24, 0.48);
+    border: 0;
+    cursor: pointer;
+    animation: shop-mobile-menu-fade 160ms ease-out both;
+  }
+  .shop-detail-page .sp-mobile-menu {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: min(86vw, 330px);
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: auto;
+    color: #22312d;
+    background: #ffffff;
+    box-shadow: 16px 0 40px rgba(12, 22, 18, 0.2);
+    animation: shop-mobile-menu-in 190ms ease-out both;
+  }
+  .shop-detail-page .sp-mobile-menu-head {
+    min-height: 66px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px 0 20px;
+    border-bottom: 1px solid #e3e8e5;
+    font-size: 17px;
+    font-weight: 800;
+  }
+  .shop-detail-page .sp-mobile-menu-close {
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    color: #34453f;
+    background: transparent;
+    border: 0;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .shop-detail-page .sp-mobile-menu-close:hover,
+  .shop-detail-page .sp-mobile-menu-close:focus-visible {
+    background: #f1f4f2;
+  }
+  .shop-detail-page .sp-mobile-menu-close svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+  .shop-detail-page .sp-mobile-menu-profile {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    margin: 16px 16px 6px;
+    padding: 12px;
+    background: #f5f7f5;
+    border: 1px solid #e2e7e4;
+    border-radius: 10px;
+  }
+  .shop-detail-page .sp-mobile-menu-profile > img,
+  .shop-detail-page .sp-mobile-menu-avatar {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    display: grid;
+    place-items: center;
+    object-fit: cover;
+    color: #50635c;
+    background: #e5ebe7;
+    border-radius: 50%;
+  }
+  .shop-detail-page .sp-mobile-menu-profile > div {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .shop-detail-page .sp-mobile-menu-profile strong,
+  .shop-detail-page .sp-mobile-menu-profile div span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .shop-detail-page .sp-mobile-menu-profile strong {
+    font-size: 14px;
+  }
+  .shop-detail-page .sp-mobile-menu-profile div span {
+    color: #6c7974;
+    font-size: 11px;
+  }
+  .shop-detail-page .sp-mobile-menu-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 12px;
+  }
+  .shop-detail-page .sp-mobile-menu-nav > a,
+  .shop-detail-page .sp-mobile-menu-nav > button,
+  .shop-detail-page .sp-mobile-menu-announcement > div > button {
+    width: 100% !important;
+    min-height: 46px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 12px !important;
+    padding: 0 11px !important;
+    color: #2f403a !important;
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 8px !important;
+    font: inherit !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    text-decoration: none !important;
+    cursor: pointer !important;
+  }
+  .shop-detail-page .sp-mobile-menu-nav > a:hover,
+  .shop-detail-page .sp-mobile-menu-nav > button:hover,
+  .shop-detail-page .sp-mobile-menu-announcement > div > button:hover {
+    color: #244b3d !important;
+    background: #eef3f0 !important;
+  }
+  .shop-detail-page .sp-mobile-menu-announcement,
+  .shop-detail-page .sp-mobile-menu-announcement > div {
+    width: 100%;
+  }
+  .shop-detail-page .sp-mobile-menu-auth {
+    display: flex;
+    gap: 8px;
+    margin-top: auto;
+    padding: 16px;
+    border-top: 1px solid #e3e8e5;
+  }
+  .shop-detail-page .sp-mobile-menu-auth a {
+    min-height: 42px;
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px;
+    color: #315f50;
+    background: #ffffff;
+    border: 1px solid #bfcac5;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 800;
+    text-decoration: none;
+  }
+  .shop-detail-page .sp-mobile-menu-auth .sp-mobile-menu-primary {
+    color: #ffffff;
+    background: #315f50;
+    border-color: #315f50;
+  }
+}
+
+@keyframes shop-mobile-menu-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes shop-mobile-menu-in {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
 /* Storefront profile navigation. */
 .shop-detail-page .shop-detail-status {
   @apply text-[#dfeee6] text-[12px] font-bold m-0;

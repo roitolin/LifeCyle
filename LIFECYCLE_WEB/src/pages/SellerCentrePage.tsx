@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { acceptFuneralServiceRequest } from '@/utils/serviceRequestFlow'
@@ -11,6 +11,7 @@ import { fetchNotificationsForUser } from '@/utils/supabaseNotifications'
 import XenditShopPaymentCard from '@/components/XenditShopPaymentCard'
 import BrandLogo from '@/components/BrandLogo'
 import PageBackButton from '@/components/PageBackButton'
+import { PAYOUT_CHANNEL_LOGOS } from '@/assets/paymentLogoAssets'
 import {
   createShopScheduleEvent,
   deleteShopScheduleEvent,
@@ -20,6 +21,8 @@ import {
   type ShopScheduleEventInput,
   type ShopScheduleEventType,
 } from '@/utils/shopSchedule'
+
+const EmbeddedChat = lazy(() => import('@/components/ChatWidget'))
 
 type ShopInfo = {
   id: string
@@ -275,7 +278,7 @@ type FamilyPaymentReceipt = {
   icon: FamilyPaymentIconName
   source: 'uploaded' | 'provider' | 'missing'
 }
-type SellerCentreTab = 'dashboard' | 'products' | 'packages' | 'orders' | 'customers' | 'calendar' | 'reports' | 'payments' | 'payout_accounts' | 'payout_account_setup' | 'admin_payments' | 'settings' | 'registered_information' | 'product_editor'
+type SellerCentreTab = 'dashboard' | 'messages' | 'products' | 'packages' | 'orders' | 'customers' | 'calendar' | 'reports' | 'payments' | 'payout_accounts' | 'payout_account_setup' | 'admin_payments' | 'settings' | 'registered_information' | 'product_editor'
 type ScheduleFilter = 'all' | 'requests' | 'shop'
 
 type ScheduleItem = {
@@ -325,13 +328,18 @@ const SHOP_PAYOUT_CHANNELS = [
   { value: 'PH_MAYA', label: 'Maya', type: 'wallet' },
   { value: 'PH_BDO', label: 'BDO Unibank', type: 'bank' },
   { value: 'PH_BPI', label: 'Bank of the Philippine Islands (BPI)', type: 'bank' },
-  { value: 'PH_UBP', label: 'UnionBank of the Philippines', type: 'bank' },
   { value: 'PH_METROBANK', label: 'Metrobank', type: 'bank' },
   { value: 'PH_LANDBANK', label: 'Landbank of the Philippines', type: 'bank' },
-  { value: 'PH_PNB', label: 'Philippine National Bank (PNB)', type: 'bank' },
-  { value: 'PH_RCBC', label: 'Rizal Commercial Banking Corporation (RCBC)', type: 'bank' },
   { value: 'PH_CHINABANK', label: 'China Banking Corporation', type: 'bank' },
 ] as const
+
+function PayoutChannelLogo({ channelCode, label, fallback }: { channelCode: string; label: string; fallback: string }) {
+  const logoUrl = PAYOUT_CHANNEL_LOGOS[channelCode]
+
+  return logoUrl ? (
+    <img className={channelCode === 'PH_MAYA' ? 'is-maya' : undefined} src={logoUrl} alt={`${label} logo`} />
+  ) : <>{fallback}</>
+}
 
 function getPayoutChannelLabel(value: string | null | undefined) {
   return SHOP_PAYOUT_CHANNELS.find(channel => channel.value === value)?.label || value || 'Not selected'
@@ -675,7 +683,7 @@ export default function SellerCentrePage() {
   const [requests, setRequests] = useState<ServiceRequest[]>([])
   const [activeTab, setActiveTab] = useState<SellerCentreTab>(() => {
     const requestedTab = searchParams.get('tab')
-    if (requestedTab === 'orders' || requestedTab === 'settings' || requestedTab === 'registered_information') {
+    if (requestedTab === 'messages' || requestedTab === 'orders' || requestedTab === 'settings' || requestedTab === 'registered_information') {
       return requestedTab
     }
     return 'dashboard'
@@ -719,10 +727,31 @@ export default function SellerCentrePage() {
 
   useEffect(() => {
     const requestedTab = searchParams.get('tab')
-    if (requestedTab === 'orders' || requestedTab === 'settings' || requestedTab === 'registered_information') {
+    if (requestedTab === 'messages' || requestedTab === 'orders' || requestedTab === 'settings' || requestedTab === 'registered_information') {
       setActiveTab(requestedTab)
     }
   }, [searchParams])
+
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
+
+  useEffect(() => {
+    if (!mobileNavOpen) return
+    const previousOverflow = document.body.style.overflow
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileNavOpen(false)
+    }
+    const closeAboveMobile = () => {
+      if (window.innerWidth > 768) setMobileNavOpen(false)
+    }
+    document.body.style.overflow = 'hidden'
+    document.addEventListener('keydown', closeOnEscape)
+    window.addEventListener('resize', closeAboveMobile)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', closeOnEscape)
+      window.removeEventListener('resize', closeAboveMobile)
+    }
+  }, [mobileNavOpen])
 
   const toggleSidebarGroup = (group: 'order' | 'product' | 'finance' | 'setting') => {
     setSidebarExpanded((current) => ({
@@ -759,7 +788,7 @@ export default function SellerCentrePage() {
   const [editorHasVariations, setEditorHasVariations] = useState(false)
   const [editorVariationEntries, setEditorVariationEntries] = useState<ProductVariation[]>([])
   const [editorDescription, setEditorDescription] = useState("")
-  const [editorImages, setEditorImages] = useState<(string | null)[]>(Array(5).fill(null))
+  const [editorImages, setEditorImages] = useState<(string | null)[]>([null])
   const [editorUploadingIndex, setEditorUploadingIndex] = useState<number | null>(null)
   const [packageSaving, setPackageSaving] = useState(false)
   const [uploadingPackageItemId, setUploadingPackageItemId] = useState<string | null>(null)
@@ -774,7 +803,7 @@ export default function SellerCentrePage() {
       setEditorHasVariations(false)
       setEditorVariationEntries([{ name: "", price: "", imageUrl: null }])
       setEditorDescription("")
-      setEditorImages(Array(5).fill(null))
+      setEditorImages([null])
       return
     }
 
@@ -798,12 +827,9 @@ export default function SellerCentrePage() {
         
         const galleryImageUrls = (data.funeral_product_images || [])
           .sort((a: any, b: any) => (a.displayOrder || 0) - (b.displayOrder || 0))
-          .map((img: any) => img.imageUrl)
-        const normalizedImages = Array(5).fill(null)
-        galleryImageUrls.slice(0, 5).forEach((url: string, idx: number) => {
-          normalizedImages[idx] = url
-        })
-        setEditorImages(normalizedImages)
+          .map((img: any) => img.imageUrl as string)
+          .filter(Boolean)
+        setEditorImages(galleryImageUrls.length > 0 ? galleryImageUrls : [null])
 
         const vars = (data.funeral_product_variations || []).map((v: any) => ({
           name: v.name || "",
@@ -1150,8 +1176,8 @@ export default function SellerCentrePage() {
     }
 
     const uploadedCount = editorImages.filter(Boolean).length
-    if (uploadedCount < 5) {
-      openAlert({ title: 'Photos Required', message: "Please upload all 5 product photos so buyers can view all angles.", tone: 'warning', okLabel: 'Got It' })
+    if (uploadedCount < 1) {
+      openAlert({ title: 'Photo Required', message: "Please upload at least 1 product photo.", tone: 'warning', okLabel: 'Got It' })
       return
     }
 
@@ -1406,7 +1432,9 @@ export default function SellerCentrePage() {
 
   const loadData = useCallback(async () => {
     if (!user) return
-    setLoading(true)
+    if (!shop) {
+      setLoading(true)
+    }
     setError(null)
     try {
       const { data: shopData, error: shopErr } = await supabase
@@ -1512,9 +1540,9 @@ export default function SellerCentrePage() {
     } finally {
       setLoading(false)
     }
-  }, [user])
+  }, [user?.id])
 
-  useEffect(() => { if (user) void loadData() }, [user, loadData])
+  useEffect(() => { if (user?.id) void loadData() }, [user?.id, loadData])
 
   const openProductDetail = useCallback(async (product: ShopProduct) => {
     setSelectedProduct(product)
@@ -2332,7 +2360,7 @@ export default function SellerCentrePage() {
 
   const isLoggedIn = Boolean(user)
 
-  if (!authReady || loading) {
+  if (!authReady || (loading && !shop)) {
     return (
       <div className="sc-page">
         <div className="sc-state">
@@ -2423,6 +2451,16 @@ export default function SellerCentrePage() {
       {/* ── Header Bar ── */}
       <div className="sc-header-bar">
         <div className="sc-header-left">
+          <button
+            type="button"
+            className="sc-mobile-menu-trigger"
+            onClick={() => setMobileNavOpen(true)}
+            aria-label="Open navigation menu"
+            aria-haspopup="dialog"
+            aria-expanded={mobileNavOpen}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+          </button>
           <div className="sc-logo-area">
             <BrandLogo to="/funeral" compact />
             <span className="sc-logo-sub">Shop Centre</span>
@@ -2505,7 +2543,42 @@ export default function SellerCentrePage() {
 
       {/* ── Workspace (Sidebar + Content) ── */}
       <div className="sc-workspace">
-        <aside id="seller-centre-sidebar" className="sc-sidebar">
+        {mobileNavOpen ? (
+          <button
+            type="button"
+            className="sc-mobile-menu-backdrop"
+            onClick={() => setMobileNavOpen(false)}
+            aria-label="Close navigation menu"
+          />
+        ) : null}
+        <aside
+          id="seller-centre-sidebar"
+          className={`sc-sidebar${mobileNavOpen ? ' is-mobile-open' : ''}`}
+          onClick={(event) => {
+            const target = event.target as HTMLElement
+            if (target.closest('.sc-sidebar-item, .sc-sidebar-sub-item')) setMobileNavOpen(false)
+          }}
+          {...(mobileNavOpen ? { role: 'dialog', 'aria-modal': true, 'aria-label': 'Navigation menu' } : {})}
+        >
+          <div className="sc-mobile-menu-head">
+            <span>Menu</span>
+            <button type="button" className="sc-mobile-menu-close" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation menu">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
+            </button>
+          </div>
+          <div className="sc-mobile-menu-profile">
+            {shop.shopImageUrl ? (
+              <img src={shop.shopImageUrl} alt="" />
+            ) : (
+              <span className="sc-mobile-menu-avatar" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" /><path d="M4.5 21a7.5 7.5 0 0 1 15 0" /></svg>
+              </span>
+            )}
+            <div>
+              <strong>{shop.shopName || 'My Shop'}</strong>
+              <span>{user?.email}</span>
+            </div>
+          </div>
           <nav className="sc-sidebar-nav">
             <button
               type="button"
@@ -2528,6 +2601,11 @@ export default function SellerCentrePage() {
             <div className={`sc-sidebar-item${activeTab === 'dashboard' ? ' active' : ''}`} onClick={() => setActiveTab('dashboard')} title="Dashboard">
               <svg className="sc-sidebar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
               <span className="sc-sidebar-label">Dashboard</span>
+            </div>
+
+            <div className={`sc-sidebar-item${activeTab === 'messages' ? ' active' : ''}`} onClick={() => setActiveTab('messages')} title="Messages">
+              <svg className="sc-sidebar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" /></svg>
+              <span className="sc-sidebar-label">Messages</span>
             </div>
 
             {/* Operations Group */}
@@ -2681,8 +2759,12 @@ export default function SellerCentrePage() {
 
                         <h1 className="sc-dashboard-hero-title">Dashboard</h1>
 
-                        <div className="sc-dashboard-hero-meta">
-                          <span className="sc-dashboard-hero-meta-item">
+                         <div className="sc-dashboard-hero-meta">
+                           <span className="sc-dashboard-hero-meta-item sc-dashboard-hero-shopname">
+                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9h18l-2-6H5L3 9Z"/><path d="M5 9v12h14V9M9 21v-7h6v7"/></svg>
+                             {shop.shopName || 'My Shop'}
+                           </span>
+                           <span className="sc-dashboard-hero-meta-item">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
                             {shop.generalLocation || shop.shopAddress || 'Philippines'}
                           </span>
@@ -3170,33 +3252,115 @@ export default function SellerCentrePage() {
                 </div>
               )}
 
+              {activeTab === 'messages' && (
+                <section className="sc-messages-workspace" aria-label="Messages">
+                  <Suspense fallback={<div className="sc-state"><p>Loading messages...</p></div>}>
+                    <EmbeddedChat embedded onClose={() => setActiveTab('dashboard')} />
+                  </Suspense>
+                </section>
+              )}
+
               {/* CUSTOMERS VIEW */}
               {activeTab === 'customers' && (
-                <div className='sc-ops-page'>
+                <div className='sc-ops-page sc-customers-layout'>
                   <div className='sc-section-head'>
                     <div>
                       <h2>Customers</h2>
                       <p className='sc-card-subtitle'>Family contacts and their complete arrangement history.</p>
                     </div>
-                    <span className='sc-count-label'>{customers.length} customers</span>
+                    <span className='sc-count-label'>{customers.length} {customers.length === 1 ? 'customer' : 'customers'}</span>
                   </div>
-                  <input className='sc-simple-search' value={customerSearch} onChange={(event) => setCustomerSearch(event.target.value)} placeholder='Search by name or contact number' aria-label='Search customers' />
+                  <input
+                    className='sc-simple-search'
+                    value={customerSearch}
+                    onChange={(event) => setCustomerSearch(event.target.value)}
+                    placeholder='Search by name or contact number'
+                    aria-label='Search customers'
+                  />
                   {visibleCustomers.length === 0 ? (
-                    <div className='sc-empty'><p>{customers.length ? 'No customers match your search.' : 'Customer profiles will appear after families send requests.'}</p></div>
+                    <div className='sc-empty'>
+                      <p>{customers.length ? 'No customers match your search.' : 'Customer profiles will appear after families send requests.'}</p>
+                    </div>
                   ) : (
-                    <div className='sc-simple-list'>
+                    <div className='sc-customer-card-list'>
                       {visibleCustomers.map((customer) => (
-                        <button key={customer.id} type='button' className='sc-customer-row' onClick={() => setSelectedCustomerId(customer.id)}>
-                          <span className='sc-customer-avatar'>{customer.name.trim().charAt(0).toUpperCase() || 'C'}</span>
-                          <span className='sc-customer-main'>
-                            <strong>{customer.name}</strong>
-                            <small>{customer.contactNumber || 'No contact number'} - Last activity {formatTimestamp(customer.lastActivity)}</small>
-                          </span>
-                          <span className='sc-customer-metric'><strong>{customer.arrangements.length}</strong><small>Cases</small></span>
-                          <span className='sc-customer-metric'><strong>{customer.activeCount}</strong><small>Active</small></span>
-                          <span className='sc-customer-metric sc-customer-value'><strong>{formatPeso(customer.totalValue)}</strong><small>Confirmed value</small></span>
-                          <span className='sc-row-arrow' aria-hidden='true'>&gt;</span>
-                        </button>
+                        <article
+                          key={customer.id}
+                          className='sc-customer-card'
+                          onClick={() => setSelectedCustomerId(customer.id)}
+                          role='button'
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              setSelectedCustomerId(customer.id)
+                            }
+                          }}
+                        >
+                          <div className='sc-customer-card-head'>
+                            <span className='sc-customer-avatar'>
+                              {customer.name.trim().charAt(0).toUpperCase() || 'C'}
+                            </span>
+                            <div className='sc-customer-card-identity'>
+                              <div className='sc-customer-card-title-row'>
+                                <strong>{customer.name}</strong>
+                                {customer.activeCount > 0 && (
+                                  <span className='sc-customer-active-badge'>{customer.activeCount} active</span>
+                                )}
+                              </div>
+                              <span className='sc-customer-card-contact'>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                                </svg>
+                                {customer.contactNumber || 'No contact number'}
+                              </span>
+                            </div>
+                            <span className='sc-row-arrow' aria-hidden='true'>›</span>
+                          </div>
+
+                          <div className='sc-customer-card-grid'>
+                            <div className='sc-customer-card-cell'>
+                              <span className='sc-customer-card-label'>Cases</span>
+                              <strong className='sc-customer-card-val'>
+                                {customer.arrangements.length} {customer.arrangements.length === 1 ? 'case' : 'cases'}
+                              </strong>
+                            </div>
+                            <div className='sc-customer-card-cell'>
+                              <span className='sc-customer-card-label'>Active</span>
+                              <strong className={`sc-customer-card-val${customer.activeCount > 0 ? ' is-active' : ''}`}>
+                                {customer.activeCount}
+                              </strong>
+                            </div>
+                            <div className='sc-customer-card-cell is-wide'>
+                              <span className='sc-customer-card-label'>Confirmed Value</span>
+                              <strong className='sc-customer-card-val is-value'>
+                                {formatPeso(customer.totalValue)}
+                              </strong>
+                            </div>
+                          </div>
+
+                          {customer.lastActivity && (
+                            <div className='sc-customer-card-meta'>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                              </svg>
+                              <span>Last activity: {formatTimestamp(customer.lastActivity)}</span>
+                            </div>
+                          )}
+
+                          <div className='sc-customer-card-actions'>
+                            <button
+                              type='button'
+                              className='sc-btn sc-btn-sm sc-btn-secondary sc-customer-view-btn'
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setSelectedCustomerId(customer.id)
+                              }}
+                            >
+                              View Customer Details
+                            </button>
+                          </div>
+                        </article>
                       ))}
                     </div>
                   )}
@@ -3853,7 +4017,11 @@ export default function SellerCentrePage() {
                     <section className="sc-method-setup-card">
                       <header className="sc-method-setup-header">
                         <div className={`sc-method-setup-logo is-${selectedPayoutChannel.type}`}>
-                          {selectedPayoutChannel.label.slice(0, 2).toUpperCase()}
+                          <PayoutChannelLogo
+                            channelCode={selectedPayoutChannel.value}
+                            label={selectedPayoutChannel.label}
+                            fallback={selectedPayoutChannel.label.slice(0, 2).toUpperCase()}
+                          />
                         </div>
                         <div>
                           <span>{selectedPayoutChannel.type === 'wallet' ? 'E-wallet receiver' : 'Bank receiver'}</span>
@@ -3987,7 +4155,11 @@ export default function SellerCentrePage() {
                           return (
                             <article className={`sc-payout-account-card${!account.active ? ' is-disabled' : ''}`} key={account.id}>
                               <div className={`sc-payout-account-logo is-${channel?.type || 'bank'}`}>
-                                {channel?.type === 'wallet' ? 'W' : 'B'}
+                                <PayoutChannelLogo
+                                  channelCode={account.channelCode}
+                                  label={channel?.label || account.channelCode}
+                                  fallback={channel?.type === 'wallet' ? 'W' : 'B'}
+                                />
                               </div>
                               <div className="sc-payout-account-copy">
                                 <div>
@@ -4038,7 +4210,13 @@ export default function SellerCentrePage() {
                             disabled={!shopAccountApproved}
                             onClick={() => openPayoutAccountEditor(account, channel.value)}
                           >
-                            <span className="sc-payout-method-brand is-wallet">{channel.label.slice(0, 2).toUpperCase()}</span>
+                            <span className="sc-payout-method-brand is-wallet">
+                              <PayoutChannelLogo
+                                channelCode={channel.value}
+                                label={channel.label}
+                                fallback={channel.label.slice(0, 2).toUpperCase()}
+                              />
+                            </span>
                             <span className="sc-payout-method-copy">
                               <strong>{account ? channel.label : `Add ${channel.label}`}</strong>
                               <small>{account ? `${account.accountName} · ${maskPayoutAccount(account.accountNumber)}` : 'Set up a new e-wallet receiver'}</small>
@@ -4064,7 +4242,13 @@ export default function SellerCentrePage() {
                             disabled={!shopAccountApproved}
                             onClick={() => openPayoutAccountEditor(account, channel.value)}
                           >
-                            <span className="sc-payout-method-brand">{channel.label.split(' ').map(part => part[0]).join('').slice(0, 3)}</span>
+                            <span className="sc-payout-method-brand">
+                              <PayoutChannelLogo
+                                channelCode={channel.value}
+                                label={channel.label}
+                                fallback={channel.label.split(' ').map(part => part[0]).join('').slice(0, 3)}
+                              />
+                            </span>
                             <span className="sc-payout-method-copy">
                               <strong>{account ? channel.label : `Add ${channel.label}`}</strong>
                               <small>{account ? `${account.accountName} · ${maskPayoutAccount(account.accountNumber)}` : 'Set up a bank receiver account'}</small>
@@ -4346,15 +4530,20 @@ export default function SellerCentrePage() {
                       <div className="sc-editor-section">
                         <label className="sc-editor-section-title">
                           Product Images <span className="sc-required">*</span>
-                          <span className="sc-editor-section-desc">Please upload exactly 5 high-resolution photos displaying your product from different angles.</span>
+                          <span className="sc-editor-section-desc">Upload at least 1 product photo. Add more to show different angles.</span>
                         </label>
                         <div className="sc-image-slots-grid">
                           {editorImages.map((img, idx) => (
                             <div key={idx} className="sc-image-slot">
                               {img ? (
                                 <div className="sc-image-preview-container">
-                                  <img src={img} alt={`Product Angle ${idx + 1}`} className="sc-image-preview" />
-                                  <button type="button" className="sc-image-remove-btn" onClick={() => setEditorImages(prev => prev.map((item, i) => i === idx ? null : item))}>
+                                  <img src={img} alt={`Product photo ${idx + 1}`} className="sc-image-preview" />
+                                  <button type="button" className="sc-image-remove-btn" onClick={() => {
+                                    setEditorImages(prev => {
+                                      const next = prev.filter((_, i) => i !== idx)
+                                      return next.length > 0 ? next : [null]
+                                    })
+                                  }}>
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                                   </button>
                                 </div>
@@ -4365,7 +4554,7 @@ export default function SellerCentrePage() {
                                   ) : (
                                     <>
                                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                                      <span>Add photo {idx + 1}</span>
+                                      <span>{idx === 0 ? 'Add photo' : `Photo ${idx + 1}`}</span>
                                     </>
                                   )}
                                   <input type="file" accept="image/jpeg,image/png" style={{ display: 'none' }} disabled={editorUploadingIndex !== null} onChange={(e) => void handleUploadImage(idx, e)} />
@@ -4373,7 +4562,14 @@ export default function SellerCentrePage() {
                               )}
                             </div>
                           ))}
+                          <div className="sc-image-slot sc-image-add-slot">
+                            <button type="button" className="sc-image-upload-label" disabled={editorUploadingIndex !== null} onClick={() => setEditorImages(prev => [...prev, null])}>
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                              <span>Add another photo</span>
+                            </button>
+                          </div>
                         </div>
+                        <p className="sc-images-counter">{editorImages.filter(Boolean).length} photo{editorImages.filter(Boolean).length === 1 ? '' : 's'} uploaded (minimum 1)</p>
                       </div>
 
                       {/* Basic Fields */}
@@ -4491,8 +4687,22 @@ export default function SellerCentrePage() {
                       {/* Description */}
                       <div className="sc-editor-section">
                         <div className="sc-form-group">
-                          <label htmlFor="prodDesc">Product Description</label>
-                          <textarea id="prodDesc" className="sc-form-input sc-form-textarea" placeholder="Describe the materials, craftsmanship, dimensions, and other services included..." value={editorDescription} onChange={(e) => setEditorDescription(e.target.value)} />
+                          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '8px', marginBottom: '6px' }}>
+                            <label htmlFor="prodDesc" style={{ margin: 0 }}>Product Description</label>
+                            <span style={{ fontSize: '11px', color: 'var(--sc-muted)', flexShrink: 0 }}>
+                              {editorDescription.length} character{editorDescription.length === 1 ? '' : 's'}
+                            </span>
+                          </div>
+                          <textarea
+                            id="prodDesc"
+                            className="sc-form-input sc-form-textarea"
+                            placeholder="Describe the materials, craftsmanship, dimensions, and other services included..."
+                            value={editorDescription}
+                            onChange={(e) => setEditorDescription(e.target.value)}
+                          />
+                          <span style={{ fontSize: '11px', color: 'var(--sc-muted)', marginTop: '4px' }}>
+                            A detailed description helps buyers understand your product better and improves search visibility.
+                          </span>
                         </div>
                       </div>
 
@@ -4515,11 +4725,14 @@ export default function SellerCentrePage() {
 
       {/* CUSTOMER HISTORY MODAL */}
       {selectedCustomer && (
-        <div className='sc-modal-overlay' onClick={() => setSelectedCustomerId(null)}>
-          <div className='sc-modal' onClick={(event) => event.stopPropagation()}>
+        <div className='sc-modal-overlay sc-customer-modal-overlay' onClick={() => setSelectedCustomerId(null)}>
+          <div className='sc-modal sc-customer-modal' role='dialog' aria-modal='true' aria-labelledby='sc-customer-modal-title' onClick={(event) => event.stopPropagation()}>
             <div className='sc-modal-header'>
-              <h3>Customer History</h3>
-              <button type='button' className='sc-modal-close' aria-label='Close' onClick={() => setSelectedCustomerId(null)}>x</button>
+              <div>
+                <span className='sc-customer-eyebrow'>Customer details</span>
+                <h3 id='sc-customer-modal-title'>{selectedCustomer.name}</h3>
+              </div>
+              <button type='button' className='sc-modal-close' aria-label='Close' onClick={() => setSelectedCustomerId(null)}>×</button>
             </div>
             <div className='sc-modal-body'>
               <div className='sc-customer-profile-head'>
@@ -4534,19 +4747,24 @@ export default function SellerCentrePage() {
                 <div><strong>{selectedCustomer.activeCount}</strong><span>Active cases</span></div>
                 <div><strong>{formatPeso(selectedCustomer.totalValue)}</strong><span>Confirmed value</span></div>
               </div>
-              <div className='sc-detail-section'>
+              <div className='sc-detail-section sc-customer-history-section'>
                 <h5>Arrangement history</h5>
-                <div className='sc-simple-list'>
-                  {selectedCustomer.arrangements.map((request) => (
-                    <button key={request.id} type='button' className='sc-history-row' onClick={() => { setSelectedCustomerId(null); openRequestDetail(request) }}>
-                      <span>
-                        <strong>{request.deceasedFullName || request.productName || 'Arrangement case'}</strong>
-                        <small>{request.productName || 'Custom service'} - {formatTimestamp(request.createdAt)}</small>
-                      </span>
-                      <span className={`sc-status sc-status-${String(request.status || '').toLowerCase()}`}>{String(request.status || 'pending').replace(/_/g, ' ')}</span>
-                    </button>
-                  ))}
-                </div>
+                {selectedCustomer.arrangements.length === 0 ? (
+                  <div className='sc-empty'><p>No arrangement history for this customer.</p></div>
+                ) : (
+                  <div className='sc-history-list'>
+                    {selectedCustomer.arrangements.map((request) => (
+                      <button key={request.id} type='button' className='sc-history-row' onClick={() => { setSelectedCustomerId(null); openRequestDetail(request) }}>
+                        <span className='sc-history-row-copy'>
+                          <strong>{request.deceasedFullName || request.productName || 'Arrangement case'}</strong>
+                          <small>{request.productName || 'Custom service'} · {formatTimestamp(request.createdAt)}</small>
+                        </span>
+                        <span className={`sc-status sc-status-${String(request.status || '').toLowerCase()}`}>{String(request.status || 'pending').replace(/_/g, ' ')}</span>
+                        <span className='sc-row-arrow' aria-hidden='true'>›</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>

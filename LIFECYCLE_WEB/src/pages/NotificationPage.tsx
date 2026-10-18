@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import BrandLogo from '@/components/BrandLogo'
+import AccountMobileHeader from '@/components/AccountMobileHeader'
 import LogoutLink from '@/components/LogoutLink'
 import PageBackButton from '@/components/PageBackButton'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
@@ -143,6 +144,7 @@ export default function NotificationPage() {
   const { openConfirm, confirmDialog } = useConfirmDialog()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [profile, setProfile] = useState<ViewerProfile | null>(null)
+  const [isShopOwner, setIsShopOwner] = useState(false)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [loadError, setLoadError] = useState('')
@@ -188,8 +190,12 @@ export default function NotificationPage() {
     const loadProfile = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user) return
-      const { data } = await supabase.from('users').select('fullName, photoURL, role').eq('id', session.user.id).maybeSingle()
-      setProfile(data ?? { fullName: session.user.email, photoURL: null, role: 'user' })
+      const [{ data: profileData }, { data: shopData }] = await Promise.all([
+        supabase.from('users').select('fullName, photoURL, role').eq('id', session.user.id).maybeSingle(),
+        supabase.from('funeral_shops').select('id').eq('id', session.user.id).maybeSingle(),
+      ])
+      setProfile(profileData ?? { fullName: session.user.email, photoURL: null, role: 'user' })
+      setIsShopOwner(Boolean(shopData?.id))
     }
     void loadProfile()
   }, [])
@@ -212,6 +218,11 @@ export default function NotificationPage() {
     ].filter(section => section.items.length > 0)
   }, [filteredNotifications])
   const allVisibleSelected = filteredNotifications.length > 0 && filteredNotifications.every(item => selectedIds.has(item.id))
+  const notificationReturnPath = isShopOwner
+    ? '/seller'
+    : ['admin', 'super_admin', 'funeral_admin'].includes(String(profile?.role || '').toLowerCase())
+      ? '/admin/dashboard'
+      : '/funeral'
 
   const refreshNotifications = async () => {
     setRefreshing(true)
@@ -352,6 +363,7 @@ export default function NotificationPage() {
 
   return (
     <div className="notification-page">
+      <AccountMobileHeader homeTo={notificationReturnPath} />
       <div className="notification-topbar">
         <div className="notification-topbar-inner">
           <div className="notification-topbar-left">
@@ -371,7 +383,7 @@ export default function NotificationPage() {
               </div>
               <div className="notification-user-dropdown">
                 <Link to="/user/profile">My Account</Link>
-                <Link to="/user/purchase">Purchases</Link>
+                <Link to="/user/purchase">My Payments</Link>
                 <Link to="/auth/switch-account">Switch Account</Link>
                 <LogoutLink>Log out</LogoutLink>
               </div>
@@ -390,7 +402,7 @@ export default function NotificationPage() {
 
       <main className="notification-main">
         <div className="page-back-row notification-page-nav">
-          <PageBackButton />
+          <PageBackButton to={notificationReturnPath} />
         </div>
 
         <section className={`notification-inbox-toolbar${selectionMode ? ' selecting' : ''}`}>

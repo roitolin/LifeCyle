@@ -746,8 +746,30 @@
 .pm-hero {
  @apply items-center pt-0 pb-[17px] px-0;
 }
-.pm-brand-name {
- @apply text-slate-900 text-[20px] font-extrabold -tracking-wide;
+.pm-payment-brand {
+ --lc-brand-ink: #172033;
+ --lc-brand-soft: #64748b;
+ max-width: 100%;
+}
+.pm-payment-brand .lc-brand__mark {
+ width: 42px;
+ height: 42px;
+}
+.pm-payment-brand .lc-brand__name {
+ color: #172033;
+}
+.pm-payment-brand .lc-brand__tagline {
+ color: #64748b;
+}
+.pm-purchase-brand-logo .lc-brand__mark {
+ width: 36px;
+ height: 36px;
+}
+.pm-purchase-brand-logo .lc-brand__name {
+ font-size: 19px;
+}
+.pm-purchase-brand-logo .lc-brand__tagline {
+ font-size: 8px;
 }
 .pm-secure-chip {
  @apply border-emerald-200 [background:#ecfdf5] text-emerald-700 text-[10px] tracking-[0.04em] uppercase rounded-[999px];
@@ -880,6 +902,12 @@
 @media (max-width: 600px) {
  .pm-card {
   @apply p-[18px] rounded-[15px];
+ }
+ .pm-hero {
+  @apply items-center;
+ }
+ .pm-payment-brand {
+  align-self: center;
  }
  .pm-product-row {
   @apply items-start;

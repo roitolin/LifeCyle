@@ -323,3 +323,44 @@
 .sp-page .sc-web-notif-compact-row {
   @apply pt-[13px] pb-[12px] px-[9px];
 }
+
+/* Mobile notification sheet: pin it below the marketplace header and let only
+   the rows scroll. This remains stable when the browser toolbar expands or the
+   page behind the panel has already been scrolled. */
+@media (max-width: 768px) {
+  .sc-web-notif-wrap.is-seller-centre .sc-web-notif-dropdown--seller-centre {
+    position: fixed !important;
+    inset: 128px 8px max(12px, env(safe-area-inset-bottom)) 8px !important;
+    z-index: 1400;
+    width: auto !important;
+    min-width: 0;
+    max-width: none;
+    max-height: none !important;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: 12px;
+    overscroll-behavior: contain;
+  }
+
+  .sc-web-notif-dropdown--seller-centre .sc-web-notif-compact-header {
+    flex: 0 0 auto;
+  }
+
+  .sc-web-notif-dropdown--seller-centre .sc-web-notif-compact-list {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable;
+  }
+}
+
+@media (max-width: 390px) {
+  .sc-web-notif-wrap.is-seller-centre .sc-web-notif-dropdown--seller-centre {
+    right: 6px !important;
+    left: 6px !important;
+  }
+}

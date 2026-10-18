@@ -34,10 +34,16 @@
   @apply text-[#718096] text-[12px] mt-[3px];
 }
 .payout-channel-mark {
-  @apply w-[32px] h-[32px] flex-[0_0_32px] [background:#eef3f8] text-[#40536c] grid place-items-center text-[10px] font-extrabold rounded-[9px];
+  @apply w-[32px] h-[32px] flex-[0_0_32px] [background:transparent] text-[#40536c] grid place-items-center text-[10px] font-extrabold;
 }
 .payout-channel-mark.wallet {
-  @apply [background:#eaf8f2] text-[#196b52];
+  @apply [background:transparent] text-[#196b52];
+}
+.payout-channel-mark img {
+  @apply w-full h-full object-contain;
+}
+.payout-channel-mark img.is-maya {
+  transform: scale(1.35);
 }
 .payout-account-number {
   @apply text-slate-700 [font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace] text-[12px] tracking-[0.02em];

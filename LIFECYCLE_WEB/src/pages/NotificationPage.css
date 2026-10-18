@@ -507,6 +507,12 @@
   .notification-toolbar-actions {
     @apply ml-0;
   }
+  .notification-filters {
+    @apply grid grid-cols-2 overflow-visible;
+  }
+  .notification-filters button {
+    @apply w-full min-w-0 px-[10px];
+  }
   .notification-select-all {
     @apply px-[11px] py-0;
   }
@@ -569,4 +575,14 @@
 .notification-topbar,
 .notification-header {
   @apply [background:#22312d];
+}
+
+@media (max-width: 768px) {
+  .notification-page > .notification-topbar,
+  .notification-page > .notification-header {
+    display: none;
+  }
+  .notification-page-nav {
+    display: none;
+  }
 }

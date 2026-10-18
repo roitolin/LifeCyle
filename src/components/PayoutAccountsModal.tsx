@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import KeyboardAwareScrollView from "@/components/KeyboardAwareScrollView";
@@ -7,16 +7,13 @@ import { supabase } from "@/services/supabaseClient";
 import { sanitizePlainText } from "@/utils/inputSecurity";
 
 const CHANNELS = [
-  { code: "PH_GCASH", label: "GCash", type: "wallet" },
-  { code: "PH_MAYA", label: "Maya", type: "wallet" },
-  { code: "PH_BDO", label: "BDO Unibank", type: "bank" },
-  { code: "PH_BPI", label: "Bank of the Philippine Islands (BPI)", type: "bank" },
-  { code: "PH_UBP", label: "UnionBank of the Philippines", type: "bank" },
-  { code: "PH_METROBANK", label: "Metrobank", type: "bank" },
-  { code: "PH_LANDBANK", label: "Landbank of the Philippines", type: "bank" },
-  { code: "PH_PNB", label: "Philippine National Bank (PNB)", type: "bank" },
-  { code: "PH_RCBC", label: "Rizal Commercial Banking Corporation (RCBC)", type: "bank" },
-  { code: "PH_CHINABANK", label: "China Banking Corporation", type: "bank" },
+  { code: "PH_GCASH", label: "GCash", type: "wallet", logo: require("../../assets/Payment Logos/Gcash_Logo.png") },
+  { code: "PH_MAYA", label: "Maya", type: "wallet", logo: require("../../assets/Payment Logos/PayMaya_Logo.png") },
+  { code: "PH_BDO", label: "BDO Unibank", type: "bank", logo: require("../../assets/Payment Logos/BDO_Logo.png") },
+  { code: "PH_BPI", label: "Bank of the Philippine Islands (BPI)", type: "bank", logo: require("../../assets/Payment Logos/BPI_Logo.png") },
+  { code: "PH_METROBANK", label: "Metrobank", type: "bank", logo: require("../../assets/Payment Logos/MetroBank_Logo.png") },
+  { code: "PH_LANDBANK", label: "Landbank of the Philippines", type: "bank", logo: require("../../assets/Payment Logos/Landbank_logo.png") },
+  { code: "PH_CHINABANK", label: "China Banking Corporation", type: "bank", logo: require("../../assets/Payment Logos/Chinabank_Logo.png") },
 ] as const;
 
 type Channel = (typeof CHANNELS)[number];
@@ -30,7 +27,6 @@ const mask = (value?: string | null) => {
   const clean = String(value || "").trim();
   return clean.length > 4 ? `${"•".repeat(Math.min(6, clean.length - 4))}${clean.slice(-4)}` : clean || "Not provided";
 };
-const initials = (channel: Channel) => channel.code === "PH_GCASH" ? "G" : channel.code === "PH_MAYA" ? "M" : channel.label.split(" ").map((part) => part[0]).join("").slice(0, 3).toUpperCase();
 const verifiedDate = (value?: string | null) => value && !Number.isNaN(new Date(value).getTime())
   ? new Date(value).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" }) : null;
 
@@ -157,7 +153,7 @@ export default function PayoutAccountsModal({ visible, shopId, shopApproved, onC
 }
 
 function Header({ eyebrow, title, onBack }: { eyebrow: string; title: string; onBack: () => void }) { return <View style={styles.header}><TouchableOpacity style={styles.back} onPress={onBack}><Ionicons name="arrow-back" size={21} color="#24374f" /></TouchableOpacity><View style={styles.flex}><Text style={styles.eyebrow}>{eyebrow}</Text><Text style={styles.headerTitle}>{title}</Text></View></View>; }
-function Logo({ channel, small }: { channel: Channel; small?: boolean }) { return <View style={[styles.logo, small && styles.logoSmall, channel.type === "wallet" ? styles.wallet : styles.bank]}><Text style={styles.logoText}>{initials(channel)}</Text></View>; }
+function Logo({ channel, small }: { channel: Channel; small?: boolean }) { return <View style={[styles.logo, small && styles.logoSmall]}><Image source={channel.logo} resizeMode="contain" style={[styles.logoImage, channel.code === "PH_MAYA" && styles.mayaLogo]} /></View>; }
 function Summary({ label, value, last }: { label: string; value: number; last?: boolean }) { return <View style={[styles.summaryItem, last && styles.noBorder]}><Text style={styles.eyebrow}>{label}</Text><Text style={styles.summaryValue}>{value}</Text></View>; }
 function Notice({ icon, title, text, warning }: { icon: keyof typeof Ionicons.glyphMap; title: string; text: string; warning?: boolean }) { return <View style={[styles.notice, warning && styles.noticeWarning]}><Ionicons name={icon} size={21} color={warning ? "#8a5b18" : "#49627f"} /><View style={styles.flex}><Text style={[styles.noticeTitle, warning && styles.warningText]}>{title}</Text><Text style={[styles.noticeText, warning && styles.warningText]}>{text}</Text></View></View>; }
 
@@ -196,9 +192,8 @@ const styles = StyleSheet.create({
   method: { minHeight: 66, flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#edf1f4" },
   logo: { width: 42, height: 42, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   logoSmall: { width: 38, height: 38, borderRadius: 11 },
-  wallet: { backgroundColor: "#e9f7f2" },
-  bank: { backgroundColor: "#edf2f8" },
-  logoText: { color: "#36536e", fontSize: 10, fontWeight: "900" },
+  logoImage: { width: "100%", height: "100%" },
+  mayaLogo: { transform: [{ scale: 1.25 }] },
   methodName: { color: "#2d3a4d", fontSize: 12, fontWeight: "800" },
   methodDetail: { color: "#8490a0", fontSize: 9, lineHeight: 13, marginTop: 3 },
   methodState: { color: "#526175", fontSize: 9, fontWeight: "800" },

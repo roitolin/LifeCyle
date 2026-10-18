@@ -1,5 +1,6 @@
 import BrandLogo from '@/components/BrandLogo'
 import PageBackButton from '@/components/PageBackButton'
+import AccountMobileHeader from '@/components/AccountMobileHeader'
 import './FuneralLandingPage.css'
 
 const sections = [
@@ -39,7 +40,8 @@ const sections = [
 
 export default function PrivacyPolicyPage() {
   return (
-    <div className="sp-page">
+    <div className="sp-page policy-page">
+      <AccountMobileHeader />
       <header className="sp-header">
         <div className="sp-header-inner policy-header-inner">
           <BrandLogo />

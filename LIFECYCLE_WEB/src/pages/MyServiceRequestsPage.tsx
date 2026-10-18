@@ -7,6 +7,7 @@ import LogoutLink from '@/components/LogoutLink'
 import ServiceXenditModal from '@/components/ServiceXenditModal'
 import DeathCertificateVaultCard from '@/components/DeathCertificateVaultCard'
 import PageBackButton from '@/components/PageBackButton'
+import AccountMobileHeader from '@/components/AccountMobileHeader'
 import { syncServiceXenditCheckout } from '@/utils/serviceXendit'
 import './MyServiceRequestsPage.css'
 
@@ -545,7 +546,8 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
   }
 
   return (
-    <div className="requests-shop-page">
+    <div className={`requests-shop-page${detailRequestId ? ' requests-shop-page-detail' : ''}`}>
+      <AccountMobileHeader />
       <div className="requests-topbar">
         <div className="requests-topbar-right">
           <Link to="/user/notifications">Notifications</Link>
@@ -565,7 +567,7 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
             </button>
             <div className="requests-user-dropdown">
               <Link to="/user/profile">My Account</Link>
-              <Link to="/user/purchase">Payments</Link>
+              <Link to="/user/purchase">My Payments</Link>
               <Link to="/auth/switch-account">Switch Account</Link>
               <LogoutLink>Log out</LogoutLink>
             </div>
@@ -941,72 +943,24 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
 
         return (
           <div className="requests-detail-page">
-            <div className="page-back-row"><PageBackButton to="/user/requests" /></div>
             <div
               className="requests-modal-card requests-payment-details-card"
               role="main"
-              aria-labelledby="request-details-title"
+              aria-label="Request details"
             >
               <div className="requests-modal-header requests-pd-header">
-                <div className="requests-pd-heading">
-                  <div>
-                    <h2 id="request-details-title">Service request record</h2>
-                    <p className="requests-modal-sub">
-                      {detail.shopName || 'Funeral Shop'} · Request #{detail.id.slice(0, 8).toUpperCase()} · Filed {formatDateTime(detail.createdAt)}
-                    </p>
-                  </div>
+                <div className="requests-pd-title-row">
+                  <PageBackButton to="/user/requests" label="Back to requests" className="requests-detail-back" />
                 </div>
                 <div className="requests-pd-head-actions">
-                  {paymentStatus === 'awaiting_payment' && (
-                    <button
-                      type="button"
-                      className="requests-card-pay-btn"
-                      onClick={() => setXenditModalRequest(detail)}
-                    >
-                      <span>⚡</span>
-                      <span>Pay Online (GCash, Cards & Maya)</span>
-                    </button>
-                  )}
                   <span className={`requests-pay-pill pay-${statusMeta(detail.status).tone}`}>{statusLabel}</span>
                 </div>
               </div>
 
               <div className="requests-modal-body requests-pd-body">
                 <section className="requests-record-overview" aria-label="Request overview">
-                  {detail.memorialPhotoUrl ? (
-                    <button
-                      type="button"
-                      className="requests-record-photo"
-                      onClick={() => setViewerUrl(detail.memorialPhotoUrl!)}
-                      aria-label="View memorial portrait"
-                    >
-                      <img src={detail.memorialPhotoUrl} alt={detail.deceasedFullName || 'Deceased'} />
-                    </button>
-                  ) : (
-                    <div className="requests-record-photo requests-record-photo-empty">No photo</div>
-                  )}
-
-                  <div className="requests-record-person">
-                    <span>Deceased</span>
-                    <h3>{detail.deceasedFullName || 'Name not provided'}</h3>
-                    <dl>
-                      <div>
-                        <dt>Date of passing</dt>
-                        <dd>{detail.deceasedDateOfPassing ? formatDate(detail.deceasedDateOfPassing) : 'Not provided'}</dd>
-                      </div>
-                      <div>
-                        <dt>Age</dt>
-                        <dd>{detail.deceasedAge ?? 'Not provided'}</dd>
-                      </div>
-                      <div>
-                        <dt>Family coordinator</dt>
-                        <dd>{detail.familyCoordinatorName || 'Not provided'}</dd>
-                      </div>
-                    </dl>
-                  </div>
-
                   <div className="requests-record-service">
-                    <span>Requested service</span>
+                    <span>Request #{detail.id.slice(0, 8).toUpperCase()}</span>
                     <div>
                       {detail.productImageUrl ? (
                         <button
@@ -1020,29 +974,22 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                         <div className="requests-record-service-fallback">LC</div>
                       )}
                       <div>
-                        <strong>{detail.productName || 'Custom casket service'}</strong>
-                        <small>{detail.variationName || 'Standard option'}</small>
-                        {detail.packageItems?.length ? <small>Packages: {detail.packageItems.join(', ')}</small> : null}
-                        <b>{amount}</b>
+                        <strong>{detail.requestType === 'custom_casket' ? 'Custom Casket Request' : detail.productName || 'Service request'}</strong>
+                        <small>Service request</small>
                       </div>
                     </div>
                   </div>
 
-                  {detail.customDesignNotes || detail.referencePhotoUrl ? (
-                    <div className="requests-record-note">
-                      {detail.customDesignNotes ? (
-                        <div>
-                          <span>Custom design specifications</span>
-                          <p>{detail.customDesignNotes}</p>
-                        </div>
-                      ) : null}
-                      {detail.referencePhotoUrl ? (
-                        <button type="button" className="requests-detail-media" onClick={() => setViewerUrl(detail.referencePhotoUrl!)}>
-                          View design reference
-                        </button>
-                      ) : null}
+                  <div className="requests-record-facts">
+                    <div>
+                      <span>Shop</span>
+                      <strong>{detail.shopName || 'Funeral Shop'}</strong>
                     </div>
-                  ) : null}
+                    <div>
+                      <span>Submitted</span>
+                      <strong>{formatDateTime(detail.createdAt)}</strong>
+                    </div>
+                  </div>
                 </section>
 
                 <div className="requests-pd-hero" style={{ backgroundColor: payDetail.background }}>
@@ -1053,11 +1000,62 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                 </div>
 
                 <section className="requests-detail-groups" aria-label="Request information">
-                  <details>
-                    <summary>Family and memorial information</summary>
+                  <details open>
+                    <summary>
+                      <span><strong>Service options</strong><small>Variation, amount, and design information</small></span>
+                    </summary>
                     <div className="requests-detail-grid">
+                      <div><span>Selected variation</span><strong>{detail.variationName || 'Standard option'}</strong></div>
+                      <div><span>Service amount</span><strong className="requests-service-amount">{amount}</strong></div>
+                      {detail.packageItems?.length ? (
+                        <div className="requests-detail-wide"><span>Package inclusions</span><strong>{detail.packageItems.join(', ')}</strong></div>
+                      ) : null}
+                    </div>
+                    {detail.customDesignNotes ? (
+                      <div className="requests-detail-note">
+                        <span>Custom design specifications</span>
+                        <p>{detail.customDesignNotes}</p>
+                      </div>
+                    ) : null}
+                    {detail.referencePhotoUrl ? (
+                      <button type="button" className="requests-detail-media" onClick={() => setViewerUrl(detail.referencePhotoUrl!)}>
+                        View design reference photo
+                      </button>
+                    ) : null}
+                  </details>
+
+                  <details>
+                    <summary>
+                      <span><strong>Shop contact</strong><small>Contact the provider handling this request</small></span>
+                    </summary>
+                    <div className="requests-detail-grid">
+                      <div><span>Shop</span><strong>{detail.shopName || 'Not available'}</strong></div>
+                      <div><span>Contact number</span><strong>{detail.shopContactNumber || 'Not available'}</strong></div>
+                      <div className="requests-detail-wide"><span>Shop address</span><strong>{detail.shopAddress || 'Not available'}</strong></div>
+                    </div>
+                  </details>
+
+                  <details>
+                    <summary>
+                      <span><strong>Deceased information</strong><small>Personal and memorial details provided by the family</small></span>
+                    </summary>
+                    {detail.memorialPhotoUrl ? (
+                      <button
+                        type="button"
+                        className="requests-detail-photo"
+                        onClick={() => setViewerUrl(detail.memorialPhotoUrl!)}
+                        aria-label="View memorial portrait"
+                      >
+                        <img src={detail.memorialPhotoUrl} alt={detail.deceasedFullName || 'Deceased'} />
+                      </button>
+                    ) : null}
+                    <div className="requests-detail-grid">
+                      <div><span>Full name</span><strong>{detail.deceasedFullName || 'Not provided'}</strong></div>
                       <div><span>Date of birth</span><strong>{detail.deceasedDateOfBirth ? formatDate(detail.deceasedDateOfBirth) : 'Not provided'}</strong></div>
-                      <div><span>Family contact</span><strong>{detail.contactNumber || 'Not provided'}</strong></div>
+                      <div><span>Date of passing</span><strong>{detail.deceasedDateOfPassing ? formatDate(detail.deceasedDateOfPassing) : 'Not provided'}</strong></div>
+                      <div><span>Age at time of passing</span><strong>{detail.deceasedAge ?? 'Not provided'}</strong></div>
+                      <div><span>Family coordinator</span><strong>{detail.familyCoordinatorName || 'Not provided'}</strong></div>
+                      <div><span>Contact number</span><strong>{detail.contactNumber || 'Not provided'}</strong></div>
                     </div>
                     {detail.tributeMessage ? (
                       <div className="requests-detail-note">
@@ -1068,7 +1066,9 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                   </details>
 
                   <details>
-                    <summary>Schedule and locations</summary>
+                    <summary>
+                      <span><strong>Wake &amp; burial schedule</strong><small>Review the dates and service locations carefully</small></span>
+                    </summary>
                     <div className="requests-detail-grid">
                       <div><span>Wake venue</span><strong>{detail.wakeAddress || 'Not provided'}</strong></div>
                       <div><span>Church / chapel</span><strong>{detail.churchName || 'Not provided'}</strong></div>
@@ -1076,14 +1076,14 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                       <div><span>Pickup address</span><strong>{detail.pickupAddress || 'Not provided'}</strong></div>
                       <div><span>Wake start</span><strong>{formatScheduleDate(detail.wakeStartDate)}</strong></div>
                       <div><span>Wake end</span><strong>{formatScheduleDate(detail.wakeEndDate)}</strong></div>
-                      <div><span>Burial time</span><strong>{formatTime(detail.burialTime)}</strong></div>
-                      <div><span>Shop contact</span><strong>{detail.shopContactNumber || 'Not provided'}</strong></div>
-                      <div className="requests-detail-wide"><span>Shop address</span><strong>{detail.shopAddress || 'Not provided'}</strong></div>
+                      <div className="requests-detail-wide"><span>Burial</span><strong>{detail.wakeEndDate && detail.burialTime ? `${formatScheduleDate(detail.wakeEndDate)} at ${formatTime(detail.burialTime)}` : 'Not provided'}</strong></div>
                     </div>
                   </details>
 
                   <details>
-                    <summary>Activity history</summary>
+                    <summary>
+                      <span><strong>Activity history</strong><small>Past request updates with their recorded date and time</small></span>
+                    </summary>
                     <div className="requests-detail-timeline">
                       <div><span>Request submitted</span><strong>{formatDateTime(detail.createdAt)}</strong></div>
                       {detail.acceptedAt ? <div><span>Accepted by shop</span><strong>{formatDateTime(detail.acceptedAt)}</strong></div> : null}
@@ -1102,7 +1102,7 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                 {showPaymentWorkspace ? (
                 <div className="requests-pd-layout">
                   <aside className="requests-pd-sidebar">
-                <div className="requests-pd-section-title">Order Details</div>
+                <div className="requests-pd-section-title">Payment details</div>
                 <div className="requests-pd-box">
                   <div className="requests-pd-row">
                     <span>Order Date</span>
@@ -1118,33 +1118,6 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                   </div>
                 </div>
 
-                <div className="requests-pd-divider" />
-
-                <div className="requests-pd-item">
-                  {detail.productImageUrl ? (
-                    <img src={detail.productImageUrl} alt={detail.productName} className="requests-pd-item-img" />
-                  ) : (
-                    <span className="requests-pd-item-fallback">LC</span>
-                  )}
-                  <div className="requests-pd-item-copy">
-                    <strong>{detail.productName || 'Custom Casket'}</strong>
-                    <span>{detail.variationName || 'Funeral service'}</span>
-                    <span>{detail.shopName || 'Funeral Shop'}</span>
-                  </div>
-                  <strong className="requests-pd-item-amount">{amount}</strong>
-                </div>
-
-                <div className="requests-pd-divider" />
-
-                <div className="requests-pd-pay-card">
-                  <span className="requests-pd-kicker">Payment to shop</span>
-                  <strong className="requests-pd-pay-amount">{amount}</strong>
-                  <ol className="requests-pd-steps">
-                    <li>Open secure online checkout.</li>
-                    <li>Choose GCash, Maya, card, or online banking.</li>
-                    <li>Complete payment and return to this request.</li>
-                  </ol>
-                </div>
                   </aside>
 
                   <section className="requests-pd-main">
@@ -1381,22 +1354,12 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                   </div>
                 ) : null}
 
-                <div className="requests-pd-divider" />
-
-                <div className="requests-pd-total">
-                  <span>Order Total</span>
-                  <strong>{amount}</strong>
-                </div>
-
                 {paymentStatus !== 'awaiting_payment' ? (
                   <>
                 <div className="requests-receipt-print">
-                  <div className="receipt-brand">
-                    <span className="receipt-brand-badge">LC</span>
-                    <span className="receipt-brand-name">LifeCycle</span>
-                    <span className="receipt-brand-sub">FUNERAL SERVICES</span>
-                  </div>
+                  <BrandLogo to="/funeral" compact className="receipt-brand-logo" />
                   <h3 className="receipt-title">Payment Receipt</h3>
+                  <span className={`requests-pay-pill receipt-status pay-${statusMeta(detail.status).tone}`}>{statusLabel}</span>
                   <div className="receipt-meta">
                     <span>Receipt No: {buildReceiptNumber(detail.id)}</span>
                     <span>Issued: {formatDateTime(detail.paymentVerifiedAt || detail.paymentSubmittedAt || detail.createdAt)}</span>
@@ -1410,12 +1373,24 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                     <div><span>Shop</span><strong>{detail.shopName || '—'}</strong></div>
                     <div><span>Service</span><strong>{detail.productName || '—'}{detail.variationName ? ` (${detail.variationName})` : ''}</strong></div>
                     <div><span>Deceased</span><strong>{detail.deceasedFullName || '—'}</strong></div>
-                    <div><span>Paid By</span><strong>{detail.paymentPayerName || '—'}</strong></div>
+                    <div><span>Sender</span><strong>{detail.paymentPayerName || '—'}</strong></div>
+                    <div><span>GCash Name</span><strong>{detail.paymentGcashName || '—'}</strong></div>
                     <div><span>GCash Number</span><strong>{detail.paymentGcashNumber || '—'}</strong></div>
                     <div><span>GCash Reference</span><strong>{detail.paymentReferenceNumber || '—'}</strong></div>
-                    <div><span>GCash Name</span><strong>{detail.paymentGcashName || '—'}</strong></div>
                     <div><span>Payment Method</span><strong>GCash / E-wallet</strong></div>
+                    {detail.shopAddress ? <div><span>Shop Address</span><strong>{detail.shopAddress}</strong></div> : null}
+                    {detail.shopContactNumber ? <div><span>Shop Contact</span><strong>{detail.shopContactNumber}</strong></div> : null}
                   </div>
+                  {detail.paymentProofImageUrl ? (
+                    <button
+                      type="button"
+                      className="receipt-proof"
+                      onClick={() => setViewerUrl(detail.paymentProofImageUrl!)}
+                      aria-label="View payment proof full size"
+                    >
+                      <img src={detail.paymentProofImageUrl} alt="Payment proof" />
+                    </button>
+                  ) : null}
                   <div className="receipt-divider" />
                   <p className="receipt-footer">
                     Thank you for your payment. This receipt confirms your payment to {detail.shopName} through LifeCycle.

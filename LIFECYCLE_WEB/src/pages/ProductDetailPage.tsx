@@ -87,8 +87,10 @@ function formatPeso(value: number | string | null | undefined): string {
 const ShareIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
 )
-const BookmarkIcon = ({ filled }: { filled?: boolean }) => (
-  <svg viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+const HeartIcon = ({ filled }: { filled?: boolean }) => (
+  <svg viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78Z" />
+  </svg>
 )
 const CartIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -108,6 +110,25 @@ const SearchIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
 )
 
+type ProductMobileMenuIconName = 'home' | 'account' | 'shop' | 'messages' | 'purchases' | 'help'
+
+const PRODUCT_MOBILE_MENU_ICON_PATHS: Record<ProductMobileMenuIconName, string[]> = {
+  home: ['m3 11 9-8 9 8', 'M5 10v11h14V10M9 21v-7h6v7'],
+  account: ['M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z', 'M4.5 21a7.5 7.5 0 0 1 15 0'],
+  shop: ['M3 9h18l-2-6H5L3 9Z', 'M5 9v12h14V9M9 21v-7h6v7'],
+  messages: ['M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z'],
+  purchases: ['M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z', 'M3 6h18M16 10a4 4 0 0 1-8 0'],
+  help: ['M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z', 'M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .8-1 1.7M12 17h.01'],
+}
+
+function ProductMobileMenuIcon({ name }: { name: ProductMobileMenuIconName }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {PRODUCT_MOBILE_MENU_ICON_PATHS[name].map(path => <path d={path} key={path} />)}
+    </svg>
+  )
+}
+
 
 export default function ProductDetailPage() {
   const { productId } = useParams<{ productId: string }>()
@@ -122,10 +143,12 @@ export default function ProductDetailPage() {
   const [cartCount, setCartCount] = useState(0)
   const [userProfile, setUserProfile] = useState<any>(null)
   const [queryText, setQueryText] = useState('')
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [isImageModalOpen, setIsImageModalOpen] = useState(false)
   const [isFavorite, setIsFavorite] = useState(false)
   const imageTriggerRef = useRef<HTMLButtonElement>(null)
   const imageCloseRef = useRef<HTMLButtonElement>(null)
+  const mobileMenuCloseRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     if (productId && viewer) {
@@ -212,6 +235,29 @@ export default function ProductDetailPage() {
     window.addEventListener('funeral-cart-updated', refreshCart)
     return () => window.removeEventListener('funeral-cart-updated', refreshCart)
   }, [isLoggedIn])
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return
+
+    const previousOverflow = document.body.style.overflow
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileMenuOpen(false)
+    }
+    const closeAboveMobile = () => {
+      if (window.innerWidth > 768) setMobileMenuOpen(false)
+    }
+
+    document.body.style.overflow = 'hidden'
+    document.addEventListener('keydown', closeOnEscape)
+    window.addEventListener('resize', closeAboveMobile)
+    window.requestAnimationFrame(() => mobileMenuCloseRef.current?.focus())
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', closeOnEscape)
+      window.removeEventListener('resize', closeAboveMobile)
+    }
+  }, [mobileMenuOpen])
 
   useEffect(() => {
     if (!isImageModalOpen) return
@@ -424,9 +470,81 @@ export default function ProductDetailPage() {
   }
 
   const mainImage = gallery[galleryIndex] || product.imageUrl || ''
+  const accountPath = isLoggedIn ? '/user/profile' : '/login?next=/user/profile'
+  const purchasesPath = isLoggedIn ? '/user/purchase' : '/login?next=/user/purchase'
+  const helpPath = isLoggedIn ? '/user/help' : '/login?next=/user/help'
+
+  const openMessages = () => {
+    setMobileMenuOpen(false)
+    if (!isLoggedIn) {
+      navigate(`/login?next=/funeral/product/${productId ?? ''}`)
+      return
+    }
+    window.dispatchEvent(new CustomEvent('open-chat'))
+  }
 
   return (
     <div className="pd-page">
+      {mobileMenuOpen ? (
+        <div className="sp-mobile-menu-layer">
+          <button
+            type="button"
+            className="sp-mobile-menu-backdrop"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-label="Close navigation menu"
+          />
+          <aside className="sp-mobile-menu" role="dialog" aria-modal="true" aria-label="Navigation menu">
+            <div className="sp-mobile-menu-head">
+              <span>Menu</span>
+              <button
+                ref={mobileMenuCloseRef}
+                type="button"
+                className="sp-mobile-menu-close"
+                onClick={() => setMobileMenuOpen(false)}
+                aria-label="Close navigation menu"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+              </button>
+            </div>
+
+            {isLoggedIn ? (
+              <div className="sp-mobile-menu-profile">
+                {userProfile?.photoURL ? (
+                  <img src={userProfile.photoURL} alt="" />
+                ) : (
+                  <span className="sp-mobile-menu-avatar"><ProductMobileMenuIcon name="account" /></span>
+                )}
+                <div>
+                  <strong>{userProfile?.fullName || 'My account'}</strong>
+                  <span>{viewer?.email}</span>
+                </div>
+              </div>
+            ) : null}
+
+            <nav className="sp-mobile-menu-nav" aria-label="Mobile navigation">
+              <Link to="/funeral" onClick={() => setMobileMenuOpen(false)}><ProductMobileMenuIcon name="home" /><span>Home</span></Link>
+              <Link to={accountPath} onClick={() => setMobileMenuOpen(false)}><ProductMobileMenuIcon name="account" /><span>My Account</span></Link>
+              <Link to="/seller" onClick={() => setMobileMenuOpen(false)}><ProductMobileMenuIcon name="shop" /><span>Shop Center</span></Link>
+              <button type="button" onClick={openMessages}><ProductMobileMenuIcon name="messages" /><span>Messages</span></button>
+              <div className="sp-mobile-menu-announcement"><AnnouncementDropdown menuItem /></div>
+              <Link to={purchasesPath} onClick={() => setMobileMenuOpen(false)}><ProductMobileMenuIcon name="purchases" /><span>My Payments</span></Link>
+              <Link to={helpPath} onClick={() => setMobileMenuOpen(false)}><ProductMobileMenuIcon name="help" /><span>Help Centre</span></Link>
+            </nav>
+
+            <div className="sp-mobile-menu-auth">
+              {isLoggedIn ? (
+                <LogoutLink onClick={() => setMobileMenuOpen(false)}>Log out</LogoutLink>
+              ) : (
+                <>
+                  <Link to="/login" onClick={() => setMobileMenuOpen(false)}>Log in</Link>
+                  <Link to="/register" className="sp-mobile-menu-primary" onClick={() => setMobileMenuOpen(false)}>Create account</Link>
+                </>
+              )}
+            </div>
+          </aside>
+        </div>
+      ) : null}
+
       {/* ── Topbar ── */}
       <div className="sp-topbar">
         <div className="sp-topbar-inner">
@@ -454,7 +572,7 @@ export default function ProductDetailPage() {
                   </div>
                   <div className="sp-user-dropdown">
                     <Link to="/user/profile">My Account</Link>
-                    <Link to="/user/purchase">Purchases</Link>
+                    <Link to="/user/purchase">My Payments</Link>
                     <Link to="/auth/switch-account" className="sp-dropdown-switch">Switch Account</Link>
                     <LogoutLink>Log out</LogoutLink>
                   </div>
@@ -468,7 +586,19 @@ export default function ProductDetailPage() {
       {/* ── Header ── */}
       <header className="sp-header">
         <div className="sp-header-inner">
-          <BrandLogo to="/" />
+          <div className="pd-mobile-brand-row">
+            <button
+              type="button"
+              className="pd-mobile-menu-trigger"
+              onClick={() => setMobileMenuOpen(true)}
+              aria-label="Open navigation menu"
+              aria-haspopup="dialog"
+              aria-expanded={mobileMenuOpen}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+            </button>
+            <BrandLogo to="/funeral" compact className="pd-brand-logo" />
+          </div>
 
           <div className="sp-search-wrap">
             <div className="sp-search-box">
@@ -487,11 +617,16 @@ export default function ProductDetailPage() {
             </div>
           </div>
 
-          <div className="sp-cart-area">
-            <Link to={isLoggedIn ? '/user/cart' : '/login?next=/user/cart'} className="sp-cart-btn" aria-label="Shopping cart" title="Shopping cart">
-              <HeaderCartIcon />
-              {isLoggedIn && cartCount > 0 && <span className="sp-cart-count">{cartCount}</span>}
-            </Link>
+          <div className="pd-header-actions">
+            <div className="pd-mobile-header-notification">
+              <NotificationDropdown variant="seller-centre" />
+            </div>
+            <div className="sp-cart-area">
+              <Link to={isLoggedIn ? '/user/cart' : '/login?next=/user/cart'} className="sp-cart-btn" aria-label="Shopping cart" title="Shopping cart">
+                <HeaderCartIcon />
+                {isLoggedIn && cartCount > 0 && <span className="sp-cart-count">{cartCount}</span>}
+              </Link>
+            </div>
           </div>
         </div>
       </header>
@@ -550,7 +685,7 @@ export default function ProductDetailPage() {
                 <span>Share</span>
               </button>
               <button type="button" className={`pd-favorite ${isFavorite ? 'saved' : ''}`} onClick={toggleFavorite} aria-pressed={isFavorite}>
-                <BookmarkIcon filled={isFavorite} />
+                <HeartIcon filled={isFavorite} />
                 <span>{isFavorite ? 'Saved' : 'Save'}</span>
               </button>
             </div>
@@ -592,7 +727,7 @@ export default function ProductDetailPage() {
                 id="pd-variations"
                 tabIndex={-1}
               >
-                <div className="pd-option-label">Choose an option</div>
+                <div className="pd-option-label">Variation</div>
                 <div className="pd-option-content">
                   {variations.map(v => (
                     <button
@@ -608,14 +743,23 @@ export default function ProductDetailPage() {
                       }}
                       aria-pressed={selectedVariation === v.id}
                     >
-                      {v.imageUrl && <img src={v.imageUrl} alt={v.name} className="pd-variation-img" />}
+                      {v.imageUrl ? (
+                        <img src={v.imageUrl} alt={v.name} className="pd-variation-img" />
+                      ) : (
+                        <span className="pd-variation-fallback" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+                            <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" />
+                            <path d="m4.5 7.8 7.5 4.3 7.5-4.3M12 12.1V21" />
+                          </svg>
+                        </span>
+                      )}
                       <span className="pd-variation-copy">
                         <strong>{v.name}</strong>
                       </span>
                     </button>
                   ))}
                 </div>
-                {showVariationToast && <p className="pd-variation-error">Choose an option before continuing.</p>}
+                {showVariationToast && <p className="pd-variation-error">Select a variation before continuing.</p>}
               </div>
             )}
 
@@ -657,7 +801,7 @@ export default function ProductDetailPage() {
 
             <div className="pd-actions-row">
               <button className="pd-btn pd-btn-cart" onClick={handleAddToCart} disabled={product.stock === 0}>
-                <CartIcon /> Add to cart · {formatPeso(calculatedTotal)}
+                <CartIcon /> Add to cart
               </button>
               <button className="pd-btn pd-btn-buy" onClick={handleBuyNow} disabled={product.stock === 0}>
                 Buy now · {formatPeso(calculatedTotal)}
@@ -669,6 +813,27 @@ export default function ProductDetailPage() {
 
           </div>
         </div>
+
+        {/* Product Description */}
+        <article className="pd-details-card">
+          <h2 className="pd-section-header">Product description</h2>
+          <div className="pd-details-layout">
+            <dl className="pd-spec-list">
+              <div className="pd-spec-row">
+                <dt className="pd-spec-label">Availability</dt>
+                <dd className="pd-spec-value">{product.stock > 0 ? 'In stock' : 'Sold out'}</dd>
+              </div>
+              <div className="pd-spec-row">
+                <dt className="pd-spec-label">Variations</dt>
+                <dd className="pd-spec-value">{product.variations.length > 0 ? `${product.variations.length} options` : 'Standard'}</dd>
+              </div>
+            </dl>
+            <div className="pd-description-divider" aria-hidden="true" />
+            <div className="pd-desc-content">
+              {product.description || 'No description provided by the seller.'}
+            </div>
+          </div>
+        </article>
 
         {/* Shop Section */}
         <div className="pd-shop-card">
@@ -716,30 +881,6 @@ export default function ProductDetailPage() {
             {product.shopPhoneNumber && <div className="pd-shop-stat"><strong>Contact</strong><span>{product.shopPhoneNumber}</span></div>}
           </div>
         </div>
-
-        {/* Product Description */}
-        <article className="pd-details-card">
-          <h2 className="pd-section-header">About this product</h2>
-          <div className="pd-details-layout">
-            <div className="pd-desc-content">
-              {product.description || 'The provider has not added a detailed description yet. Contact the shop if you need more information before deciding.'}
-            </div>
-            <dl className="pd-spec-list">
-              <div className="pd-spec-row">
-                <dt className="pd-spec-label">Category</dt>
-                <dd className="pd-spec-value">{product.category}</dd>
-              </div>
-              <div className="pd-spec-row">
-                <dt className="pd-spec-label">Availability</dt>
-                <dd className="pd-spec-value">{product.stock > 0 ? 'In stock' : 'Ask provider'}</dd>
-              </div>
-              <div className="pd-spec-row">
-                <dt className="pd-spec-label">Options</dt>
-                <dd className="pd-spec-value">{product.variations.length > 0 ? `${product.variations.length} available` : 'Standard'}</dd>
-              </div>
-            </dl>
-          </div>
-        </article>
 
         {/* Related Products (real data) */}
         {relatedProducts.length > 0 && (

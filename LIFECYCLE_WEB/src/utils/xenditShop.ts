@@ -21,10 +21,17 @@ export type XenditShopSyncResult = {
 
 export type XenditShopPaymentMethod = 'all' | 'gcash' | 'ewallets' | 'cards' | 'bank_transfer'
 
-export async function createXenditShopCheckout(paymentMethod: XenditShopPaymentMethod = 'all'): Promise<XenditShopCheckoutResult> {
+export async function createXenditShopCheckout(
+  paymentMethod: XenditShopPaymentMethod = 'all',
+  reauthAccessToken?: string,
+): Promise<XenditShopCheckoutResult> {
   const returnUrl = `${window.location.origin}/seller/payment`
   const { data, error } = await supabase.functions.invoke('create-xendit-shop-checkout', {
     body: { platform: 'web', returnUrl, paymentMethod },
+    headers: reauthAccessToken
+      ? { Authorization: `Bearer ${reauthAccessToken}` }
+      : undefined,
+    timeout: 20_000,
   })
 
   if (error) {

@@ -132,7 +132,7 @@ export default function FuneralShopsPage() {
                   </div>
                   <div className="sp-user-dropdown">
                     <Link to="/user/profile">My Account</Link>
-                    <Link to="/user/purchase">Purchases</Link>
+                    <Link to="/user/purchase">My Payments</Link>
                     <Link to="/auth/switch-account" className="sp-dropdown-switch">Switch Account</Link>
                     <LogoutLink>Log out</LogoutLink>
                   </div>

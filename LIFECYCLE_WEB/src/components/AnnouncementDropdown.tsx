@@ -43,6 +43,10 @@ type AnnouncementPanelProps = {
   onRetry: () => Promise<void>
 }
 
+type AnnouncementDropdownProps = {
+  menuItem?: boolean
+}
+
 function AnnouncementPanel({ announcements, loading, loadFailed, onRetry }: AnnouncementPanelProps) {
   return (
     <div className='absolute right-0 top-[calc(100%+8px)] z-[1100] w-[min(390px,calc(100vw-24px))] origin-top-right animate-announcement-in overflow-hidden rounded-xl border border-[#dbe1e8] bg-white text-left text-[#25364c] shadow-[0_16px_38px_rgba(15,23,42,0.18)] motion-reduce:animate-none max-[720px]:fixed max-[720px]:inset-x-2 max-[720px]:top-[52px] max-[720px]:max-h-[calc(100vh-60px)] max-[720px]:w-auto' role='dialog' aria-label='Announcements' aria-modal='false'>
@@ -82,7 +86,7 @@ function AnnouncementPanel({ announcements, loading, loadFailed, onRetry }: Anno
   )
 }
 
-export default function AnnouncementDropdown() {
+export default function AnnouncementDropdown({ menuItem = false }: AnnouncementDropdownProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const [audience, setAudience] = useState<AnnouncementAudience>('users')
@@ -183,14 +187,16 @@ export default function AnnouncementDropdown() {
     <div className='relative inline-flex items-center' ref={dropdownRef}>
       <button
         type='button'
-        className={`relative inline-flex min-h-[34px] cursor-pointer items-center gap-1.5 rounded-lg border border-transparent bg-transparent !px-2 py-0 font-[inherit] text-inherit transition-colors duration-150 hover:bg-[rgba(255,255,255,0.12)] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(255,255,255,0.9)] max-[720px]:w-[34px] max-[720px]:justify-center max-[720px]:!px-0 max-[720px]:[&_span]:sr-only ${isOpen ? 'bg-[rgba(255,255,255,0.12)] text-white' : ''}`}
+        className={menuItem
+          ? `sp-announcement-menu-trigger${isOpen ? ' is-active' : ''}`
+          : `relative inline-flex min-h-[34px] cursor-pointer items-center gap-1.5 rounded-lg border border-transparent bg-transparent !px-2 py-0 font-[inherit] text-inherit transition-colors duration-150 hover:bg-[rgba(255,255,255,0.12)] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(255,255,255,0.9)] max-[720px]:w-[34px] max-[720px]:justify-center max-[720px]:!px-0 max-[720px]:[&_span]:sr-only ${isOpen ? 'bg-[rgba(255,255,255,0.12)] text-white' : ''}`}
         onClick={toggleDropdown}
         aria-haspopup='dialog'
         aria-expanded={isOpen}
         title='Announcements'
       >
         <MegaphoneIcon />
-        <span className='text-[13px] leading-none'>Announcements</span>
+        <span className={menuItem ? 'sp-announcement-menu-label' : 'text-[13px] leading-none'}>Announcements</span>
         {announcements.some((item) => item.isPinned) ? <i className='absolute left-[22px] top-1 size-[7px] rounded-full border-[1.5px] border-[#172033] bg-[#f2b84b] max-[720px]:left-[21px]' aria-label='Pinned announcement available' /> : null}
       </button>
       {isOpen ? (

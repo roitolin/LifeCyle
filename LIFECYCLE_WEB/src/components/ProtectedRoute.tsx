@@ -95,8 +95,25 @@ function ProtectedRoute({
         setChecking(false)
     }
 
-    void supabase.auth.getSession().then(({ data }) => syncUser(data.session?.user ?? null))
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    let syncedUserId: string | null = null
+    void supabase.auth.getSession().then(({ data }) => {
+      syncedUserId = data.session?.user?.id ?? null
+      void syncUser(data.session?.user ?? null)
+    })
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      // Supabase emits TOKEN_REFRESHED (and sometimes duplicate SIGNED_IN or USER_UPDATED)
+      // when it silently refreshes the JWT or updates user data. If the user hasn't changed we
+      // only need to update the user object — no need for a full profile
+      // re-fetch which would flash a loading spinner.
+      if (
+        session?.user?.id &&
+        syncedUserId === session.user.id &&
+        (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED')
+      ) {
+        setUser(session.user)
+        return
+      }
+      syncedUserId = session?.user?.id ?? null
       void syncUser(session?.user ?? null)
     })
 

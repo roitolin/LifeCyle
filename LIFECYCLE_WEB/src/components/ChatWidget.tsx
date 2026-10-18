@@ -190,11 +190,16 @@ async function markChatMessagesSeen(
   }
 }
 
-export default function ChatWidget() {
-  const [open, setOpen] = useState(false)
+type ChatWidgetProps = {
+  embedded?: boolean
+  onClose?: () => void
+}
+
+export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProps) {
+  const [open, setOpen] = useState(embedded)
   const [userId, setUserId] = useState<string | null>(null)
   const [isShopAccount, setIsShopAccount] = useState(false)
-  const [inboxMode, setInboxMode] = useState<'personal' | 'shop'>('personal')
+  const [inboxMode, setInboxMode] = useState<'personal' | 'shop'>(embedded ? 'shop' : 'personal')
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [userInfoMap, setUserInfoMap] = useState<Record<string, UserInfo>>({})
   const [activeConvId, setActiveConvId] = useState<string | null>(null)
@@ -768,7 +773,7 @@ export default function ChatWidget() {
   return (
     <>
       {/* Floating Chat Button */}
-      {!open && (
+      {!embedded && !open && (
         <button className="cw-fab" onClick={() => setOpen(true)} aria-label="Open Chat">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -780,7 +785,7 @@ export default function ChatWidget() {
 
       {/* Chat Panel Split View */}
       {open && (
-        <div className={`cw-panel ${isCollapsed ? 'collapsed' : ''}`}>
+        <div className={`cw-panel${embedded ? ' cw-panel-embedded' : ''} ${isCollapsed ? 'collapsed' : ''} ${activeConvId ? 'has-active-conversation' : ''}`}>
           
           {/* Sidebar (Left) */}
           <div className="cw-sidebar">
@@ -810,7 +815,16 @@ export default function ChatWidget() {
                     </svg>
                   )}
                 </button>
-                <button className="cw-icon-btn cw-icon-dark" onClick={() => { setOpen(false); setActiveConvId(null) }} aria-label="Minimize" title="Minimize">
+                <button
+                  className="cw-icon-btn cw-icon-dark"
+                  onClick={() => {
+                    setActiveConvId(null)
+                    if (embedded) onClose?.()
+                    else setOpen(false)
+                  }}
+                  aria-label={embedded ? "Close messages" : "Minimize"}
+                  title={embedded ? "Close messages" : "Minimize"}
+                >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
                     <path d="M8 10l4 4 4-4" />
@@ -931,6 +945,19 @@ export default function ChatWidget() {
               <>
                 <div className="cw-main-header" ref={dropdownRef}>
                   <div className="cw-main-header-left">
+                    <button
+                      type="button"
+                      className="cw-mobile-back"
+                      onClick={() => {
+                        setHeaderDropdownOpen(false)
+                        setActiveConvId(null)
+                      }}
+                      aria-label="Back to conversations"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="m15 18-6-6 6-6" />
+                      </svg>
+                    </button>
                     <img src={otherAvatar} alt="" className="cw-header-avatar" />
                     <div className="cw-main-identity">
                       <span className="cw-main-title" onClick={() => setHeaderDropdownOpen(!headerDropdownOpen)}>
@@ -1039,7 +1066,7 @@ export default function ChatWidget() {
                     <input
                       ref={inputRef}
                       type="text"
-                      placeholder="Type a message here"
+                      placeholder={`Message ${otherName}`}
                       value={chatInput}
                       onChange={e => setChatInput(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') void sendMessage() }}

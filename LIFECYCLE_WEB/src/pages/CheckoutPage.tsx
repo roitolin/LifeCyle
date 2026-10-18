@@ -751,7 +751,7 @@ function TopBar({ profile }: { profile: ViewerProfile | null }) {
             </div>
             <div className="checkout-user-dropdown">
               <Link to="/user/profile">My Account</Link>
-              <Link to="/user/purchase">Purchases</Link>
+              <Link to="/user/purchase">My Payments</Link>
               <Link to="/auth/switch-account" className="checkout-dropdown-switch">Switch Account</Link>
               <LogoutLink>Log out</LogoutLink>
             </div>

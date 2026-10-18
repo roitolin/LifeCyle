@@ -20,7 +20,7 @@ import * as ImagePicker from "expo-image-picker";
 import { auth, uploadCertificate } from "@/services";
 import { normalizePesoInput } from "@/utils/funeralCatalog";
 
-const PHOTO_SLOT_COUNT = 5;
+const MAX_PRODUCT_PHOTO_COUNT = 5;
 const MAX_VARIATION_COUNT = 4;
 
 type ProductVariation = {
@@ -60,10 +60,10 @@ type PackageDisplayItem = {
 };
 
 function normalizeProductImages(item?: ShopProduct | null) {
-  if (!item) return Array<string | null>(PHOTO_SLOT_COUNT).fill(null);
+  if (!item) return Array<string | null>(MAX_PRODUCT_PHOTO_COUNT).fill(null);
   const source = item.galleryImageUrls?.length ? item.galleryImageUrls : item.imageUrl ? [item.imageUrl] : [];
-  const next = Array<string | null>(PHOTO_SLOT_COUNT).fill(null);
-  source.slice(0, PHOTO_SLOT_COUNT).forEach((url, index) => {
+  const next = Array<string | null>(MAX_PRODUCT_PHOTO_COUNT).fill(null);
+  source.slice(0, MAX_PRODUCT_PHOTO_COUNT).forEach((url, index) => {
     next[index] = url || null;
   });
   return next;
@@ -132,6 +132,7 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
+  const [photoCount, setPhotoCount] = useState(1);
   const [productName, setProductName] = useState("");
   const [productPrice, setProductPrice] = useState("");
   const [productStock, setProductStock] = useState("1");
@@ -140,7 +141,7 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
   const [variationEntries, setVariationEntries] = useState<ProductVariation[]>([]);
   const [shopPackage, setShopPackage] = useState<ShopPackage | null>(null);
   const [productDescription, setProductDescription] = useState("");
-  const [productImages, setProductImages] = useState<(string | null)[]>((Array<string | null>(PHOTO_SLOT_COUNT).fill(null)));
+  const [productImages, setProductImages] = useState<(string | null)[]>((Array<string | null>(MAX_PRODUCT_PHOTO_COUNT).fill(null)));
   const packageItems = getPackageItems(shopPackage);
 
   useEffect(() => {
@@ -211,7 +212,9 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
           setVariationCount(nextVariations.length || 1);
           setVariationEntries(nextVariations);
           setProductDescription(current.description || "");
-          setProductImages(normalizeProductImages(current));
+          const normalizedImages = normalizeProductImages(current);
+          setProductImages(normalizedImages);
+          setPhotoCount(Math.max(1, normalizedImages.filter(Boolean).length));
         }
       } catch (error) {
         console.error(error);
@@ -224,7 +227,7 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
     void load();
   }, [navigation, productId]);
 
-  const uploadedCount = useMemo(() => productImages.filter(Boolean).length, [productImages]);
+  const uploadedCount = useMemo(() => productImages.slice(0, photoCount).filter(Boolean).length, [photoCount, productImages]);
 
   const pickAndUploadImage = async (index: number) => {
     const picker = await ImagePicker.launchImageLibraryAsync({
@@ -271,7 +274,7 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
     });
     if (picker.canceled || !picker.assets[0]) return;
 
-    setUploadingIndex(PHOTO_SLOT_COUNT + index);
+    setUploadingIndex(MAX_PRODUCT_PHOTO_COUNT + index);
     try {
       const url = await uploadCertificate(picker.assets[0].uri);
       updateVariationField(index, "imageUrl", url);
@@ -297,8 +300,8 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
       return;
     }
 
-    if (uploadedCount < PHOTO_SLOT_COUNT) {
-      Alert.alert("More photos needed", "Please upload all 5 product photos so buyers can swipe through each angle.");
+    if (uploadedCount < photoCount) {
+      Alert.alert("More photos needed", `Please upload all ${photoCount} selected product ${photoCount === 1 ? "photo" : "photos"}.`);
       return;
     }
 
@@ -314,7 +317,7 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
       }
     }
 
-    const galleryImageUrls = productImages.filter((entry): entry is string => Boolean(entry));
+    const galleryImageUrls = productImages.slice(0, photoCount).filter((entry): entry is string => Boolean(entry));
     const finalProductId = productId || generateId();
 
     setSaving(true);
@@ -404,10 +407,23 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
       <KeyboardAwareScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Product Photos</Text>
-          <Text style={styles.sectionSubtitle}>Fill all 5 photo slots. Slot 1 is the main display image.</Text>
+          <Text style={styles.sectionSubtitle}>Choose how many photos to add. Photo 1 is the main display image.</Text>
+
+          <Text style={styles.inputLabel}>Number of Photos</Text>
+          <View style={styles.variationCountRow}>
+            {Array.from({ length: MAX_PRODUCT_PHOTO_COUNT }, (_, index) => index + 1).map((count) => (
+              <TouchableOpacity
+                key={count}
+                style={[styles.variationCountButton, photoCount === count ? styles.variationCountButtonActive : null]}
+                onPress={() => setPhotoCount(count)}
+              >
+                <Text style={[styles.variationCountButtonText, photoCount === count ? styles.variationCountButtonTextActive : null]}>{count}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoRow}>
-            {productImages.map((imageUrl, index) => {
+            {productImages.slice(0, photoCount).map((imageUrl, index) => {
               const slotLabel = index === 0 ? "Main Photo" : `Angle ${index + 1}`;
               const isUploading = uploadingIndex === index;
               return (
@@ -438,7 +454,7 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
             })}
           </ScrollView>
 
-          <Text style={styles.photoCounter}>{uploadedCount} of {PHOTO_SLOT_COUNT} photos uploaded</Text>
+          <Text style={styles.photoCounter}>{uploadedCount} of {photoCount} {photoCount === 1 ? "photo" : "photos"} uploaded</Text>
         </View>
 
         <View style={styles.section}>
@@ -510,7 +526,7 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
               </View>
 
               {variationEntries.slice(0, variationCount).map((variation, index) => {
-                const isUploading = uploadingIndex === PHOTO_SLOT_COUNT + index;
+                const isUploading = uploadingIndex === MAX_PRODUCT_PHOTO_COUNT + index;
                 return (
                   <View key={`variation_${index}`} style={styles.variationCard}>
                     <Text style={styles.variationCardTitle}>Variation {index + 1}</Text>
