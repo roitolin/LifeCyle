@@ -71,6 +71,7 @@ type ServiceRequest = {
   productImageUrl?: string | null;
   variationName?: string | null;
   requestType?: string;
+  customDesignNotes?: string | null;
   deceasedFullName?: string;
   familyCoordinatorName?: string;
   contactNumber?: string;
@@ -92,6 +93,38 @@ type ServiceRequest = {
   acceptedAt?: string | null;
   declinedAt?: string | null;
   cancelledAt?: string | null;
+};
+
+const isCustomCasketRequest = (request: ServiceRequest) =>
+  request.requestType === "custom_casket" || request.productId === "custom_casket_design";
+
+const dedupeServiceRequests = (requests: ServiceRequest[]) => {
+  const seen = new Map<string, ServiceRequest>();
+  return requests.filter((request) => {
+    if (!isCustomCasketRequest(request)) return true;
+    const signature = [
+      request.requesterId,
+      request.shopId,
+      request.productId,
+      request.deceasedFullName,
+      request.contactNumber,
+      request.wakeStartDate,
+      request.wakeEndDate,
+      request.burialTime,
+      request.customDesignNotes,
+    ].map((value) => String(value || "").trim().toLowerCase()).join("|");
+    const previous = seen.get(signature);
+    const currentTime = Date.parse(String(request.createdAt || ""));
+    const previousTime = previous ? Date.parse(String(previous.createdAt || "")) : NaN;
+    if (
+      previous &&
+      Number.isFinite(currentTime) &&
+      Number.isFinite(previousTime) &&
+      Math.abs(currentTime - previousTime) <= 2 * 60 * 1000
+    ) return false;
+    seen.set(signature, request);
+    return true;
+  });
 };
 
 type BusinessInfo = {
@@ -679,7 +712,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
         .eq("shopId", userId)
         .order("createdAt", { ascending: false })
         .limit(50);
-      setRequests((requestRows || []) as ServiceRequest[]);
+      setRequests(dedupeServiceRequests((requestRows || []) as ServiceRequest[]));
 
       const sixMonthsAgo = new Date();
       sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);

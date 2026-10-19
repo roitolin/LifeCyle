@@ -1,8 +1,8 @@
 export type UserGender = "male" | "female" | "other" | null | undefined;
 
-const maleDefault = require("../../assets/Male_Default_Profile.png");
-const femaleDefault = require("../../assets/Female_Default_Profile.png");
-const otherDefault = require("../../assets/Male_Default_Profile.png");
+const maleDefault = require("../../assets/Default Characters/Male.png");
+const femaleDefault = require("../../assets/Default Characters/Female.png");
+const otherDefault = require("../../assets/Default Characters/Male.png");
 
 export const getDefaultProfileImage = (gender: UserGender) => {
   if (gender === "male") return maleDefault;

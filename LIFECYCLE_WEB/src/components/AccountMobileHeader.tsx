@@ -104,12 +104,7 @@ export default function AccountMobileHeader({ homeTo = '/funeral' }: AccountMobi
               {profile?.photoURL ? (
                 <img src={profile.photoURL} alt="" />
               ) : (
-                <span className="profile-mobile-menu-avatar" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                    <circle cx="12" cy="8" r="4" />
-                    <path d="M4.5 21a7.5 7.5 0 0 1 15 0" />
-                  </svg>
-                </span>
+                <img src="/Male.png" alt="" className="profile-mobile-menu-avatar" />
               )}
               <div>
                 <strong>{profile?.fullName || 'My account'}</strong>

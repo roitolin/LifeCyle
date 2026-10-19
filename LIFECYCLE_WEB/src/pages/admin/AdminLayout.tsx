@@ -17,8 +17,8 @@ type ProfileData = {
 type AdminRole = 'super_admin' | 'admin' | 'funeral_admin' | 'user'
 
 function getDefaultAvatar(gender: string) {
-  if (gender === 'female') return '/Female_Default_Profile.png'
-  return '/Male_Default_Profile.png'
+  if (gender === 'female') return '/Female.png'
+  return '/Male.png'
 }
 
 function resolveAdminNotificationRoute(item: WebNotification) {

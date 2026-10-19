@@ -11,7 +11,7 @@ import { auth } from "@/services/supabaseAuth";
 import { confirmLogout } from '@/utils/logoutConfirmation';
 import { useResponsive } from "@/utils/responsive";
 
-const defaultProfile = require("../../../assets/Male_Default_Profile.png");
+const defaultProfile = require("../../../assets/Default Characters/Male.png");
 
 type ActionRowProps = {
   icon: keyof typeof Ionicons.glyphMap;

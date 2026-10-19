@@ -616,28 +616,46 @@
     min-height: 68px;
     flex: 0 0 auto;
     flex-direction: row;
-    align-items: flex-end;
+    align-items: center;
     gap: 8px;
-    padding: 10px 12px max(10px, env(safe-area-inset-bottom));
+    padding: 8px 10px max(8px, env(safe-area-inset-bottom));
     background: #ffffff;
     border-top: 1px solid #e5e8e6;
   }
   .cw-input-bar {
     min-width: 0;
-    min-height: 46px;
-    max-height: 116px;
+    height: 44px;
+    min-height: 44px;
+    max-height: 44px;
     flex: 1;
+    overflow: hidden;
     padding: 0;
     background: #ffffff;
     border: 1px solid #d4dcd7;
-    border-radius: 23px;
+    border-radius: 22px;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+  }
+  .cw-input-bar:focus-within {
+    border-color: #668879;
+    box-shadow: 0 0 0 3px rgba(49, 95, 80, 0.12);
   }
   .cw-input {
+    width: 100%;
     min-width: 0;
+    height: 42px;
     min-height: 42px;
-    padding: 10px 15px;
+    padding: 0 14px;
     color: #283630;
+    background: transparent;
+    border-radius: inherit;
     font-size: 14px;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .cw-panel .cw-input:focus,
+  .cw-panel .cw-input:focus-visible {
+    outline: none;
+    box-shadow: none;
   }
   .cw-input-tools {
     width: 44px;
@@ -646,7 +664,7 @@
     align-items: center;
     justify-content: center;
     padding: 0;
-    margin-bottom: 1px;
+    margin-bottom: 0;
   }
   .cw-input-tools .cw-tool-btn,
   .cw-input-tools > div {

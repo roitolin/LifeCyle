@@ -8,7 +8,7 @@
   @apply [--sc-brand:#2f4057] [--sc-brand-light:#eef2f6] [--sc-bg:#ffffff] [--sc-white:#ffffff] [--sc-text:#172033] [--sc-text-light:#445268] [--sc-muted:#66758a] [--sc-border:#dfe5ec] [--sc-success:#26a25b] [--sc-warning:#f59e0b] [--sc-danger:#ef4444] [--sc-blue:#3b82f6] [font-family:"Manrope",-apple-system,BlinkMacSystemFont,"Segoe_UI",sans-serif] text-[14px] leading-normal [background:var(--sc-bg)] text-[color:var(--sc-text)] min-h-screen flex flex-col pt-[68px];
 }
 .sc-page *, .sc-page *::before, .sc-page *::after {
-  @apply box-border m-0 p-0;
+  @apply box-border;
 }
 
 /* ── Top Header Bar ──────────────────── */
@@ -314,6 +314,17 @@
 }
 .sc-tab.active {
   @apply text-[color:var(--sc-brand)] border-b-[color:var(--sc-brand)] font-extrabold rounded-[3px_3px_0_0];
+}
+.sc-custom-price-editor-table {
+  @apply text-[12px] text-[color:var(--sc-muted)] mt-[5px];
+}
+.sc-custom-price-editor-table label,
+.sc-custom-price-editor-table .sc-custom-price-input-wrap,
+.sc-custom-price-editor-table small {
+  display: none;
+}
+.sc-custom-price-editor-table::after {
+  content: 'Set price in the request record';
 }
 
 /* Table Wrap */
@@ -2942,6 +2953,87 @@ select.sc-form-input {
 }
 .sc-request-actions .sc-btn {
   @apply min-h-[38px] text-[11px] font-[750] px-[14px] py-[8px] rounded-[7px];
+}
+
+.sc-custom-price-editor {
+  display: grid;
+  gap: 5px;
+  width: min(190px, 100%);
+  margin-top: 8px;
+}
+
+.sc-custom-price-editor label {
+  color: var(--sc-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.sc-custom-price-input-wrap {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid #bdc9c3;
+  border-radius: 7px;
+}
+
+.sc-custom-price-input-wrap > span {
+  padding-left: 10px;
+  color: #315f50;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.sc-custom-price-input-wrap input {
+  min-width: 0;
+  width: 100%;
+  height: 38px;
+  padding: 0 9px 0 5px;
+  color: #22312d;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.sc-custom-price-input-wrap:focus-within {
+  border-color: #315f50;
+  box-shadow: 0 0 0 3px rgba(49, 95, 80, 0.13);
+}
+
+.sc-custom-price-editor small {
+  color: #718079;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.sc-custom-price-editor-modal {
+  width: min(360px, 100%);
+  margin-top: 14px;
+}
+
+.sc-custom-price-editor-modal label {
+  color: #22312d;
+  font-size: 13px;
+}
+
+.sc-custom-price-editor-modal .sc-custom-price-input-wrap input {
+  height: 44px;
+  font-size: 15px;
+}
+
+.sc-custom-price-editor-modal small {
+  font-size: 12px;
+}
+
+@media (max-width: 640px) {
+  .sc-custom-price-editor,
+  .sc-custom-price-editor-modal {
+    width: 100%;
+  }
 }
 @media (max-width: 760px) {
   .sc-modal-overlay:has(.sc-request-modal) {

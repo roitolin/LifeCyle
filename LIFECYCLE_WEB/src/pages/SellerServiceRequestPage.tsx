@@ -26,6 +26,7 @@ type ServiceRequest = {
   packageItems?: string[] | null
   requestType?: string | null
   customDesignNotes?: string | null
+  referencePhotoUrl?: string | null
   deceasedFullName?: string | null
   deceasedDateOfBirth?: string | null
   deceasedDateOfPassing?: string | null
@@ -118,6 +119,10 @@ function formatTime(value: string | null | undefined) {
   return `${hour % 12 || 12}:${String(minute).padStart(2, '0')} ${hour >= 12 ? 'PM' : 'AM'}`
 }
 
+function isCustomCasketRequest(request: ServiceRequest) {
+  return request.requestType === 'custom_casket' || request.productId === 'custom_casket_design'
+}
+
 function DetailList({ children }: { children: ReactNode }) {
   return <dl className="sr-detail-list">{children}</dl>
 }
@@ -146,6 +151,7 @@ export default function SellerServiceRequestPage() {
   const [proofFile, setProofFile] = useState<File | null>(null)
   const [proofPreview, setProofPreview] = useState<string | null>(null)
   const [paymentReceiptOpen, setPaymentReceiptOpen] = useState(false)
+  const [customPrice, setCustomPrice] = useState('')
   const [rejectMode, setRejectMode] = useState(false)
   const [rejectionReason, setRejectionReason] = useState('')
 
@@ -240,14 +246,19 @@ export default function SellerServiceRequestPage() {
   const updateRequestStatus = (nextStatus: 'accepted_by_shop' | 'declined_by_shop') => {
     if (!request || actionBusy) return
     const accepting = nextStatus === 'accepted_by_shop'
+    const customRequest = isCustomCasketRequest(request)
     const serviceFee = Number(shop?.serviceFeeAmount) || 0
     const requestProductPrice = Number(request.productPrice) || 0
-    const finalAmount = requestProductPrice > 0 ? requestProductPrice : serviceFee
+    const parsedCustomPrice = Number(customPrice.replace(/[^\d.]/g, ''))
+    const enteredCustomPrice = Number.isFinite(parsedCustomPrice) && parsedCustomPrice > 0 ? parsedCustomPrice : 0
+    const finalAmount = customRequest ? enteredCustomPrice : (requestProductPrice > 0 ? requestProductPrice : serviceFee)
 
     if (accepting && finalAmount <= 0) {
       openAlert({
-        title: 'Payment setup required',
-        message: 'Configure the casket product price or shop default amount before accepting this request.',
+        title: customRequest ? 'Custom casket price required' : 'Payment setup required',
+        message: customRequest
+          ? 'Enter the agreed custom casket price below. It will be saved only when you accept the request.'
+          : 'Configure the casket product price or shop default amount before accepting this request.',
         tone: 'warning',
         okLabel: 'Got it',
       })
@@ -262,7 +273,7 @@ export default function SellerServiceRequestPage() {
       details: accepting
         ? [
             `Payment amount: ${formatPeso(finalAmount)}. The customer can complete payment securely via Xendit.`,
-            request.productId === 'custom_casket_design'
+            customRequest
               ? 'This custom design request will not change product stock.'
               : 'One item will be reserved from the product stock.',
           ]
@@ -274,7 +285,7 @@ export default function SellerServiceRequestPage() {
         setActionBusy(true)
         try {
           if (accepting) {
-            await acceptFuneralServiceRequest(request.id)
+            await acceptFuneralServiceRequest(request.id, customRequest ? finalAmount : undefined)
           } else {
             const respondedAt = new Date().toISOString()
             const { error: updateError } = await supabase
@@ -585,6 +596,9 @@ export default function SellerServiceRequestPage() {
     || request.paymentProofImageUrl
     || request.paymentSubmittedAt,
   )
+  const requestedServiceImage = isCustomCasketRequest(request)
+    ? (request.referencePhotoUrl || request.productImageUrl)
+    : request.productImageUrl
   const receiptMeta = ['payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(normalizedStatus)
     ? {
         title: normalizedStatus === 'completed' ? 'Payment complete' : 'Payment verified',
@@ -620,7 +634,7 @@ export default function SellerServiceRequestPage() {
           </div>
         </section>
 
-        <div className="sr-layout">
+        <div className='sr-layout'>
           <div className="sr-primary-column">
             <section className="sr-card sr-product-card">
               <div className="sr-record-overview">
@@ -652,20 +666,41 @@ export default function SellerServiceRequestPage() {
                 <div className="sr-record-service">
                   <span>Requested service</span>
                   <div>
-                    {request.productImageUrl ? (
+                    {requestedServiceImage ? (
                       <button
                         type="button"
-                        onClick={() => setLightboxUrl(request.productImageUrl as string)}
+                        onClick={() => setLightboxUrl(requestedServiceImage as string)}
                         aria-label="View requested service image"
                       >
-                        <img src={request.productImageUrl} alt="" />
+                        <img src={requestedServiceImage} alt={isCustomCasketRequest(request) ? 'Custom casket reference' : ''} />
                       </button>
                     ) : null}
                     <div>
                       <strong>{request.productName || 'Custom casket service'}</strong>
                       <small>{request.variationName || titleCase(request.requestType)}</small>
                       {request.packageItems?.length ? <small>Packages: {request.packageItems.join(', ')}</small> : null}
-                      <b>{formatPeso(request.productPrice)}</b>
+                      {isCustomCasketRequest(request) && normalizedStatus === 'pending_shop_acceptance' ? (
+                        <label className="sr-custom-price-editor" htmlFor="sr-custom-price">
+                          <span>Price upon acceptance</span>
+                          <div>
+                            <span aria-hidden="true">₱</span>
+                            <input
+                              id="sr-custom-price"
+                              type="number"
+                              min="1"
+                              max="999999999.99"
+                              step="0.01"
+                              inputMode="decimal"
+                              placeholder="Enter price"
+                              value={customPrice}
+                              onChange={(event) => setCustomPrice(event.target.value)}
+                            />
+                          </div>
+                          <small>Saved only when accepted</small>
+                        </label>
+                      ) : (
+                        <b>{formatPeso(request.paymentAmount || request.productPrice)}</b>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -809,14 +844,14 @@ export default function SellerServiceRequestPage() {
                   </section>
 
                   <section className="sr-receipt-service">
-                    {request.productImageUrl ? (
+                    {requestedServiceImage ? (
                       <button
                         type="button"
                         className="sr-receipt-service-image"
-                        onClick={() => setLightboxUrl(request.productImageUrl as string)}
+                        onClick={() => setLightboxUrl(requestedServiceImage as string)}
                         aria-label="View service image"
                       >
-                        <img src={request.productImageUrl} alt="" />
+                        <img src={requestedServiceImage} alt={isCustomCasketRequest(request) ? 'Custom casket reference' : ''} />
                       </button>
                     ) : (
                       <div className="sr-receipt-service-image sr-receipt-service-fallback" aria-hidden="true">LC</div>

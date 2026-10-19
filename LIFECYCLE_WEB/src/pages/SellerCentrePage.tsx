@@ -121,6 +121,7 @@ function normalizePackageItems(row?: Partial<ShopPackage> | null): PackageItem[]
 type ServiceRequest = {
   id: string
   requesterId: string
+  shopId?: string
   productId: string
   productName: string
   productPrice?: string
@@ -129,6 +130,7 @@ type ServiceRequest = {
   packageItems?: string[] | null
   requestType?: string
   customDesignNotes?: string | null
+  referencePhotoUrl?: string | null
   deceasedFullName: string
   deceasedDateOfBirth?: string | null
   deceasedDateOfPassing?: string | null
@@ -271,6 +273,7 @@ type ShopPayoutAccount = {
 }
 
 type FamilyPaymentFilter = 'all' | 'review' | 'verified'
+type ArrangementFilter = 'all' | 'custom_casket'
 type FamilyPaymentIconName = 'wallet' | 'clock' | 'check' | 'receipt' | 'person' | 'key' | 'image' | 'alert' | 'chevron'
 type FamilyPaymentReceipt = {
   available: boolean
@@ -414,6 +417,50 @@ function formatPeso(value: number | string | null | undefined): string {
   const num = Number(String(value ?? '').replace(/[^\d.]/g, ''))
   if (!Number.isFinite(num) || num <= 0) return value ? String(value) : '—'
   return `₱${new Intl.NumberFormat('en-PH', { maximumFractionDigits: 0 }).format(num)}`
+}
+
+function isCustomCasketRequest(request: ServiceRequest): boolean {
+  return request.requestType === 'custom_casket' || request.productId === 'custom_casket_design'
+}
+
+function getRequestImageUrl(request: ServiceRequest): string | null {
+  return isCustomCasketRequest(request)
+    ? (request.referencePhotoUrl || request.productImageUrl || null)
+    : (request.productImageUrl || null)
+}
+
+function dedupeServiceRequests(requests: ServiceRequest[]): ServiceRequest[] {
+  const seen = new Map<string, ServiceRequest>()
+  return requests.filter(request => {
+    if (!isCustomCasketRequest(request)) return true
+    const signature = [
+      request.requesterId,
+      request.shopId || '',
+      request.productId,
+      request.deceasedFullName,
+      request.contactNumber,
+      request.wakeStartDate,
+      request.wakeEndDate,
+      request.burialTime,
+      request.customDesignNotes,
+    ].map(value => String(value || '').trim().toLowerCase()).join('|')
+    const previous = seen.get(signature)
+    const currentTime = Date.parse(String(request.createdAt || ''))
+    const previousTime = previous ? Date.parse(String(previous.createdAt || '')) : NaN
+    if (
+      previous &&
+      Number.isFinite(currentTime) &&
+      Number.isFinite(previousTime) &&
+      Math.abs(currentTime - previousTime) <= 2 * 60 * 1000
+    ) return false
+    seen.set(signature, request)
+    return true
+  })
+}
+
+function parseCustomCasketPrice(value: string | undefined): number {
+  const amount = Number(String(value ?? '').replace(/[^\d.]/g, ''))
+  return Number.isFinite(amount) ? amount : 0
 }
 
 function formatCompactPeso(value: number): string {
@@ -712,6 +759,7 @@ export default function SellerCentrePage() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [paymentVerifyingId, setPaymentVerifyingId] = useState('')
   const [familyPaymentFilter, setFamilyPaymentFilter] = useState<FamilyPaymentFilter>('all')
+  const [arrangementFilter, setArrangementFilter] = useState<ArrangementFilter>('all')
   const [customerSearch, setCustomerSearch] = useState('')
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null)
   const [scheduleMonth, setScheduleMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1))
@@ -771,6 +819,7 @@ export default function SellerCentrePage() {
 
   // Service request details viewer
   const [viewRequest, setViewRequest] = useState<ServiceRequest | null>(null)
+  const [customPriceDrafts, setCustomPriceDrafts] = useState<Record<string, string>>({})
   const [proofLightboxUrl, setProofLightboxUrl] = useState<string | null>(null)
 
   // Completion proof upload (required before marking a request completed)
@@ -1531,7 +1580,7 @@ export default function SellerCentrePage() {
           .limit(250),
       ])
 
-      const reqs: ServiceRequest[] = (reqData?.data ?? []) as ServiceRequest[]
+      const reqs = dedupeServiceRequests((reqData?.data ?? []) as ServiceRequest[])
       setRequests(reqs)
       setError(null)
 
@@ -1804,13 +1853,17 @@ export default function SellerCentrePage() {
 
   const handleUpdateStatus = async (request: ServiceRequest, nextStatus: 'accepted_by_shop' | 'declined_by_shop') => {
     const accepting = nextStatus === 'accepted_by_shop'
+    const customRequest = isCustomCasketRequest(request)
     const requestProductPrice = Number(request.productPrice) || 0
-    const finalAmount = requestProductPrice
+    const customPrice = parseCustomCasketPrice(customPriceDrafts[request.id])
+    const finalAmount = customRequest ? customPrice : requestProductPrice
 
     if (accepting && finalAmount <= 0) {
       openAlert({
-        title: 'Product Price Required',
-        message: 'Set the product or custom-service price before accepting this request.',
+        title: customRequest ? 'Custom Casket Price Required' : 'Product Price Required',
+        message: customRequest
+          ? 'Enter the agreed custom casket price. It will only be saved when you accept the request, then the customer can pay.'
+          : 'Set the product price before accepting this request.',
         tone: 'warning',
         okLabel: 'Got It',
       })
@@ -1838,7 +1891,12 @@ export default function SellerCentrePage() {
         setSaving(true)
         try {
           if (accepting) {
-            await acceptFuneralServiceRequest(request.id)
+            await acceptFuneralServiceRequest(request.id, customRequest ? finalAmount : undefined)
+            setCustomPriceDrafts(current => {
+              const next = { ...current }
+              delete next[request.id]
+              return next
+            })
           } else {
             const respondedAt = new Date().toISOString()
             const { error } = await supabase
@@ -2338,6 +2396,9 @@ export default function SellerCentrePage() {
     return paymentSubmissions
   }, [familyPaymentFilter, paymentSubmissions])
 
+  const customCasketRequests = useMemo(() => requests.filter(isCustomCasketRequest), [requests])
+  const visibleArrangementRequests = arrangementFilter === 'custom_casket' ? customCasketRequests : requests
+
   const filtered = useMemo(() => {
     if (productTab === 'all') return products
     if (productTab === 'live') return products.filter(p => p.active && p.stock > 0)
@@ -2619,7 +2680,14 @@ export default function SellerCentrePage() {
               </div>
               {sidebarExpanded.order && (
                 <div className="sc-sidebar-sub">
-                  <div className={`sc-sidebar-sub-item${activeTab === 'orders' ? ' active' : ''}`} onClick={() => setActiveTab('orders')}>Arrangement Cases</div>
+                  <div
+                    className={`sc-sidebar-sub-item${activeTab === 'orders' && arrangementFilter === 'all' ? ' active' : ''}`}
+                    onClick={() => { setArrangementFilter('all'); setActiveTab('orders') }}
+                  >Arrangement Cases</div>
+                  <div
+                    className={`sc-sidebar-sub-item${activeTab === 'orders' && arrangementFilter === 'custom_casket' ? ' active' : ''}`}
+                    onClick={() => { setArrangementFilter('custom_casket'); setActiveTab('orders') }}
+                  >Custom Casket Requests</div>
                   <div className={`sc-sidebar-sub-item${activeTab === 'customers' ? ' active' : ''}`} onClick={() => setActiveTab('customers')}>Customers</div>
                   <div className={`sc-sidebar-sub-item${activeTab === 'calendar' ? ' active' : ''}`} onClick={() => setActiveTab('calendar')}>Service Schedule</div>
                 </div>
@@ -3780,10 +3848,26 @@ export default function SellerCentrePage() {
                       <h2>Arrangement Cases</h2>
                       <p className='sc-card-subtitle'>Track each family from request through payment, preparation, and completion.</p>
                     </div>
-                    <span className='sc-count-label'>{requests.length} cases</span>
+                    <span className='sc-count-label'>{visibleArrangementRequests.length} cases</span>
                   </div>
-                  {requests.length === 0 ? (
-                    <div className="sc-empty"><p>No service requests yet.</p></div>
+                  <div className="sc-tabs" role="tablist" aria-label="Arrangement case filters">
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={arrangementFilter === 'all'}
+                      className={`sc-tab${arrangementFilter === 'all' ? ' active' : ''}`}
+                      onClick={() => setArrangementFilter('all')}
+                    >All Cases ({requests.length})</button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={arrangementFilter === 'custom_casket'}
+                      className={`sc-tab${arrangementFilter === 'custom_casket' ? ' active' : ''}`}
+                      onClick={() => setArrangementFilter('custom_casket')}
+                    >Custom Casket Requests ({customCasketRequests.length})</button>
+                  </div>
+                  {visibleArrangementRequests.length === 0 ? (
+                    <div className="sc-empty"><p>{arrangementFilter === 'custom_casket' ? 'No custom casket requests yet.' : 'No service requests yet.'}</p></div>
                   ) : (
                     <div className="sc-table-wrap">
                       <table className="sc-table">
@@ -3799,19 +3883,40 @@ export default function SellerCentrePage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {requests.map(r => (
+                          {visibleArrangementRequests.map(r => (
                             <tr key={r.id}>
                               <td>
                                 <div className="sc-product-cell">
-                                  {r.productImageUrl ? (
-                                    <img src={r.productImageUrl} alt={r.productName} className="sc-product-thumb" />
+                                  {getRequestImageUrl(r) ? (
+                                    <img src={getRequestImageUrl(r) as string} alt={isCustomCasketRequest(r) ? 'Custom casket reference' : r.productName} className="sc-product-thumb" />
                                   ) : (
                                     <div className="sc-product-thumb-sc">LC</div>
                                   )}
                                   <div>
                                     <div style={{ fontWeight: 600 }}>{r.productName || 'Custom Casket'}</div>
                                     {r.variationName && <div style={{ fontSize: '11px', color: 'var(--sc-muted)' }}>Variation: {r.variationName}</div>}
-                                    <div style={{ fontSize: '12px', color: 'var(--sc-brand)', marginTop: '4px' }}>{formatPeso(r.productPrice)}</div>
+                                    {isCustomCasketRequest(r) && r.status === 'pending_shop_acceptance' ? (
+                                      <div className="sc-custom-price-editor sc-custom-price-editor-table">
+                                        <label htmlFor={`custom-price-table-${r.id}`}>Price upon acceptance</label>
+                                        <div className="sc-custom-price-input-wrap">
+                                          <span aria-hidden="true">₱</span>
+                                          <input
+                                            id={`custom-price-table-${r.id}`}
+                                            type="number"
+                                            min="1"
+                                            max="999999999.99"
+                                            step="0.01"
+                                            inputMode="decimal"
+                                            placeholder="Enter price"
+                                            value={customPriceDrafts[r.id] ?? ''}
+                                            onChange={event => setCustomPriceDrafts(current => ({ ...current, [r.id]: event.target.value }))}
+                                          />
+                                        </div>
+                                        <small>Saved only when accepted</small>
+                                      </div>
+                                    ) : (
+                                      <div style={{ fontSize: '12px', color: 'var(--sc-brand)', marginTop: '4px' }}>{formatPeso(r.productPrice)}</div>
+                                    )}
                                   </div>
                                 </div>
                               </td>
@@ -5088,7 +5193,28 @@ export default function SellerCentrePage() {
                     <h4>{r.productName || 'Custom Casket'}</h4>
                     {r.variationName && <div className="sc-request-variation">Variation: {r.variationName}</div>}
                     {r.packageItems?.length ? <div className="sc-request-variation">Packages: {r.packageItems.join(', ')}</div> : null}
-                    <div className="sc-product-detail-price">{formatPeso(r.productPrice)}</div>
+                    {isCustomCasketRequest(r) && status === 'pending_shop_acceptance' ? (
+                      <div className="sc-custom-price-editor sc-custom-price-editor-modal">
+                        <label htmlFor={`custom-price-modal-${r.id}`}>Custom casket price</label>
+                        <div className="sc-custom-price-input-wrap">
+                          <span aria-hidden="true">₱</span>
+                          <input
+                            id={`custom-price-modal-${r.id}`}
+                            type="number"
+                            min="1"
+                            max="999999999.99"
+                            step="0.01"
+                            inputMode="decimal"
+                            placeholder="Enter final price"
+                            value={customPriceDrafts[r.id] ?? ''}
+                            onChange={event => setCustomPriceDrafts(current => ({ ...current, [r.id]: event.target.value }))}
+                          />
+                        </div>
+                        <small>The price is saved only after acceptance. Payment opens for the customer next.</small>
+                      </div>
+                    ) : (
+                      <div className="sc-product-detail-price">{formatPeso(r.productPrice)}</div>
+                    )}
                   </div>
                 </div>
 

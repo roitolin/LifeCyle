@@ -376,6 +376,12 @@
 .checkout-page .checkout-header .lc-brand {
   @apply [--lc-brand-ink:#ffffff] [--lc-brand-soft:#c7d1dc];
 }
+.checkout-page .checkout-header .checkout-brand-logo .lc-brand__name {
+  color: #ffffff !important;
+}
+.checkout-page .checkout-header .checkout-brand-logo .lc-brand__tagline {
+  color: #c7d1dc !important;
+}
 .checkout-page .checkout-header .lc-brand__mark {
   @apply shadow-[0_10px_24px_rgba(6,13,24,0.24)];
 }
@@ -426,6 +432,13 @@
 .checkout-page textarea {
   @apply max-w-full;
 }
+.checkout-summary-custom-casket {
+  @apply items-center;
+}
+.checkout-summary-custom-casket .checkout-summary-shop-logo,
+.checkout-summary-custom-casket .checkout-summary-shop-logo-fallback {
+  @apply h-[84px] w-[84px] shrink-0 rounded-[10px] border-slate-200 bg-white object-contain p-[7px];
+}
 @media (max-width: 640px) {
   .checkout-topbar-inner {
     @apply px-[14px] py-[8px];
@@ -442,10 +455,13 @@
     @apply pt-[14px] pb-[16px] px-0;
   }
   .checkout-header-inner {
-    @apply [flex-flow:row_nowrap] items-center gap-[12px];
+    @apply [flex-flow:row_nowrap] items-center justify-between gap-[12px];
+  }
+  .checkout-header-divider {
+    @apply hidden;
   }
   .checkout-header h1 {
-    @apply min-w-0 text-[19px] [overflow-wrap:anywhere];
+    @apply ml-auto min-w-0 max-w-[132px] text-right text-[16px] leading-[1.25] [overflow-wrap:normal];
   }
   .checkout-main {
     @apply mt-[16px] mb-[36px] px-[12px];
@@ -467,6 +483,13 @@
   .checkout-summary-fallback {
     @apply w-full h-auto min-h-[150px] max-h-[240px] aspect-video;
   }
+  .checkout-summary-custom-casket {
+    @apply flex-row items-center;
+  }
+  .checkout-summary-custom-casket .checkout-summary-shop-logo,
+  .checkout-summary-custom-casket .checkout-summary-shop-logo-fallback {
+    @apply h-[88px] min-h-[88px] max-h-[88px] w-[88px] min-w-[88px] max-w-[88px] aspect-square object-contain;
+  }
   .checkout-section-title,
   .checkout-order-summary > h2 {
     @apply [overflow-wrap:anywhere];
@@ -483,9 +506,18 @@
     @apply text-[12px];
   }
   .checkout-header .lc-brand__tagline {
-    @apply hidden;
+    @apply block text-[8px] tracking-[0.14em];
+  }
+  .checkout-header .checkout-brand-logo {
+    @apply gap-[7px];
+  }
+  .checkout-header .checkout-brand-logo .lc-brand__mark {
+    @apply size-[36px];
+  }
+  .checkout-header .checkout-brand-logo .lc-brand__name {
+    @apply text-[18px];
   }
   .checkout-header h1 {
-    @apply text-[17px];
+    @apply max-w-[118px] text-[15px];
   }
 }

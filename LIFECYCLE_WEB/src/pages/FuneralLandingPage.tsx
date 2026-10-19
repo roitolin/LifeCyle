@@ -6,8 +6,9 @@ import BrandLogo from '@/components/BrandLogo'
 import AnnouncementDropdown from '@/components/AnnouncementDropdown'
 import NotificationDropdown from '@/components/NotificationDropdown'
 import LogoutLink from '@/components/LogoutLink'
+import MarketplaceFooter from '@/components/MarketplaceFooter'
+import MarketplaceMobileDrawer from '@/components/MarketplaceMobileDrawer'
 import { loadFuneralCart } from '@/utils/funeralCart'
-import { PAYMENT_LOGOS } from '@/assets/paymentLogoAssets'
 import './FuneralLandingPage.css'
 
 /* â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
@@ -108,26 +109,6 @@ function SearchIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
       <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-    </svg>
-  )
-}
-
-type MobileMenuIconName = 'home' | 'account' | 'shop' | 'messages' | 'purchases' | 'help' | 'logout'
-
-const MOBILE_MENU_ICON_PATHS: Record<MobileMenuIconName, string[]> = {
-  home: ['m3 11 9-8 9 8', 'M5 10v11h14V10M9 21v-7h6v7'],
-  account: ['M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z', 'M4.5 21a7.5 7.5 0 0 1 15 0'],
-  shop: ['M3 9h18l-2-6H5L3 9Z', 'M5 9v12h14V9M9 21v-7h6v7'],
-  messages: ['M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z'],
-  purchases: ['M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z', 'M3 6h18M16 10a4 4 0 0 1-8 0'],
-  help: ['M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z', 'M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .8-1 1.7M12 17h.01'],
-  logout: ['M10 17l5-5-5-5', 'M15 12H3', 'M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4'],
-}
-
-function MobileMenuIcon({ name }: { name: MobileMenuIconName }) {
-  return (
-    <svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.8' strokeLinecap='round' strokeLinejoin='round' aria-hidden='true'>
-      {MOBILE_MENU_ICON_PATHS[name].map(path => <path d={path} key={path} />)}
     </svg>
   )
 }
@@ -376,69 +357,19 @@ export default function FuneralLandingPage() {
   return (
     <div className='sp-page'>
 
-      {mobileMenuOpen ? (
-        <div className='sp-mobile-menu-layer'>
-          <button
-            type='button'
-            className='sp-mobile-menu-backdrop'
-            onClick={() => setMobileMenuOpen(false)}
-            aria-label='Close navigation menu'
-          />
-          <aside className='sp-mobile-menu' role='dialog' aria-modal='true' aria-label='Navigation menu'>
-            <div className='sp-mobile-menu-head'>
-              <span>Menu</span>
-              <button
-                ref={mobileMenuCloseRef}
-                type='button'
-                className='sp-mobile-menu-close'
-                onClick={() => setMobileMenuOpen(false)}
-                aria-label='Close navigation menu'
-              >
-                <svg viewBox='0 0 24 24' aria-hidden='true'><path d='m6 6 12 12M18 6 6 18'/></svg>
-              </button>
-            </div>
-
-            {isLoggedIn ? (
-              <div className='sp-mobile-menu-profile'>
-                {userProfile?.photoURL ? (
-                  <img src={userProfile.photoURL} alt='' />
-                ) : (
-                  <span className='sp-mobile-menu-avatar'><MobileMenuIcon name='account' /></span>
-                )}
-                <div className='sp-mobile-menu-profile-copy'>
-                  <strong>{userProfile?.fullName || 'My account'}</strong>
-                  <span>{viewer?.email}</span>
-                </div>
-                <div className='sp-mobile-menu-profile-actions'>
-                  <LogoutLink
-                    className='sp-mobile-menu-profile-action sp-mobile-menu-logout'
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    <MobileMenuIcon name='logout' />
-                    <span>Log out</span>
-                  </LogoutLink>
-                </div>
-              </div>
-            ) : (
-              <div className='sp-mobile-menu-guest-actions'>
-                <Link className='sp-mobile-menu-profile-action' to='/login' onClick={() => setMobileMenuOpen(false)}>Sign in</Link>
-                <Link className='sp-mobile-menu-profile-action sp-mobile-menu-primary' to='/register' onClick={() => setMobileMenuOpen(false)}>Sign up</Link>
-              </div>
-            )}
-
-            <nav className='sp-mobile-menu-nav' aria-label='Mobile navigation'>
-              <Link to='/funeral' onClick={() => setMobileMenuOpen(false)}><MobileMenuIcon name='home' /><span>Home</span></Link>
-              <Link to={accountPath} onClick={() => setMobileMenuOpen(false)}><MobileMenuIcon name='account' /><span>My Account</span></Link>
-              <Link to='/seller' onClick={() => setMobileMenuOpen(false)}><MobileMenuIcon name='shop' /><span>Shop Center</span></Link>
-              <button type='button' onClick={openMessages}><MobileMenuIcon name='messages' /><span>Messages</span></button>
-              <div className='sp-mobile-menu-announcement'><AnnouncementDropdown menuItem /></div>
-              <Link to={purchasesPath} onClick={() => setMobileMenuOpen(false)}><MobileMenuIcon name='purchases' /><span>My Payments</span></Link>
-              <Link to={helpPath} onClick={() => setMobileMenuOpen(false)}><MobileMenuIcon name='help' /><span>Help Centre</span></Link>
-            </nav>
-
-          </aside>
-        </div>
-      ) : null}
+      <MarketplaceMobileDrawer
+        isOpen={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+        closeButtonRef={mobileMenuCloseRef}
+        isLoggedIn={isLoggedIn}
+        userName={userProfile?.fullName}
+        userEmail={viewer?.email}
+        photoUrl={userProfile?.photoURL}
+        accountPath={accountPath}
+        purchasesPath={purchasesPath}
+        helpPath={helpPath}
+        onOpenMessages={openMessages}
+      />
 
       {/* â”€â”€ Topbar â”€â”€ */}
       <div className="sp-topbar">
@@ -759,43 +690,7 @@ export default function FuneralLandingPage() {
       </div>
 
       {/* â”€â”€ Footer â”€â”€ */}
-      <footer className="sp-footer">
-        <div className="sp-footer-top">
-          <div>
-            <h4>CUSTOMER SERVICE</h4>
-            <Link to="/user/help">Help Centre</Link>
-            <a href="#payment">Payment Methods</a>
-            <a href="#guarantee">LifeCycle Guarantee</a>
-            <Link to="/user/contact">Contact Us</Link>
-          </div>
-          <div>
-            <h4>ABOUT LIFECYCLE</h4>
-            <Link to="/user/about">About Us</Link>
-            <a href="#careers">Careers</a>
-            <Link to="/policies">Policies</Link>
-            <Link to="/privacy-policy">Privacy Policy</Link>
-            <Link to="/seller">Shop Center</Link>
-          </div>
-          <div>
-            <h4>PAYMENT</h4>
-            <div className="sp-footer-badges">
-              <img className="sp-payment-logo" src={PAYMENT_LOGOS.gcash} alt="GCash" loading="lazy" />
-              <img className="sp-payment-logo" src={PAYMENT_LOGOS.maya} alt="Maya" loading="lazy" />
-              <img className="sp-payment-logo" src={PAYMENT_LOGOS.visa} alt="Visa" loading="lazy" />
-              <img className="sp-payment-logo" src={PAYMENT_LOGOS.landbank} alt="Landbank" loading="lazy" />
-            </div>
-          </div>
-          <div>
-            <h4>FOLLOW US</h4>
-            <a href="#fb">Facebook</a>
-            <a href="#ig">Instagram</a>
-            <a href="#yt">YouTube</a>
-          </div>
-        </div>
-        <div className="sp-footer-bottom">
-          <span>(c) {new Date().getFullYear()} LifeCycle Funeral Services Philippines. All Rights Reserved.</span>
-        </div>
-       </footer>
+      <MarketplaceFooter />
      </div>
    )
  }

@@ -833,8 +833,12 @@
 .shop-detail-page .shop-detail-actions {
   @apply grid flex-none grid-cols-[repeat(2,minmax(104px,1fr))] gap-[8px];
 }
-.shop-detail-page .shop-detail-actions button {
+.shop-detail-page .shop-detail-actions button,
+.shop-detail-page .shop-custom-casket-button {
   @apply min-h-[38px] text-[13px] px-[12px] py-[8px] rounded-[7px];
+}
+.shop-detail-page .shop-custom-casket-button {
+  @apply col-span-full inline-flex items-center justify-center text-center font-bold no-underline text-white bg-[#22312d] border border-[#ffffff] border-solid hover:bg-[#315f50];
 }
 .shop-detail-page .shop-detail-summary .shop-secondary-button {
   @apply text-white [background:transparent] border-[rgba(255,255,255,0.8)] hover:text-[#22312d] hover:[background:#ffffff] hover:border-white;
@@ -891,6 +895,9 @@
   }
   .shop-detail-page .shop-detail-actions {
     @apply w-full;
+  }
+  .shop-detail-page .shop-custom-casket-button {
+    @apply min-h-[44px];
   }
   .shop-detail-page .shop-detail-facts {
     @apply grid-cols-2;

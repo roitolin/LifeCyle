@@ -51,8 +51,8 @@ type UserInfo = {
 }
 
 function getDefaultAvatar(gender?: string) {
-  if (String(gender || '').toLowerCase() === 'female') return '/Female_Default_Profile.png'
-  return '/Male_Default_Profile.png'
+  if (String(gender || '').toLowerCase() === 'female') return '/Female.png'
+  return '/Male.png'
 }
 
 function formatTime(value: unknown) {

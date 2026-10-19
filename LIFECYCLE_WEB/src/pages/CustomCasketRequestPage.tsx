@@ -5,14 +5,9 @@ import { uploadCertificateWeb } from '@/lib/supabaseStorage'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 import { checkServiceAvailability } from '@/utils/serviceAvailability'
-import LogoutLink from '@/components/LogoutLink'
+import BrandLogo from '@/components/BrandLogo'
 import PageBackButton from '@/components/PageBackButton'
 import './CheckoutPage.css' // Reusing Checkout styles for consistent form layout
-
-type ViewerProfile = {
-  fullName?: string | null
-  photoURL?: string | null
-}
 
 type CheckoutSuccessState = {
   requestId: string
@@ -44,14 +39,14 @@ export default function CustomCasketRequestPage() {
   const memorialFileInputRef = useRef<HTMLInputElement>(null)
   const referenceFileInputRef = useRef<HTMLInputElement>(null)
 
-  // Viewer / profile
-  const [profile, setProfile] = useState<ViewerProfile | null>(null)
+  // Viewer
   const [viewer, setViewer] = useState<{ id: string } | null>(null)
 
   // Shop state
   const [shopName, setShopName] = useState('Shop')
   const [shopContactNumber, setShopContactNumber] = useState('')
   const [shopAddress, setShopAddress] = useState('')
+  const [shopImageUrl, setShopImageUrl] = useState<string | null>(null)
   const [shopFound, setShopFound] = useState<boolean | null>(null)
 
   // Form state
@@ -81,6 +76,7 @@ export default function CustomCasketRequestPage() {
   const [ageInputMode, setAgeInputMode] = useState<'auto' | 'manual'>('auto')
   
   const [submitting, setSubmitting] = useState(false)
+  const submittingRef = useRef(false)
   const [successState, setSuccessState] = useState<CheckoutSuccessState | null>(null)
 
   // Auth listener
@@ -105,7 +101,6 @@ export default function CustomCasketRequestPage() {
           .eq('id', session.user.id)
           .maybeSingle()
         if (userData) {
-          setProfile(userData)
           setFamilyCoordinatorName(String(userData.fullName || ''))
         }
       }
@@ -113,7 +108,7 @@ export default function CustomCasketRequestPage() {
       if (shopId) {
         const { data: shopData } = await supabase
           .from('funeral_shops')
-          .select('shopName, shopPhoneNumber, shopAddress')
+          .select('shopName, shopPhoneNumber, shopAddress, shopImageUrl')
           .eq('id', shopId)
           .maybeSingle()
 
@@ -121,6 +116,9 @@ export default function CustomCasketRequestPage() {
           setShopName(String(shopData.shopName || 'Shop'))
           setShopContactNumber(String(shopData.shopPhoneNumber || ''))
           setShopAddress(String(shopData.shopAddress || ''))
+          setShopImageUrl(typeof shopData.shopImageUrl === 'string' && shopData.shopImageUrl.trim()
+            ? shopData.shopImageUrl
+            : null)
           setShopFound(true)
         } else {
           setShopFound(false)
@@ -190,6 +188,7 @@ export default function CustomCasketRequestPage() {
 
   // Submit
   const submitRequest = useCallback(async () => {
+    if (submitting || submittingRef.current) return
     if (!shopId || !viewer) return
 
     const safeDeceasedFullName = deceasedFullName.trim()
@@ -255,6 +254,7 @@ export default function CustomCasketRequestPage() {
       return
     }
 
+    submittingRef.current = true
     setSubmitting(true)
     try {
       const availability = await checkServiceAvailability({
@@ -346,10 +346,11 @@ export default function CustomCasketRequestPage() {
         okLabel: 'Dismiss',
       })
     } finally {
+      submittingRef.current = false
       setSubmitting(false)
     }
   }, [
-    cemeteryName, churchName, deceasedAge, ageInputMode, burialTime, contactNumber, computedAge, openAlert,
+    cemeteryName, churchName, deceasedAge, ageInputMode, burialTime, contactNumber, computedAge, openAlert, submitting,
     dateOfBirth, dateOfPassing, deceasedFullName, familyCoordinatorName, memorialPhotoUrl,
     pickupAddress, shopAddress, shopContactNumber, tributeMessage, viewer, wakeAddress,
     wakeEndDate, wakeStartDate, designNotes, referencePhotoUrl, shopId, shopName
@@ -370,7 +371,6 @@ export default function CustomCasketRequestPage() {
   if (shopFound === false) {
     return (
       <div className="checkout-page">
-        <TopBar profileName={profile?.fullName} />
         <Header />
         <div className="checkout-empty">
           <h2>Shop Not Found</h2>
@@ -385,7 +385,6 @@ export default function CustomCasketRequestPage() {
   if (successState) {
     return (
       <div className="checkout-page">
-        <TopBar profileName={profile?.fullName} />
         <Header />
         <div className="checkout-success">
           <h2 className="checkout-success-title">Request Sent</h2>
@@ -406,7 +405,6 @@ export default function CustomCasketRequestPage() {
   // ── Form ──────────────────────────────────────
   return (
     <div className="checkout-page">
-      <TopBar profileName={profile?.fullName} />
       <Header />
 
       <div className="checkout-main">
@@ -416,8 +414,18 @@ export default function CustomCasketRequestPage() {
         <div className="checkout-layout">
         <aside className="checkout-order-summary">
           <h2>Request summary</h2>
-          <div className="checkout-summary">
-            <div className="checkout-summary-fallback">LC</div>
+          <div className="checkout-summary checkout-summary-custom-casket">
+            {shopImageUrl ? (
+              <img
+                className="checkout-summary-image checkout-summary-shop-logo"
+                src={shopImageUrl}
+                alt={`${shopName} logo`}
+              />
+            ) : (
+              <div className="checkout-summary-fallback checkout-summary-shop-logo-fallback" aria-hidden="true">
+                {shopName.trim().charAt(0).toUpperCase() || 'S'}
+              </div>
+            )}
             <div className="checkout-summary-body">
               <h2 className="checkout-summary-name">{shopName}</h2>
               <p className="checkout-summary-shop">Made-to-order casket</p>
@@ -425,11 +433,6 @@ export default function CustomCasketRequestPage() {
                 The shop will review the design before providing a quote.
               </p>
             </div>
-          </div>
-          <div className="checkout-summary-divider" />
-          <div className="checkout-summary-row">
-            <span>Shop</span>
-            <strong>{shopName}</strong>
           </div>
         </aside>
 
@@ -746,41 +749,11 @@ export default function CustomCasketRequestPage() {
 
 /* ── Shared sub-components ─────────────────────── */
 
-function TopBar({ profileName }: { profileName?: string | null }) {
-  return (
-    <div className="checkout-topbar">
-      <div className="checkout-topbar-inner">
-        <div className="checkout-topbar-right">
-          <Link to="/user/notifications">Notifications</Link>
-          <Link to="/user/help">Help Centre</Link>
-          <span className="checkout-divider">|</span>
-          <div className="checkout-user-menu">
-            <div className="checkout-user-menu-trigger">
-              <svg className="checkout-user-avatar" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
-              <span className="checkout-user-name">{profileName || 'User'}</span>
-              <svg className="checkout-user-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-            </div>
-            <div className="checkout-user-dropdown">
-              <Link to="/user/profile">My Account</Link>
-              <Link to="/user/purchase">My Payments</Link>
-              <Link to="/auth/switch-account" className="checkout-dropdown-switch">Switch Account</Link>
-              <LogoutLink>Log out</LogoutLink>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function Header() {
   return (
     <header className="checkout-header">
       <div className="checkout-header-inner">
-        <Link to="/funeral" className="checkout-brand" aria-label="LifeCycle Home">
-          <div className="checkout-logo-bag">LC</div>
-          <span className="checkout-brand-name">LifeCycle</span>
-        </Link>
+        <BrandLogo to="/funeral" compact className="checkout-brand-logo" />
         <div className="checkout-header-divider" />
         <h1>Custom casket request</h1>
       </div>

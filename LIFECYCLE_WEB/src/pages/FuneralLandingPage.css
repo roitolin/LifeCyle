@@ -10,7 +10,7 @@
   @apply [--sp-accent:#2f4057] [--sp-accent-dark:#172033] [--sp-bg:#ffffff] [--sp-header:#ffffff] [--sp-topbar:#172033] [--text-main:#172033] [--text-muted:#66758a] [--border:#dfe5ec] [--white:#ffffff] bg-[color:var(--sp-bg)] text-[color:var(--text-main)] [font-family:"Manrope",-apple-system,BlinkMacSystemFont,"Segoe_UI",sans-serif] text-[14px] min-h-screen w-full;/* Professional, Dignified Funeral Vibes: Deep slate navy, crisp white, cool greys *//* Professional slate navy for buttons and accents *//* Deep slate for hovers *//* Clean marketplace canvas *//* Crisp white header for a modern, organized look *//* Deep navy marketplace header *//* Deep navy-grey for main text instead of harsh black *//* Cool grey for secondary text *//* Crisp, clean borders *//* Pure white for cards */
 }
 .sp-page *, .sp-page *::before, .sp-page *::after {
-  @apply box-border m-0 p-0;
+  @apply box-border;
 }
 
 /* ── Topbar ─────────────────────────────────────────── */

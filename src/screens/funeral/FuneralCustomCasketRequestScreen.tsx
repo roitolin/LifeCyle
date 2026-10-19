@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -78,6 +78,7 @@ export default function FuneralCustomCasketRequestScreen({ navigation, route }: 
   const [deceasedAge, setDeceasedAge] = useState("");
   const [ageInputMode, setAgeInputMode] = useState<"auto" | "manual">("auto");
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [successState, setSuccessState] = useState<SuccessState | null>(null);
 
   useEffect(() => {
@@ -186,6 +187,7 @@ export default function FuneralCustomCasketRequestScreen({ navigation, route }: 
   }, [ageInputMode, computedAge]);
 
   const submitRequest = useCallback(async () => {
+    if (submitting || submittingRef.current) return;
     const user = auth.currentUser;
     if (!user) {
       Alert.alert("Login Required", "You need to be logged in to continue.");
@@ -245,6 +247,7 @@ export default function FuneralCustomCasketRequestScreen({ navigation, route }: 
       return;
     }
 
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const wakeStartKey = serializeDateOnly(wakeStartDate)!;
@@ -327,6 +330,7 @@ export default function FuneralCustomCasketRequestScreen({ navigation, route }: 
     } catch (error: any) {
       Alert.alert("Error", error?.message || "Failed to send your custom request.");
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   }, [
@@ -353,6 +357,7 @@ export default function FuneralCustomCasketRequestScreen({ navigation, route }: 
     wakeStartDate,
     wakeEndDate,
     burialTime,
+    submitting,
   ]);
 
   const confirmSubmitRequest = useCallback(() => {

@@ -1300,6 +1300,96 @@
     @apply w-full whitespace-normal px-[14px] py-[12px];
   }
 }
+
+/* The product page has a scoped reset that also reaches the shared footer.
+   Restore the homepage footer spacing and responsive columns here. */
+.pd-page .marketplace-footer {
+  flex: 0 0 auto;
+  padding: 40px 16px;
+  color: #c7d1dc;
+  background: #22312d;
+  border-top: 4px solid #315f50;
+  font-family: Manrope, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
+}
+.pd-page .marketplace-footer .sp-footer-top {
+  width: min(1200px, 100%);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+  margin: 0 auto 40px;
+}
+.pd-page .marketplace-footer h4 {
+  margin: 0 0 20px;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+.pd-page .marketplace-footer a {
+  display: block;
+  margin: 0 0 12px;
+  color: #c7d1dc;
+  line-height: 1.4;
+  text-decoration: none;
+}
+.pd-page .marketplace-footer .sp-footer-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pd-page .marketplace-footer .sp-payment-logo {
+  width: 88px;
+  height: 40px;
+  padding: 5px 8px;
+  object-fit: contain;
+  background: #ffffff;
+  border: 1px solid #dfe5ec;
+  border-radius: 4px;
+}
+.pd-page .marketplace-footer .sp-footer-bottom {
+  width: min(1200px, 100%);
+  display: flex;
+  justify-content: space-between;
+  margin: 0 auto;
+  padding-top: 20px;
+  color: #c7d1dc;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  line-height: 1.5;
+}
+@media (max-width: 1024px) {
+  .pd-page .marketplace-footer .sp-footer-top {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 768px) {
+  .pd-page .marketplace-footer {
+    padding: 32px 14px 24px;
+  }
+  .pd-page .marketplace-footer .sp-footer-top {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 28px 18px;
+    margin-bottom: 28px;
+  }
+  .pd-page .marketplace-footer .sp-footer-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}
+@media (max-width: 560px) {
+  .pd-page .marketplace-footer .sp-footer-top {
+    grid-template-columns: minmax(0, 1fr);
+    text-align: center;
+  }
+  .pd-page .marketplace-footer .sp-footer-badges {
+    justify-content: center;
+  }
+  .pd-page .marketplace-footer .sp-footer-bottom {
+    align-items: center;
+    text-align: center;
+  }
+}
 .pd-page *,
   .pd-page *::before,
   .pd-page *::after {

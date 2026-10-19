@@ -127,6 +127,14 @@ const isCancellable = (status: string) =>
 const hasPaymentSetup = (request: FuneralServiceRequest) =>
   Number(request.paymentAmount) > 0;
 
+const isCustomCasketRequest = (request: FuneralServiceRequest) =>
+  request.requestType === "custom_casket" || request.productId === "custom_casket_design";
+
+const parseCustomCasketPrice = (value: string) => {
+  const amount = Number(value.replace(/[^\d.]/g, ""));
+  return Number.isFinite(amount) ? amount : 0;
+};
+
 const getStatusMeta = (status: string) => {
   const normalized = String(status || "").toLowerCase();
   if (normalized === "accepted_by_shop") {
@@ -515,6 +523,9 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
   const [request, setRequest] = useState<FuneralServiceRequest>(initialRequest);
   const isRequestOwner = requesterView && request.requesterId === auth.currentUser?.uid;
   const [updatingRequestId, setUpdatingRequestId] = useState<string | null>(null);
+  const [customPrice, setCustomPrice] = useState(() =>
+    Number(initialRequest.paymentAmount) > 0 ? String(initialRequest.paymentAmount) : ""
+  );
 
   const [paymentForm, setPaymentForm] = useState<PaymentSubmissionForm>(EMPTY_PAYMENT_FORM);
   const [uploadingProof, setUploadingProof] = useState(false);
@@ -564,6 +575,7 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
         if (!active || error || !data) return;
         const latest = data as FuneralServiceRequest;
         setRequest(latest);
+        setCustomPrice((current) => current || (Number(latest.paymentAmount) > 0 ? String(latest.paymentAmount) : ""));
         setCompletionProofUrl(latest.completionProofImageUrl || null);
       })();
       return () => {
@@ -842,7 +854,17 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
       try {
         let acceptedRequest: FuneralServiceRequest | null = null;
         if (nextStatus === "accepted_by_shop") {
-          acceptedRequest = await acceptFuneralServiceRequest(requestItem.id) as unknown as FuneralServiceRequest;
+          const customRequest = isCustomCasketRequest(requestItem);
+          const enteredCustomPrice = parseCustomCasketPrice(customPrice);
+          if (customRequest && enteredCustomPrice <= 0) {
+            Alert.alert("Price required", "Enter the custom casket price before accepting. The price is saved only when you accept the request.");
+            setUpdatingRequestId(null);
+            return;
+          }
+          acceptedRequest = await acceptFuneralServiceRequest(
+            requestItem.id,
+            customRequest ? enteredCustomPrice : undefined,
+          ) as unknown as FuneralServiceRequest;
         } else {
           const respondedAt = new Date().toISOString();
           const { error: declineError } = await supabase.from("funeral_service_requests").update({
@@ -896,7 +918,7 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
         setUpdatingRequestId(null);
       }
     },
-    []
+    [customPrice]
   );
 
   const verifyPayment = useCallback(
@@ -1305,6 +1327,9 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
   }
   const stickyActionBusy =
     updatingRequestId === request.id || submittingPayment || uploadingCompletionProof;
+  const requestDisplayImage = isCustomCasketRequest(request)
+    ? (request.referencePhotoUrl || request.productImageUrl)
+    : request.productImageUrl;
 
   const handleRequestBack = () => {
     if (navigation.canGoBack?.()) {
@@ -1356,12 +1381,12 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
           </View>
 
           <View style={styles.heroMainRow}>
-            {request.productImageUrl ? (
+            {requestDisplayImage ? (
               <TouchableOpacity
                 activeOpacity={0.9}
-                onPress={() => setPhotoViewerUrl(request.productImageUrl!)}
+                onPress={() => setPhotoViewerUrl(requestDisplayImage!)}
               >
-                <Image source={{ uri: request.productImageUrl }} style={styles.heroImage} resizeMode="cover" />
+                <Image source={{ uri: requestDisplayImage }} style={styles.heroImage} resizeMode="cover" />
               </TouchableOpacity>
             ) : (
               <View style={[styles.heroImage, styles.heroImageFallback]}>
@@ -1460,12 +1485,32 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
           icon="cube-outline"
           title="Service options"
           subtitle="Variation, amount, and design information"
+          defaultOpen={isCustomCasketRequest(request) && !requesterView && normalizedRequestStatus === "pending_shop_acceptance"}
         >
           {request.variationName ? (
             <InfoRow icon="options-outline" label="Selected variation" value={request.variationName} />
           ) : null}
           {request.packageItems?.length ? (
             <InfoRow icon="gift-outline" label="Package inclusions" value={request.packageItems.join(", ")} />
+          ) : null}
+          {isCustomCasketRequest(request) && !requesterView && normalizedRequestStatus === "pending_shop_acceptance" ? (
+            <View style={styles.customPriceEditor}>
+              <Text style={styles.customPriceLabel}>Price upon acceptance</Text>
+              <View style={styles.customPriceInputRow}>
+                <Text style={styles.customPriceCurrency}>₱</Text>
+                <TextInput
+                  value={customPrice}
+                  onChangeText={setCustomPrice}
+                  placeholder="Enter price"
+                  placeholderTextColor="#8a9791"
+                  keyboardType="decimal-pad"
+                  style={styles.customPriceInput}
+                  editable={!updatingRequestId}
+                  accessibilityLabel="Custom casket price"
+                />
+              </View>
+              <Text style={styles.customPriceHint}>Saved only when accepted</Text>
+            </View>
           ) : null}
           <InfoRow
             icon="cash-outline"
@@ -2745,6 +2790,47 @@ const styles = StyleSheet.create({
     color: "#1d2d28",
     fontSize: 15,
     fontWeight: "800",
+  },
+  customPriceEditor: {
+    borderTopWidth: 1,
+    borderTopColor: "#efede7",
+    marginTop: 3,
+    paddingTop: 13,
+    paddingBottom: 10,
+  },
+  customPriceLabel: {
+    color: "#52615c",
+    fontSize: 13,
+    fontWeight: "800",
+    marginBottom: 7,
+  },
+  customPriceInputRow: {
+    minHeight: 48,
+    borderWidth: 1,
+    borderColor: "#b9c9c1",
+    borderRadius: 10,
+    backgroundColor: "#ffffff",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+  },
+  customPriceCurrency: {
+    color: "#2f6b55",
+    fontSize: 18,
+    fontWeight: "900",
+    marginRight: 7,
+  },
+  customPriceInput: {
+    flex: 1,
+    color: "#22312d",
+    fontSize: 16,
+    fontWeight: "700",
+    paddingVertical: 8,
+  },
+  customPriceHint: {
+    color: "#7a8580",
+    fontSize: 11,
+    marginTop: 6,
   },
   attachmentSection: {
     borderTopWidth: 1,

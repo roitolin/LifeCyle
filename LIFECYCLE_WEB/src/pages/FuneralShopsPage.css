@@ -1,0 +1,354 @@
+.funeral-shops-page {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+}
+
+.funeral-shops-content {
+  width: min(1200px, 100%);
+  flex: 1 0 auto;
+  margin: 0 auto;
+  padding: 20px 16px 60px;
+}
+
+.funeral-shops-back {
+  min-height: 52px;
+}
+
+.funeral-shops-intro {
+  margin: 0 0 24px;
+  padding: 28px;
+  color: #22312d;
+  background: #f1f4f2;
+  border: 1px solid #d8e0dc;
+  border-radius: 12px;
+}
+
+.funeral-shops-title {
+  margin: 0 0 8px;
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.funeral-shops-description {
+  max-width: 640px;
+  margin: 0 0 16px;
+  color: #617087;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.funeral-shops-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 6px 12px;
+  background: #ffffff;
+  border: 1px solid #d8e0dc;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.funeral-shops-count svg {
+  flex: 0 0 auto;
+}
+
+.funeral-shops-state {
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px 24px;
+  color: #66746f;
+  background: #ffffff;
+  border: 1px solid #e4e9e6;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(34, 49, 45, 0.06);
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.funeral-shops-state p {
+  max-width: 420px;
+  margin: 0;
+}
+
+.funeral-shops-state--error {
+  color: #b91c1c;
+}
+
+.funeral-shops-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(34, 49, 45, 0.15);
+  border-top-color: #315f50;
+  border-radius: 50%;
+  animation: funeral-shops-spin 700ms linear infinite;
+}
+
+@keyframes funeral-shops-spin {
+  to { transform: rotate(360deg); }
+}
+
+.funeral-shops-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.funeral-shop-card {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 108px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 16px;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid #e1e7e3;
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(34, 49, 45, 0.06);
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.funeral-shop-card:hover {
+  border-color: #bfd0c8;
+  box-shadow: 0 10px 28px rgba(34, 49, 45, 0.1);
+  transform: translateY(-2px);
+}
+
+.funeral-shop-card-image,
+.funeral-shop-card-placeholder {
+  width: 108px;
+  height: 108px;
+  flex: 0 0 108px;
+  border: 1px solid #edf1ee;
+  border-radius: 10px;
+}
+
+.funeral-shop-card-image {
+  display: block;
+  padding: 6px;
+  background: #f7f9f7;
+  object-fit: contain;
+}
+
+.funeral-shop-card-placeholder {
+  display: grid;
+  place-items: center;
+  color: #315f50;
+  background: #eef3ef;
+}
+
+.funeral-shop-card-details {
+  min-width: 0;
+  text-align: left;
+}
+
+.funeral-shop-card-name {
+  margin: 0 0 7px;
+  overflow: hidden;
+  color: #22312d;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.funeral-shop-card-meta {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 5px;
+  overflow: hidden;
+  color: #6c7974;
+  font-size: 12px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.funeral-shop-card-meta svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.funeral-shop-card-business {
+  max-width: 100%;
+  margin-top: 8px;
+  padding: 4px 8px;
+  overflow: hidden;
+  color: #755f4d;
+  background: #f2ede5;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.funeral-shop-card-action {
+  min-height: 42px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 15px;
+  color: #ffffff;
+  background: #315f50;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+  transition: background 150ms ease;
+}
+
+.funeral-shop-card-actions {
+  min-width: 126px;
+  display: grid;
+  gap: 8px;
+}
+
+.funeral-shop-card-custom {
+  color: #315f50;
+  background: #ffffff;
+  border: 1px solid #315f50;
+}
+
+.funeral-shop-card-custom:hover {
+  color: #ffffff;
+  background: #22312d;
+  border-color: #22312d;
+}
+
+.funeral-shop-card-action:hover {
+  color: #ffffff;
+  background: #22312d;
+}
+
+.funeral-shop-card-action:focus-visible {
+  outline: 3px solid rgba(49, 95, 80, 0.24);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1000px) {
+  .funeral-shops-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .funeral-shops-content {
+    padding: 12px 14px 44px;
+  }
+
+  .funeral-shops-back {
+    min-height: 48px;
+  }
+
+  .funeral-shops-intro {
+    margin-bottom: 16px;
+    padding: 20px 18px;
+    border-radius: 10px;
+  }
+
+  .funeral-shops-title {
+    font-size: 23px;
+  }
+
+  .funeral-shops-description {
+    margin-bottom: 14px;
+  }
+
+  .funeral-shops-grid {
+    gap: 14px;
+  }
+}
+
+@media (max-width: 600px) {
+  .funeral-shops-content {
+    padding-right: 12px;
+    padding-bottom: 36px;
+    padding-left: 12px;
+  }
+
+  .funeral-shops-intro {
+    padding: 18px 16px;
+  }
+
+  .funeral-shops-title {
+    font-size: 22px;
+  }
+
+  .funeral-shop-card {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+    padding: 14px;
+  }
+
+  .funeral-shop-card:hover {
+    transform: none;
+  }
+
+  .funeral-shop-card-image,
+  .funeral-shop-card-placeholder {
+    width: 100%;
+    height: clamp(156px, 48vw, 210px);
+    flex-basis: auto;
+  }
+
+  .funeral-shop-card-image {
+    padding: 12px;
+  }
+
+  .funeral-shop-card-name,
+  .funeral-shop-card-meta,
+  .funeral-shop-card-business {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .funeral-shop-card-name {
+    font-size: 18px;
+  }
+
+  .funeral-shop-card-action {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .funeral-shop-card-actions {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 380px) {
+  .funeral-shop-card-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .funeral-shop-card,
+  .funeral-shop-card-action {
+    transition: none;
+  }
+
+  .funeral-shops-spinner {
+    animation-duration: 1.5s;
+  }
+}

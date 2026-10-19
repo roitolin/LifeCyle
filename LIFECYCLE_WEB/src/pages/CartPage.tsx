@@ -213,7 +213,7 @@ export default function CartPage() {
                           checked={selectedIds.has(item.cartId)} 
                           onChange={() => handleSelect(item.cartId)} 
                         />
-                        {item.imageUrl ? <img src={item.imageUrl} className="item-image" alt="Item" /> : <div className="item-fallback-image">LC</div>}
+                        {item.imageUrl ? <img src={item.imageUrl} className="item-image" alt={item.name} /> : <div className="item-fallback-image" aria-hidden="true">LC</div>}
                         <div className="item-details">
                           <div className="item-name">{item.name}</div>
                           {item.variationName && <div className="item-variation">Variation: {item.variationName}</div>}
@@ -224,7 +224,14 @@ export default function CartPage() {
                       </div>
                       <div className="item-col-price">{formatPeso(item.price)}</div>
                       <div className="item-col-actions">
-                        <button className="item-delete-btn" onClick={() => handleDelete(item.cartId)}>Delete</button>
+                        <button
+                          type="button"
+                          className="item-delete-btn"
+                          onClick={() => handleDelete(item.cartId)}
+                          aria-label={`Delete ${item.name} from cart`}
+                        >
+                          Delete
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -233,25 +240,31 @@ export default function CartPage() {
             })}
 
             {/* Sticky Footer */}
-            <div className="cart-footer">
+            <div className="cart-footer" aria-label="Cart checkout summary">
               <div className="footer-left">
-                <label className="footer-select-all">
-                  <input 
-                    type="checkbox" 
-                    className="shopee-checkbox" 
-                    checked={selectedIds.size === items.length && items.length > 0} 
-                    onChange={(e) => handleSelectAll(e.target.checked)} 
-                  />
-                  Select All
-                </label>
-                <button className="footer-delete-btn" onClick={handleDeleteSelected}>Delete</button>
+                <div className="footer-selection-actions">
+                  <label className="footer-select-all">
+                    <input
+                      type="checkbox"
+                      className="shopee-checkbox"
+                      checked={selectedIds.size === items.length && items.length > 0}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                    />
+                    Select All
+                  </label>
+                  <button type="button" className="footer-delete-btn" onClick={handleDeleteSelected}>Delete selected</button>
+                </div>
+                <button type="button" className="footer-mobile-checkout" onClick={checkout}>
+                  <span>{formatPeso(totalPrice)}</span>
+                  <strong>Check Out</strong>
+                </button>
               </div>
               <div className="footer-right">
-                <div className="footer-total-text">
+                <div className="footer-total-text" aria-live="polite">
                   Total ({selectedItems.length} item{selectedItems.length !== 1 && 's'}): 
                   <span className="footer-total-price">{formatPeso(totalPrice)}</span>
                 </div>
-                <button className="footer-checkout-btn" onClick={checkout}>Check Out</button>
+                <button type="button" className="footer-checkout-btn" onClick={checkout}>Check Out</button>
               </div>
             </div>
           </>
@@ -303,7 +316,7 @@ function Header() {
   return (
     <header className="cart-header">
       <div className="cart-header-inner">
-        <BrandLogo to="/" />
+        <BrandLogo to="/funeral" compact className="cart-brand-logo" />
         <div className="cart-header-divider" />
         <h1>Shopping Cart</h1>
       </div>

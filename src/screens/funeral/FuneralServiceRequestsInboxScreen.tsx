@@ -102,6 +102,38 @@ const formatTimestamp = (value: any) => {
   return date.toLocaleString(undefined, { hour12: true });
 };
 
+const isCustomCasketRequest = (request: FuneralServiceRequest) =>
+  request.requestType === "custom_casket" || request.productId === "custom_casket_design";
+
+const dedupeServiceRequests = (requests: FuneralServiceRequest[]) => {
+  const seen = new Map<string, FuneralServiceRequest>();
+  return requests.filter((request) => {
+    if (!isCustomCasketRequest(request)) return true;
+    const signature = [
+      request.requesterId,
+      request.shopId,
+      request.productId,
+      request.deceasedFullName,
+      request.contactNumber,
+      request.wakeStartDate,
+      request.wakeEndDate,
+      request.burialTime,
+      request.customDesignNotes,
+    ].map((value) => String(value || "").trim().toLowerCase()).join("|");
+    const previous = seen.get(signature);
+    const currentTime = Date.parse(String(request.createdAt || ""));
+    const previousTime = previous ? Date.parse(String(previous.createdAt || "")) : NaN;
+    if (
+      previous &&
+      Number.isFinite(currentTime) &&
+      Number.isFinite(previousTime) &&
+      Math.abs(currentTime - previousTime) <= 2 * 60 * 1000
+    ) return false;
+    seen.set(signature, request);
+    return true;
+  });
+};
+
 export default function FuneralServiceRequestsInboxScreen() {
   const navigation = useNavigation<any>();
   const [loading, setLoading] = useState(true);
@@ -119,7 +151,7 @@ export default function FuneralServiceRequestsInboxScreen() {
         .eq("shopId", user.uid)
         .order("createdAt", { ascending: false });
 
-      const nextRequests = (rows || []) as FuneralServiceRequest[];
+      const nextRequests = dedupeServiceRequests((rows || []) as FuneralServiceRequest[]);
       setRequests(nextRequests);
     } catch (error: any) {
       Alert.alert("Error", error?.message || "Failed to load service requests.");

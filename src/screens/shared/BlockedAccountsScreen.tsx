@@ -17,7 +17,7 @@ type BlockedAccount = {
   createdAt?: string;
 };
 
-const defaultProfile = require('../../../assets/Male_Default_Profile.png');
+const defaultProfile = require('../../../assets/Default Characters/Male.png');
 
 export default function BlockedAccountsScreen() {
   const [accounts, setAccounts] = useState<BlockedAccount[]>([]);

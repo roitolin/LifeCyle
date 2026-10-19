@@ -22,7 +22,7 @@ import { useResponsive } from "@/utils/responsive";
 import { confirmLogout } from '@/utils/logoutConfirmation';
 import { subscribeTabRefresh } from "@/utils/tabRefresh";
 
-const otherDefault = require("../../../assets/Male_Default_Profile.png");
+const otherDefault = require("../../../assets/Default Characters/Male.png");
 
 type ShopStatus = "none" | "pending" | "verified" | "live" | "offline" | "rejected";
 

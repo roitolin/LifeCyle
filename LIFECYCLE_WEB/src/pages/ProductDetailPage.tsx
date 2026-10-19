@@ -7,6 +7,8 @@ import BrandLogo from '@/components/BrandLogo'
 import NotificationDropdown from '@/components/NotificationDropdown'
 import AnnouncementDropdown from '@/components/AnnouncementDropdown'
 import LogoutLink from '@/components/LogoutLink'
+import MarketplaceFooter from '@/components/MarketplaceFooter'
+import MarketplaceMobileDrawer from '@/components/MarketplaceMobileDrawer'
 import PageBackButton from '@/components/PageBackButton'
 import './ProductDetailPage.css'
 
@@ -109,26 +111,6 @@ const HeaderCartIcon = () => (
 const SearchIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
 )
-
-type ProductMobileMenuIconName = 'home' | 'account' | 'shop' | 'messages' | 'purchases' | 'help'
-
-const PRODUCT_MOBILE_MENU_ICON_PATHS: Record<ProductMobileMenuIconName, string[]> = {
-  home: ['m3 11 9-8 9 8', 'M5 10v11h14V10M9 21v-7h6v7'],
-  account: ['M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z', 'M4.5 21a7.5 7.5 0 0 1 15 0'],
-  shop: ['M3 9h18l-2-6H5L3 9Z', 'M5 9v12h14V9M9 21v-7h6v7'],
-  messages: ['M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z'],
-  purchases: ['M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z', 'M3 6h18M16 10a4 4 0 0 1-8 0'],
-  help: ['M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z', 'M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .8-1 1.7M12 17h.01'],
-}
-
-function ProductMobileMenuIcon({ name }: { name: ProductMobileMenuIconName }) {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      {PRODUCT_MOBILE_MENU_ICON_PATHS[name].map(path => <path d={path} key={path} />)}
-    </svg>
-  )
-}
-
 
 export default function ProductDetailPage() {
   const { productId } = useParams<{ productId: string }>()
@@ -484,66 +466,20 @@ export default function ProductDetailPage() {
   }
 
   return (
-    <div className="pd-page">
-      {mobileMenuOpen ? (
-        <div className="sp-mobile-menu-layer">
-          <button
-            type="button"
-            className="sp-mobile-menu-backdrop"
-            onClick={() => setMobileMenuOpen(false)}
-            aria-label="Close navigation menu"
-          />
-          <aside className="sp-mobile-menu" role="dialog" aria-modal="true" aria-label="Navigation menu">
-            <div className="sp-mobile-menu-head">
-              <span>Menu</span>
-              <button
-                ref={mobileMenuCloseRef}
-                type="button"
-                className="sp-mobile-menu-close"
-                onClick={() => setMobileMenuOpen(false)}
-                aria-label="Close navigation menu"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
-              </button>
-            </div>
-
-            {isLoggedIn ? (
-              <div className="sp-mobile-menu-profile">
-                {userProfile?.photoURL ? (
-                  <img src={userProfile.photoURL} alt="" />
-                ) : (
-                  <span className="sp-mobile-menu-avatar"><ProductMobileMenuIcon name="account" /></span>
-                )}
-                <div>
-                  <strong>{userProfile?.fullName || 'My account'}</strong>
-                  <span>{viewer?.email}</span>
-                </div>
-              </div>
-            ) : null}
-
-            <nav className="sp-mobile-menu-nav" aria-label="Mobile navigation">
-              <Link to="/funeral" onClick={() => setMobileMenuOpen(false)}><ProductMobileMenuIcon name="home" /><span>Home</span></Link>
-              <Link to={accountPath} onClick={() => setMobileMenuOpen(false)}><ProductMobileMenuIcon name="account" /><span>My Account</span></Link>
-              <Link to="/seller" onClick={() => setMobileMenuOpen(false)}><ProductMobileMenuIcon name="shop" /><span>Shop Center</span></Link>
-              <button type="button" onClick={openMessages}><ProductMobileMenuIcon name="messages" /><span>Messages</span></button>
-              <div className="sp-mobile-menu-announcement"><AnnouncementDropdown menuItem /></div>
-              <Link to={purchasesPath} onClick={() => setMobileMenuOpen(false)}><ProductMobileMenuIcon name="purchases" /><span>My Payments</span></Link>
-              <Link to={helpPath} onClick={() => setMobileMenuOpen(false)}><ProductMobileMenuIcon name="help" /><span>Help Centre</span></Link>
-            </nav>
-
-            <div className="sp-mobile-menu-auth">
-              {isLoggedIn ? (
-                <LogoutLink onClick={() => setMobileMenuOpen(false)}>Log out</LogoutLink>
-              ) : (
-                <>
-                  <Link to="/login" onClick={() => setMobileMenuOpen(false)}>Log in</Link>
-                  <Link to="/register" className="sp-mobile-menu-primary" onClick={() => setMobileMenuOpen(false)}>Create account</Link>
-                </>
-              )}
-            </div>
-          </aside>
-        </div>
-      ) : null}
+    <div className="pd-page marketplace-page-shell">
+      <MarketplaceMobileDrawer
+        isOpen={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+        closeButtonRef={mobileMenuCloseRef}
+        isLoggedIn={isLoggedIn}
+        userName={userProfile?.fullName}
+        userEmail={viewer?.email}
+        photoUrl={userProfile?.photoURL}
+        accountPath={accountPath}
+        purchasesPath={purchasesPath}
+        helpPath={helpPath}
+        onOpenMessages={openMessages}
+      />
 
       {/* ── Topbar ── */}
       <div className="sp-topbar">
@@ -911,6 +847,7 @@ export default function ProductDetailPage() {
         )}
 
       </main>
+      <MarketplaceFooter />
 
       {/* Image Modal */}
       {isImageModalOpen && (

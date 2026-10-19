@@ -9,9 +9,13 @@ export type AcceptedServiceRequestPayment = {
   [key: string]: unknown;
 };
 
-export async function acceptFuneralServiceRequest(requestId: string): Promise<AcceptedServiceRequestPayment> {
+export async function acceptFuneralServiceRequest(
+  requestId: string,
+  customPrice?: number,
+): Promise<AcceptedServiceRequestPayment> {
   const { error: acceptanceError } = await supabase.rpc('accept_funeral_service_request', {
     p_request_id: requestId,
+    ...(customPrice == null ? {} : { p_custom_price: customPrice }),
   });
   if (acceptanceError) throw acceptanceError;
 
