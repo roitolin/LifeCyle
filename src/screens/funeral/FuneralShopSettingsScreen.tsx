@@ -19,7 +19,7 @@ import * as ImagePicker from "expo-image-picker";
 import { AdminPaymentModal, AppBackButton, KeyboardAwareScrollView } from "@/components";
 import LoadingBird from "@/components/LoadingBird";
 import PayoutAccountsModal from "@/components/PayoutAccountsModal";
-import { auth, uploadCertificate } from "@/services";
+import { auth, uploadShopImage } from "@/services";
 import { supabase } from "@/services/supabaseClient";
 import { sanitizePlainText } from "@/utils/inputSecurity";
 
@@ -333,7 +333,7 @@ export default function FuneralShopSettingsScreen({ navigation, route }: any) {
     if (picker.canceled || !picker.assets[0]) return;
     setUploadingImage(kind);
     try {
-      const url = await uploadCertificate(picker.assets[0].uri);
+      const url = await uploadShopImage(picker.assets[0].uri);
       setProfileDraft((current) => ({ ...current, [kind]: url }));
     } catch (error: any) {
       Alert.alert("Upload failed", error?.message || "Unable to upload the selected image.");

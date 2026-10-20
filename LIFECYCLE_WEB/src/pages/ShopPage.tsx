@@ -10,6 +10,7 @@ import MarketplaceMobileDrawer from '@/components/MarketplaceMobileDrawer'
 import PageBackButton from '@/components/PageBackButton'
 import { supabase } from '@/lib/supabase'
 import { loadFuneralCart } from '@/utils/funeralCart'
+import { getProfileAvatar } from '@/utils/profileAvatar'
 import './ShopPage.css'
 
 type ShopRecord = {
@@ -74,7 +75,7 @@ export default function ShopPage() {
       setUserProfile(null)
       return
     }
-    supabase.from('users').select('fullName, photoURL').eq('id', viewer.id).maybeSingle().then(({ data }) => setUserProfile(data))
+    supabase.from('users').select('fullName, photoURL, gender').eq('id', viewer.id).maybeSingle().then(({ data }) => setUserProfile(data))
   }, [viewer?.id])
 
   useEffect(() => {
@@ -207,6 +208,7 @@ export default function ShopPage() {
         userName={userProfile?.fullName}
         userEmail={viewer?.email}
         photoUrl={userProfile?.photoURL}
+        gender={userProfile?.gender}
         accountPath={accountPath}
         purchasesPath={purchasesPath}
         helpPath={helpPath}
@@ -224,7 +226,7 @@ export default function ShopPage() {
             {isLoggedIn ? (
               <div className="sp-user-menu">
                 <div className="sp-user-menu-trigger">
-                  {userProfile?.photoURL ? <img src={userProfile.photoURL} alt="Account" className="sp-user-avatar" /> : <div className="sp-user-avatar-placeholder" aria-hidden="true" />}
+                  <img src={getProfileAvatar(userProfile?.photoURL, userProfile?.gender)} alt="Account" className="sp-user-avatar" />
                   <span className="sp-user-name">{userProfile?.fullName || viewer?.email}</span>
                   <svg className="sp-user-dropdown-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
                 </div>

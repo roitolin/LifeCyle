@@ -22,7 +22,7 @@ import { useResponsive } from "@/utils/responsive";
 import { confirmLogout } from '@/utils/logoutConfirmation';
 import { subscribeTabRefresh } from "@/utils/tabRefresh";
 
-const otherDefault = require("../../../assets/Default Characters/Male.png");
+import { getDefaultProfileImage } from "@/utils/defaultProfileImage";
 
 type ShopStatus = "none" | "pending" | "verified" | "live" | "offline" | "rejected";
 
@@ -33,9 +33,10 @@ export default function FuneralProfileScreen({ navigation }: any) {
 
   const [fullName, setFullName] = useState("");
   const [photoURL, setPhotoURL] = useState<string | null>(null);
+  const [gender, setGender] = useState<string | null>(null);
   const [shopStatus, setShopStatus] = useState<ShopStatus>("none");
   const [rejectionReason, setRejectionReason] = useState<string | null>(null);
-  const [shopInfo, setShopInfo] = useState<{ shopName?: string; shopAddress?: string; shopPhoneNumber?: string } | null>(null);
+  const [shopInfo, setShopInfo] = useState<{ shopName?: string; shopAddress?: string; shopPhoneNumber?: string; shopImageUrl?: string | null; coverImageUrl?: string | null } | null>(null);
   const [businessInfo, setBusinessInfo] = useState<{ generalLocation?: string; registeredAddress?: string } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [previewVisible, setPreviewVisible] = useState(false);
@@ -43,7 +44,7 @@ export default function FuneralProfileScreen({ navigation }: any) {
   const scrollRef = useRef<ScrollView>(null);
 
   const getDefaultImage = () => {
-    return otherDefault;
+    return getDefaultProfileImage(gender);
   };
 
   const loadProfile = useCallback(async () => {
@@ -61,6 +62,7 @@ export default function FuneralProfileScreen({ navigation }: any) {
 
       setFullName(userData.fullName || "");
       setPhotoURL(userData.photoURL || null);
+      setGender(userData.gender || null);
 
       // Load shop status from funeral_shops table
       const { data: shopData } = await supabase
@@ -76,6 +78,8 @@ export default function FuneralProfileScreen({ navigation }: any) {
           shopName: shopData.shopName,
           shopAddress: shopData.shopAddress,
           shopPhoneNumber: shopData.shopPhoneNumber,
+          shopImageUrl: shopData.shopImageUrl || null,
+          coverImageUrl: shopData.coverImageUrl || null,
         });
         setBusinessInfo({
           generalLocation: shopData.generalLocation,

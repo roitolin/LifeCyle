@@ -1688,10 +1688,10 @@ select.sc-form-input {
   @apply [background:#f8fafc];
 }
 .sc-customer-avatar {
-  @apply w-[38px] h-[38px] flex-[0_0_38px] grid place-items-center [background:#eef2f6] text-[color:var(--sc-brand)] text-[14px] font-[750] rounded-[50%];
+  @apply w-[38px] h-[38px] flex-[0_0_38px] block object-cover overflow-hidden [background:#eef2f6] rounded-[50%];
 }
 .sc-customer-avatar-lg {
-  @apply w-[52px] h-[52px] basis-[52px] text-[18px];
+  @apply w-[52px] h-[52px] basis-[52px];
 }
 .sc-customer-main,
 .sc-schedule-main,
@@ -6906,11 +6906,8 @@ button.sc-settings-row {
     flex: 0 0 44px;
     border-radius: 50%;
     background: #eef3f0;
-    color: #22312d;
-    font-size: 16px;
-    font-weight: 800;
-    display: grid;
-    place-items: center;
+    display: block;
+    object-fit: cover;
   }
   .sc-page .sc-customers-layout .sc-customer-card-identity {
     flex: 1;

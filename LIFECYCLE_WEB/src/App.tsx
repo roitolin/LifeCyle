@@ -71,8 +71,12 @@ function PageFallback() {
 function RouteScopedChatWidget() {
   const { pathname } = useLocation()
   const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname
+  const isMarketplaceChatRoute = normalizedPath === '/funeral'
+    || normalizedPath === '/funeral/shops'
+    || normalizedPath.startsWith('/funeral/product/')
+    || normalizedPath.startsWith('/shop/')
 
-  if (normalizedPath !== '/funeral') return null
+  if (!isMarketplaceChatRoute) return null
 
   return <ChatWidget />
 }

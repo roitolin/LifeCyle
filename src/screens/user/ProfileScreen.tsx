@@ -10,8 +10,7 @@ import { supabase } from "@/services/supabaseClient";
 import { auth } from "@/services/supabaseAuth";
 import { confirmLogout } from '@/utils/logoutConfirmation';
 import { useResponsive } from "@/utils/responsive";
-
-const defaultProfile = require("../../../assets/Default Characters/Male.png");
+import { getProfileImageSource } from "@/utils/defaultProfileImage";
 
 type ActionRowProps = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -46,6 +45,7 @@ export default function ProfileScreen({ navigation }: any) {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [photoURL, setPhotoURL] = useState<string | null>(null);
+  const [gender, setGender] = useState<string | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [shopStatus, setShopStatus] = useState<ShopStatus>("none");
   const [checkingShopAccess, setCheckingShopAccess] = useState(false);
@@ -57,13 +57,14 @@ export default function ProfileScreen({ navigation }: any) {
     try {
       const { data, error } = await supabase
         .from("users")
-        .select("fullName, email, photoURL")
+        .select("fullName, email, photoURL, gender")
         .eq("id", user.uid)
         .single();
       if (error) throw error;
       setFullName(String(data.fullName || ""));
       setEmail(String(data.email || user.email || ""));
       setPhotoURL(data.photoURL || null);
+      setGender(data.gender || null);
 
       const { data: shopData, error: shopError } = await supabase
         .from("funeral_shops")
@@ -173,7 +174,7 @@ export default function ProfileScreen({ navigation }: any) {
           {loadingProfile ? (
             <ActivityIndicator color="#41514d" />
           ) : (
-            <Image source={photoURL ? { uri: photoURL } : defaultProfile} style={styles.identityImage} resizeMode="cover" />
+            <Image source={getProfileImageSource(photoURL, gender)} style={styles.identityImage} resizeMode="cover" />
           )}
         </View>
         <View style={styles.identityCopy}>
@@ -255,6 +256,7 @@ export default function ProfileScreen({ navigation }: any) {
             email: email || user?.email || '',
             fullName: fullName || user?.displayName || '',
             photoURL,
+            gender,
           }}
           onAddAccount={() => navigation.navigate('Login', { addAccount: true })}
           onManageAccounts={() => navigation.navigate('ManageDeviceAccounts')}

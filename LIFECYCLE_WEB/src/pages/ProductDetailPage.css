@@ -718,7 +718,7 @@
   @apply border-[#dce1e3];
 }
 .pd-container {
-  @apply max-w-[1240px] px-[20px] py-0;
+  @apply max-w-[1240px] px-[20px] pt-0 pb-[40px];
 }
 .pd-main-card {
   @apply grid grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] gap-[clamp(34px,5vw,68px)] [background:#fff] border shadow-[0_16px_36px_rgba(29,43,53,0.055)] mb-[20px] p-[28px] rounded-[12px] border-solid border-[#e2e6e7];
@@ -1191,7 +1191,7 @@
     @apply hidden;
   }
   .pd-container {
-    @apply px-[12px] py-0;
+    @apply px-[12px] pt-0 pb-[40px];
   }
   .pd-main-card {
     @apply gap-[24px] p-[12px] rounded-[9px];

@@ -2,6 +2,7 @@ import type { ReactNode, RefObject } from 'react'
 import { Link } from 'react-router-dom'
 import AnnouncementDropdown from '@/components/AnnouncementDropdown'
 import LogoutLink from '@/components/LogoutLink'
+import { getProfileAvatar } from '@/utils/profileAvatar'
 import './MarketplaceMobileDrawer.css'
 
 type DrawerIconName = 'home' | 'account' | 'shop' | 'messages' | 'payments' | 'help'
@@ -31,6 +32,7 @@ type MarketplaceMobileDrawerProps = {
   userName?: string | null
   userEmail?: string | null
   photoUrl?: string | null
+  gender?: string | null
   accountPath: string
   purchasesPath: string
   helpPath: string
@@ -45,6 +47,7 @@ export default function MarketplaceMobileDrawer({
   userName,
   userEmail,
   photoUrl,
+  gender,
   accountPath,
   purchasesPath,
   helpPath,
@@ -65,7 +68,7 @@ export default function MarketplaceMobileDrawer({
 
         {isLoggedIn ? (
           <div className='sp-mobile-menu-profile'>
-            {photoUrl ? <img src={photoUrl} alt='' /> : <img src='/Male.png' alt='' className='sp-mobile-menu-avatar' />}
+            <img src={getProfileAvatar(photoUrl, gender)} alt='' className='sp-mobile-menu-avatar' />
             <div className='sp-mobile-menu-profile-copy'>
               <strong>{userName || 'My account'}</strong>
               <span>{userEmail}</span>

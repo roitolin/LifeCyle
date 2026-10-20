@@ -4,6 +4,7 @@ import type { User } from '@supabase/supabase-js'
 import BrandLogo from '@/components/BrandLogo'
 import LogoutLink from '@/components/LogoutLink'
 import { supabase } from '@/lib/supabase'
+import { getProfileAvatar } from '@/utils/profileAvatar'
 import './UserProfilePage.css'
 
 const accountLinks = [
@@ -71,6 +72,7 @@ export default function ProfileLayout({ children, title, subtitle }: { children:
   const navLink = ({ to, label }: { to: string, label: string }, onNavigate?: () => void) => (
     <Link key={to} to={to} onClick={onNavigate} className={location.pathname === to ? 'active' : undefined}>{label}</Link>
   )
+  const avatarUrl = getProfileAvatar(profile?.photoURL, profile?.gender)
 
   return (
     <div className="sp-page profile-page">
@@ -97,11 +99,7 @@ export default function ProfileLayout({ children, title, subtitle }: { children:
             </div>
 
             <div className="profile-mobile-menu-profile">
-              {profile?.photoURL ? (
-                <img src={profile.photoURL} alt="" />
-              ) : (
-                <img src="/Male.png" alt="" className="profile-mobile-menu-avatar" />
-              )}
+              <img src={avatarUrl} alt="" className="profile-mobile-menu-avatar" />
               <div>
                 <strong>{profile?.fullName || 'My account'}</strong>
                 <span>{viewer?.email}</span>
@@ -130,13 +128,7 @@ export default function ProfileLayout({ children, title, subtitle }: { children:
           <div className="sp-topbar-right">
             <div className="sp-user-menu">
               <div className="sp-user-menu-trigger">
-                {profile?.photoURL ? (
-                  <img src={profile.photoURL} alt="Account" className="sp-user-avatar" />
-                ) : (
-                  <div className="sp-user-avatar-placeholder" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
-                  </div>
-                )}
+                <img src={avatarUrl} alt="Account" className="sp-user-avatar" />
                 <span className="sp-user-name">{profile?.fullName || viewer?.email}</span>
                 <svg className="sp-user-dropdown-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
               </div>

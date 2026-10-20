@@ -17,12 +17,14 @@ import {
   getRememberedAccounts,
   type RememberedAccount,
 } from '@/services/deviceAccounts';
+import { getProfileImageSource } from '@/utils/defaultProfileImage';
 
 type CurrentAccount = {
   id: string;
   email: string;
   fullName: string;
   photoURL: string | null;
+  gender?: string | null;
 };
 
 type AccountSwitcherProps = {
@@ -42,34 +44,23 @@ export function DeviceAccountAvatar({
   account,
   size = 38,
 }: {
-  account: Pick<RememberedAccount, 'id' | 'fullName' | 'email' | 'photoURL'>;
+  account: Pick<RememberedAccount, 'id' | 'fullName' | 'email' | 'photoURL'> & {
+    gender?: string | null;
+  };
   size?: number;
 }) {
-  const label = account.fullName.trim() || account.email.trim();
-  const initial = label.charAt(0).toUpperCase() || '?';
   const avatarStyle = {
     width: size,
     height: size,
     borderRadius: size / 2,
   };
 
-  if (account.photoURL) {
-    return <Image source={{ uri: account.photoURL }} style={[styles.avatar, avatarStyle]} />;
-  }
-
   return (
-    <View
-      style={[
-        styles.avatar,
-        styles.avatarFallback,
-        avatarStyle,
-        { backgroundColor: avatarColor(account.id) },
-      ]}
-    >
-      <Text style={[styles.avatarInitial, { fontSize: Math.max(11, size * 0.4) }]}>
-        {initial}
-      </Text>
-    </View>
+    <Image
+      source={getProfileImageSource(account.photoURL, account.gender)}
+      style={[styles.avatar, avatarStyle]}
+      resizeMode="cover"
+    />
   );
 }
 
@@ -97,6 +88,7 @@ export default function AccountSwitcher({
     const fallback: RememberedAccount = {
       ...currentAccount,
       fullName: currentAccount.fullName.trim() || currentAccount.email.split('@')[0],
+      gender: currentAccount.gender || null,
       lastUsedAt: new Date().toISOString(),
     };
     const storedCurrent = accounts.find((account) => account.id === currentAccount.id);

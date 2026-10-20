@@ -23,9 +23,7 @@ import { uploadProfilePicture } from '@/services/supabaseStorage';
 
 import { recordAccountActivity } from '@/utils/accountActivity';
 
-const maleDefault = require("../../../assets/Default Characters/Male.png");
-const femaleDefault = require("../../../assets/Default Characters/Female.png");
-const otherDefault = require("../../../assets/Default Characters/Male.png");
+import { getDefaultProfileImage } from "@/utils/defaultProfileImage";
 
 export default function AccountSettingsScreen({ navigation }: any) {
   const [fullName, setFullName] = useState("");
@@ -39,9 +37,9 @@ export default function AccountSettingsScreen({ navigation }: any) {
   const [previewVisible, setPreviewVisible] = useState(false);
 
   const getDefaultImage = () => {
-    if (gender === "male") return maleDefault;
-    if (gender === "female") return femaleDefault;
-    return otherDefault;
+    return getDefaultProfileImage(gender);
+
+
   };
 
   const loadAccount = useCallback(async () => {

@@ -79,13 +79,9 @@ function RegisterPage() {
       const user = authData.user
       if (!user) throw new Error('Supabase did not return a user for this registration.')
 
-      // With email confirmation enabled there is no authenticated session yet.
-      // The database auth trigger creates public.users without violating RLS.
-      await supabase.auth.signOut()
-
-      const target = redirectAfterRegister
-        ? `/login?registered=1&next=${encodeURIComponent(redirectAfterRegister)}`
-        : '/login?registered=1'
+      const verificationParams = new URLSearchParams({ email: normalizedEmail })
+      if (redirectAfterRegister) verificationParams.set('next', redirectAfterRegister)
+      const target = `/verify-email?${verificationParams.toString()}`
       navigate(target)
     } catch (caughtError) {
       const errorCode =

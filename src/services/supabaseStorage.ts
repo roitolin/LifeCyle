@@ -6,7 +6,7 @@ const STORAGE_BUCKET = 'avatars';
 const DEATH_CERTIFICATE_BUCKET = 'death-certificates';
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
-type UploadFolder = 'profiles' | 'service-media' | 'report-evidence' | 'home-content';
+type UploadFolder = 'profiles' | 'service-media' | 'report-evidence' | 'home-content' | 'shops';
 
 function decodeBase64(value: string) {
   const binary = globalThis.atob(value);
@@ -58,6 +58,9 @@ async function uploadImageToSupabase(uri: string, folder: UploadFolder): Promise
 
 export const uploadProfilePicture = (uri: string) =>
   uploadImageToSupabase(uri, 'profiles');
+
+export const uploadShopImage = (uri: string) =>
+  uploadImageToSupabase(uri, 'shops');
 
 export const uploadCertificate = (uri: string) =>
   uploadImageToSupabase(uri, 'service-media');

@@ -1612,6 +1612,45 @@ select:focus-visible {
 .verification-actions {
   @apply grid gap-[10px] mt-[12px];
 }
+.auth-verification-card .auth-card-head h1 {
+  @apply text-[#22312d];
+}
+.auth-verification-card .auth-subtitle strong {
+  @apply text-[#315f50];
+}
+.auth-verification-card .auth-message-info {
+  @apply [background:#eef5f0] border-[#c8d9d2] text-[#315f50];
+}
+.auth-verification-card .verification-actions .ghost-btn {
+  @apply text-[#315f50] [background:#f8fbf9] border-[#9bb5ab];
+}
+.auth-verification-card .verification-actions .ghost-btn:not(:disabled) {
+  @apply hover:[background:#eef5f0] hover:border-[#315f50];
+}
+.auth-verification-card .verification-actions button:disabled {
+  @apply cursor-not-allowed opacity-60;
+}
+.auth-otp-label {
+  @apply text-[#315f50] text-[0.86rem] font-semibold tracking-[0.02em] mt-[4px];
+}
+.auth-otp-control {
+  @apply relative w-full;
+}
+.auth-otp-boxes {
+  @apply grid grid-cols-6 gap-[10px] w-full pointer-events-none;
+}
+.auth-otp-digit {
+  @apply min-w-0 min-h-[60px] border-[1.5px] border-solid border-[#d9d6cd] [background:#fff] text-[#22312d] flex items-center justify-center text-[1.65rem] font-extrabold rounded-[12px] [transition:border-color_150ms_ease,background_150ms_ease,box-shadow_150ms_ease];
+}
+.auth-otp-digit.is-filled {
+  @apply border-[#315f50] [background:#eef1ec];
+}
+.auth-otp-control:focus-within .auth-otp-digit {
+  @apply border-[#315f50] shadow-[0_0_0_2px_rgba(49,95,80,0.1)];
+}
+.auth-otp-input {
+  @apply absolute z-[2] w-full h-full opacity-0 cursor-text p-0 border-0 inset-0;
+}
 .auth-switch {
   @apply text-center text-slate-500 text-[0.92rem] mt-[16px];
 }
@@ -2891,6 +2930,12 @@ select:focus-visible {
   .auth-helper-text,
   .auth-switch {
     @apply [overflow-wrap:anywhere];
+  }
+  .auth-otp-boxes {
+    @apply gap-[6px];
+  }
+  .auth-otp-digit {
+    @apply min-h-[50px] text-[1.35rem] rounded-[9px];
   }
   .auth-form input,
   .auth-form select {

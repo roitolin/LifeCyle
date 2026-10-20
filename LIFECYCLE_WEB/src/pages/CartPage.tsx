@@ -7,11 +7,13 @@ import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import BrandLogo from '@/components/BrandLogo'
 import LogoutLink from '@/components/LogoutLink'
 import PageBackButton from '@/components/PageBackButton'
+import { getProfileAvatar } from '@/utils/profileAvatar'
 import './CartPage.css'
 
 type ViewerProfile = {
   fullName?: string | null
   photoURL?: string | null
+  gender?: string | null
 }
 
 function formatPeso(value: number) {
@@ -36,7 +38,7 @@ export default function CartPage() {
     supabase.auth.getSession().then(({ data }) => {
       setIsLoggedIn(!!data.session?.user)
       if (data.session?.user) {
-        supabase.from('users').select('fullName, photoURL').eq('id', data.session.user.id).single()
+        supabase.from('users').select('fullName, photoURL, gender').eq('id', data.session.user.id).single()
           .then(({ data: ud }) => setProfile(ud))
       }
     })
@@ -289,13 +291,7 @@ function TopBar({ profile }: { profile: ViewerProfile | null }) {
           <span className="cart-divider">|</span>
           <div className="cart-user-menu">
             <div className="cart-user-menu-trigger">
-              {profile?.photoURL ? (
-                <img src={profile.photoURL} alt="Avatar" className="cart-user-avatar" />
-              ) : (
-                <div className="cart-user-avatar-placeholder">
-                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
-                </div>
-              )}
+              <img src={getProfileAvatar(profile?.photoURL, profile?.gender)} alt="Avatar" className="cart-user-avatar" />
               <span className="cart-user-name">{profile?.fullName || 'User'}</span>
               <svg className="cart-user-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
             </div>

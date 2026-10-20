@@ -14,10 +14,11 @@ type BlockedAccount = {
   fullName: string;
   email: string;
   photoURL: string | null;
+  gender?: string | null;
   createdAt?: string;
 };
 
-const defaultProfile = require('../../../assets/Default Characters/Male.png');
+import { getProfileImageSource } from '@/utils/defaultProfileImage';
 
 export default function BlockedAccountsScreen() {
   const [accounts, setAccounts] = useState<BlockedAccount[]>([]);
@@ -48,7 +49,7 @@ export default function BlockedAccountsScreen() {
 
       const usersResult = await supabase
         .from('users')
-        .select('id,fullName,email,photoURL')
+        .select('id,fullName,email,photoURL,gender')
         .in('id', blockedIds);
       if (usersResult.error) throw usersResult.error;
 
@@ -61,6 +62,7 @@ export default function BlockedAccountsScreen() {
           fullName: String(user?.fullName || 'Blocked account'),
           email: String(user?.email || ''),
           photoURL: user?.photoURL || null,
+          gender: user?.gender || null,
           createdAt: block.createdAt,
         };
       }));
@@ -144,7 +146,7 @@ export default function BlockedAccountsScreen() {
 
         {!loading && !errorMessage ? accounts.map((account) => (
           <View key={account.blockId} style={styles.accountCard}>
-            <Image source={account.photoURL ? { uri: account.photoURL } : defaultProfile} style={styles.avatar} />
+            <Image source={getProfileImageSource(account.photoURL, account.gender)} style={styles.avatar} resizeMode="cover" />
             <View style={styles.accountCopy}>
               <Text numberOfLines={1} style={styles.accountName}>{account.fullName}</Text>
               {account.email ? <Text numberOfLines={1} style={styles.accountEmail}>{account.email}</Text> : null}

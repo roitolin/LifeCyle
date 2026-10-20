@@ -12,7 +12,7 @@ import { Avatar, Card, Title, Divider, Button } from "react-native-paper";
 import { supabase } from "@/services/supabaseClient";
 import { auth } from "../../services/supabaseAuth";
 import { useResponsive } from "../../utils/responsive";
-import { getDefaultProfileImage } from "../../utils/defaultProfileImage";
+import { getDefaultProfileImage, getProfileImageSource } from "../../utils/defaultProfileImage";
 import { ensureConversationForUsers } from "../../utils/chatHelpers";
 
 type User = {
@@ -123,11 +123,7 @@ export default function AdminUserDetailScreen({ route, navigation }: any) {
     <ScrollView contentContainerStyle={[styles.container, isDesktop && styles.containerDesktop]}>
       {/* Profile Header */}
       <View style={styles.header}>
-        {user.photoURL ? (
-          <Avatar.Image size={100} source={{ uri: user.photoURL }} />
-        ) : (
-          <Avatar.Image size={100} source={getDefaultProfileImage(user.gender as any)} />
-        )}
+        <Avatar.Image size={100} source={getProfileImageSource(user.photoURL, user.gender)} />
         <Title style={styles.name}>{user.fullName || "No name"}</Title>
         <Text style={styles.email}>{user.email}</Text>
         <Text selectable style={styles.uid}>UID: {user.id}</Text>

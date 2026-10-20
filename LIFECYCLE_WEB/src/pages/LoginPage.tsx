@@ -195,11 +195,21 @@ function LoginPage() {
       await recordWebAdminLoginActivity('login_success', userRole)
       navigate(targetAfterLogin)
     } catch (caughtError) {
-      recordFailedLoginAttempt(normalizedEmail)
       const errorCode =
         typeof caughtError === 'object' && caughtError !== null && 'code' in caughtError
           ? String(caughtError.code)
           : ''
+      const errorMessage =
+        typeof caughtError === 'object' && caughtError !== null && 'message' in caughtError
+          ? String(caughtError.message).toLowerCase()
+          : ''
+      if (errorCode === 'email_not_confirmed' || errorMessage.includes('email not confirmed')) {
+        const verificationParams = new URLSearchParams({ email: normalizedEmail })
+        if (redirectAfterLogin) verificationParams.set('next', redirectAfterLogin)
+        navigate(`/verify-email?${verificationParams.toString()}`)
+        return
+      }
+      recordFailedLoginAttempt(normalizedEmail)
       setError(getLoginErrorMessage(errorCode))
     } finally {
       setLoading(false)

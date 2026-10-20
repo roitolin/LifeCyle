@@ -24,7 +24,7 @@ import { LineChart, PieChart, type lineDataItem } from "react-native-gifted-char
 import { AppBackButton, AdminPaymentModal, KeyboardAwareScrollView } from "@/components";
 import { supabase } from "@/services/supabaseClient";
 import * as ImagePicker from "expo-image-picker";
-import { auth, uploadCertificate } from "@/services";
+import { auth, uploadShopImage } from "@/services";
 import { formatPhilippinePeso } from "@/utils/funeralCatalog";
 import {
   computeSalesOverview,
@@ -1375,8 +1375,16 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
 
     setUploadingShopImage(true);
     try {
-      const url = await uploadCertificate(picker.assets[0].uri);
+      const url = await uploadShopImage(picker.assets[0].uri);
       setShopImageUrl(url);
+      const currentUser = auth.currentUser;
+      if (currentUser?.uid) {
+        await supabase
+          .from("funeral_shops")
+          .update({ shopImageUrl: url, updatedAt: new Date().toISOString() })
+          .eq("id", currentUser.uid);
+        setShopInfo((prev) => (prev ? { ...prev, shopImageUrl: url } : prev));
+      }
     } catch (error: any) {
       Alert.alert("Upload failed", error?.message || "Failed to upload shop image.");
     } finally {
@@ -1394,8 +1402,16 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
 
     setUploadingShopCover(true);
     try {
-      const url = await uploadCertificate(picker.assets[0].uri);
+      const url = await uploadShopImage(picker.assets[0].uri);
       setCoverImageUrl(url);
+      const currentUser = auth.currentUser;
+      if (currentUser?.uid) {
+        await supabase
+          .from("funeral_shops")
+          .update({ coverImageUrl: url, updatedAt: new Date().toISOString() })
+          .eq("id", currentUser.uid);
+        setShopInfo((prev) => (prev ? { ...prev, coverImageUrl: url } : prev));
+      }
     } catch (error: any) {
       Alert.alert("Upload failed", error?.message || "Failed to upload cover photo.");
     } finally {

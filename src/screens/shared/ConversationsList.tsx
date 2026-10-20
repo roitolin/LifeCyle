@@ -611,7 +611,7 @@ export default function ConversationsList({ navigation, route }: any) {
   const renderItem = ({ item }: { item: Conversation }) => {
     const otherUserId = getOtherParticipant(item);
     const otherUser = userInfoMap[otherUserId];
-    const partnerIsReceivingShop = item.shopId === otherUserId;
+    const partnerIsReceivingShop = item.shopId === otherUserId || Boolean(otherUser?.shopName);
     const displayName = partnerIsReceivingShop
       ? otherUser?.shopName || otherUser?.fullName || otherUser?.email || "Funeral Shop"
       : otherUser?.fullName || otherUser?.email || "Customer";

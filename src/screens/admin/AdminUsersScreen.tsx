@@ -21,6 +21,7 @@ import { supabase } from "@/services/supabaseClient";
 import { auth } from "../../services/supabaseAuth";
 import { useResponsive } from "../../utils/responsive";
 import { logAdminAction } from "../../utils/adminAuditLog";
+import { getProfileImageSource } from "../../utils/defaultProfileImage";
 
 type User = {
   id: string;
@@ -34,6 +35,7 @@ type User = {
   bannedBy?: string | null;
   createdAt?: string;
   photoURL?: string;
+  gender?: string | null;
 };
 
 export default function AdminUsersScreen({ navigation }: any) {
@@ -276,11 +278,7 @@ export default function AdminUsersScreen({ navigation }: any) {
         <Card.Content>
           <View style={styles.topRow}>
             <View style={styles.avatarContainer}>
-              {item.photoURL ? (
-                <Avatar.Image size={50} source={{ uri: item.photoURL }} />
-              ) : (
-                <Avatar.Icon size={50} icon="account" />
-              )}
+              <Avatar.Image size={50} source={getProfileImageSource(item.photoURL, item.gender)} />
             </View>
             <View style={styles.info}>
               <Text variant="titleMedium" numberOfLines={2} style={styles.nameText}>

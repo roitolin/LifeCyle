@@ -84,7 +84,7 @@ export default function FuneralBusinessInformationScreen({ navigation, route }: 
         shopName: payload.shopName,
         shopAddress: payload.shopAddress,
         shopPhoneNumber: payload.shopPhoneNumber,
-        shopImageUrl: null,
+        shopImageUrl: draft.shopImageUrl || null,
         individualRegisteredName: payload.individualRegisteredName,
         businessName: payload.businessName,
         generalLocation: payload.generalLocation,

@@ -8,6 +8,7 @@ import { useAlertDialog } from '@/hooks/useAlertDialog'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import { addMonths, daysRemaining, formatSubscriptionDate, SUBSCRIPTION_MONTHS } from '@/utils/subscription'
 import { fetchNotificationsForUser } from '@/utils/supabaseNotifications'
+import { getProfileAvatar } from '@/utils/profileAvatar'
 import XenditShopPaymentCard from '@/components/XenditShopPaymentCard'
 import BrandLogo from '@/components/BrandLogo'
 import PageBackButton from '@/components/PageBackButton'
@@ -179,11 +180,20 @@ type CustomerSummary = {
   id: string
   name: string
   contactNumber: string
+  photoURL: string | null
+  gender: string | null
   arrangements: ServiceRequest[]
   activeCount: number
   completedCount: number
   totalValue: number
   lastActivity: string | null
+}
+
+type ServiceCustomerProfile = {
+  id: string
+  fullName?: string | null
+  photoURL?: string | null
+  gender?: string | null
 }
 
 async function notifyShopFollowersOnNewProduct(
@@ -728,6 +738,7 @@ export default function SellerCentrePage() {
   const [products, setProducts] = useState<ShopProduct[]>([])
   const [packages, setPackages] = useState<ShopPackage[]>([])
   const [requests, setRequests] = useState<ServiceRequest[]>([])
+  const [customerProfiles, setCustomerProfiles] = useState<Record<string, ServiceCustomerProfile>>({})
   const [activeTab, setActiveTab] = useState<SellerCentreTab>(() => {
     const requestedTab = searchParams.get('tab')
     if (requestedTab === 'messages' || requestedTab === 'orders' || requestedTab === 'settings' || requestedTab === 'registered_information') {
@@ -1582,6 +1593,22 @@ export default function SellerCentrePage() {
 
       const reqs = dedupeServiceRequests((reqData?.data ?? []) as ServiceRequest[])
       setRequests(reqs)
+
+      const requesterIds = [...new Set(reqs.map(request => request.requesterId).filter(Boolean))]
+      if (requesterIds.length > 0) {
+        const { data: customerProfileData, error: customerProfileError } = await supabase
+          .rpc('get_service_customer_profiles', { target_ids: requesterIds })
+        if (customerProfileError) {
+          console.warn('Unable to load customer profile pictures:', customerProfileError)
+          setCustomerProfiles({})
+        } else {
+          const profileEntries = ((customerProfileData ?? []) as ServiceCustomerProfile[])
+            .map(profile => [profile.id, profile] as const)
+          setCustomerProfiles(Object.fromEntries(profileEntries))
+        }
+      } else {
+        setCustomerProfiles({})
+      }
       setError(null)
 
     } catch (e: any) {
@@ -2089,13 +2116,16 @@ export default function SellerCentrePage() {
       const requestValue = Number(request.paymentAmount ?? request.productPrice) || 0
       const activity = request.completedAt || request.paymentVerifiedAt || request.acceptedAt || request.createdAt || null
       const status = String(request.status || '').toLowerCase()
-      const name = request.requesterName || request.familyCoordinatorName || request.paymentPayerName || `Customer ${customerId.slice(0, 8)}`
+      const customerProfile = customerProfiles[customerId]
+      const name = customerProfile?.fullName || request.requesterName || request.familyCoordinatorName || request.paymentPayerName || `Customer ${customerId.slice(0, 8)}`
 
       if (!existing) {
         byCustomer.set(customerId, {
           id: customerId,
           name,
           contactNumber: request.contactNumber || '',
+          photoURL: customerProfile?.photoURL || null,
+          gender: customerProfile?.gender || null,
           arrangements: [request],
           activeCount: terminalStatuses.has(status) ? 0 : 1,
           completedCount: status === 'completed' ? 1 : 0,
@@ -2118,7 +2148,7 @@ export default function SellerCentrePage() {
     return [...byCustomer.values()].sort((a, b) =>
       new Date(b.lastActivity || 0).getTime() - new Date(a.lastActivity || 0).getTime()
     )
-  }, [requests])
+  }, [customerProfiles, requests])
 
   const visibleCustomers = useMemo(() => {
     const query = customerSearch.trim().toLowerCase()
@@ -3366,9 +3396,11 @@ export default function SellerCentrePage() {
                           }}
                         >
                           <div className='sc-customer-card-head'>
-                            <span className='sc-customer-avatar'>
-                              {customer.name.trim().charAt(0).toUpperCase() || 'C'}
-                            </span>
+                            <img
+                              className='sc-customer-avatar'
+                              src={getProfileAvatar(customer.photoURL, customer.gender)}
+                              alt=''
+                            />
                             <div className='sc-customer-card-identity'>
                               <div className='sc-customer-card-title-row'>
                                 <strong>{customer.name}</strong>
@@ -4841,7 +4873,11 @@ export default function SellerCentrePage() {
             </div>
             <div className='sc-modal-body'>
               <div className='sc-customer-profile-head'>
-                <span className='sc-customer-avatar sc-customer-avatar-lg'>{selectedCustomer.name.trim().charAt(0).toUpperCase() || 'C'}</span>
+                <img
+                  className='sc-customer-avatar sc-customer-avatar-lg'
+                  src={getProfileAvatar(selectedCustomer.photoURL, selectedCustomer.gender)}
+                  alt=''
+                />
                 <div>
                   <h4>{selectedCustomer.name}</h4>
                   <p>{selectedCustomer.contactNumber || 'No contact number provided'}</p>

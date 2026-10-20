@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import BrandLogo from '@/components/BrandLogo'
 import { supabase } from '@/lib/supabase'
+import { getProfileAvatar } from '@/utils/profileAvatar'
 import '@/pages/UserProfilePage.css'
 
 const accountLinks = [
@@ -23,6 +24,7 @@ const accountLinks = [
 type AccountProfile = {
   fullName?: string | null
   photoURL?: string | null
+  gender?: string | null
 }
 
 type AccountMobileHeaderProps = {
@@ -44,7 +46,7 @@ export default function AccountMobileHeader({ homeTo = '/funeral' }: AccountMobi
       setEmail(session.user.email ?? '')
       const { data } = await supabase
         .from('users')
-        .select('fullName, photoURL')
+        .select('fullName, photoURL, gender')
         .eq('id', session.user.id)
         .maybeSingle()
       setProfile(data)
@@ -76,6 +78,8 @@ export default function AccountMobileHeader({ homeTo = '/funeral' }: AccountMobi
     }
   }, [open])
 
+  const avatarUrl = getProfileAvatar(profile?.photoURL, profile?.gender)
+
   return (
     <div className="profile-page profile-mobile-account-header">
       {open ? (
@@ -101,11 +105,7 @@ export default function AccountMobileHeader({ homeTo = '/funeral' }: AccountMobi
             </div>
 
             <div className="profile-mobile-menu-profile">
-              {profile?.photoURL ? (
-                <img src={profile.photoURL} alt="" />
-              ) : (
-                <img src="/Male.png" alt="" className="profile-mobile-menu-avatar" />
-              )}
+              <img src={avatarUrl} alt="" className="profile-mobile-menu-avatar" />
               <div>
                 <strong>{profile?.fullName || 'My account'}</strong>
                 {email ? <span>{email}</span> : null}

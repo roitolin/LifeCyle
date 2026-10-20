@@ -9,11 +9,13 @@ import DeathCertificateVaultCard from '@/components/DeathCertificateVaultCard'
 import PageBackButton from '@/components/PageBackButton'
 import AccountMobileHeader from '@/components/AccountMobileHeader'
 import { syncServiceXenditCheckout } from '@/utils/serviceXendit'
+import { getProfileAvatar } from '@/utils/profileAvatar'
 import './MyServiceRequestsPage.css'
 
 type ViewerProfile = {
   fullName?: string | null
   photoURL?: string | null
+  gender?: string | null
 }
 
 type ServiceRequest = {
@@ -133,6 +135,13 @@ function formatTime(value?: string | null) {
 
 function buildReceiptNumber(id: string) {
   return `RCPT-${String(id || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}`
+}
+
+function getRequestCardImage(request: ServiceRequest) {
+  const isCustomCasket = String(request.requestType || '').toLowerCase() === 'custom_casket'
+  return isCustomCasket
+    ? request.referencePhotoUrl || request.productImageUrl || null
+    : request.productImageUrl || null
 }
 
 function statusMeta(status?: string | null): { label: string; tone: string } {
@@ -310,10 +319,10 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
       setViewerId(session.user.id)
       const { data: userData } = await supabase
         .from('users')
-        .select('fullName, photoURL')
+        .select('fullName, photoURL, gender')
         .eq('id', session.user.id)
         .maybeSingle()
-      setProfile(userData ?? { fullName: session.user.email, photoURL: null })
+      setProfile(userData ?? { fullName: session.user.email, photoURL: null, gender: null })
     }
     void load()
   }, [])
@@ -555,13 +564,7 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
           <span className="requests-divider" aria-hidden="true">|</span>
           <div className="requests-user-menu">
             <button type="button" className="requests-user-menu-trigger" aria-label="Open account menu">
-              {profile?.photoURL ? (
-                <img src={profile.photoURL} alt="Account" className="requests-user-avatar" />
-              ) : (
-                <span className="requests-user-avatar requests-user-avatar-placeholder" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" /></svg>
-                </span>
-              )}
+              <img src={getProfileAvatar(profile?.photoURL, profile?.gender)} alt="Account" className="requests-user-avatar" />
               <span className="requests-topbar-user">{profile?.fullName || 'User'}</span>
               <svg className="requests-user-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
             </button>
@@ -619,6 +622,7 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
             const showPayment = canShowPaymentSection(request)
             const paymentForm = getForm(request.id)
             const canSubmit = String(request.status || '').toLowerCase() === 'awaiting_payment'
+            const cardImageUrl = getRequestCardImage(request)
 
             return (
               <section key={request.id} className="requests-card">
@@ -627,12 +631,12 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                       <button
                         type="button"
                         className="requests-product-thumb requests-clickable"
-                        disabled={!request.productImageUrl}
-                        aria-label={request.productImageUrl ? `View ${request.productName || 'product'} photo full size` : undefined}
-                        title={request.productImageUrl ? 'Click to view full size' : undefined}
-                        onClick={() => request.productImageUrl && setViewerUrl(request.productImageUrl)}
+                        disabled={!cardImageUrl}
+                        aria-label={cardImageUrl ? `View ${request.productName || 'product'} photo full size` : undefined}
+                        title={cardImageUrl ? 'Click to view full size' : undefined}
+                        onClick={() => cardImageUrl && setViewerUrl(cardImageUrl)}
                       >
-                        {request.productImageUrl ? <img src={request.productImageUrl} alt={request.productName} /> : <span>LC</span>}
+                        {cardImageUrl ? <img src={cardImageUrl} alt={request.productName || 'Custom casket design'} /> : <span>LC</span>}
                       </button>
                     <div>
                       <h3>{request.productName || 'Custom Casket'}</h3>

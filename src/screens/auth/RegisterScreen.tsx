@@ -82,11 +82,7 @@ export default function RegisterScreen({ navigation }: any) {
       // Doing so triggers a row_level_security error.
       // The profile will be created upon first login in LoginScreen using the metadata saved above.
 
-      Alert.alert(
-        "Registration Successful",
-        "A verification email has been sent. Please check your inbox and verify your account."
-      );
-      navigation.navigate("VerifyEmail", { email: normalizedEmail });
+      navigation.replace("VerifyEmail", { email: normalizedEmail });
     } catch (error: any) {
       const message = String(error?.message || "").toLowerCase();
       if (message.includes("already") || message.includes("already registered")) {

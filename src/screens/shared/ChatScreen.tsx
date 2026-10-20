@@ -592,7 +592,7 @@ export default function ChatScreen({ route, navigation }: any) {
       }
       if (shopError) console.warn("Unable to load chat shop:", shopError.message);
       if (!active) return;
-      const partnerIsReceivingShop = conversationShopId === otherUserId;
+      const partnerIsReceivingShop = conversationShopId === otherUserId || Boolean(shopData?.shopName);
       setProfile({
         name: String(partnerIsReceivingShop
           ? shopData?.shopName || userData?.fullName || userData?.email || otherUserName || "Funeral Shop"

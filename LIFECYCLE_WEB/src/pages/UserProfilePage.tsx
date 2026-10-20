@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
 import ProfileLayout from './ProfileLayout'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
+import { getProfileAvatar } from '@/utils/profileAvatar'
 
 export default function UserProfilePage() {
   const [viewer, setViewer] = useState<User | null>(null)
@@ -135,11 +136,7 @@ export default function UserProfilePage() {
       {/* Hero Identity Card */}
       <div className="profile-identity-card">
         <div className="profile-identity-avatar-wrapper">
-          {photoURL ? (
-            <img src={photoURL} alt="Avatar" />
-          ) : (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-7 8-7s8 3 8 7"/></svg>
-          )}
+          <img src={getProfileAvatar(photoURL, gender)} alt="Avatar" />
         </div>
         <div className="profile-identity-info">
           <h2 className="profile-identity-name">{fullName || viewer?.email || 'LifeCycle User'}</h2>

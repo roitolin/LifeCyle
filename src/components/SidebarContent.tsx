@@ -6,11 +6,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { auth, db } from '../services/supabaseAuth';
 import { doc, getDoc } from '@/services/supabaseDbCompat';
 import { useSidebar } from '../context/SidebarContext';
+import { getProfileImageSource } from '@/utils/defaultProfileImage';
 
 export function SidebarContent(props: any) {
   const theme = useTheme();
   const user = auth.currentUser;
   const [fullName, setFullName] = useState('');
+  const [photoURL, setPhotoURL] = useState<string | null>(null);
+  const [gender, setGender] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const { collapsed } = useSidebar(); // we still need collapsed for width, but no button here
 
@@ -20,7 +23,10 @@ export function SidebarContent(props: any) {
       try {
         const userDoc = await getDoc(doc(db, 'users', user.uid));
         if (userDoc.exists()) {
-          setFullName(userDoc.data().fullName || 'User');
+          const data = userDoc.data();
+          setFullName(data.fullName || 'User');
+          setPhotoURL(data.photoURL || null);
+          setGender(data.gender || null);
         } else {
           setFullName('User');
         }
@@ -38,7 +44,7 @@ export function SidebarContent(props: any) {
     <DrawerContentScrollView {...props} contentContainerStyle={styles.container}>
       {!collapsed ? (
         <View style={styles.userInfoSection}>
-          <Avatar.Icon size={60} icon="account" style={{ backgroundColor: theme.colors.primary }} />
+          <Avatar.Image size={60} source={getProfileImageSource(photoURL, gender)} />
           {loading ? (
             <ActivityIndicator size="small" />
           ) : (

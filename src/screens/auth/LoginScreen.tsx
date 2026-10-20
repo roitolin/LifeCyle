@@ -161,6 +161,12 @@ export default function LoginScreen({ navigation, route }: any) {
         typeof finalUserData?.role === "string" ? finalUserData.role : null,
       );
     } catch (error: any) {
+      const errorCode = String(error?.code || "").toLowerCase();
+      const errorMessage = String(error?.message || "").toLowerCase();
+      if (errorCode === "email_not_confirmed" || errorMessage.includes("email not confirmed")) {
+        navigation.navigate("VerifyEmail", { email: normalizedEmail });
+        return;
+      }
       await recordFailedLoginAttempt(normalizedEmail);
       Alert.alert("Login Failed", getLoginErrorMessage(error) || error?.message);
     } finally {
@@ -360,9 +366,9 @@ const styles = StyleSheet.create({
   scrollContent: { flexGrow: 1, justifyContent: "center", paddingHorizontal: spacing.xl, paddingVertical: spacing.xxl },
   formShell: { width: "100%", maxWidth: 440, alignSelf: "center" },
   backButton: { alignSelf: "flex-start", marginBottom: spacing.xl, backgroundColor: "transparent", borderWidth: 0 },
-  brandRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.xxl },
-  brandMark: { width: 44, height: 44 },
-  brandName: { color: colors.text, fontSize: 20, fontWeight: "800" },
+  brandRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.xl },
+  brandMark: { width: 88, height: 88 },
+  brandName: { color: colors.text, fontSize: 26, fontWeight: "800" },
   headingBlock: { marginBottom: spacing.xl },
   title: { color: colors.text, fontSize: 32, lineHeight: 40, fontWeight: "800" },
   subtitle: {

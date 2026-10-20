@@ -168,7 +168,7 @@ export default function FuneralShopsScreen({ navigation }: any) {
               </TouchableOpacity>
             ) : null}
             {visibleShops.map((shop) => {
-              const imageUrl = shop.coverImageUrl || shop.shopImageUrl;
+              const imageUrl = shop.shopImageUrl || shop.coverImageUrl;
               const imageFailed = failedImageIds.has(shop.id);
               return (
             <View key={shop.id} style={styles.shopCard}>

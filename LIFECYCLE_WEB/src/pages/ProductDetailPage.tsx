@@ -10,6 +10,7 @@ import LogoutLink from '@/components/LogoutLink'
 import MarketplaceFooter from '@/components/MarketplaceFooter'
 import MarketplaceMobileDrawer from '@/components/MarketplaceMobileDrawer'
 import PageBackButton from '@/components/PageBackButton'
+import { getProfileAvatar } from '@/utils/profileAvatar'
 import './ProductDetailPage.css'
 
 type Product = {
@@ -475,6 +476,7 @@ export default function ProductDetailPage() {
         userName={userProfile?.fullName}
         userEmail={viewer?.email}
         photoUrl={userProfile?.photoURL}
+        gender={userProfile?.gender}
         accountPath={accountPath}
         purchasesPath={purchasesPath}
         helpPath={helpPath}
@@ -496,13 +498,7 @@ export default function ProductDetailPage() {
               ? (
                 <div className="sp-user-menu">
                   <div className="sp-user-menu-trigger">
-                    {userProfile?.photoURL ? (
-                      <img src={userProfile.photoURL} alt="Avatar" className="sp-user-avatar" />
-                    ) : (
-                      <div className="sp-user-avatar-placeholder">
-                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
-                      </div>
-                    )}
+                    <img src={getProfileAvatar(userProfile?.photoURL, userProfile?.gender)} alt="Avatar" className="sp-user-avatar" />
                     <span className="sp-user-name">{userProfile?.fullName || viewer?.email}</span>
                     <svg className="sp-user-dropdown-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                   </div>

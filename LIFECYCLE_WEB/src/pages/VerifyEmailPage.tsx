@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
-import { getSupabaseEmailRedirectTo } from '@/lib/supabaseAuthRedirect'
 import { APP_ICON_TRANSPARENT_URL } from '@/assets/appIconAssets'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
+import { normalizeEmail } from '@/utils/inputSecurity'
 
-const VERIFICATION_WINDOW_MS = 30 * 60 * 1000
+const OTP_LENGTH = 6
+const VERIFICATION_WINDOW_MS = 60 * 60 * 1000
+const RESEND_COOLDOWN_SECONDS = 60
 
 function getRoleRedirect(role: string) {
   if (role === 'super_admin') return '/admin/dashboard'
@@ -14,8 +16,22 @@ function getRoleRedirect(role: string) {
   return role === 'admin' ? '/admin' : '/app'
 }
 
-function getDeadlineKey(uid: string) {
-  return `verification_deadline_${uid}`
+function getDeadlineKey(identity: string) {
+  return `verification_deadline_${identity.toLowerCase()}`
+}
+
+function getVerificationError(error: unknown) {
+  const message = String(
+    typeof error === 'object' && error !== null && 'message' in error ? error.message : ''
+  ).toLowerCase()
+  if (message.includes('rate limit')) return 'Too many attempts. Please wait and try again.'
+  if (message.includes('expired') || message.includes('invalid')) {
+    return 'That code is invalid or expired. Request a new code and try again.'
+  }
+  if (message.includes('network') || message.includes('fetch')) {
+    return 'Check your internet connection and try again.'
+  }
+  return 'We could not verify that code. Please try again.'
 }
 
 function VerifyEmailPage() {
@@ -25,7 +41,12 @@ function VerifyEmailPage() {
   const [remainingMs, setRemainingMs] = useState(VERIFICATION_WINDOW_MS)
   const [checking, setChecking] = useState(false)
   const [resending, setResending] = useState(false)
+  const [code, setCode] = useState('')
+  const [resendCooldown, setResendCooldown] = useState(0)
+  const [deadlineRevision, setDeadlineRevision] = useState(0)
   const [status, setStatus] = useState('')
+  const [statusIsError, setStatusIsError] = useState(false)
+  const codeInputRef = useRef<HTMLInputElement>(null)
   const { openConfirm, confirmDialog } = useConfirmDialog()
 
   const nextPath = useMemo(() => {
@@ -33,6 +54,11 @@ function VerifyEmailPage() {
     const raw = params.get('next') || ''
     return raw.startsWith('/') ? raw : ''
   }, [location.search])
+  const requestedEmail = useMemo(() => {
+    const params = new URLSearchParams(location.search)
+    return normalizeEmail(params.get('email') || '')
+  }, [location.search])
+  const verificationEmail = normalizeEmail(requestedEmail || user?.email || '')
 
   useEffect(() => {
     const exchangeVerificationCode = async () => {
@@ -42,6 +68,7 @@ function VerifyEmailPage() {
 
       setChecking(true)
       setStatus('')
+      setStatusIsError(false)
       try {
         const { error } = await supabase.auth.exchangeCodeForSession(code)
         if (error) throw error
@@ -50,6 +77,7 @@ function VerifyEmailPage() {
         window.history.replaceState(null, '', `${location.pathname}${nextSearch ? `?${nextSearch}` : ''}`)
         setStatus('Email verified. Redirecting...')
       } catch {
+        setStatusIsError(true)
         setStatus('Verification link could not be processed. Please request a new verification email.')
       } finally {
         setChecking(false)
@@ -63,16 +91,10 @@ function VerifyEmailPage() {
     void supabase.auth.getSession().then(({ data }) => {
       const nextUser = data.session?.user ?? null
       setUser(nextUser)
-      if (!nextUser) {
-        navigate('/login', { replace: true })
-      }
     })
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       const nextUser = session?.user ?? null
       setUser(nextUser)
-      if (!nextUser) {
-        navigate('/login', { replace: true })
-      }
     })
     return () => listener.subscription.unsubscribe()
   }, [navigate])
@@ -82,16 +104,16 @@ function VerifyEmailPage() {
       if (!user?.email_confirmed_at) return
       const { data: profile } = await supabase.from('users').select('role').eq('id', user.id).maybeSingle()
       const role = String(profile?.role || 'user').toLowerCase()
-      window.localStorage.removeItem(getDeadlineKey(user.id))
+      if (user.email) window.localStorage.removeItem(getDeadlineKey(user.email))
       navigate(nextPath || getRoleRedirect(role), { replace: true })
     }
     void autoForwardVerifiedUser()
   }, [navigate, nextPath, user])
 
   useEffect(() => {
-    if (!user) return
+    if (!verificationEmail) return
 
-    const key = getDeadlineKey(user.id)
+    const key = getDeadlineKey(verificationEmail)
     const savedDeadline = Number(window.localStorage.getItem(key) || 0)
     const initialDeadline = Number.isFinite(savedDeadline) && savedDeadline > Date.now()
       ? savedDeadline
@@ -108,58 +130,83 @@ function VerifyEmailPage() {
       window.clearInterval(timer)
       window.localStorage.removeItem(key)
       void supabase.auth.signOut()
-      navigate('/login?verifyExpired=1', { replace: true })
+      navigate(`/login?verifyExpired=1&email=${encodeURIComponent(verificationEmail)}`, { replace: true })
     }, 1000)
 
     return () => window.clearInterval(timer)
-  }, [navigate, user])
+  }, [deadlineRevision, navigate, verificationEmail])
 
-  const refreshVerification = async () => {
-    if (!user) return
+  useEffect(() => {
+    if (resendCooldown <= 0) return
+    const timer = window.setInterval(() => {
+      setResendCooldown(current => Math.max(0, current - 1))
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [resendCooldown])
+
+  const verifyCode = async () => {
+    if (!verificationEmail || code.length !== OTP_LENGTH) {
+      setStatusIsError(true)
+      setStatus(`Enter the complete ${OTP_LENGTH}-digit code from your email.`)
+      codeInputRef.current?.focus()
+      return
+    }
     setChecking(true)
     setStatus('')
+    setStatusIsError(false)
     try {
-      const { data } = await supabase.auth.getUser()
-      const refreshed = data.user
-      if (!refreshed?.email_confirmed_at) {
-        setStatus('Email is still not verified. Please check your inbox and click the verification link.')
-        return
-      }
-
-      const { data: profile } = await supabase.from('users').select('role').eq('id', refreshed.id).maybeSingle()
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: verificationEmail,
+        token: code,
+        type: 'email',
+      })
+      if (error) throw error
+      const verifiedUser = data.user
+      if (!verifiedUser?.email_confirmed_at) throw new Error('Verification could not be confirmed.')
+      const { data: profile } = await supabase.from('users').select('role').eq('id', verifiedUser.id).maybeSingle()
       const role = String(profile?.role || 'user').toLowerCase()
-      window.localStorage.removeItem(getDeadlineKey(refreshed.id))
+      window.localStorage.removeItem(getDeadlineKey(verificationEmail))
+      setStatus('Email verified. Redirecting...')
       navigate(nextPath || getRoleRedirect(role), { replace: true })
+    } catch (error) {
+      setCode('')
+      setStatusIsError(true)
+      setStatus(getVerificationError(error))
+      codeInputRef.current?.focus()
     } finally {
       setChecking(false)
     }
   }
 
   const resendVerification = async () => {
-    if (!user) return
+    if (!verificationEmail || resendCooldown > 0) return
     setResending(true)
     setStatus('')
+    setStatusIsError(false)
     try {
       const { error } = await supabase.auth.resend({
         type: 'signup',
-        email: user.email || '',
-        options: {
-          emailRedirectTo: getSupabaseEmailRedirectTo(),
-        },
+        email: verificationEmail,
       })
       if (error) throw error
-      setStatus('Verification email sent again. Please check your inbox.')
-    } catch {
-      setStatus('Failed to resend verification email. Please try again.')
+      setCode('')
+      setResendCooldown(RESEND_COOLDOWN_SECONDS)
+      const nextDeadline = Date.now() + VERIFICATION_WINDOW_MS
+      window.localStorage.setItem(getDeadlineKey(verificationEmail), String(nextDeadline))
+      setRemainingMs(VERIFICATION_WINDOW_MS)
+      setDeadlineRevision(current => current + 1)
+      setStatus('A new verification code was sent. Check your inbox and spam folder.')
+      codeInputRef.current?.focus()
+    } catch (error) {
+      setStatusIsError(true)
+      setStatus(getVerificationError(error))
     } finally {
       setResending(false)
     }
   }
 
   const logoutNow = async () => {
-    if (user) {
-      window.localStorage.removeItem(getDeadlineKey(user.id))
-    }
+    if (verificationEmail) window.localStorage.removeItem(getDeadlineKey(verificationEmail))
     await supabase.auth.signOut()
     navigate('/login', { replace: true })
   }
@@ -206,31 +253,64 @@ function VerifyEmailPage() {
           </div>
         </section>
 
-        <section className="auth-card" aria-label="Verify email">
+        <section className="auth-card auth-verification-card" aria-label="Verify email">
           <div className="auth-card-head">
-            <h1>Verify Your Email</h1>
-            <p className="auth-subtitle">You are logged in as: <strong>{user?.email || 'Unknown email'}</strong></p>
-            <p className="auth-subtitle">Session expires in {timeLabel}. You will be logged out if still unverified.</p>
+            <h1>Enter Verification Code</h1>
+            <p className="auth-subtitle">We sent a {OTP_LENGTH}-digit code to <strong>{verificationEmail || 'your email'}</strong>.</p>
+            <p className="auth-subtitle">Code expires in {timeLabel}.</p>
 
-          {status ? <p className="auth-message auth-message-info">{status}</p> : null}
+          {status ? <p role="status" className={`auth-message ${statusIsError ? 'auth-message-error' : 'auth-message-info'}`}>{status}</p> : null}
           </div>
 
           <div className="verification-actions">
+            <label className="auth-otp-label" htmlFor="verification-code">Verification code</label>
+            <div className="auth-otp-control">
+              <div className="auth-otp-boxes" aria-hidden="true">
+                {Array.from({ length: OTP_LENGTH }, (_, index) => (
+                  <span
+                    key={index}
+                    className={`auth-otp-digit${code[index] ? ' is-filled' : ''}`}
+                  >
+                    {code[index] || ''}
+                  </span>
+                ))}
+              </div>
+              <input
+                ref={codeInputRef}
+                id="verification-code"
+                className="auth-otp-input"
+                aria-label="Email verification code"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                autoComplete="one-time-code"
+                value={code}
+                maxLength={OTP_LENGTH}
+                onChange={event => {
+                  setCode(event.target.value.replace(/\D/g, '').slice(0, OTP_LENGTH))
+                  if (statusIsError) setStatus('')
+                }}
+                onKeyDown={event => {
+                  if (event.key === 'Enter') void verifyCode()
+                }}
+                autoFocus
+              />
+            </div>
             <button
               type="button"
               className="solid-btn auth-submit"
-              onClick={() => void refreshVerification()}
-              disabled={checking}
+              onClick={() => void verifyCode()}
+              disabled={checking || code.length !== OTP_LENGTH}
             >
-              {checking ? 'Checking...' : "I've Verified My Email"}
+              {checking ? 'Verifying...' : 'Verify Email'}
             </button>
             <button
               type="button"
               className="ghost-btn auth-submit"
               onClick={() => void resendVerification()}
-              disabled={resending}
+              disabled={resending || resendCooldown > 0 || !verificationEmail}
             >
-              {resending ? 'Sending...' : 'Resend Verification Email'}
+              {resending ? 'Sending...' : resendCooldown > 0 ? `Resend Code in ${resendCooldown}s` : 'Resend Code'}
             </button>
             <button type='button' className='ghost-btn auth-submit' onClick={confirmLogout}>
               Logout Now

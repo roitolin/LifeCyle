@@ -10,6 +10,7 @@ export type RememberedAccount = {
   email: string;
   fullName: string;
   photoURL: string | null;
+  gender?: string | null;
   lastUsedAt: string;
 };
 
@@ -56,6 +57,7 @@ function normalizeAccount(value: unknown): RememberedAccount | null {
       ? candidate.fullName.trim()
       : candidate.email.trim().split('@')[0],
     photoURL: isNonEmptyString(candidate.photoURL) ? candidate.photoURL.trim() : null,
+    gender: isNonEmptyString(candidate.gender) ? candidate.gender.trim() : null,
     lastUsedAt: isNonEmptyString(candidate.lastUsedAt)
       ? candidate.lastUsedAt
       : new Date(0).toISOString(),
@@ -127,11 +129,18 @@ export async function rememberAccountSession(
       existingAccount?.photoURL ||
       ''
   ).trim();
+  const gender = String(
+    profile?.gender ||
+      metadata.gender ||
+      existingAccount?.gender ||
+      ''
+  ).trim();
   const account: RememberedAccount = {
     id: accountId,
     email,
     fullName: fullName || email.split('@')[0],
     photoURL: photoURL || null,
+    gender: gender || null,
     lastUsedAt: new Date().toISOString(),
   };
 
