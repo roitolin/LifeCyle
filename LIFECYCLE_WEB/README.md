@@ -1,4 +1,14 @@
-# React + TypeScript + Vite
+# LifeCycle Web
+
+## Production deployment
+
+Vite needs VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY while it builds. Public production defaults live in .env.production so Vercel Git deployments do not depend on an ignored local .env file. Never put a Supabase service-role key or another secret in that file.
+
+Production intentionally omits VITE_SUPABASE_EMAIL_REDIRECT_TO so the app derives email redirects from the current deployment origin.
+
+Vercel settings: use LIFECYCLE_WEB as the Root Directory, npm run build as the Build Command, and dist as the Output Directory.
+
+---
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

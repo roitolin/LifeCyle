@@ -36,6 +36,8 @@ yarn-error.*
 .env
 .env.*
 .env*.local
+# The Vite web app's production file contains browser-visible public config.
+!/LIFECYCLE_WEB/.env.production
 /paymongo
 
 # typescript
