@@ -5,7 +5,9 @@ import { fileURLToPath, URL } from 'node:url'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  envDir: '..',
+  // Keep browser configuration in LIFECYCLE_WEB/.env instead of sharing the
+  // mobile app's root environment file.
+  envDir: '.',
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('../../src', import.meta.url)),
