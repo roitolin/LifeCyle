@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -20,6 +20,11 @@ type Channel = (typeof CHANNELS)[number];
 type Account = {
   id: string; shopId: string; channelCode: string; accountName: string; accountNumber: string;
   active: boolean; verifiedByAdmin: boolean; verifiedAt: string | null; createdAt: string; updatedAt: string;
+};
+type PendingVerification = {
+  challengeId: string;
+  maskedEmail: string;
+  expiresAt: string;
 };
 type Props = { visible: boolean; shopId?: string | null; shopApproved: boolean; onClose: () => void; onChanged?: () => void | Promise<void> };
 
@@ -45,10 +50,17 @@ export default function PayoutAccountsModal({ visible, shopId, shopApproved, onC
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [page, setPage] = useState<"list" | "setup">("list");
+  const [resending, setResending] = useState(false);
+  const [page, setPage] = useState<"list" | "setup" | "verify">("list");
   const [channelCode, setChannelCode] = useState<string>(CHANNELS[0].code);
   const [draft, setDraft] = useState({ name: "", number: "" });
+  const [pendingVerification, setPendingVerification] = useState<PendingVerification | null>(null);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [codeFocused, setCodeFocused] = useState(false);
+  const codeInputRef = useRef<TextInput>(null);
   const channel = useMemo(() => CHANNELS.find((item) => item.code === channelCode) || CHANNELS[0], [channelCode]);
+  const existingAccount = accounts.find((item) => item.channelCode === channel.code);
 
   const load = useCallback(async () => {
     if (!shopId) { setAccounts([]); return; }
@@ -70,10 +82,19 @@ export default function PayoutAccountsModal({ visible, shopId, shopApproved, onC
     return () => clearTimeout(refreshTimer);
   }, [load, visible]);
 
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => setResendCooldown((current) => Math.max(0, current - 1)), 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
   const openSetup = (next: Channel) => {
     const account = accounts.find((item) => item.channelCode === next.code);
     setChannelCode(next.code);
     setDraft({ name: account?.accountName || "", number: account?.accountNumber || "" });
+    setPendingVerification(null);
+    setVerificationCode("");
+    setResendCooldown(0);
     setPage("setup");
   };
 
@@ -89,11 +110,88 @@ export default function PayoutAccountsModal({ visible, shopId, shopApproved, onC
         shopId, action: "update", payoutChannelCode: channel.code, payoutAccountName: name, payoutAccountNumber: number,
       } });
       if (error) throw new Error(await functionError(error, "Unable to save the payout account."));
-      if (!data || data.shopId !== shopId) throw new Error("The payout account could not be confirmed.");
+      if (
+        data?.verificationRequired === true &&
+        typeof data.challengeId === "string" &&
+        typeof data.maskedEmail === "string" &&
+        typeof data.expiresAt === "string"
+      ) {
+        setDraft({ name, number });
+        setPendingVerification({
+          challengeId: data.challengeId,
+          maskedEmail: data.maskedEmail,
+          expiresAt: data.expiresAt,
+        });
+        setVerificationCode("");
+        setResendCooldown(Number(data.resendAfterSeconds) || 60);
+        setPage("verify");
+        return;
+      }
+      if (!data || data.shopId !== shopId || data.payoutVerified !== true) throw new Error("The payout account could not be activated.");
       await load(); await onChanged?.(); setPage("list");
-      Alert.alert("Payout account submitted", "The account is waiting for administrator verification. Customers cannot use it until it is verified.");
+      Alert.alert("Payout account ready", "The account was saved and is now available to customers.");
     } catch (error: any) { Alert.alert("Save failed", error?.message || "Unable to save the payout account."); }
     finally { setSaving(false); }
+  };
+
+  const verifyChange = async () => {
+    if (!shopId || !pendingVerification || saving) return;
+    if (!/^\d{6}$/.test(verificationCode)) {
+      Alert.alert("Code required", "Enter the complete 6-digit verification code from your email.");
+      codeInputRef.current?.focus();
+      return;
+    }
+    setSaving(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("provision-xendit-shop", { body: {
+        shopId,
+        action: "confirm-update",
+        challengeId: pendingVerification.challengeId,
+        code: verificationCode,
+      } });
+      if (error) throw new Error(await functionError(error, "Unable to verify the payout change."));
+      if (!data || data.shopId !== shopId || data.payoutVerified !== true) {
+        throw new Error("The payout change could not be confirmed.");
+      }
+      await load();
+      await onChanged?.();
+      setPendingVerification(null);
+      setVerificationCode("");
+      setPage("list");
+      Alert.alert("Payout account updated", "Your email was verified and the new payout details are now active.");
+    } catch (error: any) {
+      setVerificationCode("");
+      Alert.alert("Verification failed", error?.message || "Unable to verify the payout change.");
+      codeInputRef.current?.focus();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const resendVerificationCode = async () => {
+    if (!shopId || !pendingVerification || resending || resendCooldown > 0) return;
+    setResending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("provision-xendit-shop", { body: {
+        shopId,
+        action: "resend-update-code",
+        challengeId: pendingVerification.challengeId,
+      } });
+      if (error) throw new Error(await functionError(error, "Unable to resend the verification code."));
+      setPendingVerification((current) => current ? {
+        ...current,
+        maskedEmail: typeof data?.maskedEmail === "string" ? data.maskedEmail : current.maskedEmail,
+        expiresAt: typeof data?.expiresAt === "string" ? data.expiresAt : current.expiresAt,
+      } : current);
+      setVerificationCode("");
+      setResendCooldown(Number(data?.resendAfterSeconds) || 60);
+      Alert.alert("Code sent", "A new verification code was sent to your account email.");
+      codeInputRef.current?.focus();
+    } catch (error: any) {
+      Alert.alert("Resend failed", error?.message || "Unable to resend the verification code.");
+    } finally {
+      setResending(false);
+    }
   };
 
   const toggle = async (account: Account) => {
@@ -113,9 +211,53 @@ export default function PayoutAccountsModal({ visible, shopId, shopApproved, onC
   const pending = accounts.filter((account) => !account.verifiedByAdmin).length;
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={page === "setup" ? () => setPage("list") : onClose}>
+    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={page === "list" ? onClose : page === "verify" ? () => setPage("setup") : () => setPage("list")}>
       <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
-        {page === "setup" ? (
+        {page === "verify" && pendingVerification ? (
+          <KeyboardAwareScrollView contentContainerStyle={styles.setupContent} keyboardShouldPersistTaps="handled">
+            <Header eyebrow="Security check" title="Verify payout change" onBack={() => setPage("setup")} />
+            <View style={styles.verificationCard}>
+              <View style={styles.verificationIcon}><Ionicons name="mail-outline" size={25} color="#284a68" /></View>
+              <Text style={styles.verificationTitle}>Enter verification code</Text>
+              <Text style={styles.verificationMessage}>We sent a 6-digit code to <Text style={styles.verificationEmail}>{pendingVerification.maskedEmail}</Text>.</Text>
+              <View style={styles.codeControl}>
+                <View pointerEvents="none" style={styles.codeBoxes}>
+                  {Array.from({ length: 6 }, (_, index) => {
+                    const digit = verificationCode[index] || "";
+                    const active = codeFocused && index === Math.min(verificationCode.length, 5);
+                    return <View key={index} style={[styles.codeBox, digit && styles.codeBoxFilled, active && styles.codeBoxActive]}><Text style={styles.codeDigit}>{digit}</Text></View>;
+                  })}
+                </View>
+                <TextInput
+                  ref={codeInputRef}
+                  accessibilityLabel="Payout change verification code"
+                  value={verificationCode}
+                  onChangeText={(value) => setVerificationCode(value.replace(/\D/g, "").slice(0, 6))}
+                  onFocus={() => setCodeFocused(true)}
+                  onBlur={() => setCodeFocused(false)}
+                  onSubmitEditing={() => void verifyChange()}
+                  autoFocus
+                  autoComplete="one-time-code"
+                  textContentType="oneTimeCode"
+                  inputMode="numeric"
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  returnKeyType="done"
+                  caretHidden
+                  style={styles.hiddenCodeInput}
+                />
+              </View>
+              <Text style={styles.verificationHelp}>The pending change expires in 10 minutes. Your current payout account stays active until verification succeeds.</Text>
+              <TouchableOpacity style={[styles.verifyButton, (saving || verificationCode.length !== 6) && styles.dim]} onPress={() => void verifyChange()} disabled={saving || verificationCode.length !== 6}>
+                {saving && <ActivityIndicator size="small" color="#fff" />}
+                <Text style={styles.primaryText}>{saving ? "Verifying..." : "Verify and update"}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.resendButton} onPress={() => void resendVerificationCode()} disabled={resending || resendCooldown > 0}>
+                <Text style={styles.actionText}>{resending ? "Sending..." : resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : "Resend code"}</Text>
+              </TouchableOpacity>
+            </View>
+          </KeyboardAwareScrollView>
+        ) : page === "setup" ? (
           <KeyboardAwareScrollView contentContainerStyle={styles.setupContent} keyboardShouldPersistTaps="handled">
             <Header eyebrow={channel.type === "wallet" ? "E-wallet receiver" : "Bank receiver"} title={`${accounts.some((item) => item.channelCode === channel.code) ? "Edit" : "Add"} ${channel.label}`} onBack={() => setPage("list")} />
             <View style={styles.setupBrand}><Logo channel={channel} /><View style={styles.flex}><Text style={styles.setupTitle}>{channel.label}</Text><Text style={styles.small}>Set the receiver account for this payment method.</Text></View></View>
@@ -125,16 +267,20 @@ export default function PayoutAccountsModal({ visible, shopId, shopApproved, onC
             <Text style={styles.inputLabel}>{channel.type === "wallet" ? "Registered mobile number" : "Bank account number"}</Text>
             <TextInput style={styles.input} value={draft.number} onChangeText={(number) => setDraft((current) => ({ ...current, number }))} placeholder={channel.type === "wallet" ? "09XXXXXXXXX" : "Enter account number"} placeholderTextColor="#9aa5b3" keyboardType="number-pad" maxLength={30} />
             <Text style={styles.help}>Enter the exact details registered with {channel.label}.</Text>
-            <Notice icon="shield-checkmark-outline" title="Verification required" text="Customers cannot use this method until an administrator verifies the receiver details." />
-            <View style={styles.actions}><TouchableOpacity style={styles.secondary} onPress={() => setPage("list")} disabled={saving}><Text style={styles.secondaryText}>Cancel</Text></TouchableOpacity><TouchableOpacity style={[styles.primary, saving && styles.dim]} onPress={() => void save()} disabled={saving}>{saving && <ActivityIndicator size="small" color="#fff" />}<Text style={styles.primaryText}>{saving ? "Saving..." : "Submit for verification"}</Text></TouchableOpacity></View>
+            <Notice
+              icon="shield-checkmark-outline"
+              title={existingAccount ? "Email verification required" : "Available after saving"}
+              text={existingAccount ? "Changing saved receiver details requires a code sent to your account email. Your current payout remains active until verified." : "Approved shops can use this method immediately after the receiver details are saved."}
+            />
+            <View style={styles.actions}><TouchableOpacity style={styles.secondary} onPress={() => setPage("list")} disabled={saving}><Text style={styles.secondaryText}>Cancel</Text></TouchableOpacity><TouchableOpacity style={[styles.primary, saving && styles.dim]} onPress={() => void save()} disabled={saving}>{saving && <ActivityIndicator size="small" color="#fff" />}<Text style={styles.primaryText}>{saving ? "Saving..." : "Save payout account"}</Text></TouchableOpacity></View>
           </KeyboardAwareScrollView>
         ) : (
           <><Header eyebrow="Finance" title="Payout accounts" onBack={onClose} />
             {loading ? <View style={styles.loading}><ActivityIndicator size="small" color="#24374f" /><Text style={styles.small}>Loading payout accounts...</Text></View> : (
               <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
                 <Text style={styles.description}>{"Choose where each customer payment method sends your shop's 70% share."}</Text>
-                <View style={styles.summary}><Summary label="Set up" value={accounts.length} /><Summary label="Available" value={enabled} /><Summary label="In review" value={pending} last /></View>
-                <Notice icon="wallet-outline" title="Customer methods follow your setup" text="A method only appears at customer checkout when its receiver account is active and verified." />
+                <View style={styles.summary}><Summary label="Set up" value={accounts.length} /><Summary label="Available" value={enabled} /><Summary label="Needs attention" value={pending} last /></View>
+                <Notice icon="wallet-outline" title="Customer methods follow your setup" text="A saved method appears at customer checkout while its receiver account is active." />
                 {!shopApproved && <Notice warning icon="information-circle-outline" title="Available after shop approval" text="Your funeral shop must be approved before you can submit receiver accounts." />}
                 {accounts.length > 0 && <AccountSection accounts={accounts} saving={saving} onEdit={openSetup} onToggle={toggle} />}
                 <View style={styles.section}><Text style={styles.eyebrow}>Payment methods</Text><Text style={styles.sectionTitle}>Add or manage a receiver</Text><Text style={styles.small}>Each option opens its own setup page.</Text>
@@ -161,7 +307,7 @@ function AccountSection({ accounts, saving, onEdit, onToggle }: { accounts: Acco
   return <View style={styles.section}><Text style={styles.eyebrow}>Receiver accounts</Text><Text style={styles.sectionTitle}>Configured payment methods</Text><View style={styles.accountList}>{accounts.map((account) => {
     const channel = CHANNELS.find((item) => item.code === account.channelCode); if (!channel) return null;
     const ready = account.active && account.verifiedByAdmin; const date = verifiedDate(account.verifiedAt);
-    return <View style={[styles.account, !account.active && styles.dim]} key={account.id}><Logo channel={channel} /><View style={styles.flex}><Text style={styles.accountType}>{channel.type === "wallet" ? "E-wallet" : "Philippine bank"}</Text><Text style={styles.accountName}>{channel.label}</Text><Text style={styles.methodDetail}>{account.accountName} · {mask(account.accountNumber)}</Text><View style={[styles.pill, ready ? styles.readyPill : account.verifiedByAdmin ? styles.disabledPill : styles.pendingPill]}><Text style={[styles.pillText, ready ? styles.readyText : account.verifiedByAdmin ? styles.disabledText : styles.pendingText]}>{ready ? "Available to customers" : account.verifiedByAdmin ? "Disabled" : "Awaiting verification"}</Text></View>{date && <Text style={styles.date}>Verified {date}</Text>}</View><View style={styles.accountActions}><TouchableOpacity disabled={saving} onPress={() => onEdit(channel)}><Text style={styles.actionText}>Edit</Text></TouchableOpacity><TouchableOpacity disabled={saving} onPress={() => void onToggle(account)}><Text style={styles.actionText}>{account.active ? "Disable" : "Enable"}</Text></TouchableOpacity></View></View>;
+    return <View style={[styles.account, !account.active && styles.dim]} key={account.id}><Logo channel={channel} /><View style={styles.flex}><Text style={styles.accountType}>{channel.type === "wallet" ? "E-wallet" : "Philippine bank"}</Text><Text style={styles.accountName}>{channel.label}</Text><Text style={styles.methodDetail}>{account.accountName} · {mask(account.accountNumber)}</Text><View style={[styles.pill, ready ? styles.readyPill : account.verifiedByAdmin ? styles.disabledPill : styles.pendingPill]}><Text style={[styles.pillText, ready ? styles.readyText : account.verifiedByAdmin ? styles.disabledText : styles.pendingText]}>{ready ? "Available to customers" : account.verifiedByAdmin ? "Disabled" : "Enable to make available"}</Text></View>{date && <Text style={styles.date}>Ready since {date}</Text>}</View><View style={styles.accountActions}><TouchableOpacity disabled={saving} onPress={() => onEdit(channel)}><Text style={styles.actionText}>Edit</Text></TouchableOpacity><TouchableOpacity disabled={saving} onPress={() => void onToggle(account)}><Text style={styles.actionText}>{account.active ? "Disable" : "Enable"}</Text></TouchableOpacity></View></View>;
   })}</View></View>;
 }
 
@@ -226,4 +372,19 @@ const styles = StyleSheet.create({
   secondaryText: { color: "#526175", fontSize: 12, fontWeight: "900" },
   primary: { minHeight: 50, flex: 1.7, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 13, backgroundColor: "#172a46" },
   primaryText: { color: "#fff", fontSize: 12, fontWeight: "900" },
+  verificationCard: { margin: 16, padding: 20, borderWidth: 1, borderColor: "#dfe5eb", borderRadius: 16, backgroundColor: "#fff", alignItems: "center" },
+  verificationIcon: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", backgroundColor: "#edf3f8", marginBottom: 12 },
+  verificationTitle: { color: "#172033", fontSize: 20, fontWeight: "900", textAlign: "center" },
+  verificationMessage: { color: "#68768a", fontSize: 12, lineHeight: 18, textAlign: "center", marginTop: 7 },
+  verificationEmail: { color: "#284a68", fontWeight: "900" },
+  codeControl: { position: "relative", width: "100%", marginTop: 22 },
+  codeBoxes: { flexDirection: "row", justifyContent: "center", gap: 7 },
+  codeBox: { flex: 1, maxWidth: 48, minHeight: 54, borderWidth: 1.5, borderColor: "#cfd8e1", borderRadius: 11, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
+  codeBoxFilled: { borderColor: "#49627f", backgroundColor: "#f4f7fa" },
+  codeBoxActive: { borderColor: "#172a46", borderWidth: 2 },
+  codeDigit: { color: "#172033", fontSize: 24, fontWeight: "900" },
+  hiddenCodeInput: { position: "absolute", zIndex: 2, top: 0, right: 0, bottom: 0, left: 0, width: "100%", height: "100%", color: "transparent", backgroundColor: "transparent", opacity: .02 },
+  verificationHelp: { color: "#7b8798", fontSize: 10, lineHeight: 15, textAlign: "center", marginTop: 12 },
+  verifyButton: { minHeight: 50, width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 13, backgroundColor: "#172a46", marginTop: 20 },
+  resendButton: { minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: 14, marginTop: 5 },
 });

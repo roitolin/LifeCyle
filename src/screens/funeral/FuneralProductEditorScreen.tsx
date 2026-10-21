@@ -16,7 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { AppBackButton, KeyboardAwareScrollView } from "@/components";
 import { supabase } from "@/services/supabaseClient";
 import { generateId } from "@/utils/generateId";
-import * as ImagePicker from "expo-image-picker";
+import * as ImagePicker from "@/utils/permissionImagePicker";
 import { auth, uploadCertificate } from "@/services";
 import { normalizePesoInput } from "@/utils/funeralCatalog";
 

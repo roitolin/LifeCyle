@@ -15,7 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import * as ImagePicker from "expo-image-picker";
+import * as ImagePicker from "@/utils/permissionImagePicker";
 import { AdminPaymentModal, AppBackButton, KeyboardAwareScrollView } from "@/components";
 import LoadingBird from "@/components/LoadingBird";
 import PayoutAccountsModal from "@/components/PayoutAccountsModal";

@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Alert, Image, StyleSheet, Text, TextInput, View } from "react-native";
 import { Button, Card } from "react-native-paper";
 import { Picker } from "@react-native-picker/picker";
-import * as ImagePicker from "expo-image-picker";
+import * as ImagePicker from "@/utils/permissionImagePicker";
 import { KeyboardAwareScrollView } from "@/components";
 import { useAuth } from "../../context/AuthContext";
 import { useResponsive } from "../../utils/responsive";

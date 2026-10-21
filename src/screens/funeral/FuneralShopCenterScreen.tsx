@@ -23,7 +23,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LineChart, PieChart, type lineDataItem } from "react-native-gifted-charts";
 import { AppBackButton, AdminPaymentModal, KeyboardAwareScrollView } from "@/components";
 import { supabase } from "@/services/supabaseClient";
-import * as ImagePicker from "expo-image-picker";
+import * as ImagePicker from "@/utils/permissionImagePicker";
 import { auth, uploadShopImage } from "@/services";
 import { formatPhilippinePeso } from "@/utils/funeralCatalog";
 import {

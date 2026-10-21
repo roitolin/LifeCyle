@@ -519,6 +519,110 @@
   }
 }
 
+/* Unified account header — desktop only. */
+@media (min-width: 769px) {
+  .purchase-topbar,
+  .purchase-header {
+    background: #22312d;
+  }
+  .purchase-topbar {
+    min-height: 44px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .purchase-topbar-inner,
+  .purchase-header-inner {
+    width: min(1200px, 100%);
+    padding-right: 20px;
+    padding-left: 20px;
+  }
+  .purchase-topbar-inner {
+    min-height: 44px;
+    justify-content: flex-end;
+  }
+  .purchase-topbar-right {
+    gap: 4px;
+  }
+  .purchase-topbar-link {
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+    padding: 0 10px;
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.86) !important;
+    font-weight: 650;
+  }
+  .purchase-topbar-link:hover,
+  .purchase-topbar-link:focus-visible {
+    background: rgba(255, 255, 255, 0.09);
+    color: #ffffff !important;
+  }
+  .purchase-divider {
+    width: 1px;
+    height: 18px;
+    margin: 0 6px;
+    background: rgba(255, 255, 255, 0.2);
+  }
+  .purchase-user-menu-trigger {
+    min-height: 32px;
+    padding: 4px 8px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.92);
+    font: inherit;
+    cursor: pointer;
+  }
+  .purchase-user-menu-trigger:hover,
+  .purchase-user-menu-trigger:focus-visible {
+    background: rgba(255, 255, 255, 0.09);
+    color: #ffffff;
+    outline: none;
+  }
+  .purchase-user-avatar {
+    width: 24px;
+    height: 24px;
+    flex-basis: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.36);
+  }
+  .purchase-user-name {
+    max-width: 190px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .purchase-user-dropdown {
+    top: calc(100% + 8px);
+    min-width: 184px;
+    border-radius: 10px;
+    box-shadow: 0 16px 36px rgba(14, 24, 21, 0.2);
+  }
+  .purchase-header {
+    min-height: 82px;
+    padding: 16px 0;
+  }
+  .purchase-header-inner {
+    flex-wrap: nowrap;
+    gap: 18px;
+  }
+  .purchase-header .lc-brand__mark {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+  }
+  .purchase-header .lc-brand__name {
+    color: #ffffff !important;
+  }
+  .purchase-header .lc-brand__tagline {
+    color: #c7d1dc !important;
+  }
+  .purchase-search {
+    width: clamp(220px, 30vw, 420px);
+    min-height: 44px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 10px;
+    box-shadow: 0 5px 16px rgba(4, 10, 20, 0.14);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .purchase-shop-page *,
   .purchase-shop-page *::before,

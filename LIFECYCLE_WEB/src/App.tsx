@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 import ProtectedRoute from '@/components/ProtectedRoute'
 import LoadingBird from '@/components/LoadingBird'
 import { LogoutConfirmationProvider } from '@/components/LogoutConfirmationProvider'
+import MobileMediaPermissionGate from '@/components/MobileMediaPermissionGate'
 
 const ChatWidget = lazy(() => import('@/components/ChatWidget'))
 
@@ -86,6 +87,7 @@ function App() {
     <BrowserRouter>
       <Suspense fallback={<PageFallback />}>
         <LogoutConfirmationProvider>
+          <MobileMediaPermissionGate />
           <Routes>
           <Route path="/" element={<Navigate to="/funeral" replace />} />
           <Route path="/services" element={<Navigate to="/funeral" replace />} />

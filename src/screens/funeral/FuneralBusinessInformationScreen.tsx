@@ -3,7 +3,7 @@ import { Alert, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } fro
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button as PaperButton } from "react-native-paper";
 import { Picker } from "@react-native-picker/picker";
-import * as ImagePicker from "expo-image-picker";
+import * as ImagePicker from "@/utils/permissionImagePicker";
 import { Ionicons } from "@expo/vector-icons";
 import { KeyboardAwareScrollView } from "@/components";
 import { supabase } from "@/services/supabaseClient";

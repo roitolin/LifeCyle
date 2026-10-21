@@ -34,7 +34,8 @@ const getSafeErrorMessage = async (error: unknown): Promise<string> => {
 };
 
 /**
- * Admin verifies a shop's payout account details.
+ * Admin saves a shop's payout account details. The legacy function name is
+ * retained for callers that have not yet migrated to the automatic-ready flow.
  * No Xendit sub-account is created — this just confirms the bank/GCash info.
  */
 export async function verifyShopPayout(
@@ -43,36 +44,12 @@ export async function verifyShopPayout(
   payoutAccountName: string,
   payoutAccountNumber: string,
 ): Promise<PayoutVerifyResult> {
-  const updatePayload = {
-    payoutChannelCode,
-    payoutAccountName,
-    payoutAccountNumber,
-    payoutVerifiedByAdmin: true,
-    payoutVerifiedAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-
-  // 1. Try direct Supabase update (authorized administrators have update privileges)
-  const { error: directError } = await supabase
-    .from('funeral_shops')
-    .update(updatePayload)
-    .eq('id', shopId);
-
-  if (!directError) {
-    return {
-      shopId,
-      payoutChannelCode,
-      payoutAccountName,
-      payoutVerified: true,
-      testMode: true,
-    };
-  }
-
-  // 2. Fallback to provision-xendit-shop edge function
+  // Verification must go through the server so the legacy shop fields and the
+  // per-channel receiver row used by customer checkout are updated together.
   const { data, error } = await supabase.functions.invoke("provision-xendit-shop", {
     body: {
       shopId,
-      action: "verify",
+      action: "save",
       payoutChannelCode,
       payoutAccountName,
       payoutAccountNumber,
@@ -84,6 +61,7 @@ export async function verifyShopPayout(
   if (
     !data ||
     data.shopId !== shopId ||
+    data.payoutVerified !== true ||
     data.testMode !== true
   ) {
     throw new Error(DEFAULT_ERROR);
@@ -93,7 +71,7 @@ export async function verifyShopPayout(
 }
 
 /**
- * Shop owner submits/updates their own payout details (requires admin verification after).
+ * Shop owner saves payout details. Approved shops become checkout-ready immediately.
  */
 export async function updateShopPayout(
   shopId: string,
@@ -101,32 +79,6 @@ export async function updateShopPayout(
   payoutAccountName: string,
   payoutAccountNumber: string,
 ): Promise<PayoutVerifyResult> {
-  const updatePayload = {
-    payoutChannelCode,
-    payoutAccountName,
-    payoutAccountNumber,
-    payoutVerifiedByAdmin: false,
-    payoutVerifiedAt: null,
-    updatedAt: new Date().toISOString(),
-  };
-
-  // 1. Try direct Supabase update (shop owners have RLS update privileges on their own shop)
-  const { error: directError } = await supabase
-    .from('funeral_shops')
-    .update(updatePayload)
-    .eq('id', shopId);
-
-  if (!directError) {
-    return {
-      shopId,
-      payoutChannelCode,
-      payoutAccountName,
-      payoutVerified: false,
-      testMode: true,
-    };
-  }
-
-  // 2. Fallback to provision-xendit-shop edge function
   const { data, error } = await supabase.functions.invoke("provision-xendit-shop", {
     body: {
       shopId,
@@ -139,7 +91,7 @@ export async function updateShopPayout(
 
   if (error) throw new Error(await getSafeErrorMessage(error));
 
-  if (!data || data.shopId !== shopId) {
+  if (!data || data.shopId !== shopId || data.payoutVerified !== true) {
     throw new Error(DEFAULT_ERROR);
   }
 

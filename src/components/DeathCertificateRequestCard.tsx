@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
+import * as ImagePicker from '@/utils/permissionImagePicker';
 import { uploadDeathCertificateToVault } from '@/services/supabaseStorage';
 import {
   deathCertificateErrorMessage,

@@ -4,6 +4,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 const CREATE_SESSION_URL = 'https://api.xendit.co/sessions';
 const XENDIT_PAYOUTS_URL = 'https://api.xendit.co/v2/payouts';
 const MAX_BODY_BYTES = 16 * 1024;
+const CHECKOUT_TTL_MS = 60 * 60 * 1000;
 
 const SHOP_PAYMENT_METHODS = [
   { accountChannel: 'PH_GCASH', providerChannel: 'GCASH', label: 'GCash', type: 'wallet' },
@@ -112,6 +113,18 @@ async function getXenditSession(secretKey: string, checkoutId: string) {
   });
 }
 
+async function resetExpiredCheckout(admin: any, requestId: string, checkoutId: string) {
+  const { data, error } = await admin.rpc('reset_expired_xendit_service_checkout', {
+    p_request_id: requestId,
+    p_checkout_id: checkoutId,
+  });
+  if (error) {
+    console.error('Unable to reset expired Xendit checkout:', error.code || 'unknown');
+    return false;
+  }
+  return data === true;
+}
+
 async function syncAndReconcileSession(
   admin: any,
   xenditSecretKey: string,
@@ -119,7 +132,7 @@ async function syncAndReconcileSession(
   requestId: string,
   serviceRequest: any,
   claim?: any
-) {
+): Promise<{ paid: boolean; status: string; paymentId?: string; paymentMethod?: string; reset?: boolean }> {
   const sessionResponse = await getXenditSession(xenditSecretKey, checkoutId).catch(() => null);
   const session = sessionResponse ? await sessionResponse.json().catch(() => null) : null;
   const sessionStatus = String(session?.status || '').toUpperCase();
@@ -208,12 +221,13 @@ async function syncAndReconcileSession(
       status: 'payment_verified',
       paymentId,
       paymentMethod,
+      reset: false,
     };
   }
 
-  if (sessionStatus === 'EXPIRED') {
+  if (sessionStatus === 'EXPIRED' || sessionStatus === 'CANCELED') {
     const referenceId = String(claim?.referenceId || serviceRequest.providerReferenceId || session?.reference_id || '').trim();
-    await admin.rpc('reconcile_xendit_service_event', {
+    const { error: reconcileError } = await admin.rpc('reconcile_xendit_service_event', {
       p_event_id: `xendit:sync:${checkoutId}:expired`,
       p_event_type: 'payment_session.status_sync',
       p_event_kind: 'payment_expired',
@@ -230,15 +244,21 @@ async function syncAndReconcileSession(
       p_livemode: false,
       p_payload: session || {},
     });
+    if (reconcileError) {
+      console.error('Unable to reconcile expired Xendit session:', reconcileError.code || 'unknown');
+    }
+    const reset = await resetExpiredCheckout(admin, requestId, checkoutId);
     return {
       paid: false,
       status: 'expired',
+      reset,
     };
   }
 
   return {
     paid: false,
     status: sessionStatus || 'pending',
+    reset: false,
   };
 }
 
@@ -348,6 +368,9 @@ Deno.serve(async (request) => {
         livemode: false,
       });
     }
+    if (syncRes.status === 'expired' && !syncRes.reset) {
+      return jsonResponse(request, { error: 'The expired checkout could not be refreshed. Please try again.' }, 500);
+    }
     if (isSyncAction) {
       return jsonResponse(request, {
         paid: false,
@@ -375,7 +398,7 @@ Deno.serve(async (request) => {
   if (!selectedMethod) {
     return jsonResponse(request, {
       error: availableMethods.length === 0
-        ? 'This shop has not configured a verified payment receiver account yet.'
+        ? 'This shop has not configured an active payment receiver account yet.'
         : 'Choose one of the payment methods configured by this shop.',
     }, 409);
   }
@@ -393,7 +416,7 @@ Deno.serve(async (request) => {
     return jsonResponse(request, { error: claimError.message || 'Unable to prepare this checkout.' }, 409);
   }
 
-  const claim = firstRpcRow<any>(claimData);
+  let claim = firstRpcRow<any>(claimData);
   if (!claim || claim.requestId !== requestId) {
     return jsonResponse(request, { error: 'Unable to prepare this checkout.' }, 500);
   }
@@ -419,16 +442,37 @@ Deno.serve(async (request) => {
         livemode: false,
       });
     }
-    return jsonResponse(request, {
-      checkoutUrl: existingCheckoutUrl,
-      paymentSessionId: existingCheckoutId,
-      requestId,
-      reused: true,
-      paid: false,
-      testMode: true,
-      livemode: false,
-      paymentMethod: savedPaymentMethod || undefined,
-    });
+    if (syncResult.status === 'expired') {
+      if (!syncResult.reset) {
+        return jsonResponse(request, { error: 'The expired checkout could not be refreshed. Please try again.' }, 500);
+      }
+      const { data: retryClaimData, error: retryClaimError } = await admin.rpc('claim_xendit_service_checkout', {
+        p_request_id: requestId,
+        p_idempotency_key: idempotencyKey,
+        p_currency: 'PHP',
+        p_livemode: false,
+      });
+      if (retryClaimError) {
+        console.error('Unable to reclaim expired Xendit checkout:', retryClaimError.code || 'unknown');
+        return jsonResponse(request, { error: 'Unable to prepare a fresh checkout.' }, 409);
+      }
+      claim = firstRpcRow<any>(retryClaimData);
+    } else {
+      return jsonResponse(request, {
+        checkoutUrl: existingCheckoutUrl,
+        paymentSessionId: existingCheckoutId,
+        requestId,
+        reused: true,
+        paid: false,
+        status: syncResult.status,
+        testMode: true,
+        livemode: false,
+        paymentMethod: savedPaymentMethod || undefined,
+      });
+    }
+  }
+  if (!claim || claim.requestId !== requestId) {
+    return jsonResponse(request, { error: 'Unable to prepare a fresh checkout.' }, 500);
   }
   if (!claim.shouldCreate || claim.inProgress) {
     return jsonResponse(request, { error: 'Checkout is being prepared. Try again in a moment.' }, 409);
@@ -475,6 +519,7 @@ Deno.serve(async (request) => {
     country: 'PH',
     capture_method: 'AUTOMATIC',
     allowed_payment_channels: [selectedMethod.providerChannel],
+    expires_at: new Date(Date.now() + CHECKOUT_TTL_MS).toISOString(),
     locale: 'en',
     description: `LifeCycle casket payment - ${productName}`.slice(0, 200),
     metadata: {

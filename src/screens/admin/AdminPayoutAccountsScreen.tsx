@@ -51,12 +51,12 @@ type ShopPayout = {
   ownerEmail?: string;
 };
 
-type FilterMode = "all" | "pending" | "verified" | "missing";
+type FilterMode = "all" | "attention" | "ready" | "missing";
 
 export default function AdminPayoutAccountsScreen() {
   const [shops, setShops] = useState<ShopPayout[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<FilterMode>("pending");
+  const [filter, setFilter] = useState<FilterMode>("all");
   const [selected, setSelected] = useState<ShopPayout | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [channelPickerVisible, setChannelPickerVisible] = useState(false);
@@ -96,8 +96,8 @@ export default function AdminPayoutAccountsScreen() {
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   const filtered = shops.filter((s) => {
-    if (filter === "pending") return !s.payoutVerifiedByAdmin && Boolean(s.payoutChannelCode);
-    if (filter === "verified") return s.payoutVerifiedByAdmin;
+    if (filter === "attention") return !s.payoutVerifiedByAdmin && Boolean(s.payoutChannelCode);
+    if (filter === "ready") return s.payoutVerifiedByAdmin;
     if (filter === "missing") return !s.payoutChannelCode;
     return true;
   });
@@ -114,13 +114,13 @@ export default function AdminPayoutAccountsScreen() {
     setModalVisible(true);
   };
 
-  const handleVerify = async () => {
+  const handleSave = async () => {
     if (!selected) return;
     const channel = overrideChannel || selected.payoutChannelCode || "";
     const name = overrideName || selected.payoutAccountName || "";
     const number = overrideNumber || selected.payoutAccountNumber || "";
     if (!channel || !name || !number) {
-      Alert.alert("Missing details", "The shop must submit payout details before you can verify.");
+      Alert.alert("Missing details", "Enter a payout channel, account name, and account number before saving.");
       return;
     }
     setVerifying(true);
@@ -128,28 +128,28 @@ export default function AdminPayoutAccountsScreen() {
       await verifyShopPayout(selected.id, channel, name, number);
       void logAdminAction({
         adminId: auth.currentUser?.uid,
-        action: "shop_payout_verified",
+        action: "shop_payout_updated",
         targetType: "funeral_shop",
         targetId: selected.id,
-        summary: `Verified payout account for ${selected.shopName || selected.id} (${getChannelLabel(channel)})`,
+        summary: `Updated payout account for ${selected.shopName || selected.id} (${getChannelLabel(channel)})`,
         metadata: { payoutChannel: channel, testMode: true },
       }).catch(() => {});
       Alert.alert(
-        "Payout account verified",
-        `${selected.shopName || "This shop"}'s ${getChannelLabel(channel)} account is now verified. 70% of each customer payment will be sent here automatically.`
+        "Payout account saved",
+        `${selected.shopName || "This shop"}'s ${getChannelLabel(channel)} account is ready for customer payments.`
       );
       setModalVisible(false);
       void load();
     } catch (e: any) {
-      Alert.alert("Verification failed", e?.message || "Unable to verify. Please try again.");
+      Alert.alert("Save failed", e?.message || "Unable to save. Please try again.");
     } finally {
       setVerifying(false);
     }
   };
 
   const FILTERS: { key: FilterMode; label: string; count: number; color: string }[] = [
-    { key: "pending", label: "Needs Verification", count: pendingCount, color: "#2563eb" },
-    { key: "verified", label: "Verified", count: verifiedCount, color: "#059669" },
+    { key: "attention", label: "Needs Attention", count: pendingCount, color: "#2563eb" },
+    { key: "ready", label: "Ready", count: verifiedCount, color: "#059669" },
     { key: "missing", label: "Not Submitted", count: missingCount, color: "#d97706" },
     { key: "all", label: "All", count: shops.length, color: "#6b7280" },
   ];
@@ -161,7 +161,7 @@ export default function AdminPayoutAccountsScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Payout Accounts</Text>
         <Text style={styles.headerSub}>
-          Verify shop GCash/bank accounts so they can receive 70% of each customer payment automatically.
+          View and manage the GCash and bank accounts shops use to receive their payout share.
         </Text>
       </View>
 
@@ -188,9 +188,9 @@ export default function AdminPayoutAccountsScreen() {
           <View style={styles.emptyWrap}>
             <Ionicons name="wallet-outline" size={40} color="#9ca3af" />
             <Text style={styles.emptyText}>
-              {filter === "pending" ? "No shops are waiting for payout verification." :
+              {filter === "attention" ? "Every submitted payout account is ready." :
                filter === "missing" ? "All shops have submitted payout details." :
-               filter === "verified" ? "No verified payout accounts yet." : "No shops found."}
+               filter === "ready" ? "No checkout-ready payout accounts yet." : "No shops found."}
             </Text>
           </View>
         }
@@ -207,7 +207,7 @@ export default function AdminPayoutAccountsScreen() {
                 <Text style={styles.cardEmail}>{item.ownerEmail || item.id}</Text>
                 {item.payoutChannelCode ? (
                   <Text style={styles.cardAccount}>
-                    {getChannelLabel(item.payoutChannelCode)} · {item.payoutAccountName || "—"} · {item.payoutAccountNumber || "—"}
+                    {getChannelLabel(item.payoutChannelCode)} Â· {item.payoutAccountName || "â€”"} Â· {item.payoutAccountNumber || "â€”"}
                   </Text>
                 ) : (
                   <Text style={styles.cardMissing}>Shop has not submitted payout details</Text>
@@ -219,7 +219,7 @@ export default function AdminPayoutAccountsScreen() {
                 <Text style={[styles.statusBadgeText, {
                   color: item.payoutVerifiedByAdmin ? "#059669" : item.payoutChannelCode ? "#1d4ed8" : "#92400e"
                 }]}>
-                  {item.payoutVerifiedByAdmin ? "Verified" : item.payoutChannelCode ? "Pending" : "Missing"}
+                  {item.payoutVerifiedByAdmin ? "Ready" : item.payoutChannelCode ? "Attention" : "Missing"}
                 </Text>
               </View>
             </View>
@@ -255,9 +255,9 @@ export default function AdminPayoutAccountsScreen() {
                       color: selected.payoutVerifiedByAdmin ? "#065f46" : selected.payoutChannelCode ? "#1e3a8a" : "#78350f"
                     }]}>
                       {selected.payoutVerifiedByAdmin
-                        ? "Payout account verified. Shop receives 70% of each customer payment."
+                        ? "Payout account is ready. The shop can receive its share of customer payments."
                         : selected.payoutChannelCode
-                        ? "Shop submitted details — awaiting your verification below."
+                        ? "This legacy account needs to be saved again before it appears at checkout."
                         : "Shop has not set up their payout account yet."}
                     </Text>
                   </View>
@@ -266,8 +266,8 @@ export default function AdminPayoutAccountsScreen() {
                     <View style={styles.submittedBox}>
                       <Text style={styles.submittedLabel}>Shop Submitted Details</Text>
                       <Text style={styles.submittedText}>Channel: {getChannelLabel(selected.payoutChannelCode)}</Text>
-                      <Text style={styles.submittedText}>Name: {selected.payoutAccountName || "—"}</Text>
-                      <Text style={styles.submittedText}>Number: {selected.payoutAccountNumber || "—"}</Text>
+                      <Text style={styles.submittedText}>Name: {selected.payoutAccountName || "â€”"}</Text>
+                      <Text style={styles.submittedText}>Number: {selected.payoutAccountNumber || "â€”"}</Text>
                     </View>
                   ) : (
                     <View style={styles.missingBox}>
@@ -280,7 +280,7 @@ export default function AdminPayoutAccountsScreen() {
 
                   {selected.payoutChannelCode ? (
                     <>
-                      <Text style={styles.sectionLabel}>Override / Confirm (optional)</Text>
+                      <Text style={styles.sectionLabel}>Edit account details (optional)</Text>
                       <Text style={styles.fieldLabel}>Payout Channel</Text>
                       <TouchableOpacity style={styles.pickerBtn} onPress={() => setChannelPickerVisible(true)}>
                         <Text style={styles.pickerBtnText}>
@@ -304,12 +304,12 @@ export default function AdminPayoutAccountsScreen() {
                       />
                       <TouchableOpacity
                         style={[styles.verifyBtn, verifying && styles.verifyBtnDisabled]}
-                        onPress={() => void handleVerify()}
+                        onPress={() => void handleSave()}
                         disabled={verifying}
                       >
                         {verifying ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />}
                         <Text style={styles.verifyBtnText}>
-                          {verifying ? "Verifying..." : selected.payoutVerifiedByAdmin ? "Re-Verify Payout Account" : "Verify Payout Account"}
+                          {verifying ? "Saving..." : "Save Payout Account"}
                         </Text>
                       </TouchableOpacity>
                     </>

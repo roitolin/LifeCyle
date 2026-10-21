@@ -9,9 +9,70 @@ import PageBackButton from '@/components/PageBackButton'
 
 type Gender = 'male' | 'female' | 'other' | ''
 
+const PASSWORD_SYMBOLS = "!@#$%^&*()_+-=[]{};'\\:\"|<>?,./`~"
+const PASSWORD_REQUIREMENTS = [
+  { id: 'length', label: 'At least 8 characters', test: (value: string) => value.length >= 8 },
+  { id: 'lowercase', label: 'One lowercase letter (a-z)', test: (value: string) => /[a-z]/.test(value) },
+  { id: 'uppercase', label: 'One uppercase letter (A-Z)', test: (value: string) => /[A-Z]/.test(value) },
+  { id: 'number', label: 'One number (0-9)', test: (value: string) => /[0-9]/.test(value) },
+  { id: 'symbol', label: 'One special character (!@#$...)', test: (value: string) => Array.from(value).some((character) => PASSWORD_SYMBOLS.includes(character)) },
+] as const
+const STRONG_PASSWORD_MESSAGE =
+  'Use 8 or more characters with lowercase and uppercase letters, a number, and a special character.'
+
+function getPasswordChecks(value: string) {
+  return PASSWORD_REQUIREMENTS.map((requirement) => ({
+    id: requirement.id,
+    label: requirement.label,
+    met: requirement.test(value),
+  }))
+}
+
+function isStrongPassword(value: string): boolean {
+  return PASSWORD_REQUIREMENTS.every((requirement) => requirement.test(value))
+}
+
+function PasswordStrengthChecklist({ password }: { password: string }) {
+  const checks = getPasswordChecks(password)
+  const passedCount = checks.filter((check) => check.met).length
+  const level = password.length === 0 ? 0 : passedCount === checks.length ? 3 : passedCount >= 3 ? 2 : 1
+  const tone = level === 3 ? 'strong' : level === 2 ? 'medium' : level === 1 ? 'weak' : 'empty'
+  const label = level === 3 ? 'Strong' : level === 2 ? 'Medium' : level === 1 ? 'Weak' : 'Not started'
+
+  return (
+    <section className={`password-strength-card is-${tone}`} aria-live="polite">
+      <div className="password-strength-heading">
+        <strong>Password strength</strong>
+        <span>{label}</span>
+      </div>
+      <div
+        className="password-strength-track"
+        role="meter"
+        aria-label="Password strength"
+        aria-valuemin={0}
+        aria-valuemax={checks.length}
+        aria-valuenow={passedCount}
+        aria-valuetext={`${label}: ${passedCount} of ${checks.length} requirements met`}
+      >
+        {[1, 2, 3].map((segment) => (
+          <span key={segment} className={`password-strength-segment${segment <= level ? ' is-active' : ''}`} />
+        ))}
+      </div>
+      <ul className="password-requirements">
+        {checks.map((check) => (
+          <li key={check.id} className={check.met ? 'is-met' : ''}>
+            <span className="password-requirement-icon" aria-hidden="true">{check.met ? '\u2713' : '\u00d7'}</span>
+            <span>{check.label}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 function getRegisterErrorMessage(errorCode: string): string {
   if (errorCode === 'auth/email-already-in-use') return 'Email already in use.'
-  if (errorCode === 'auth/weak-password') return 'Password should be at least 6 characters.'
+  if (errorCode === 'auth/weak-password' || errorCode === 'weak_password') return STRONG_PASSWORD_MESSAGE
   if (errorCode === 'auth/invalid-email') return 'Please enter a valid email address.'
   if (errorCode === 'auth/network-request-failed') return 'Network error. Please check your internet connection.'
   return 'Registration failed. Please try again.'
@@ -29,6 +90,8 @@ function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const passwordIsStrong = isStrongPassword(password)
+  const passwordsMatch = confirmPassword.length > 0 && password === confirmPassword
 
   const goBack = () => {
     if (window.history.length > 1) {
@@ -52,7 +115,12 @@ function RegisterPage() {
       return
     }
 
-    if (password !== confirmPassword) {
+    if (!passwordIsStrong) {
+      setError(STRONG_PASSWORD_MESSAGE)
+      return
+    }
+
+    if (!passwordsMatch) {
       setError('Passwords do not match.')
       return
     }
@@ -158,7 +226,8 @@ function RegisterPage() {
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 autoComplete="new-password"
-                minLength={6}
+                minLength={8}
+                aria-describedby="register-password-strength"
                 required
               />
               <button
@@ -193,6 +262,10 @@ function RegisterPage() {
               </button>
             </div>
 
+            <div id="register-password-strength">
+              <PasswordStrengthChecklist password={password} />
+            </div>
+
             <label htmlFor="register-confirm-password">Confirm Password</label>
             <input
               id="register-confirm-password"
@@ -200,9 +273,22 @@ function RegisterPage() {
               value={confirmPassword}
               onChange={(event) => setConfirmPassword(event.target.value)}
               autoComplete="new-password"
-              minLength={6}
+              minLength={8}
+              aria-invalid={confirmPassword.length > 0 && !passwordsMatch}
+              aria-describedby="register-password-match"
               required
             />
+            <p
+              id="register-password-match"
+              className={`password-match-message${passwordsMatch ? ' is-match' : ''}`}
+              aria-live="polite"
+            >
+              {confirmPassword.length === 0
+                ? 'Re-enter your password.'
+                : passwordsMatch
+                  ? 'Passwords match.'
+                  : 'Passwords do not match.'}
+            </p>
 
             <label htmlFor="register-gender">Gender</label>
             <select
@@ -227,7 +313,7 @@ function RegisterPage() {
               required
             />
 
-            <button type="submit" className="solid-btn auth-submit" disabled={loading}>
+            <button type="submit" className="solid-btn auth-submit" disabled={loading || !passwordIsStrong || !passwordsMatch}>
               {loading ? 'Registering...' : 'Sign up'}
             </button>
           </form>

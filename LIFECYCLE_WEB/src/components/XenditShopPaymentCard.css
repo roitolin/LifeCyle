@@ -263,7 +263,7 @@
  @apply grid grid-cols-[58px_minmax(0,1fr)_auto] gap-[12px] items-center;
 }
 .pm-receipt-logo {
- @apply grid place-items-center w-[58px] h-[70px] [background:#22312d] text-white text-[1.05rem] font-black rounded-[12px];
+ @apply block w-[58px] h-[70px] object-contain rounded-[12px];
 }
 .pm-receipt-service strong, .pm-receipt-service small {
  @apply block;

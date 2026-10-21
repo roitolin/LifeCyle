@@ -15,7 +15,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { Card, Button as PaperButton } from "react-native-paper";
 import { Picker } from "@react-native-picker/picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import * as ImagePicker from "expo-image-picker";
+import * as ImagePicker from "@/utils/permissionImagePicker";
 import { KeyboardAwareScrollView } from "@/components";
 import { supabase } from "@/services/supabaseClient";
 import { auth } from "@/services/supabaseAuth";
@@ -130,12 +130,6 @@ export default function AccountSettingsScreen({ navigation }: any) {
   };
 
   const takePhoto = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Permission Needed", "Camera permission is required.");
-      return;
-    }
-
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ["images"],
       allowsEditing: true,

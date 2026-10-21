@@ -142,20 +142,18 @@ export default function PurchasePage() {
 
       <div className="purchase-topbar">
         <div className="purchase-topbar-inner">
-          <div className="purchase-topbar-left"><Link to="/seller">Shop Center</Link></div>
           <div className="purchase-topbar-right">
-            <Link to="/user/notifications">Notifications</Link>
-            <Link to="/user/help">Help Centre</Link>
-            <span className="purchase-divider">|</span>
+            <Link to="/user/notifications" className="purchase-topbar-link">Notifications</Link>
+            <Link to="/user/help" className="purchase-topbar-link">Help Centre</Link>
+            <span className="purchase-divider" aria-hidden="true" />
             <div className="purchase-user-menu">
-              <div className="purchase-user-menu-trigger">
-                <img src={getProfileAvatar(profile?.photoURL, profile?.gender)} alt="Avatar" className="purchase-user-avatar" />
+              <button type="button" className="purchase-user-menu-trigger" aria-haspopup="menu">
+                <img src={getProfileAvatar(profile?.photoURL, profile?.gender)} alt="" className="purchase-user-avatar" />
                 <span className="purchase-user-name">{profile?.fullName || 'User'}</span>
-                <svg className="purchase-user-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
-              </div>
+                <svg className="purchase-user-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
+              </button>
               <div className="purchase-user-dropdown">
                 <Link to="/user/profile">My Account</Link>
-                <Link to="/user/purchase">My Payments</Link>
                 <Link to="/auth/switch-account">Switch Account</Link>
                 <LogoutLink>Log out</LogoutLink>
               </div>
@@ -167,8 +165,6 @@ export default function PurchasePage() {
       <header className="purchase-header">
         <div className="purchase-header-inner">
           <BrandLogo to="/funeral" />
-          <div className="purchase-header-divider" />
-          <h1>My Payments</h1>
           <label className="purchase-search">
             <span className="sr-only">Search payments</span>
             <input

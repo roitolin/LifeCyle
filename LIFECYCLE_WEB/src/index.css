@@ -1585,6 +1585,63 @@ select:focus-visible {
 .password-toggle svg {
   @apply w-[18px] h-[18px] stroke-current;
 }
+.password-strength-card {
+  @apply grid gap-[10px] border border-slate-200 [background:#f1f5f9] p-[13px] rounded-[12px];
+}
+.password-strength-heading {
+  @apply flex items-center justify-between gap-[12px] text-[0.78rem];
+}
+.password-strength-heading strong {
+  @apply text-slate-700;
+}
+.password-strength-heading span {
+  @apply text-slate-500 font-extrabold;
+}
+.password-strength-card.is-weak .password-strength-heading span {
+  @apply text-[#c94f63];
+}
+.password-strength-card.is-medium .password-strength-heading span {
+  @apply text-[#b96f00];
+}
+.password-strength-card.is-strong .password-strength-heading span {
+  @apply text-emerald-700;
+}
+.password-strength-track {
+  @apply grid grid-cols-3 gap-[6px];
+}
+.password-strength-segment {
+  @apply block h-[4px] [background:#d7dee8] rounded-[999px];
+}
+.password-strength-card.is-weak .password-strength-segment.is-active {
+  @apply [background:#df6677];
+}
+.password-strength-card.is-medium .password-strength-segment.is-active {
+  @apply [background:#e99b18];
+}
+.password-strength-card.is-strong .password-strength-segment.is-active {
+  @apply [background:#19a974];
+}
+.password-requirements {
+  @apply grid gap-[6px] m-0 p-0 [list-style:none];
+}
+.password-requirements li {
+  @apply flex items-center gap-[8px] text-slate-500 text-[0.78rem] leading-[1.35];
+}
+.password-requirements li.is-met {
+  @apply text-[#476458];
+}
+.password-requirement-icon {
+  @apply flex-none inline-flex items-center justify-center w-[18px] h-[18px] [background:#fff] text-slate-400 text-[0.67rem] font-extrabold rounded-full;
+}
+.password-requirements li.is-met .password-requirement-icon {
+  @apply [background:#e6f8ef] text-emerald-700;
+}
+.password-match-message {
+  @apply text-slate-500 text-[0.78rem] leading-normal mt-[-4px] mb-0;
+}
+.password-match-message.is-match {
+  @apply text-emerald-700 font-semibold;
+}
 .auth-forgot-row {
   @apply flex justify-end mt-[-2px];
 }
@@ -1694,6 +1751,9 @@ select:focus-visible {
   }
   .auth-card {
     @apply pt-[22px] pb-[20px] px-[22px];
+  }
+  .password-strength-card {
+    @apply p-[12px];
   }
 }
 .terms-gate-overlay {

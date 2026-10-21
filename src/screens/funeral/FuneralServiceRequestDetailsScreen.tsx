@@ -23,7 +23,7 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import * as ImagePicker from "expo-image-picker";
+import * as ImagePicker from "@/utils/permissionImagePicker";
 import { useFocusEffect } from "@react-navigation/native";
 import { AppBackButton } from "@/components";
 import DeathCertificateRequestCard from "@/components/DeathCertificateRequestCard";
@@ -2080,7 +2080,7 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
           <View style={styles.readonlyStatusCard}>
             <Text style={styles.readonlyStatusTitle}>Payout Account Setup Required</Text>
             <Text style={styles.readonlyStatusText}>
-              An administrator must verify this shop’s payout account before customer checkout can open.
+              The shop must save and enable a payout account before customer checkout can open.
             </Text>
           </View>
         ) : String(request.status || "").toLowerCase() === "payment_verified" ? (

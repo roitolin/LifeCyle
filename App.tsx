@@ -1,10 +1,12 @@
 import { isRunningInExpoGo } from 'expo';
 import { NavigationBar } from 'expo-navigation-bar';
+import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { RootNavigator } from '@/navigation';
 import { AppProviders } from '@/providers';
+import { configureForegroundPushNotifications } from '@/services/pushNotifications';
 import { colors } from '@/theme';
 
 void SplashScreen.preventAutoHideAsync().catch(() => {
@@ -19,6 +21,12 @@ if (!isRunningInExpoGo()) {
 }
 
 export default function App() {
+  useEffect(() => {
+    // Notification handler setup is non-critical for the first paint. Deferring
+    // it until after the root view mounts keeps the initial app screen responsive.
+    configureForegroundPushNotifications();
+  }, []);
+
   return (
     <View style={styles.app}>
       <StatusBar hidden={false} style="dark" />

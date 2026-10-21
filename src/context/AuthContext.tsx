@@ -269,25 +269,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
         if (supabaseUser) {
           setUser(toAppUser(supabaseUser));
-          try {
-            await registerCurrentAccountSession(session);
-          } catch (error) {
-            const sessionError = error as { message?: string };
+          // Session bookkeeping is not required to render the first screen.
+          // Run it in the background so a slow network cannot block startup.
+          void registerCurrentAccountSession(session).catch((error: { message?: string }) => {
             console.warn(
               "Account session could not be registered:",
-              sessionError.message ?? "Unknown error",
+              error.message ?? "Unknown error",
             );
-          }
+          });
           try {
             const data = await ensureOwnUserProfile(supabaseUser);
             await handleUserProfile(supabaseUser, data);
             if (session && !Boolean(data?.disabled)) {
               syncedProfileUserIdRef.current = supabaseUser.id;
-              try {
-                await rememberAccountSession(session, data);
-              } catch (error) {
+              void rememberAccountSession(session, data).catch((error) => {
                 console.warn('Account could not be saved to the device switcher:', error);
-              }
+              });
             }
           } catch (error) {
             const profileError = error as { message?: string };

@@ -1151,3 +1151,171 @@
     animation: none;
   }
 }
+
+/* Unified account header — desktop only. Mobile keeps its dedicated account header. */
+@media (min-width: 769px) {
+  .profile-page > .sp-topbar,
+  .profile-page > .sp-header {
+    background: #22312d;
+  }
+  .profile-page > .sp-topbar {
+    min-height: 44px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .profile-page .sp-topbar-inner,
+  .profile-page .sp-header-inner {
+    width: min(1200px, 100%);
+    padding-right: 20px;
+    padding-left: 20px;
+  }
+  .profile-page .sp-topbar-inner {
+    min-height: 44px;
+    justify-content: flex-end;
+  }
+  .profile-page .sp-topbar-left,
+  .profile-page .sp-topbar-right {
+    display: flex;
+    align-items: center;
+  }
+  .profile-page .sp-topbar-right {
+    gap: 4px;
+  }
+  .profile-page .profile-topbar-link {
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+    padding: 0 10px;
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.86);
+    font-size: 12px;
+    font-weight: 650;
+  }
+  .profile-page .profile-topbar-link:hover,
+  .profile-page .profile-topbar-link:focus-visible {
+    background: rgba(255, 255, 255, 0.09);
+    color: #ffffff;
+    opacity: 1;
+  }
+  .profile-page .profile-topbar-divider {
+    width: 1px;
+    height: 18px;
+    margin: 0 6px;
+    background: rgba(255, 255, 255, 0.2);
+  }
+  .profile-page .sp-user-menu-trigger {
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 8px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.92);
+    font: inherit;
+    cursor: pointer;
+  }
+  .profile-page .sp-user-menu {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  .profile-page .sp-user-menu::after {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    left: 0;
+    height: 10px;
+    content: "";
+  }
+  .profile-page .sp-user-menu-trigger:hover,
+  .profile-page .sp-user-menu-trigger:focus-visible {
+    background: rgba(255, 255, 255, 0.09);
+    color: #ffffff;
+    opacity: 1;
+    outline: none;
+  }
+  .profile-page .sp-user-avatar {
+    display: block;
+    width: 24px;
+    height: 24px;
+    flex: 0 0 24px;
+    border: 1px solid rgba(255, 255, 255, 0.36);
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  .profile-page .sp-user-name {
+    max-width: 190px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .profile-page .sp-user-dropdown {
+    position: absolute;
+    z-index: 120;
+    top: calc(100% + 8px);
+    right: 0;
+    display: none;
+    min-width: 184px;
+    margin: 0;
+    padding: 6px;
+    border: 1px solid #dfe5ec;
+    border-radius: 10px;
+    background: #ffffff;
+    box-shadow: 0 16px 36px rgba(14, 24, 21, 0.2);
+  }
+  .profile-page .sp-user-menu:hover .sp-user-dropdown,
+  .profile-page .sp-user-menu:focus-within .sp-user-dropdown {
+    display: grid;
+  }
+  .profile-page .sp-user-dropdown a {
+    display: block;
+    padding: 9px 11px;
+    border-radius: 7px;
+    color: #46556d;
+    font-size: 13px;
+    font-weight: 650;
+    text-decoration: none;
+  }
+  .profile-page .sp-user-dropdown a:hover,
+  .profile-page .sp-user-dropdown a:focus-visible {
+    background: #f1f4f7;
+    color: #172033;
+    opacity: 1;
+  }
+  .profile-page .profile-app-header {
+    min-height: 82px;
+    padding: 16px 0;
+    border: 0;
+  }
+  .profile-page .profile-app-header-inner {
+    justify-content: flex-start;
+    gap: 18px;
+  }
+  .profile-page .profile-brand-logo {
+    --lc-brand-ink: #ffffff;
+    --lc-brand-soft: #c7d1dc;
+  }
+  .profile-page .profile-brand-logo .lc-brand__name {
+    color: #ffffff !important;
+  }
+  .profile-page .profile-brand-logo .lc-brand__tagline {
+    color: #c7d1dc !important;
+  }
+  .profile-page .profile-browse-link {
+    min-height: 38px;
+    display: inline-flex;
+    align-items: center;
+    margin-left: auto;
+    padding: 0 14px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 9px;
+    color: rgba(255, 255, 255, 0.92);
+  }
+  .profile-page .profile-browse-link:hover,
+  .profile-page .profile-browse-link:focus-visible {
+    border-color: rgba(255, 255, 255, 0.42);
+    background: rgba(255, 255, 255, 0.09);
+    color: #ffffff;
+    outline: none;
+  }
+}

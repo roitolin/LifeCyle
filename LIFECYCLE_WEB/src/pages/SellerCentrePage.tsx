@@ -282,6 +282,23 @@ type ShopPayoutAccount = {
   updatedAt: string
 }
 
+type PayoutChangeVerification = {
+  challengeId: string
+  maskedEmail: string
+  expiresAt: string
+}
+
+async function getPayoutFunctionError(error: unknown, fallback: string) {
+  const context = (error as { context?: Response } | null)?.context
+  if (!context || typeof context.json !== 'function') return fallback
+  try {
+    const body = await context.json()
+    return typeof body?.error === 'string' && body.error.trim() ? body.error : fallback
+  } catch {
+    return fallback
+  }
+}
+
 type FamilyPaymentFilter = 'all' | 'review' | 'verified'
 type ArrangementFilter = 'all' | 'custom_casket'
 type FamilyPaymentIconName = 'wallet' | 'clock' | 'check' | 'receipt' | 'person' | 'key' | 'image' | 'alert' | 'chevron'
@@ -763,6 +780,10 @@ export default function SellerCentrePage() {
   const [payoutDraft, setPayoutDraft] = useState({ channel: '', name: '', number: '' })
   const [payoutAccounts, setPayoutAccounts] = useState<ShopPayoutAccount[]>([])
   const [savingPayout, setSavingPayout] = useState(false)
+  const [resendingPayoutCode, setResendingPayoutCode] = useState(false)
+  const [payoutVerification, setPayoutVerification] = useState<PayoutChangeVerification | null>(null)
+  const [payoutVerificationCode, setPayoutVerificationCode] = useState('')
+  const [payoutResendCooldown, setPayoutResendCooldown] = useState(0)
   const [payment, setPayment] = useState<ShopPayment | null>(null)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [notifications, setNotifications] = useState<SellerNotification[]>([])
@@ -783,6 +804,14 @@ export default function SellerCentrePage() {
   const [editingScheduleEvent, setEditingScheduleEvent] = useState<ShopScheduleEvent | null>(null)
   const [scheduleDraft, setScheduleDraft] = useState<ScheduleEventDraft>(EMPTY_SCHEDULE_DRAFT)
   const [savingScheduleEvent, setSavingScheduleEvent] = useState(false)
+
+  useEffect(() => {
+    if (payoutResendCooldown <= 0) return
+    const timer = window.setInterval(() => {
+      setPayoutResendCooldown(current => Math.max(0, current - 1))
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [payoutResendCooldown])
 
   useEffect(() => {
     const requestedTab = searchParams.get('tab')
@@ -1110,19 +1139,27 @@ export default function SellerCentrePage() {
       })
 
       if (functionError) {
-        let message = 'Unable to save the payout account.'
-        const context = (functionError as { context?: Response }).context
-        if (context && typeof context.json === 'function') {
-          try {
-            const body = await context.json()
-            if (typeof body?.error === 'string' && body.error.trim()) message = body.error
-          } catch {
-            // Keep the safe fallback message.
-          }
-        }
-        throw new Error(message)
+        throw new Error(await getPayoutFunctionError(functionError, 'Unable to save the payout account.'))
       }
-      if (!data || data.shopId !== shop.id) throw new Error('The payout account could not be confirmed.')
+      if (
+        data?.verificationRequired === true &&
+        typeof data.challengeId === 'string' &&
+        typeof data.maskedEmail === 'string' &&
+        typeof data.expiresAt === 'string'
+      ) {
+        setPayoutDraft({ channel, name: accountName, number: accountNumber })
+        setPayoutVerification({
+          challengeId: data.challengeId,
+          maskedEmail: data.maskedEmail,
+          expiresAt: data.expiresAt,
+        })
+        setPayoutVerificationCode('')
+        setPayoutResendCooldown(Number(data.resendAfterSeconds) || 60)
+        return
+      }
+      if (!data || data.shopId !== shop.id || data.payoutVerified !== true) {
+        throw new Error('The payout account could not be activated.')
+      }
 
       setPayoutDraft({ channel, name: accountName, number: accountNumber })
       setShop(current => current ? {
@@ -1130,14 +1167,14 @@ export default function SellerCentrePage() {
         payoutChannelCode: channel,
         payoutAccountName: accountName,
         payoutAccountNumber: accountNumber,
-        payoutVerifiedByAdmin: false,
-        payoutVerifiedAt: null,
+        payoutVerifiedByAdmin: true,
+        payoutVerifiedAt: new Date().toISOString(),
       } : current)
       setActiveTab('payout_accounts')
       await loadData()
       openAlert({
-        title: 'Payout Account Submitted',
-        message: 'Your payout details were saved and are now waiting for administrator verification.',
+        title: 'Payout Account Ready',
+        message: 'Your payout details were saved and this active method is now available to customers.',
         tone: 'info',
         okLabel: 'Done',
       })
@@ -1153,12 +1190,96 @@ export default function SellerCentrePage() {
     }
   }
 
+  const verifyPayoutAccountChange = async () => {
+    if (!shop || !payoutVerification || savingPayout) return
+    if (!/^\d{6}$/.test(payoutVerificationCode)) {
+      openAlert({ title: 'Code Required', message: 'Enter the complete 6-digit verification code from your email.', tone: 'warning', okLabel: 'Got It' })
+      return
+    }
+
+    setSavingPayout(true)
+    try {
+      const { data, error: functionError } = await supabase.functions.invoke('provision-xendit-shop', {
+        body: {
+          shopId: shop.id,
+          action: 'confirm-update',
+          challengeId: payoutVerification.challengeId,
+          code: payoutVerificationCode,
+        },
+      })
+      if (functionError) {
+        throw new Error(await getPayoutFunctionError(functionError, 'Unable to verify the payout change.'))
+      }
+      if (!data || data.shopId !== shop.id || data.payoutVerified !== true) {
+        throw new Error('The payout change could not be confirmed.')
+      }
+
+      setPayoutVerification(null)
+      setPayoutVerificationCode('')
+      setActiveTab('payout_accounts')
+      await loadData()
+      openAlert({
+        title: 'Payout Account Updated',
+        message: 'Your email was verified and the new payout details are now active.',
+        tone: 'info',
+        okLabel: 'Done',
+      })
+    } catch (err: unknown) {
+      setPayoutVerificationCode('')
+      openAlert({
+        title: 'Verification Failed',
+        message: err instanceof Error ? err.message : 'Unable to verify the payout change.',
+        tone: 'danger',
+        okLabel: 'Dismiss',
+      })
+    } finally {
+      setSavingPayout(false)
+    }
+  }
+
+  const resendPayoutVerificationCode = async () => {
+    if (!shop || !payoutVerification || resendingPayoutCode || payoutResendCooldown > 0) return
+    setResendingPayoutCode(true)
+    try {
+      const { data, error: functionError } = await supabase.functions.invoke('provision-xendit-shop', {
+        body: {
+          shopId: shop.id,
+          action: 'resend-update-code',
+          challengeId: payoutVerification.challengeId,
+        },
+      })
+      if (functionError) {
+        throw new Error(await getPayoutFunctionError(functionError, 'Unable to resend the verification code.'))
+      }
+      setPayoutVerification(current => current ? {
+        ...current,
+        maskedEmail: typeof data?.maskedEmail === 'string' ? data.maskedEmail : current.maskedEmail,
+        expiresAt: typeof data?.expiresAt === 'string' ? data.expiresAt : current.expiresAt,
+      } : current)
+      setPayoutVerificationCode('')
+      setPayoutResendCooldown(Number(data?.resendAfterSeconds) || 60)
+      openAlert({ title: 'Code Sent', message: 'A new verification code was sent to your account email.', tone: 'info', okLabel: 'Done' })
+    } catch (err: unknown) {
+      openAlert({
+        title: 'Resend Failed',
+        message: err instanceof Error ? err.message : 'Unable to resend the verification code.',
+        tone: 'danger',
+        okLabel: 'Dismiss',
+      })
+    } finally {
+      setResendingPayoutCode(false)
+    }
+  }
+
   const openPayoutAccountEditor = (account?: ShopPayoutAccount, channelCode?: string) => {
     setPayoutDraft(account ? {
       channel: account.channelCode,
       name: account.accountName,
       number: account.accountNumber,
     } : { channel: channelCode || '', name: '', number: '' })
+    setPayoutVerification(null)
+    setPayoutVerificationCode('')
+    setPayoutResendCooldown(0)
     setActiveTab('payout_account_setup')
   }
 
@@ -4145,9 +4266,20 @@ export default function SellerCentrePage() {
               {/* INDIVIDUAL PAYOUT METHOD SETUP */}
               {activeTab === 'payout_account_setup' && (
                 <div className="sc-method-setup-page">
-                  <button type="button" className="sc-method-setup-back" onClick={() => setActiveTab('payout_accounts')}>
+                  <button
+                    type="button"
+                    className="sc-method-setup-back"
+                    onClick={() => {
+                      if (payoutVerification) {
+                        setPayoutVerification(null)
+                        setPayoutVerificationCode('')
+                      } else {
+                        setActiveTab('payout_accounts')
+                      }
+                    }}
+                  >
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
-                    Payment methods
+                    {payoutVerification ? 'Payout details' : 'Payment methods'}
                   </button>
 
                   {selectedPayoutChannel ? (
@@ -4161,12 +4293,64 @@ export default function SellerCentrePage() {
                           />
                         </div>
                         <div>
-                          <span>{selectedPayoutChannel.type === 'wallet' ? 'E-wallet receiver' : 'Bank receiver'}</span>
-                          <h2>{payoutAccounts.some(account => account.channelCode === payoutDraft.channel) ? 'Edit' : 'Add'} {selectedPayoutChannel.label}</h2>
-                          <p>This page only manages your {selectedPayoutChannel.label} payout destination.</p>
+                          <span>{payoutVerification ? 'Security check' : selectedPayoutChannel.type === 'wallet' ? 'E-wallet receiver' : 'Bank receiver'}</span>
+                          <h2>{payoutVerification ? 'Verify payout change' : `${payoutAccounts.some(account => account.channelCode === payoutDraft.channel) ? 'Edit' : 'Add'} ${selectedPayoutChannel.label}`}</h2>
+                          <p>{payoutVerification ? 'Confirm this change with the code sent to your account email.' : `This page only manages your ${selectedPayoutChannel.label} payout destination.`}</p>
                         </div>
                       </header>
 
+                      {payoutVerification ? (
+                        <form className="sc-method-setup-form sc-payout-verification-form" onSubmit={event => { event.preventDefault(); void verifyPayoutAccountChange() }}>
+                          <div className="sc-payout-verification-copy">
+                            <strong>Enter verification code</strong>
+                            <span>We sent a 6-digit code to <b>{payoutVerification.maskedEmail}</b>.</span>
+                          </div>
+                          <label>
+                            <span>Verification code</span>
+                            <div className="sc-payout-otp-control">
+                              <div className="sc-payout-otp-boxes" aria-hidden="true">
+                                {Array.from({ length: 6 }, (_, index) => (
+                                  <i key={index} className={payoutVerificationCode[index] ? 'is-filled' : ''}>
+                                    {payoutVerificationCode[index] || ''}
+                                  </i>
+                                ))}
+                              </div>
+                              <input
+                                className="sc-payout-otp-input"
+                                aria-label="Payout change verification code"
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                autoComplete="one-time-code"
+                                value={payoutVerificationCode}
+                                maxLength={6}
+                                onChange={event => setPayoutVerificationCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                                autoFocus
+                              />
+                            </div>
+                          </label>
+                          <div className="sc-method-setup-notice">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>
+                            <div>
+                              <strong>Your current payout stays active</strong>
+                              <span>The pending change expires in 10 minutes and replaces the live receiver only after verification succeeds.</span>
+                            </div>
+                          </div>
+                          <footer>
+                            <button
+                              type="button"
+                              className="sc-settings-secondary-btn"
+                              disabled={resendingPayoutCode || payoutResendCooldown > 0}
+                              onClick={() => void resendPayoutVerificationCode()}
+                            >
+                              {resendingPayoutCode ? 'Sending…' : payoutResendCooldown > 0 ? `Resend in ${payoutResendCooldown}s` : 'Resend code'}
+                            </button>
+                            <button type="submit" className="sc-settings-primary-btn" disabled={savingPayout || payoutVerificationCode.length !== 6}>
+                              {savingPayout ? 'Verifying…' : 'Verify and update'}
+                            </button>
+                          </footer>
+                        </form>
+                      ) : (
                       <form className="sc-method-setup-form" onSubmit={event => { event.preventDefault(); void savePayoutAccount() }}>
                         <div className="sc-method-setup-readonly">
                           <span>Payment method</span>
@@ -4202,18 +4386,19 @@ export default function SellerCentrePage() {
                         <div className="sc-method-setup-notice">
                           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>
                           <div>
-                            <strong>Verification required</strong>
-                            <span>Customers cannot use this method until an administrator verifies the receiver details.</span>
+                            <strong>{payoutAccounts.some(account => account.channelCode === payoutDraft.channel) ? 'Email verification required' : 'Available after saving'}</strong>
+                            <span>{payoutAccounts.some(account => account.channelCode === payoutDraft.channel) ? 'Changing saved receiver details requires a code sent to your account email. Your current payout remains active until verified.' : 'Approved shops can use this payment method immediately after the receiver details are saved.'}</span>
                           </div>
                         </div>
 
                         <footer>
                           <button type="button" className="sc-settings-secondary-btn" onClick={() => setActiveTab('payout_accounts')}>Cancel</button>
                           <button type="submit" className="sc-settings-primary-btn" disabled={savingPayout}>
-                            {savingPayout ? 'Saving…' : 'Submit for verification'}
+                            {savingPayout ? 'Saving…' : 'Save payout account'}
                           </button>
                         </footer>
                       </form>
+                      )}
                     </section>
                   ) : (
                     <div className="sc-payout-empty">
@@ -4245,12 +4430,12 @@ export default function SellerCentrePage() {
                     <article>
                       <span>Available to customers</span>
                       <strong>{payoutAccounts.filter(account => account.active && account.verifiedByAdmin).length}</strong>
-                      <small>Active and verified methods</small>
+                      <small>Active payment methods</small>
                     </article>
                     <article>
-                      <span>Waiting for review</span>
+                      <span>Needs attention</span>
                       <strong>{payoutAccounts.filter(account => !account.verifiedByAdmin).length}</strong>
-                      <small>Unavailable until approved</small>
+                      <small>Legacy setup needing refresh</small>
                     </article>
                   </div>
 
@@ -4258,7 +4443,7 @@ export default function SellerCentrePage() {
                     <FamilyPaymentIcon name="wallet" />
                     <div>
                       <strong>Customer methods follow your setup</strong>
-                      <span>If GCash is not active and verified here, customers will not see GCash at checkout. The same rule applies to Maya and bank transfer.</span>
+                      <span>Customers only see methods you have configured and kept active. The same rule applies to GCash, Maya, and bank transfer.</span>
                     </div>
                   </div>
 
@@ -4281,7 +4466,7 @@ export default function SellerCentrePage() {
                       <div className="sc-payout-empty">
                         <div><FamilyPaymentIcon name="wallet" /></div>
                         <strong>No receiver accounts yet</strong>
-                        <span>Add GCash, Maya, or a Philippine bank account. Customers will only see methods that are active and verified.</span>
+                        <span>Add GCash, Maya, or a Philippine bank account. Active saved methods appear at checkout automatically.</span>
                         {shopAccountApproved && <button type="button" onClick={() => openPayoutAccountEditor(undefined, SHOP_PAYOUT_CHANNELS[0].value)}>Add your first account</button>}
                       </div>
                     ) : (
@@ -4309,9 +4494,9 @@ export default function SellerCentrePage() {
                               <div className="sc-payout-account-status">
                                 <span className={enabled ? 'is-enabled' : account.verifiedByAdmin ? 'is-disabled' : 'is-pending'}>
                                   <i aria-hidden="true" />
-                                  {enabled ? 'Available to customers' : account.verifiedByAdmin ? 'Disabled' : 'Awaiting verification'}
+                                  {enabled ? 'Available to customers' : account.verifiedByAdmin ? 'Disabled' : 'Enable to make available'}
                                 </span>
-                                {account.verifiedAt && <small>Verified {new Date(account.verifiedAt).toLocaleDateString('en-PH')}</small>}
+                                {account.verifiedAt && <small>Ready since {new Date(account.verifiedAt).toLocaleDateString('en-PH')}</small>}
                               </div>
                               <div className="sc-payout-account-actions">
                                 <button type="button" onClick={() => openPayoutAccountEditor(account)}>Edit</button>

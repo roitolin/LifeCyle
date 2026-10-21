@@ -124,17 +124,18 @@ export default function ProfileLayout({ children, title, subtitle }: { children:
 
       <div className="sp-topbar">
         <div className="sp-topbar-inner">
-          <div className="sp-topbar-left"><Link to="/funeral">Marketplace</Link></div>
           <div className="sp-topbar-right">
+            <Link to="/user/notifications" className="profile-topbar-link">Notifications</Link>
+            <Link to="/user/help" className="profile-topbar-link">Help Centre</Link>
+            <span className="profile-topbar-divider" aria-hidden="true" />
             <div className="sp-user-menu">
-              <div className="sp-user-menu-trigger">
-                <img src={avatarUrl} alt="Account" className="sp-user-avatar" />
+              <button type="button" className="sp-user-menu-trigger" aria-haspopup="menu">
+                <img src={avatarUrl} alt="" className="sp-user-avatar" />
                 <span className="sp-user-name">{profile?.fullName || viewer?.email}</span>
-                <svg className="sp-user-dropdown-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
-              </div>
+                <svg className="sp-user-dropdown-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
+              </button>
               <div className="sp-user-dropdown">
                 <Link to="/user/requests">Service requests</Link>
-                <Link to="/user/notifications">Notifications</Link>
                 <Link to="/auth/switch-account" className="sp-dropdown-switch">Switch account</Link>
                 <LogoutLink>Log out</LogoutLink>
               </div>

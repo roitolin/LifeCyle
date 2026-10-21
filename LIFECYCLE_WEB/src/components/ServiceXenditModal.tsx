@@ -5,6 +5,8 @@ import {
   syncServiceXenditCheckout,
   type ServicePaymentMethod,
 } from '@/utils/serviceXendit'
+import { PAYOUT_CHANNEL_LOGOS } from '@/assets/paymentLogoAssets'
+import { APP_ICON_TRANSPARENT_URL } from '@/assets/appIconAssets'
 import './ServiceXenditModal.css'
 
 export type ServiceXenditRequest = {
@@ -31,6 +33,26 @@ function formatPhilippinePeso(value: number): string {
     currency: 'PHP',
     maximumFractionDigits: 0,
   }).format(value || 0)
+}
+
+function PaymentMethodMark({ method }: { method: ServicePaymentMethod }) {
+  const logoUrl = PAYOUT_CHANNEL_LOGOS[method.code]
+
+  if (logoUrl) {
+    return <img src={logoUrl} alt="" className="sxm-method-logo" />
+  }
+
+  return method.type === 'wallet' ? (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <path d="M4 7.5h14.5A1.5 1.5 0 0 1 20 9v9a2 2 0 0 1-2 2H5a3 3 0 0 1-3-3V6a2 2 0 0 1 2-2h13" />
+      <path d="M16 12h4v4h-4a2 2 0 0 1 0-4Z" />
+    </svg>
+  ) : (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <path d="m3 9 9-5 9 5" />
+      <path d="M5 10v7m4-7v7m6-7v7m4-7v7M3 20h18" />
+    </svg>
+  )
 }
 
 export default function ServiceXenditModal({ isOpen, request, onClose, onSuccess }: Props) {
@@ -96,6 +118,11 @@ export default function ServiceXenditModal({ isOpen, request, onClose, onSuccess
       if (result.paid || result.status === 'payment_verified') {
         setPaidConfirmed(true)
         onSuccess?.()
+      } else if (['expired', 'canceled'].includes(String(result.status || '').toLowerCase())) {
+        setCheckoutUrl(null)
+        if (!silent) {
+          setError('That checkout session expired. Start a new secure checkout below to continue.')
+        }
       } else if (!silent) {
         setError('Payment has not been confirmed yet. If you just completed checkout, please wait a few seconds and try again.')
       }
@@ -165,14 +192,22 @@ export default function ServiceXenditModal({ isOpen, request, onClose, onSuccess
   return (
     <div className="sxm-overlay" onClick={onClose} role="dialog" aria-modal="true">
       <div className="sxm-modal" onClick={e => e.stopPropagation()}>
+        <div className="sxm-sheet-handle" aria-hidden="true" />
         {/* Header */}
         <div className="sxm-header">
           <div className="sxm-brand-row">
-            <div>
+            <div className="sxm-brand-lockup">
+              <img className="sxm-brand-mark" src={APP_ICON_TRANSPARENT_URL} alt="" />
               <span className="sxm-brand-title">LifeCycle</span>
               <span className="sxm-header-title">Secure payment</span>
             </div>
-            <span className="sxm-secure-badge">Protected by Xendit</span>
+            <span className="sxm-secure-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M12 3 5 6v5c0 4.7 2.8 8.1 7 10 4.2-1.9 7-5.3 7-10V6l-7-3Z" />
+                <path d="m9 12 2 2 4-4" />
+              </svg>
+              Secure checkout
+            </span>
           </div>
           <button
             type="button"
@@ -220,6 +255,10 @@ export default function ServiceXenditModal({ isOpen, request, onClose, onSuccess
               <div className="sxm-product-info">
                 <h4 className="sxm-product-name">{request.productName || 'Funeral Service / Casket'}</h4>
                 <p className="sxm-product-shop">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                    <path d="M4 10v10h16V10M3 10l2-6h14l2 6" />
+                    <path d="M8 20v-6h4v6M3 10c0 1.1.9 2 2 2s2-.9 2-2c0 1.1.9 2 2 2s2-.9 2-2c0 1.1.9 2 2 2s2-.9 2-2c0 1.1.9 2 2 2s2-.9 2-2c0 1.1.9 2 2 2s2-.9 2-2" />
+                  </svg>
                   <span>{request.shopName || 'Funeral Shop'}</span>
                 </p>
                 {request.variationName && (
@@ -249,35 +288,54 @@ export default function ServiceXenditModal({ isOpen, request, onClose, onSuccess
             </div>
 
             <section className="sxm-method-section" aria-labelledby="sxm-method-title">
-              <div className="sxm-method-heading">
-                <div>
+              <div className="sxm-gateway-row">
+                <span className="sxm-gateway-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                    <rect x="3" y="5" width="18" height="14" rx="3" />
+                    <path d="M3 10h18M7 15h3" />
+                  </svg>
+                </span>
+                <div className="sxm-gateway-copy">
                   <p id="sxm-method-title">Xendit payment gateway</p>
-                  <span>Choose a payment method configured by the shop.</span>
+                  <span>Encrypted checkout with the shop's approved methods</span>
                 </div>
-                <span>Secure checkout</span>
+                <svg className="sxm-gateway-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="m8.5 12 2.2 2.2 4.8-4.8" />
+                </svg>
               </div>
 
               {loadingMethods ? (
                 <div className="sxm-method-loading"><div className="sxm-spinner dark" /> Loading payment methods…</div>
               ) : paymentMethods.length > 0 ? (
-                <div className="sxm-method-options">
-                  {paymentMethods.map(method => (
-                    <button
-                      type="button"
-                      key={method.code}
-                      className={`sxm-method-option${selectedMethod === method.code ? ' is-selected' : ''}`}
-                      onClick={() => setSelectedMethod(method.code)}
-                      aria-pressed={selectedMethod === method.code}
-                    >
-                      <span className="sxm-method-option-icon">{method.type === 'wallet' ? 'W' : 'B'}</span>
-                      <span><strong>{method.label}</strong><small>{method.type === 'wallet' ? 'E-wallet' : 'Online bank transfer'}</small></span>
-                      <i aria-hidden="true" />
-                    </button>
-                  ))}
+                <div className="sxm-method-picker">
+                  <div className="sxm-method-picker-heading">
+                    <span>Choose how to pay</span>
+                    <small>{paymentMethods.length} {paymentMethods.length === 1 ? 'method' : 'methods'} available</small>
+                  </div>
+                  <div className="sxm-method-options">
+                    {paymentMethods.map(method => (
+                      <button
+                        type="button"
+                        key={method.code}
+                        className={`sxm-method-option${selectedMethod === method.code ? ' is-selected' : ''}`}
+                        onClick={() => setSelectedMethod(method.code)}
+                        aria-pressed={selectedMethod === method.code}
+                      >
+                        <span className="sxm-method-option-icon"><PaymentMethodMark method={method} /></span>
+                        <span className="sxm-method-option-copy"><strong>{method.label}</strong><small>{method.type === 'wallet' ? 'E-wallet' : 'Online bank transfer'}</small></span>
+                        <i aria-hidden="true" />
+                      </button>
+                    ))}
+                  </div>
                 </div>
               ) : (
                 <div className="sxm-no-methods">
-                  This shop has no verified payment receiver account yet. Please contact the shop before paying.
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <path d="M12 9v4m0 4h.01" />
+                    <path d="M10.3 4.6 2.8 17.5A2 2 0 0 0 4.5 20h15a2 2 0 0 0 1.7-2.5L13.7 4.6a2 2 0 0 0-3.4 0Z" />
+                  </svg>
+                  <span>This shop has no active payment receiver account yet. Please contact the shop before paying.</span>
                 </div>
               )}
             </section>
@@ -343,9 +401,10 @@ export default function ServiceXenditModal({ isOpen, request, onClose, onSuccess
                   <button
                     type="button"
                     className="sxm-reopen-link"
-                    onClick={() => window.open(checkoutUrl, '_blank', 'noopener,noreferrer')}
+                    disabled={starting}
+                    onClick={() => void handleStartPay()}
                   >
-                    Reopen Xendit checkout tab
+                    {starting ? 'Creating a fresh checkout...' : 'Open secure checkout again'}
                   </button>
                 </>
               )}

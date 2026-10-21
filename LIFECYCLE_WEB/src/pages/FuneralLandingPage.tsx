@@ -25,8 +25,6 @@ type Product = {
   stock: number
   category: string
   imageUrl: string | null
-  galleryImageUrls: string[]
-  variations: { id: string; name: string; imageUrl?: string | null }[]
 }
 
 type Shop = { id: string; shopName: string; generalLocation: string }
@@ -48,12 +46,9 @@ function formatPeso(v: number | string | null | undefined): string {
 function getPrimaryImage(row: any): string | null {
   if (row.imageUrl) return row.imageUrl
   const gallery: any[] = row.funeral_product_images ?? []
-  if (gallery.length > 0) {
-    const sorted = [...gallery].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
-    if (sorted[0]?.imageUrl) return sorted[0].imageUrl
-  }
-  const vars: any[] = row.funeral_product_variations ?? []
-  return vars.find(v => v.imageUrl)?.imageUrl ?? null
+  return [...gallery]
+    .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
+    .find((image) => image.imageUrl)?.imageUrl ?? null
 }
 
 function resolveCategory(row: any): string {
@@ -170,9 +165,8 @@ export default function FuneralLandingPage() {
         const { data, error: err } = await supabase
           .from('funeral_products')
           .select(`
-            id, name, description, price, stock, "imageUrl", active, "shopId", "hasVariations",
+            id, name, description, price, stock, "imageUrl", "shopId",
             funeral_product_images ( "imageUrl", "displayOrder" ),
-            funeral_product_variations ( id, name, "imageUrl" ),
             funeral_shops!inner ( "shopName", "shopAddress", "shopPhoneNumber", "generalLocation", status, "paidUntil" )
           `)
           .eq('active', true)
@@ -184,15 +178,6 @@ export default function FuneralLandingPage() {
 
         const rows = (data ?? []) as any[]
         const mapped: Product[] = rows.map(row => {
-          const gallery = (row.funeral_product_images ?? []) as any[]
-          const sortedGallery = [...gallery].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
-          const galleryUrls = sortedGallery.map((img: any) => img.imageUrl).filter((url: string) => Boolean(url))
-          const variations = (row.funeral_product_variations ?? []) as any[]
-           const variationList = variations.map((v: any) => ({
-             id: String(v.id),
-             name: String(v.name || 'Standard'),
-             imageUrl: v.imageUrl ?? null,
-           }))
           return {
             id:              String(row.id),
             shopId:          String(row.shopId ?? ''),
@@ -205,8 +190,6 @@ export default function FuneralLandingPage() {
             stock:           Number(row.stock) || 0,
             category:        resolveCategory(row),
             imageUrl:        getPrimaryImage(row),
-            galleryImageUrls: galleryUrls,
-            variations:      variationList,
           }
         })
         mapped.sort((a, b) => a.name.localeCompare(b.name))
@@ -643,7 +626,7 @@ export default function FuneralLandingPage() {
                   >
                     <div className="sp-card-img-wrap">
                       {product.imageUrl
-                        ? <img src={product.imageUrl} alt={product.name} loading="lazy" />
+                        ? <img src={product.imageUrl} alt={product.name} loading="lazy" decoding="async" />
                         : <div className="sp-card-img-ph"><CasketSVG /></div>}
                     </div>
 

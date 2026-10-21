@@ -39,8 +39,11 @@ Use this checklist before production releases.
 
 ## Secrets & Configuration
 
-- Supabase values loaded via `.env`.
-- No hardcoded service keys in frontend source.
+- Only publishable Supabase values are exposed through `EXPO_PUBLIC_*` and `VITE_*` client variables.
+- Xendit, PayMongo, Supabase service-role, webhook, and Expo access tokens are server-only Supabase Edge Function secrets.
+- Local `.env` files are ignored and are never committed; use `.env.example` as the safe template.
+- No hardcoded service keys or provider credentials exist in frontend source or production bundles.
+- Any credential that was previously committed must be rotated; removing it from the current tree does not erase Git history.
 - Supabase Storage folders separate profile, service-media, and report-evidence uploads.
 
 ## Operations

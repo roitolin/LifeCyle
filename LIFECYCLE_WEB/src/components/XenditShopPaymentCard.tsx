@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase, isolatedAuthClient } from '@/lib/supabase'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 import BrandLogo from '@/components/BrandLogo'
+import { APP_ICON_TRANSPARENT_URL } from '@/assets/appIconAssets'
 import { createXenditShopCheckout, syncXenditShopPayment, type XenditShopPaymentMethod } from '@/utils/xenditShop'
 import { getPaymentSetting } from '@/utils/paymentSettings'
 import './XenditShopPaymentCard.css'
@@ -604,7 +605,7 @@ export default function XenditShopPaymentCard({
               <div className='pm-receipt-divider' />
 
               <div className='pm-receipt-service'>
-                <div className='pm-receipt-logo' aria-hidden='true'>LC</div>
+                <img className='pm-receipt-logo' src={APP_ICON_TRANSPARENT_URL} alt='LifeCycle' />
                 <div>
                   <strong>LifeCycle registration</strong>
                   <small>Funeral shop subscription payment</small>

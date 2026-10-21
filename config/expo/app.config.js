@@ -36,6 +36,14 @@ module.exports = {
         }
       ],
       'expo-secure-store',
+      [
+        'expo-image-picker',
+        {
+          photosPermission: 'Allow LifeCycle to access photos you choose to upload.',
+          cameraPermission: 'Allow LifeCycle to take pictures when you choose the camera.',
+          microphonePermission: false,
+        },
+      ],
       "@react-native-community/datetimepicker",
       "expo-asset",
       "expo-audio",

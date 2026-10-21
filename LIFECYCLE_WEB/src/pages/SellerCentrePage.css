@@ -5423,6 +5423,37 @@ button.sc-settings-row {
 .sc-method-setup-form label small {
   @apply text-[#8a95a4] text-[9px];
 }
+.sc-payout-verification-copy {
+  @apply text-center;
+}
+.sc-payout-verification-copy strong,
+.sc-payout-verification-copy span {
+  @apply block;
+}
+.sc-payout-verification-copy strong {
+  @apply text-[#142842] text-[17px];
+}
+.sc-payout-verification-copy span {
+  @apply text-[#718094] text-[11px] leading-[1.55] mt-[5px];
+}
+.sc-payout-verification-copy b {
+  @apply text-[#2d536f];
+}
+.sc-payout-otp-control {
+  @apply relative w-full max-w-[390px] mx-auto my-0;
+}
+.sc-payout-otp-boxes {
+  @apply grid grid-cols-6 gap-[8px];
+}
+.sc-payout-otp-boxes i {
+  @apply min-w-0 h-[52px] grid place-items-center not-italic border [background:#fff] text-[#142842] text-[21px] font-black rounded-[9px] border-solid border-[#d2dae4];
+}
+.sc-payout-otp-boxes i.is-filled {
+  @apply [background:#f4f7fa] border-[#55718f];
+}
+.sc-method-setup-form .sc-payout-otp-input {
+  @apply absolute z-[2] inset-0 w-full h-full opacity-[0.02] border-0 [background:transparent] text-transparent cursor-text p-0;
+}
 .sc-method-setup-readonly {
   @apply flex items-center justify-between gap-[15px] min-h-[48px] border [background:#f7f9fb] px-[13px] py-0 rounded-[8px] border-solid border-[#e3e8ee];
 }
@@ -5470,6 +5501,12 @@ button.sc-settings-row {
   }
   .sc-method-setup-form footer button {
     @apply w-full;
+  }
+  .sc-payout-otp-boxes {
+    @apply gap-[6px];
+  }
+  .sc-payout-otp-boxes i {
+    @apply h-[48px] text-[19px];
   }
 }
 

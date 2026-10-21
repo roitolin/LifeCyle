@@ -243,25 +243,25 @@ export default function AdminFuneralShopVerificationsScreen() {
 
       void logAdminAction({
         adminId: auth.currentUser?.uid,
-        action: "shop_payout_verified",
+        action: "shop_payout_updated",
         targetType: "funeral_shop",
         targetId: item.id,
-        summary: `Verified payout account for ${item.shopName || item.ownerEmail || item.id} (${getChannelLabel(channel)})`,
+        summary: `Updated payout account for ${item.shopName || item.ownerEmail || item.id} (${getChannelLabel(channel)})`,
         metadata: { payoutChannel: channel, testMode: true },
-      }).catch((error) => console.warn("Unable to record payout verification audit log", error));
+      }).catch((error) => console.warn("Unable to record payout account audit log", error));
 
       Alert.alert(
-        options.afterApproval ? "Shop approved and payout ready" : "Payout account verified",
-        `The shop's ${getChannelLabel(channel)} payout account has been verified. 70% of casket payments will be sent here automatically.`,
+        options.afterApproval ? "Shop approved and payout ready" : "Payout account saved",
+        `The shop's ${getChannelLabel(channel)} payout account is ready. 70% of casket payments will be sent here automatically.`,
       );
       return true;
     } catch (error: any) {
       const safeMessage =
         typeof error?.message === "string"
           ? error.message
-          : "Payout account verification could not be completed.";
+          : "Payout account setup could not be completed.";
       Alert.alert(
-        options.afterApproval ? "Shop approved — payout setup pending" : "Payout verification failed",
+        options.afterApproval ? "Shop approved — payout setup pending" : "Payout save failed",
         `${safeMessage}\n\nThe shop remains approved. You can safely retry from the shop details.`,
       );
       return false;
@@ -405,7 +405,7 @@ export default function AdminFuneralShopVerificationsScreen() {
       <Text style={styles.itemMeta}>Location: {item.generalLocation || "N/A"}</Text>
       <Text style={styles.itemMeta}>Status: {item.status || "none"}</Text>
       <Text style={item.payoutVerifiedByAdmin ? styles.payoutReadyText : styles.payoutPendingText}>
-        Payout: {item.payoutVerifiedByAdmin ? `Verified (${getChannelLabel(item.payoutChannelCode)})` : "Setup needed"}
+        Payout: {item.payoutVerifiedByAdmin ? `Ready (${getChannelLabel(item.payoutChannelCode)})` : "Setup needed"}
       </Text>
     </TouchableOpacity>
   );
@@ -478,7 +478,7 @@ export default function AdminFuneralShopVerificationsScreen() {
                   >
                     <Text style={styles.payoutTitle}>Payout Account</Text>
                     <Text style={styles.payoutDetail}>
-                      Status: {selectedItem.payoutVerifiedByAdmin ? "✅ Verified" : selectedItem.payoutChannelCode ? "⏳ Submitted — awaiting your verification" : "❌ Shop has not submitted payout details yet"}
+                      Status: {selectedItem.payoutVerifiedByAdmin ? "Ready for checkout" : selectedItem.payoutChannelCode ? "Needs setup refresh" : "Shop has not submitted payout details yet"}
                     </Text>
 
                     {/* Show what the shop submitted (read-only summary) */}
@@ -491,12 +491,12 @@ export default function AdminFuneralShopVerificationsScreen() {
                       </View>
                     ) : (
                       <Text style={{ color: "#92400e", fontSize: 12, marginTop: 6, fontStyle: "italic" }}>
-                        The shop owner must first set up their payout account from Shop Settings → Payout Account before you can verify it.
+                        The shop owner can set up their payout account from Shop Settings → Payout Account after approval.
                       </Text>
                     )}
 
-                    {/* Admin can override / confirm the channel, name, number */}
-                    <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Override Payout Channel (optional)</Text>
+                    {/* Admin can manage the channel, name, and number when support is needed. */}
+                    <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Payout Channel</Text>
                     <TouchableOpacity
                       style={styles.channelPicker}
                       onPress={() => setChannelPickerVisible(true)}
@@ -567,7 +567,7 @@ export default function AdminFuneralShopVerificationsScreen() {
                         loading={verifyingPayoutShopId === selectedItem.id}
                         disabled={actionLoading || verifyingPayoutShopId === selectedItem.id}
                       >
-                        {selectedItem.payoutVerifiedByAdmin ? "Re-Verify Payout" : "✓ Verify Payout Account"}
+                        Save Payout Account
                       </Button>
                     ) : null}
                     <Button

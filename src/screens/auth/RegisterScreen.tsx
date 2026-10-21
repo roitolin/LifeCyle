@@ -24,21 +24,89 @@ import { getSupabaseEmailRedirectTo } from "../../services/supabaseAuthRedirect"
 import { normalizeEmail } from "../../utils/inputSecurity";
 
 const PAGE_COLOR = colors.surfaceWarm;
+const PASSWORD_SYMBOLS = "!@#$%^&*()_+-=[]{};'\\:\"|<>?,./`~";
+const PASSWORD_REQUIREMENTS = [
+  { id: "length", label: "At least 8 characters", test: (value: string) => value.length >= 8 },
+  { id: "lowercase", label: "One lowercase letter (a-z)", test: (value: string) => /[a-z]/.test(value) },
+  { id: "uppercase", label: "One uppercase letter (A-Z)", test: (value: string) => /[A-Z]/.test(value) },
+  { id: "number", label: "One number (0-9)", test: (value: string) => /[0-9]/.test(value) },
+  { id: "symbol", label: "One special character (!@#$...)", test: (value: string) => Array.from(value).some((character) => PASSWORD_SYMBOLS.includes(character)) },
+] as const;
+const STRONG_PASSWORD_MESSAGE =
+  "Use 8 or more characters with lowercase and uppercase letters, a number, and a special character.";
+
+function getPasswordChecks(value: string) {
+  return PASSWORD_REQUIREMENTS.map((requirement) => ({
+    id: requirement.id,
+    label: requirement.label,
+    met: requirement.test(value),
+  }));
+}
+
+function isStrongPassword(value: string): boolean {
+  return PASSWORD_REQUIREMENTS.every((requirement) => requirement.test(value));
+}
+
+function PasswordStrengthChecklist({ password }: { password: string }) {
+  const checks = getPasswordChecks(password);
+  const passedCount = checks.filter((check) => check.met).length;
+  const level = password.length === 0 ? 0 : passedCount === checks.length ? 3 : passedCount >= 3 ? 2 : 1;
+  const tone = level === 3 ? "strong" : level === 2 ? "medium" : level === 1 ? "weak" : "empty";
+  const label = level === 3 ? "Strong" : level === 2 ? "Medium" : level === 1 ? "Weak" : "Not started";
+  const activeColor = tone === "strong" ? "#16a36a" : tone === "medium" ? "#e99b18" : "#df6677";
+
+  return (
+    <View
+      style={styles.passwordStrengthCard}
+      accessible
+      accessibilityLiveRegion="polite"
+      accessibilityLabel={`Password strength ${label}. ${passedCount} of ${checks.length} requirements met.`}
+    >
+      <View style={styles.passwordStrengthHeading}>
+        <Text style={styles.passwordStrengthTitle}>Password strength</Text>
+        <Text style={[styles.passwordStrengthLabel, tone === "strong" && styles.passwordStrengthLabelStrong]}>{label}</Text>
+      </View>
+      <View style={styles.passwordStrengthTrack} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        {[1, 2, 3].map((segment) => (
+          <View key={segment} style={[styles.passwordStrengthSegment, segment <= level && { backgroundColor: activeColor }]} />
+        ))}
+      </View>
+      <View style={styles.passwordRequirements}>
+        {checks.map((check) => (
+          <View key={check.id} style={styles.passwordRequirementRow}>
+            <View style={[styles.passwordRequirementIcon, check.met && styles.passwordRequirementIconMet]}>
+              <Ionicons
+                name={check.met ? "checkmark" : "close"}
+                size={12}
+                color={check.met ? "#16885a" : "#94a0ad"}
+              />
+            </View>
+            <Text style={[styles.passwordRequirementText, check.met && styles.passwordRequirementTextMet]}>{check.label}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
 
 export default function RegisterScreen({ navigation }: any) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [gender, setGender] = useState<"male" | "female" | "other" | "">("");
   const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [focusedField, setFocusedField] = useState<"fullName" | "email" | "password" | null>(null);
+  const [focusedField, setFocusedField] = useState<"fullName" | "email" | "password" | "confirmPassword" | null>(null);
   const scrollRef = useRef<any>(null);
   const fullNameRef = useRef<TextInput>(null);
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
+  const confirmPasswordRef = useRef<TextInput>(null);
+  const passwordIsStrong = isStrongPassword(password);
+  const passwordsMatch = confirmPassword.length > 0 && password === confirmPassword;
 
   const scrollToInput = (inputRef: any) => {
     const inputHandle = findNodeHandle(inputRef.current);
@@ -47,12 +115,16 @@ export default function RegisterScreen({ navigation }: any) {
   };
 
   const handleRegister = async () => {
-    if (!fullName.trim() || !gender || !dateOfBirth || !email.trim() || !password.trim()) {
+    if (!fullName.trim() || !gender || !dateOfBirth || !email.trim() || !password.trim() || !confirmPassword.trim()) {
       Alert.alert("Missing information", "Please complete every field before continuing.");
       return;
     }
-    if (password.length < 6) {
-      Alert.alert("Password too short", "Use at least 6 characters for your password.");
+    if (!passwordIsStrong) {
+      Alert.alert("Use a stronger password", STRONG_PASSWORD_MESSAGE);
+      return;
+    }
+    if (!passwordsMatch) {
+      Alert.alert("Passwords do not match", "Enter the same password in both fields.");
       return;
     }
 
@@ -88,7 +160,7 @@ export default function RegisterScreen({ navigation }: any) {
       if (message.includes("already") || message.includes("already registered")) {
         Alert.alert("Registration Failed", "Email already in use. Try logging in instead.");
       } else if (message.includes("password")) {
-        Alert.alert("Registration Failed", "Password should be at least 6 characters.");
+        Alert.alert("Registration Failed", STRONG_PASSWORD_MESSAGE);
       } else if (message.includes("network")) {
         Alert.alert("Network Error", "Please check your internet connection and try again.");
       } else {
@@ -204,7 +276,8 @@ export default function RegisterScreen({ navigation }: any) {
                 autoComplete="new-password"
                 textContentType="newPassword"
                 importantForAutofill="yes"
-                returnKeyType="done"
+                returnKeyType="next"
+                onSubmitEditing={() => confirmPasswordRef.current?.focus()}
                 style={[styles.input, styles.passwordInput, focusedField === "password" && styles.inputFocused]}
               />
               <TouchableOpacity
@@ -216,7 +289,61 @@ export default function RegisterScreen({ navigation }: any) {
                 <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={colors.text} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.helperText}>Use at least 6 characters.</Text>
+            <PasswordStrengthChecklist password={password} />
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Confirm password</Text>
+            <View style={styles.passwordFieldWrap}>
+              <TextInput
+                ref={confirmPasswordRef}
+                accessibilityLabel="Confirm password"
+                placeholder="Re-enter your password"
+                placeholderTextColor={colors.textMuted}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                onFocus={() => {
+                  setFocusedField("confirmPassword");
+                  scrollToInput(confirmPasswordRef);
+                }}
+                onBlur={() => setFocusedField(null)}
+                secureTextEntry={!showPassword}
+                autoComplete="new-password"
+                textContentType="newPassword"
+                importantForAutofill="yes"
+                returnKeyType="done"
+                style={[
+                  styles.input,
+                  styles.passwordInput,
+                  focusedField === "confirmPassword" && styles.inputFocused,
+                  confirmPassword.length > 0 && !passwordsMatch && styles.inputError,
+                ]}
+              />
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={showPassword ? "Hide passwords" : "Show passwords"}
+                style={styles.eyeButton}
+                onPress={() => setShowPassword((previous) => !previous)}
+              >
+                <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.passwordMatchRow} accessibilityLiveRegion="polite">
+              {confirmPassword.length > 0 ? (
+                <Ionicons
+                  name={passwordsMatch ? "checkmark-circle" : "alert-circle"}
+                  size={15}
+                  color={passwordsMatch ? "#16885a" : colors.danger}
+                />
+              ) : null}
+              <Text style={[styles.passwordMatchText, passwordsMatch && styles.passwordMatchTextSuccess]}>
+                {confirmPassword.length === 0
+                  ? "Re-enter your password."
+                  : passwordsMatch
+                    ? "Passwords match."
+                    : "Passwords do not match."}
+              </Text>
+            </View>
           </View>
 
           <View style={styles.fieldGroup}>
@@ -270,7 +397,7 @@ export default function RegisterScreen({ navigation }: any) {
           <PaperButton
             mode="contained"
             loading={loading}
-            disabled={loading}
+            disabled={loading || !passwordIsStrong || !passwordsMatch}
             onPress={handleRegister}
             style={styles.primaryButton}
             contentStyle={styles.primaryButtonContent}
@@ -319,6 +446,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   inputFocused: { borderColor: colors.primaryDark },
+  inputError: { borderColor: colors.danger },
   passwordFieldWrap: { position: "relative" },
   passwordInput: { paddingRight: 52 },
   eyeButton: {
@@ -330,7 +458,36 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  helperText: { color: colors.textMuted, fontSize: 11, lineHeight: 16, marginTop: spacing.xs },
+  passwordStrengthCard: {
+    marginTop: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: "#dce4ec",
+    backgroundColor: "#f2f6fa",
+  },
+  passwordStrengthHeading: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.sm },
+  passwordStrengthTitle: { color: colors.text, fontSize: 12, fontWeight: "800" },
+  passwordStrengthLabel: { color: colors.textMuted, fontSize: 11, fontWeight: "800" },
+  passwordStrengthLabelStrong: { color: "#16885a" },
+  passwordStrengthTrack: { flexDirection: "row", gap: 6, marginBottom: spacing.md },
+  passwordStrengthSegment: { flex: 1, height: 4, borderRadius: 999, backgroundColor: "#d8e0ea" },
+  passwordRequirements: { gap: 7 },
+  passwordRequirementRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  passwordRequirementIcon: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#ffffff",
+  },
+  passwordRequirementIconMet: { backgroundColor: "#e8f8f1" },
+  passwordRequirementText: { flex: 1, color: colors.textMuted, fontSize: 11, lineHeight: 16 },
+  passwordRequirementTextMet: { color: "#476458" },
+  passwordMatchRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: spacing.xs },
+  passwordMatchText: { color: colors.textMuted, fontSize: 11, lineHeight: 16 },
+  passwordMatchTextSuccess: { color: "#16885a", fontWeight: "700" },
   pickerContainer: {
     minHeight: 52,
     borderWidth: 1,

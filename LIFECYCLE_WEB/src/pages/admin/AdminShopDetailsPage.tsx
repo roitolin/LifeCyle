@@ -302,14 +302,14 @@ export default function AdminShopDetailsPage() {
                     <strong>{shop.payoutAccountNumber || <em className="sc-detail-none">Not configured</em>}</strong>
                   </div>
                   <div className="sc-detail">
-                    <span>Verification Status</span>
+                    <span>Payout Status</span>
                     <strong>
                       {shop.payoutVerifiedByAdmin ? (
                         <span style={{ color: '#16a34a', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                          &#10003; Verified {shop.payoutVerifiedAt ? `(${new Date(shop.payoutVerifiedAt).toLocaleDateString()})` : ''}
+                          &#10003; Ready {shop.payoutVerifiedAt ? `(${new Date(shop.payoutVerifiedAt).toLocaleDateString()})` : ''}
                         </span>
                       ) : shop.payoutChannelCode ? (
-                        <span style={{ color: '#2563eb' }}>Needs Admin Verification</span>
+                        <span style={{ color: '#2563eb' }}>Needs Setup Refresh</span>
                       ) : (
                         <span style={{ color: '#94a3b8' }}>Not Submitted</span>
                       )}

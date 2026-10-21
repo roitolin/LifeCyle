@@ -72,10 +72,10 @@ export default function FuneralHomeScreen({ navigation }: any) {
       const { data: productRows, error } = await supabase
         .from("funeral_products")
         .select(`
-          *,
+          id, name, description, price, stock, imageUrl, hasVariations, active, shopId,
           funeral_product_variations ( name, imageUrl ),
           funeral_product_images ( imageUrl, displayOrder ),
-          funeral_shops!inner ( shopName, status )
+          funeral_shops!inner ( shopName, status, paidUntil )
         `)
         .eq("active", true)
         .gt("stock", 0)
@@ -85,27 +85,8 @@ export default function FuneralHomeScreen({ navigation }: any) {
       if (error) throw error;
 
       const productIds = (productRows || []).map((row: any) => String(row.id));
-      let ratingRows: any[] = [];
-      if (productIds.length > 0) {
-        const { data: ratingData, error: ratingError } = await supabase
-          .from("funeral_product_ratings")
-          .select("productId, rating")
-          .in("productId", productIds);
-        if (ratingError) console.warn("Unable to load home product ratings:", ratingError.message);
-        else ratingRows = ratingData || [];
-      }
-
-      const ratingSummary = new Map<string, { total: number; count: number }>();
-      ratingRows.forEach((row: any) => {
-        const productId = String(row.productId || "");
-        const ratingValue = Number(row.rating) || 0;
-        if (!productId || ratingValue <= 0) return;
-        const current = ratingSummary.get(productId) || { total: 0, count: 0 };
-        ratingSummary.set(productId, { total: current.total + ratingValue, count: current.count + 1 });
-      });
 
       const nextProducts: HomeProduct[] = (productRows || []).map((row: any) => {
-        const productRating = ratingSummary.get(String(row.id));
         const variations = (row.funeral_product_variations || []).map((v: any) => ({
           name: v.name,
           imageUrl: v.imageUrl,
@@ -127,13 +108,42 @@ export default function FuneralHomeScreen({ navigation }: any) {
           active: row.active,
           shopId: row.shopId,
           shopName: String(row.funeral_shops?.shopName || "Funeral shop"),
-          rating: productRating ? productRating.total / productRating.count : 0,
-          reviewCount: productRating?.count || 0,
+          rating: 0,
+          reviewCount: 0,
         };
       }).filter((p: HomeProduct) => getPrimaryProductImage(p));
 
       nextProducts.sort((first, second) => first.name.localeCompare(second.name));
       setProducts(nextProducts);
+
+      // Ratings only affect the optional filter. Load them after the catalog is
+      // visible so a slow ratings query cannot delay the first mobile screen.
+      if (productIds.length > 0) {
+        void supabase
+          .from("funeral_product_ratings")
+          .select("productId, rating")
+          .in("productId", productIds)
+          .then(({ data: ratingData, error: ratingError }) => {
+            if (ratingError) {
+              console.warn("Unable to load home product ratings:", ratingError.message);
+              return;
+            }
+            const ratingSummary = new Map<string, { total: number; count: number }>();
+            (ratingData || []).forEach((row: any) => {
+              const productId = String(row.productId || "");
+              const ratingValue = Number(row.rating) || 0;
+              if (!productId || ratingValue <= 0) return;
+              const current = ratingSummary.get(productId) || { total: 0, count: 0 };
+              ratingSummary.set(productId, { total: current.total + ratingValue, count: current.count + 1 });
+            });
+            setProducts((current) => current.map((product) => {
+              const summary = ratingSummary.get(product.id);
+              return summary
+                ? { ...product, rating: summary.total / summary.count, reviewCount: summary.count }
+                : product;
+            }));
+          });
+      }
     } catch (error) {
       console.error("Unable to load home products:", error);
       setLoadError(true);

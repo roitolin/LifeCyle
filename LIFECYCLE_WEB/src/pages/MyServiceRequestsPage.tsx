@@ -559,9 +559,9 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
       <AccountMobileHeader />
       <div className="requests-topbar">
         <div className="requests-topbar-right">
-          <Link to="/user/notifications">Notifications</Link>
-          <Link to="/user/help">Help Centre</Link>
-          <span className="requests-divider" aria-hidden="true">|</span>
+          <Link to="/user/notifications" className="requests-topbar-link">Notifications</Link>
+          <Link to="/user/help" className="requests-topbar-link">Help Centre</Link>
+          <span className="requests-divider" aria-hidden="true" />
           <div className="requests-user-menu">
             <button type="button" className="requests-user-menu-trigger" aria-label="Open account menu">
               <img src={getProfileAvatar(profile?.photoURL, profile?.gender)} alt="Account" className="requests-user-avatar" />
@@ -1128,24 +1128,60 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                 {paymentStatus === 'awaiting_payment' ? (
                   <>
                     <div className="requests-pd-online-pay-card">
-                      <div className="requests-pd-form-heading">
-                        <div>
+                      <div className="requests-pd-online-heading">
+                        <div className="requests-pd-online-title-group">
+                          <span className="requests-pd-online-title-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                              <rect x="3" y="5" width="18" height="14" rx="3" />
+                              <path d="M3 10h18M7 15h3" />
+                            </svg>
+                          </span>
+                          <div>
                           <span className="requests-pd-kicker">Recommended Payment</span>
                           <h3>Instant Online Checkout</h3>
+                          </div>
                         </div>
-                        <span className="requests-secure-pill">🛡️ Automated & Verified</span>
+                        <span className="requests-secure-pill">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                            <path d="M12 3 5 6v5c0 4.7 2.8 8.1 7 10 4.2-1.9 7-5.3 7-10V6l-7-3Z" />
+                            <path d="m9 12 2 2 4-4" />
+                          </svg>
+                          Secure checkout
+                        </span>
                       </div>
-                      <p className="requests-pd-online-desc">
-                        Pay using GCash, Maya, debit or credit card, or online banking. Your payment is verified automatically via Xendit.
-                      </p>
+                      <div className="requests-pd-online-gateway">
+                        <span className="requests-pd-online-gateway-icon" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                            <path d="M4 7.5h14.5A1.5 1.5 0 0 1 20 9v9a2 2 0 0 1-2 2H5a3 3 0 0 1-3-3V6a2 2 0 0 1 2-2h13" />
+                            <path d="M16 12h4v4h-4a2 2 0 0 1 0-4Z" />
+                          </svg>
+                        </span>
+                        <div>
+                          <strong>Xendit Payment Gateway</strong>
+                          <span>GCash, Maya, cards and online banking</span>
+                        </div>
+                        <svg className="requests-pd-online-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                          <circle cx="12" cy="12" r="9" />
+                          <path d="m8.5 12 2.2 2.2 4.8-4.8" />
+                        </svg>
+                      </div>
                       <button
                         type="button"
                         className="requests-pay-online-primary-btn requests-pd-pay-btn"
                         onClick={() => setXenditModalRequest(detail)}
                       >
-                        <span className="requests-pay-flash-icon">⚡</span>
+                        <svg className="requests-pay-flash-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <path d="M13.2 2 5 13h6l-.2 9L19 11h-6l.2-9Z" />
+                        </svg>
                         <span>Pay Online (GCash, Cards & Maya)</span>
                       </button>
+                      <p className="requests-pd-online-desc">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                          <rect x="5" y="10" width="14" height="10" rx="2" />
+                          <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+                        </svg>
+                        Payment is encrypted and verified automatically by Xendit
+                      </p>
                     </div>
 
                     {MANUAL_PAYMENT_ENABLED && <div className="requests-manual-accordion">

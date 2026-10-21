@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import * as ImagePicker from "expo-image-picker";
+import * as ImagePicker from "@/utils/permissionImagePicker";
 import { AppBackButton } from "@/components";
 import LoadingBird from "@/components/LoadingBird";
 import { auth, uploadCertificate } from "@/services";

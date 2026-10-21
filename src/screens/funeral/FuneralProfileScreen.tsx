@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Card, Button as PaperButton, Chip } from "react-native-paper";
-import * as ImagePicker from "expo-image-picker";
+import * as ImagePicker from "@/utils/permissionImagePicker";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "@/services/supabaseClient";
 import { auth, uploadProfilePicture } from "@/services";
@@ -137,12 +137,6 @@ export default function FuneralProfileScreen({ navigation }: any) {
   };
 
   const takePhoto = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Permission needed", "Camera permission is required.");
-      return;
-    }
-
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ["images"],
       allowsEditing: true,

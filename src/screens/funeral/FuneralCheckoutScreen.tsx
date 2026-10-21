@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import * as ImagePicker from "expo-image-picker";
+import * as ImagePicker from "@/utils/permissionImagePicker";
 import { Ionicons } from "@expo/vector-icons";
 import { KeyboardAwareScrollView } from "@/components";
 import ServiceRequestScheduleFields from "@/components/ServiceRequestScheduleFields";
