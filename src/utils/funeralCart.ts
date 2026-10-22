@@ -10,6 +10,7 @@ export type FuneralCartItem = {
   name: string;
   price: string;
   imageUrl?: string | null;
+  variationId?: string | null;
   variationName?: string | null;
   packageItems?: string[];
   quantity: number;
@@ -37,7 +38,7 @@ export async function addFuneralCartItem(item: Omit<FuneralCartItem, "cartId" | 
     ...current,
     {
       ...item,
-      cartId: `${item.shopId}_${item.productId}_${item.variationName || "standard"}_${item.packageItems?.join("-") || "no-package"}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      cartId: `${item.shopId}_${item.productId}_${item.variationId || item.variationName || "standard"}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       quantity: 1,
     },
   ];

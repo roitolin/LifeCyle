@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase'
 
-export type OperationKind = 'shop' | 'payment' | 'refund' | 'deletion' | 'service'
+export type OperationKind = 'shop' | 'payment' | 'deletion' | 'service'
 export type OperationPriority = 'urgent' | 'high' | 'normal'
 
 export type OperationItem = {
@@ -26,10 +26,9 @@ function elapsedHours(value: string) {
 function getPriority(kind: OperationKind, status: string, createdAt: string): OperationPriority {
   const hours = elapsedHours(createdAt)
   if (kind === 'deletion' && status === 'approved') return 'urgent'
-  if (kind === 'refund' && status === 'approved') return 'high'
   if (kind === 'service' && hours >= 48) return 'urgent'
   if (kind === 'payment' && hours >= 24) return 'high'
-  if ((kind === 'refund' || kind === 'deletion') && hours >= 48) return 'high'
+  if (kind === 'deletion' && hours >= 48) return 'high'
   if (kind === 'shop' && hours >= 72) return 'high'
   return 'normal'
 }
@@ -46,7 +45,7 @@ export function operationAge(value: string) {
 }
 
 export async function loadCommandCenterOperations() {
-  const [shopsResult, paymentsResult, refundsResult, deletionsResult, servicesResult] = await Promise.all([
+  const [shopsResult, paymentsResult, deletionsResult, servicesResult] = await Promise.all([
     supabase
       .from('funeral_shops')
       .select('id, shopName, status, createdAt')
@@ -57,11 +56,6 @@ export async function loadCommandCenterOperations() {
       .select('id, shopId, payerName, amount, status, createdAt')
       .eq('status', 'pending')
       .order('createdAt', { ascending: true }),
-    supabase
-      .from('service_refund_requests')
-      .select('id, service_request_id, status, reason, requested_at')
-      .in('status', ['pending', 'approved'])
-      .order('requested_at', { ascending: true }),
     supabase
       .from('account_deletion_requests')
       .select('id, email_snapshot, status, reason, requested_at')
@@ -74,7 +68,7 @@ export async function loadCommandCenterOperations() {
       .order('createdAt', { ascending: true }),
   ])
 
-  const firstError = [shopsResult.error, paymentsResult.error, refundsResult.error, deletionsResult.error, servicesResult.error]
+  const firstError = [shopsResult.error, paymentsResult.error, deletionsResult.error, servicesResult.error]
     .find(Boolean)
   if (firstError) throw firstError
 
@@ -106,20 +100,6 @@ export async function loadCommandCenterOperations() {
       createdAt,
       priority: getPriority('payment', row.status || 'pending', createdAt),
       href: '/admin/payments',
-    })
-  }
-
-  for (const row of refundsResult.data || []) {
-    const createdAt = String(row.requested_at || '')
-    items.push({
-      id: row.id,
-      kind: 'refund',
-      title: `Refund ${String(row.service_request_id).slice(0, 8).toUpperCase()}`,
-      description: row.reason || 'A service refund requires review.',
-      status: row.status || 'pending',
-      createdAt,
-      priority: getPriority('refund', row.status || 'pending', createdAt),
-      href: '/admin/payments?tab=refunds',
     })
   }
 
@@ -161,7 +141,7 @@ export async function loadCommandCenterOperations() {
     return new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
   })
 
-  const counts: OperationCounts = { shop: 0, payment: 0, refund: 0, deletion: 0, service: 0 }
+  const counts: OperationCounts = { shop: 0, payment: 0, deletion: 0, service: 0 }
   for (const item of items) counts[item.kind] += 1
 
   return { items, counts }

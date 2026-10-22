@@ -2,12 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 import { createXenditShopCheckout, syncXenditShopPayment, type XenditShopPaymentMethod } from '@/utils/xenditShop'
-import { getPaymentQrSetting } from '@/utils/paymentQrSettings'
+import { getPaymentSetting } from '@/utils/paymentSettings'
 import './XenditShopPaymentCard.css'
 
 type Props = {
-  title?: string
-  description?: string
   className?: string
   onSuccess?: () => void
 }
@@ -30,10 +28,9 @@ type Payment = {
 
 const PAYMENT_METHODS: Array<{ id: XenditShopPaymentMethod; label: string; detail: string; icon: string }> = [
   { id: 'gcash', label: 'GCash', detail: 'Verified shop phone and password required', icon: 'G' },
-  { id: 'ewallets', label: 'Other e-wallets', detail: 'GrabPay and ShopeePay test channels', icon: 'W' },
-  { id: 'cards', label: 'Cards', detail: 'Xendit sandbox test cards', icon: 'C' },
-  { id: 'qrph', label: 'QR Ph', detail: 'Xendit Test Mode QR payment', icon: 'QR' },
-  { id: 'bank_transfer', label: 'Bank transfer', detail: 'Xendit Test Mode bank transfer', icon: 'B' },
+  { id: 'ewallets', label: 'Other e-wallets', detail: 'GrabPay and ShopeePay', icon: 'W' },
+  { id: 'cards', label: 'Cards', detail: 'Credit or debit card', icon: 'C' },
+  { id: 'bank_transfer', label: 'Bank transfer', detail: 'Pay from your bank account', icon: 'B' },
 ]
 
 function normalizePhilippinePhone(value: string) {
@@ -58,6 +55,17 @@ const dateTime = (value?: string | null) => value
   ? new Date(value).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
   : '-'
 
+const dateOnly = (value?: string | null) => value
+  ? new Date(value).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })
+  : 'Not set'
+
+function remainingDays(value?: string | null) {
+  if (!value) return 0
+  const time = new Date(value).getTime()
+  if (!Number.isFinite(time)) return 0
+  return Math.max(0, Math.ceil((time - Date.now()) / 86_400_000))
+}
+
 function statusText(payment: Payment) {
   if (payment.status === 'verified') return 'Paid'
   if (payment.status === 'rejected') return 'Not completed'
@@ -71,14 +79,19 @@ function receiptNumber(payment: Payment) {
 }
 
 function receiptMessage(payment: Payment) {
-  if (payment.status === 'verified') return 'LifeCycle confirmed this registration payment automatically through Xendit.'
+  if (payment.status === 'verified') return 'LifeCycle confirmed this registration payment automatically.'
   if (payment.status === 'rejected') return 'This registration payment was not completed. Review the reason below before trying again.'
-  return 'Your checkout is waiting for completion or confirmation from Xendit.'
+  return 'Your checkout is waiting for completion or confirmation.'
+}
+
+function customerFacingError(error: unknown) {
+  if (!(error instanceof Error) || !error.message) return 'Please try again.'
+  return error.message
+    .replace(/xendit/gi, 'payment provider')
+    .replace(/test mode/gi, 'payment')
 }
 
 export default function XenditShopPaymentCard({
-  title = 'Pay Your Registration Fee',
-  description = 'Use Xendit secure Test Mode checkout. Payment confirmation is automatic.',
   className,
   onSuccess,
 }: Props) {
@@ -88,6 +101,8 @@ export default function XenditShopPaymentCard({
   const [fee, setFee] = useState(0)
   const [payments, setPayments] = useState<Payment[]>([])
   const [shopName, setShopName] = useState('Funeral shop')
+  const [paidUntil, setPaidUntil] = useState<string | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null)
   const [purchaseConfirmOpen, setPurchaseConfirmOpen] = useState(false)
   const [paymentMethodMenuOpen, setPaymentMethodMenuOpen] = useState(false)
@@ -105,11 +120,12 @@ export default function XenditShopPaymentCard({
   const load = useCallback(async () => {
     const [{ data: { user } }, setting] = await Promise.all([
       supabase.auth.getUser(),
-      getPaymentQrSetting(),
+      getPaymentSetting(),
     ])
     setFee(setting.feeAmount)
     if (!user) {
       setPayments([])
+      setPaidUntil(null)
       return
     }
     await syncXenditShopPayment().catch(() => undefined)
@@ -121,15 +137,17 @@ export default function XenditShopPaymentCard({
         .order('createdAt', { ascending: false }),
       supabase
         .from('funeral_shops')
-        .select('shopName, shopPhoneNumber')
+        .select('shopName, shopPhoneNumber, paidUntil')
         .eq('id', user.id)
         .maybeSingle(),
     ])
     if (paymentResult.error) throw paymentResult.error
+    if (shopResult.error) throw shopResult.error
     const resolvedShopName = shopResult.data?.shopName || 'Funeral shop'
     const authPhone = String(user.phone || '')
     const isPhoneConfirmed = Boolean(authPhone && user.phone_confirmed_at)
     setShopName(resolvedShopName)
+    setPaidUntil(shopResult.data?.paidUntil || null)
     setVerifiedPhone(isPhoneConfirmed ? authPhone : '')
     setPhoneInput(current => current || authPhone || String(shopResult.data?.shopPhoneNumber || ''))
     setPayments((paymentResult.data || []).map((row: any) => ({
@@ -175,6 +193,39 @@ export default function XenditShopPaymentCard({
     () => payments.find((payment) => payment.status === 'pending') || null,
     [payments],
   )
+  const latestVerified = useMemo(
+    () => payments.find((payment) => payment.status === 'verified') || null,
+    [payments],
+  )
+
+  const paidUntilTime = paidUntil ? new Date(paidUntil).getTime() : Number.NaN
+  const subscriptionActive = Number.isFinite(paidUntilTime) && paidUntilTime > Date.now()
+  const verifiedAtTime = latestVerified?.verifiedAt ? new Date(latestVerified.verifiedAt).getTime() : Number.NaN
+  const renewalPaymentReady = Boolean(
+    latestVerified
+    && !subscriptionActive
+    && (!Number.isFinite(paidUntilTime) || (Number.isFinite(verifiedAtTime) && verifiedAtTime > paidUntilTime)),
+  )
+  const paymentComplete = subscriptionActive || renewalPaymentReady
+  const subscriptionDaysLeft = remainingDays(paidUntil)
+  const subscriptionState = subscriptionActive
+    ? 'active'
+    : renewalPaymentReady
+      ? 'paid'
+      : latestPending
+        ? 'pending'
+        : Number.isFinite(paidUntilTime)
+          ? 'expired'
+          : 'unpaid'
+  const subscriptionDetail = subscriptionActive
+    ? `Active through ${dateOnly(paidUntil)}`
+    : renewalPaymentReady
+      ? 'Payment confirmed - ready to activate'
+      : latestPending
+        ? 'Payment confirmation pending'
+        : Number.isFinite(paidUntilTime)
+          ? `Expired on ${dateOnly(paidUntil)}`
+          : 'No active subscription'
 
   const confirmLifecyclePassword = async () => {
     if (!accountPassword || checkingPassword) return
@@ -258,6 +309,17 @@ export default function XenditShopPaymentCard({
 
   const startCheckout = async () => {
     if (starting) return
+    if (paymentComplete) {
+      openAlert({
+        title: subscriptionActive ? 'Subscription already paid' : 'Payment already confirmed',
+        message: subscriptionActive
+          ? `Your subscription is active through ${dateOnly(paidUntil)}. Renewal becomes available after it expires.`
+          : 'Your registration or renewal payment is already confirmed. You do not need to pay again.',
+        tone: 'info',
+        okLabel: 'Done',
+      })
+      return
+    }
     if (paymentMethod === 'gcash' && !verifiedPhone) {
       openAlert({ title: 'Verify your mobile number', message: 'GCash checkout requires a verified shop-owner mobile number.', tone: 'warning', okLabel: 'Got It' })
       return
@@ -277,16 +339,16 @@ export default function XenditShopPaymentCard({
         setPurchaseConfirmOpen(false)
         await load()
         onSuccess?.()
-        openAlert({ title: 'Payment received', message: 'Your Xendit test payment has been confirmed.', tone: 'info', okLabel: 'Done' })
+        openAlert({ title: 'Payment received', message: 'Your payment has been confirmed.', tone: 'info', okLabel: 'Done' })
         return
       }
-      if (result.livemode !== false) throw new Error('Checkout was blocked because LifeCycle only allows Xendit test payments.')
-      if (!result.checkoutUrl) throw new Error('Xendit did not return a checkout page.')
+      if (result.livemode !== false) throw new Error('This checkout is currently unavailable.')
+      if (!result.checkoutUrl) throw new Error('The payment provider did not return a checkout page.')
       window.location.assign(result.checkoutUrl)
     } catch (error) {
       openAlert({
         title: 'Unable to start payment',
-        message: error instanceof Error ? error.message : 'Please try again.',
+        message: customerFacingError(error),
         tone: 'danger',
         okLabel: 'Close',
       })
@@ -303,67 +365,145 @@ export default function XenditShopPaymentCard({
   return (
     <section className={'pm-card' + (className ? ` ${className}` : '')}>
       <div className='pm-hero'>
-        <div className='pm-shield' aria-hidden='true'>✓</div>
-        <div>
-          <span className='pm-kicker'>SECURE CHECKOUT</span>
-          <h3>{title}</h3>
-          <p>{description}</p>
-        </div>
+        <strong className='pm-brand-name'>LifeCycle</strong>
+        <span className='pm-secure-chip'>Secure checkout</span>
       </div>
 
       {returned === 'success' && <div className='pm-banner success'>Checkout finished. We are confirming your payment now.</div>}
       {returned === 'cancelled' && <div className='pm-banner'>Checkout was cancelled. You can continue whenever you are ready.</div>}
 
-      <div className='pm-amount'>
-        <span>Registration / renewal fee</span>
-        <strong>{peso(fee)}</strong>
+      <div className='pm-product-row'>
+        <span className='pm-product-icon' aria-hidden='true'>
+          <svg viewBox='0 0 24 24'><path d='M3 10h18M5 10v10h14V10M4 10l2-6h12l2 6M9 20v-6h6v6'/></svg>
+        </span>
+        <div className='pm-product-info'>
+          <strong>Shop registration &amp; renewal</strong>
+          <small>{shopName}</small>
+          <span className={`pm-product-status ${subscriptionState}`}>{subscriptionDetail}</span>
+        </div>
+      </div>
+
+      <div className='pm-order-summary'>
+        <div className='pm-summary-row'>
+          <span>{paymentComplete ? 'Current subscription' : 'Registration / renewal fee'}</span>
+          <strong>{peso(fee)}</strong>
+        </div>
+        <div className='pm-summary-row'>
+          <span>Packages &amp; services</span>
+          <strong className='included'>Included</strong>
+        </div>
+        <div className='pm-summary-total'>
+          <div>
+            <strong>{paymentComplete ? 'Subscription status' : 'Total amount'}</strong>
+            <small>{subscriptionActive
+              ? `Active until ${dateOnly(paidUntil)} - ${subscriptionDaysLeft} day${subscriptionDaysLeft === 1 ? '' : 's'} left`
+              : renewalPaymentReady
+                ? 'Payment confirmed - starts when your shop goes live'
+                : latestPending
+                  ? 'Waiting for payment confirmation'
+                  : 'Payment details are handled securely'}</small>
+          </div>
+          <b className={paymentComplete ? 'paid' : ''}>{paymentComplete ? 'Paid' : peso(fee)}</b>
+        </div>
+      </div>
+
+      <div className='pm-method-summary'>
+        <span className='pm-method-summary-icon' aria-hidden='true'>
+          <svg viewBox='0 0 24 24'><rect x='3' y='5' width='18' height='14' rx='2'/><path d='M3 10h18'/></svg>
+        </span>
+        <div>
+          <strong>Payment methods</strong>
+          <small>GCash, Maya, cards and online banking</small>
+        </div>
+        <span className='pm-method-check' aria-hidden='true'>&#10003;</span>
       </div>
 
       {manualPending && (
-        <div className='pm-banner warning'>Your previous manual payment is awaiting admin review. It must be resolved before Xendit checkout.</div>
+        <div className='pm-banner warning'>Your previous manual payment is awaiting admin review. It must be resolved before starting another checkout.</div>
       )}
 
-      <button className='pm-pay' disabled={starting || fee <= 0 || manualPending} onClick={() => setPurchaseConfirmOpen(true)}>
-        {latestPending?.paymentProvider === 'xendit' ? 'Review test checkout' : 'Review test payment'}
-      </button>
-      <p className='pm-safe'>Choose an available Xendit Test Mode e-wallet, card, QR Ph, or bank-transfer channel. Never enter real payment credentials.</p>
-
-      <div className='pm-history'>
-        <h4>Payment history</h4>
-        {payments.length === 0 ? <p className='pm-empty'>No payments yet.</p> : payments.map((payment) => (
-          <button
-            type='button'
-            className='pm-row pm-row-button'
-            key={payment.id}
-            onClick={() => setSelectedPayment(payment)}
-            aria-label={`Open receipt for ${peso(payment.amount)} payment`}
-          >
-            <div>
-              <strong>{peso(payment.amount)}</strong>
-              <small>{payment.paymentProvider === 'xendit' ? 'Xendit' : payment.paymentProvider === 'paymongo' ? 'Legacy PayMongo' : 'Legacy manual'}{payment.providerPaymentMethod ? ` - ${payment.providerPaymentMethod.replace(/_/g, ' ')}` : ''} - {dateTime(payment.createdAt)}</small>
-              {payment.rejectionReason && <small className='pm-reason'>{payment.rejectionReason}</small>}
+      {paymentComplete ? (
+        <div className='pm-paid-actions-wrap'>
+          <div className='pm-paid-actions'>
+            <div className='pm-paid-confirmation' aria-label='Payment complete'>
+              <span aria-hidden='true'>&#10003;</span>
+              <strong>{subscriptionActive ? `Already paid - renews after ${dateOnly(paidUntil)}` : 'Payment confirmed - ready to activate'}</strong>
             </div>
-            <span className='pm-row-end'>
-              <span className={'pm-status ' + payment.status}>{statusText(payment)}</span>
-              <span className='pm-view-receipt'>View receipt</span>
-            </span>
-          </button>
-        ))}
-      </div>
+            {latestVerified && (
+              <button type='button' className='pm-receipt-link' onClick={() => setSelectedPayment(latestVerified)}>View payment receipt</button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <button className='pm-pay' disabled={starting || fee <= 0 || manualPending} onClick={() => setPurchaseConfirmOpen(true)}>
+          {starting
+            ? 'Opening payment...'
+            : latestPending?.paymentProvider === 'xendit'
+              ? 'Continue checkout'
+              : Number.isFinite(paidUntilTime)
+                ? `Renew for ${peso(fee)}`
+                : `Pay ${peso(fee)}`}
+        </button>
+      )}
 
-      {purchaseConfirmOpen && (
+      {payments.length > 0 && (
+        <>
+          <button type='button' className='pm-history-toggle' onClick={() => setHistoryOpen(open => !open)} aria-expanded={historyOpen}>
+            <span aria-hidden='true'>&#9783;</span>
+            <strong>View payment history ({payments.length})</strong>
+            <b aria-hidden='true'>{historyOpen ? '^' : '>'}</b>
+          </button>
+          {historyOpen && (
+            <div className='pm-history'>
+              <div className='pm-history-head'>
+                <h4>Payment history</h4>
+                <span>{payments.length} {payments.length === 1 ? 'payment' : 'payments'}</span>
+              </div>
+              {payments.map((payment) => (
+                <button
+                  type='button'
+                  className='pm-row pm-row-button'
+                  key={payment.id}
+                  onClick={() => setSelectedPayment(payment)}
+                  aria-label={`Open receipt for ${peso(payment.amount)} payment`}
+                >
+                  <div>
+                    <strong>{peso(payment.amount)}</strong>
+                    <small>{payment.paymentProvider === 'xendit' ? 'Online payment' : payment.paymentProvider === 'paymongo' ? 'Legacy online payment' : 'Legacy manual'}{payment.providerPaymentMethod ? ` - ${payment.providerPaymentMethod.replace(/_/g, ' ')}` : ''} - {dateTime(payment.createdAt)}</small>
+                    {payment.rejectionReason && <small className='pm-reason'>{payment.rejectionReason}</small>}
+                  </div>
+                  <span className='pm-row-end'>
+                    <span className={'pm-status ' + payment.status}>{statusText(payment)}</span>
+                    <span className='pm-view-receipt'>View receipt</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {purchaseConfirmOpen && !paymentComplete && (
         <div className='pm-purchase-overlay' role='presentation' onMouseDown={() => !starting && setPurchaseConfirmOpen(false)}>
-          <section className='pm-purchase-sheet' role='dialog' aria-modal='true' aria-label='Confirm Xendit test payment' onMouseDown={event => event.stopPropagation()}>
+          <section className='pm-purchase-sheet' role='dialog' aria-modal='true' aria-label='Confirm payment' onMouseDown={event => event.stopPropagation()}>
             <div className='pm-purchase-handle' />
             <div className='pm-purchase-brand-row'>
-              <strong>LifeCycle</strong>
-              <span>TEST MODE</span>
+              <div>
+                <strong>LifeCycle payment</strong>
+              </div>
+              <button
+                type='button'
+                className='pm-purchase-close'
+                onClick={() => setPurchaseConfirmOpen(false)}
+                aria-label='Close checkout'
+              >
+                <svg viewBox='0 0 24 24' aria-hidden='true'><path d='M18 6 6 18M6 6l12 12' /></svg>
+              </button>
             </div>
             <div className='pm-purchase-product-row'>
-              <div className='pm-purchase-app-icon' aria-hidden='true'>LC</div>
               <div>
-                <strong>LifeCycle Shop Registration</strong>
-                <small>LifeCycle Admin</small>
+                <strong>Shop registration and renewal</strong>
+                <small>LifeCycle billing</small>
               </div>
               <b>{peso(fee)}</b>
             </div>
@@ -412,9 +552,9 @@ export default function XenditShopPaymentCard({
                 <small className='pm-security-note'>The verified number confirms the shop owner. Payment alerts are sent through LifeCycle notifications.</small>
               </div>
             )}
-            <p>Click “Test Pay” to continue to Xendit’s hosted Test Mode checkout. Do not enter real payment credentials.</p>
+            <p>Your payment details are handled securely.</p>
             <button type='button' className='pm-purchase-buy' disabled={starting || (paymentMethod === 'gcash' && (!verifiedPhone || !passwordConfirmed))} onClick={() => void startCheckout()}>
-              {starting ? 'Opening Xendit...' : 'Test Pay'}
+              {starting ? 'Opening checkout...' : 'Continue to payment'}
             </button>
           </section>
         </div>
@@ -462,7 +602,7 @@ export default function XenditShopPaymentCard({
 
               <h4>Receipt Information</h4>
               <div className='pm-receipt-info'>
-                <ReceiptLine label='Payment Method' value={selectedPayment.paymentProvider === 'xendit' ? `Xendit${selectedPayment.providerPaymentMethod ? ` - ${selectedPayment.providerPaymentMethod.replace(/_/g, ' ')}` : ''}` : selectedPayment.paymentProvider === 'paymongo' ? 'Legacy PayMongo' : 'Legacy manual'} />
+                <ReceiptLine label='Payment Method' value={selectedPayment.paymentProvider === 'xendit' ? `Online payment${selectedPayment.providerPaymentMethod ? ` - ${selectedPayment.providerPaymentMethod.replace(/_/g, ' ')}` : ''}` : selectedPayment.paymentProvider === 'paymongo' ? 'Legacy online payment' : 'Legacy manual'} />
                 <ReceiptLine label='Paid By' value={selectedPayment.payerName || shopName} />
                 <ReceiptLine label='Reference Number' value={selectedPayment.referenceNumber || 'Not provided'} />
                 <ReceiptLine label='Provider Payment ID' value={selectedPayment.providerPaymentId || 'Pending'} />
@@ -473,15 +613,15 @@ export default function XenditShopPaymentCard({
 
               {selectedPayment.paymentProvider === 'xendit' && (
                 <div className={'pm-receipt-provider-note ' + (selectedPayment.status === 'verified' ? 'verified' : 'pending')}>
-                  <strong>{selectedPayment.status === 'verified' ? 'Verified by Xendit' : 'Xendit confirmation pending'}</strong>
-                  <span>{selectedPayment.status === 'verified' ? 'LifeCycle verified this payment directly with Xendit. No screenshot or manual admin approval was required.' : 'This receipt will update automatically after Xendit confirms the Test Mode payment.'}</span>
+                  <strong>{selectedPayment.status === 'verified' ? 'Payment verified' : 'Confirmation pending'}</strong>
+                  <span>{selectedPayment.status === 'verified' ? 'LifeCycle verified this payment automatically. No screenshot or manual admin approval was required.' : 'This receipt will update automatically after the payment is confirmed.'}</span>
                 </div>
               )}
 
               {selectedPayment.rejectionReason && <div className='pm-receipt-error'>{selectedPayment.rejectionReason}</div>}
 
               {selectedPayment.status === 'pending' && selectedPayment.paymentProvider === 'xendit' && selectedPayment.providerCheckoutUrl && (
-                <button className='pm-receipt-primary' type='button' onClick={() => window.location.assign(selectedPayment.providerCheckoutUrl!)}>Continue Xendit Checkout</button>
+                <button className='pm-receipt-primary' type='button' onClick={() => window.location.assign(selectedPayment.providerCheckoutUrl!)}>Continue Checkout</button>
               )}
               <button className='pm-receipt-secondary' type='button' onClick={() => setSelectedPayment(null)}>Close Receipt</button>
             </div>

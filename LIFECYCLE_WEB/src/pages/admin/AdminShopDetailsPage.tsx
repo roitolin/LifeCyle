@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
+import PageBackButton from '@/components/PageBackButton'
+import { getChannelInfo } from './AdminPayoutAccountsPage'
 import '../SellerCentrePage.css'
 
 type ShopDetail = {
@@ -23,6 +25,11 @@ type ShopDetail = {
   ownerName: string
   ownerEmail: string
   createdAt: string
+  payoutChannelCode: string | null
+  payoutAccountName: string | null
+  payoutAccountNumber: string | null
+  payoutVerifiedByAdmin: boolean
+  payoutVerifiedAt: string | null
 }
 
 function statusBadge(status: string) {
@@ -88,6 +95,11 @@ export default function AdminShopDetailsPage() {
         ownerName: row.users?.fullName || '',
         ownerEmail: row.users?.email || '',
         createdAt: row.createdAt || '',
+        payoutChannelCode: row.payoutChannelCode || null,
+        payoutAccountName: row.payoutAccountName || null,
+        payoutAccountNumber: row.payoutAccountNumber || null,
+        payoutVerifiedByAdmin: Boolean(row.payoutVerifiedByAdmin),
+        payoutVerifiedAt: row.payoutVerifiedAt || null,
       })
     } catch (e: any) {
       setError(e?.message ?? 'Unable to load shop details.')
@@ -138,12 +150,12 @@ export default function AdminShopDetailsPage() {
 
   return (
     <section className="panel sc-page admin-shop-detail-page">
+      <div className="page-back-row"><PageBackButton to="/admin/funeral-shops" label="Back to funeral shops" /></div>
       <header className="admin-detail-page-head">
         <div>
           <h2>Registration details</h2>
           <p className="panel-sub">Verify the submitted shop, owner, and business information before making a decision.</p>
         </div>
-        <Link to="/admin/funeral-shops" className="ghost-btn btn-link">Back to funeral shops</Link>
       </header>
 
       <div className="sc-workspace">
@@ -264,6 +276,48 @@ export default function AdminShopDetailsPage() {
                 )}
               </div>
 
+              <div className="sc-details-card">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <h4 className="sc-details-head" style={{ margin: 0 }}>Payout Account (Direct Payout)</h4>
+                  <Link
+                    to="/admin/payout-accounts"
+                    className="sc-link-btn"
+                    style={{ fontSize: 12, fontWeight: 700, color: '#2563eb', textDecoration: 'none' }}
+                  >
+                    Manage Payout Accounts &rarr;
+                  </Link>
+                </div>
+                <p className="sc-details-head-sub">Used by Xendit Payouts API to disburse 70% of customer order payments directly to the shop.</p>
+                <div className="sc-details-grid">
+                  <div className="sc-detail">
+                    <span>Channel</span>
+                    <strong>{getChannelInfo(shop.payoutChannelCode)?.label || shop.payoutChannelCode || <em className="sc-detail-none">Not configured</em>}</strong>
+                  </div>
+                  <div className="sc-detail">
+                    <span>Account Name</span>
+                    <strong>{shop.payoutAccountName || <em className="sc-detail-none">Not configured</em>}</strong>
+                  </div>
+                  <div className="sc-detail">
+                    <span>Account / Mobile No.</span>
+                    <strong>{shop.payoutAccountNumber || <em className="sc-detail-none">Not configured</em>}</strong>
+                  </div>
+                  <div className="sc-detail">
+                    <span>Verification Status</span>
+                    <strong>
+                      {shop.payoutVerifiedByAdmin ? (
+                        <span style={{ color: '#16a34a', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          &#10003; Verified {shop.payoutVerifiedAt ? `(${new Date(shop.payoutVerifiedAt).toLocaleDateString()})` : ''}
+                        </span>
+                      ) : shop.payoutChannelCode ? (
+                        <span style={{ color: '#2563eb' }}>Needs Admin Verification</span>
+                      ) : (
+                        <span style={{ color: '#94a3b8' }}>Not Submitted</span>
+                      )}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
               <div className="sc-details-decision">
                 <h4 className="sc-details-head">Review &amp; Decision</h4>
                 <p className="sc-details-head-sub">
@@ -295,7 +349,6 @@ export default function AdminShopDetailsPage() {
             <div className="sc-state">
               <h2>Shop Not Found</h2>
               <p>This funeral shop could not be found or has been removed.</p>
-              <Link to="/admin/funeral-shops" className="sc-primary-btn">Back to Funeral Shops</Link>
             </div>
           )}
         </main>

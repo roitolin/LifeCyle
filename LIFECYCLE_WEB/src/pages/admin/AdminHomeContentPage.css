@@ -36,3 +36,35 @@
 .home-content-save:disabled, .home-content-upload-btn:has(input:disabled), .home-content-photo-actions button:disabled { opacity: .55; cursor: not-allowed; }
 @media (max-width: 920px) { .home-content-layout { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .home-content-preview-overlay { width: 82%; padding: 18px; } .home-content-preview-overlay h3 { font-size: 20px !important; } }
+
+@media (max-width: 560px) {
+  .home-content-page,
+  .home-content-layout,
+  .home-content-form,
+  .home-content-preview-column {
+    min-width: 0;
+  }
+
+  .home-content-header,
+  .home-content-photo-actions,
+  .home-content-visibility {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .home-content-photo-actions > *,
+  .home-content-save {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .home-content-preview {
+    min-height: 280px;
+    aspect-ratio: auto;
+  }
+
+  .home-content-preview-overlay {
+    width: 100%;
+    background: linear-gradient(90deg, rgba(20, 28, 26, .88), rgba(20, 28, 26, .58));
+  }
+}

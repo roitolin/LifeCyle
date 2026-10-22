@@ -453,3 +453,64 @@
 .purchase-page-nav .purchase-back-btn:hover {
   color: #172033;
 }
+
+/* Match the homepage header color. */
+.purchase-topbar,
+.purchase-header {
+  background: #22312d;
+}
+
+.purchase-search button {
+  background: #315f50;
+}
+
+.purchase-search button:hover {
+  background: #3f6f58;
+}
+
+/* Responsive purchase history and fixed spending summary. */
+.purchase-header-inner,
+.purchase-main,
+.purchase-shop-card,
+.purchase-order-card,
+.purchase-order-item,
+.purchase-item-info,
+.purchase-sticky-footer {
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .purchase-shop-page {
+    padding-bottom: 112px;
+  }
+
+  .purchase-order-id {
+    overflow-wrap: anywhere;
+  }
+
+  .purchase-item-image {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+
+  .purchase-order-footer {
+    flex-wrap: wrap;
+  }
+
+  .purchase-sticky-footer {
+    min-height: 0;
+    justify-content: space-between;
+    gap: 8px 14px;
+    padding: 12px 14px max(12px, env(safe-area-inset-bottom));
+  }
+
+  .purchase-footer-spacer {
+    display: none;
+  }
+
+  .purchase-sticky-footer strong {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+}

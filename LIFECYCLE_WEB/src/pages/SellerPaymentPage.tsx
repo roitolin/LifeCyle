@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import XenditShopPaymentCard from '@/components/XenditShopPaymentCard'
+import PageBackButton from '@/components/PageBackButton'
 import './SellerCentrePage.css'
 
 export default function SellerPaymentPage() {
@@ -50,15 +51,13 @@ export default function SellerPaymentPage() {
             </span>
           </Link>
         </div>
-        <div className="sc-header-right">
-          <button className="sc-btn sc-btn-secondary" onClick={() => navigate('/seller')}>
-            Back to Seller Centre
-          </button>
-        </div>
       </header>
 
       <div className="sc-workspace">
         <main className="sc-content-area">
+          <div className="page-back-row">
+            <PageBackButton to="/seller" label="Back to shop center" />
+          </div>
           {!isLoggedIn ? (
             <div className="sc-access-denied">
               <div className="sc-access-denied-icon">
@@ -70,7 +69,6 @@ export default function SellerPaymentPage() {
               <h2 className="sc-access-denied-title">Access Denied</h2>
               <p className="sc-access-denied-desc">You need to be logged in as a funeral shop owner to pay your registration fee.</p>
               <div className="sc-access-denied-actions">
-                <button className="sc-access-denied-back" onClick={() => navigate('/seller')}>Go Back</button>
                 <Link to="/login" className="sc-access-denied-login">Login to Continue</Link>
               </div>
             </div>
@@ -80,7 +78,6 @@ export default function SellerPaymentPage() {
               <p style={{ color: '#666', marginTop: '12px', marginBottom: '24px' }}>
                 Registration payment is only available once your shop has been verified. Once approved, you can pay here and go live.
               </p>
-              <button className="sc-primary-btn" onClick={() => navigate('/seller')}>Back to Seller Centre</button>
             </div>
           ) : (
             <div className="sc-payment-layout">

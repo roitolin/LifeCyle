@@ -25,12 +25,13 @@ function basicAuth(secretKey: string) {
 }
 
 function configuredMethods() {
-  return [...new Set(
-    (Deno.env.get('PAYMONGO_PAYMENT_METHODS') || 'qrph')
+  const methods = [...new Set(
+    (Deno.env.get('PAYMONGO_PAYMENT_METHODS') || 'card,gcash')
       .split(',')
       .map((method) => method.trim().toLowerCase())
-      .filter(Boolean),
+      .filter((method) => Boolean(method) && !method.startsWith('qr')),
   )];
+  return methods.length ? methods : ['card', 'gcash'];
 }
 
 function safeWebUrl(request: Request, value: string) {
@@ -108,7 +109,7 @@ Deno.serve(async (request) => {
     return jsonResponse(request, { error: 'Payment service configuration is incomplete.' }, 503);
   }
   if (!secretKey.startsWith('sk_test_')) {
-    return jsonResponse(request, { error: 'LifeCycle customer payments are locked to PayMongo test mode.' }, 503);
+    return jsonResponse(request, { error: 'Customer payments are temporarily unavailable. Please contact support.' }, 503);
   }
 
   const accessToken = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();

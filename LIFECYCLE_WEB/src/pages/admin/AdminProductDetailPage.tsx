@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import PageBackButton from '@/components/PageBackButton'
 import './AdminProductDetailPage.css'
 
 type ProductImage = {
@@ -126,7 +127,6 @@ function mapProduct(row: any, ratings: { rating: number }[], feedbacks: any[], f
 
 function AdminProductDetailPage() {
   const { productId = '' } = useParams()
-  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [product, setProduct] = useState<ProductDetail | null>(null)
@@ -221,7 +221,7 @@ function AdminProductDetailPage() {
       <section className="admin-product-state">
         <h2>Product unavailable</h2>
         <p className="panel-sub">{error || 'This product could not be found.'}</p>
-        <button type="button" className="ghost-btn" onClick={() => navigate('/admin/funeral-items')}>Back to Products</button>
+        <PageBackButton to="/admin/funeral-items" label="Back to products" />
       </section>
     )
   }
@@ -232,7 +232,7 @@ function AdminProductDetailPage() {
   return (
     <section className="admin-product-detail-page">
       <div className="admin-product-topbar">
-        <button type="button" className="ghost-btn" onClick={() => navigate('/admin/funeral-items')}>Back to Products</button>
+        <PageBackButton to="/admin/funeral-items" label="Back to products" />
         <div>
           <Link to={`/admin/funeral-shops/${product.shopId}`} className="ghost-btn btn-link">Open Shop</Link>
           {product.active ? <Link to={`/funeral/product/${product.id}`} className="ghost-btn btn-link">Public View</Link> : null}

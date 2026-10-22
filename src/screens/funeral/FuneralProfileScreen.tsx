@@ -17,7 +17,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "@/services/supabaseClient";
 import { auth, uploadProfilePicture } from "@/services";
 import { useAuth } from "@/context/AuthContext";
+import { useAppDialog } from '@/hooks/useAppDialog';
 import { useResponsive } from "@/utils/responsive";
+import { confirmLogout } from '@/utils/logoutConfirmation';
 import { subscribeTabRefresh } from "@/utils/tabRefresh";
 
 const otherDefault = require("../../../assets/Male_Default_Profile.png");
@@ -27,6 +29,7 @@ type ShopStatus = "none" | "pending" | "verified" | "live" | "offline" | "reject
 export default function FuneralProfileScreen({ navigation }: any) {
   const { isDesktop } = useResponsive();
   const { logout } = useAuth();
+  const { showDialog, dialog } = useAppDialog();
 
   const [fullName, setFullName] = useState("");
   const [photoURL, setPhotoURL] = useState<string | null>(null);
@@ -307,12 +310,10 @@ export default function FuneralProfileScreen({ navigation }: any) {
           <PaperButton
             mode="contained"
             buttonColor="#22312d"
-            onPress={() => {
-              Alert.alert("Log Out", "Are you sure you want to log out?", [
-                { text: "Cancel", style: "cancel" },
-                { text: "Log Out", style: "destructive", onPress: async () => { try { await logout(); } catch {} } },
-              ]);
-            }}
+            onPress={() => confirmLogout({
+              logout,
+              showDialog,
+            })}
           >
             Log Out
           </PaperButton>
@@ -362,6 +363,7 @@ export default function FuneralProfileScreen({ navigation }: any) {
           </View>
         </TouchableOpacity>
       </Modal>
+      {dialog}
     </ScrollView>
   );
 }

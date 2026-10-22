@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -16,12 +17,18 @@ import { AppBackButton } from "@/components";
 import LoadingBird from "@/components/LoadingBird";
 import { auth, uploadCertificate } from "@/services";
 import { supabase } from "@/services/supabaseClient";
+import { generateId } from "@/utils/generateId";
 
-type PackageKey = "flowers" | "candles" | "curtains" | "vehicle";
+type PackageItem = {
+  id: string;
+  name: string;
+  imageUrl?: string | null;
+};
 
 type ShopPackage = {
   id?: string;
   shopId: string;
+  items: PackageItem[];
   flowersImageUrl?: string | null;
   candlesImageUrl?: string | null;
   curtainsImageUrl?: string | null;
@@ -29,17 +36,31 @@ type ShopPackage = {
   active?: boolean;
 };
 
-const PACKAGE_ITEMS: { key: PackageKey; label: string; icon: keyof typeof Ionicons.glyphMap; field: keyof ShopPackage }[] = [
-  { key: "flowers", label: "Flowers", icon: "flower-outline", field: "flowersImageUrl" },
-  { key: "candles", label: "Candles", icon: "flame-outline", field: "candlesImageUrl" },
-  { key: "curtains", label: "Curtains", icon: "albums-outline", field: "curtainsImageUrl" },
-  { key: "vehicle", label: "Vehicle", icon: "car-outline", field: "vehicleImageUrl" },
-];
+const MAX_PACKAGE_ITEMS = 12;
+
+function normalizePackageItems(row?: Partial<ShopPackage> | null): PackageItem[] {
+  if (Array.isArray(row?.items) && row.items.length > 0) {
+    return row.items
+      .map((item) => ({
+        id: String(item?.id || generateId()),
+        name: String(item?.name || ""),
+        imageUrl: item?.imageUrl || null,
+      }))
+      .filter((item) => item.name || item.imageUrl);
+  }
+
+  return [
+    { id: "legacy-flowers", name: "Flowers", imageUrl: row?.flowersImageUrl },
+    { id: "legacy-candles", name: "Candles", imageUrl: row?.candlesImageUrl },
+    { id: "legacy-curtains", name: "Curtains", imageUrl: row?.curtainsImageUrl },
+    { id: "legacy-vehicle", name: "Vehicle", imageUrl: row?.vehicleImageUrl },
+  ].filter((item) => Boolean(item.imageUrl));
+}
 
 export default function FuneralShopPackagesScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploadingKey, setUploadingKey] = useState<PackageKey | null>(null);
+  const [uploadingKey, setUploadingKey] = useState<string | null>(null);
   const [packageRow, setPackageRow] = useState<ShopPackage | null>(null);
 
   const loadPackage = useCallback(async () => {
@@ -54,11 +75,14 @@ export default function FuneralShopPackagesScreen({ navigation }: any) {
     try {
       const { data, error } = await supabase
         .from("funeral_shop_packages")
-        .select("id, shopId, flowersImageUrl, candlesImageUrl, curtainsImageUrl, vehicleImageUrl, active")
+        .select("id, shopId, items, flowersImageUrl, candlesImageUrl, curtainsImageUrl, vehicleImageUrl, active")
         .eq("shopId", user.uid)
         .maybeSingle();
       if (error) throw error;
-      setPackageRow((data as ShopPackage | null) || { shopId: user.uid, active: true });
+      const row = data as ShopPackage | null;
+      setPackageRow(row
+        ? { ...row, items: normalizePackageItems(row) }
+        : { shopId: user.uid, active: true, items: [] });
     } catch (error: any) {
       Alert.alert("Packages unavailable", error?.message || "Unable to load your package setup.");
     } finally {
@@ -70,7 +94,27 @@ export default function FuneralShopPackagesScreen({ navigation }: any) {
     void loadPackage();
   }, [loadPackage]);
 
-  const pickImage = async (item: (typeof PACKAGE_ITEMS)[number]) => {
+  const addPackageItem = () => {
+    setPackageRow((current) => {
+      const row = current || { shopId: auth.currentUser?.uid || "", active: true, items: [] };
+      if (row.items.length >= MAX_PACKAGE_ITEMS) return row;
+      return { ...row, items: [...row.items, { id: generateId(), name: "", imageUrl: null }] };
+    });
+  };
+
+  const updatePackageItem = (id: string, updates: Partial<PackageItem>) => {
+    setPackageRow((current) => current
+      ? { ...current, items: current.items.map((item) => item.id === id ? { ...item, ...updates } : item) }
+      : current);
+  };
+
+  const removePackageItem = (id: string) => {
+    setPackageRow((current) => current
+      ? { ...current, items: current.items.filter((item) => item.id !== id) }
+      : current);
+  };
+
+  const pickImage = async (item: PackageItem) => {
     const picker = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       allowsEditing: true,
@@ -78,12 +122,12 @@ export default function FuneralShopPackagesScreen({ navigation }: any) {
     });
     if (picker.canceled || !picker.assets[0]) return;
 
-    setUploadingKey(item.key);
+    setUploadingKey(item.id);
     try {
       const url = await uploadCertificate(picker.assets[0].uri);
-      setPackageRow((current) => ({ ...current, shopId: current?.shopId || auth.currentUser?.uid || "", [item.field]: url }));
+      updatePackageItem(item.id, { imageUrl: url });
     } catch (error: any) {
-      Alert.alert("Upload failed", error?.message || `Unable to upload ${item.label.toLowerCase()} picture.`);
+      Alert.alert("Upload failed", error?.message || "Unable to upload this package picture.");
     } finally {
       setUploadingKey(null);
     }
@@ -93,9 +137,23 @@ export default function FuneralShopPackagesScreen({ navigation }: any) {
     const user = auth.currentUser;
     if (!user || !packageRow || saving) return;
 
-    const missing = PACKAGE_ITEMS.find((item) => !packageRow[item.field]);
-    if (missing) {
-      Alert.alert("Picture required", `Add a picture for ${missing.label}.`);
+    const items = packageRow.items.map((item) => ({
+      id: item.id,
+      name: item.name.trim(),
+      imageUrl: item.imageUrl || null,
+    }));
+    if (items.length === 0) {
+      Alert.alert("Add an item", "Add at least one item to your package.");
+      return;
+    }
+    const unnamedItem = items.find((item) => !item.name);
+    if (unnamedItem) {
+      Alert.alert("Name required", "Give every package item a name.");
+      return;
+    }
+    const missingPhoto = items.find((item) => !item.imageUrl);
+    if (missingPhoto) {
+      Alert.alert("Picture required", `Add a picture for ${missingPhoto.name}.`);
       return;
     }
 
@@ -104,10 +162,7 @@ export default function FuneralShopPackagesScreen({ navigation }: any) {
       const { error } = await supabase.from("funeral_shop_packages").upsert({
         id: packageRow.id,
         shopId: user.uid,
-        flowersImageUrl: packageRow.flowersImageUrl,
-        candlesImageUrl: packageRow.candlesImageUrl,
-        curtainsImageUrl: packageRow.curtainsImageUrl,
-        vehicleImageUrl: packageRow.vehicleImageUrl,
+        items,
         active: true,
         updatedAt: new Date().toISOString(),
       }, { onConflict: "shopId" });
@@ -135,29 +190,48 @@ export default function FuneralShopPackagesScreen({ navigation }: any) {
         <AppBackButton onPress={() => navigation.goBack()} />
         <View style={styles.headerCopy}>
           <Text style={styles.headerTitle}>Packages</Text>
-          <Text style={styles.headerSub}>One package used by every product</Text>
+          <Text style={styles.headerSub}>Create the inclusions your shop offers</Text>
         </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.introBlock}>
           <Text style={styles.sectionTitle}>Shop package</Text>
-          <Text style={styles.sectionText}>Add pictures for Flowers, Candles, Curtains, and Vehicle once. New and existing products will show this package automatically.</Text>
+          <Text style={styles.sectionText}>Add the inclusions that come with every casket. They are covered by the selected casket price and update automatically on new and existing products.</Text>
         </View>
 
         <View style={styles.itemGrid}>
-          {PACKAGE_ITEMS.map((item) => {
-            const imageUrl = packageRow?.[item.field] as string | null | undefined;
-            const uploading = uploadingKey === item.key;
+          {(packageRow?.items || []).map((item, index) => {
+            const imageUrl = item.imageUrl;
+            const uploading = uploadingKey === item.id;
             return (
-              <View key={item.key} style={styles.itemBlock}>
+              <View key={item.id} style={styles.itemBlock}>
                 <View style={styles.itemTopRow}>
                   <View style={styles.itemTitleRow}>
-                    <Ionicons name={item.icon} size={17} color="#31433d" />
-                    <Text style={styles.itemTitle}>{item.label}</Text>
+                    <Ionicons name="gift-outline" size={17} color="#31433d" />
+                    <Text style={styles.itemTitle}>Inclusion {index + 1}</Text>
                   </View>
-                  {imageUrl ? <Ionicons name="checkmark-circle" size={18} color="#2f7b57" /> : null}
+                  <TouchableOpacity
+                    style={styles.removeButton}
+                    onPress={() => removePackageItem(item.id)}
+                    disabled={saving || Boolean(uploadingKey)}
+                    accessibilityLabel={`Remove ${item.name || `inclusion ${index + 1}`}`}
+                  >
+                    <Ionicons name="trash-outline" size={17} color="#a43b3b" />
+                    <Text style={styles.removeButtonText}>Remove</Text>
+                  </TouchableOpacity>
                 </View>
+
+                <Text style={styles.fieldLabel}>What is included?</Text>
+                <TextInput
+                  style={styles.nameInput}
+                  value={item.name}
+                  onChangeText={(name) => updatePackageItem(item.id, { name })}
+                  placeholder="Example: Memorial flower arrangement"
+                  placeholderTextColor="#8a9590"
+                  maxLength={80}
+                  editable={!saving}
+                />
 
                 {imageUrl ? (
                   <Image source={{ uri: imageUrl }} style={styles.preview} resizeMode="cover" />
@@ -174,6 +248,23 @@ export default function FuneralShopPackagesScreen({ navigation }: any) {
             );
           })}
         </View>
+
+        {(packageRow?.items.length || 0) === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="gift-outline" size={25} color="#718079" />
+            <Text style={styles.emptyTitle}>No inclusions yet</Text>
+            <Text style={styles.emptyText}>Add what your shop provides with its own name and photo.</Text>
+          </View>
+        ) : null}
+
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={addPackageItem}
+          disabled={saving || Boolean(uploadingKey) || (packageRow?.items.length || 0) >= MAX_PACKAGE_ITEMS}
+        >
+          <Ionicons name="add-circle-outline" size={19} color="#22312d" />
+          <Text style={styles.addButtonText}>{(packageRow?.items.length || 0) >= MAX_PACKAGE_ITEMS ? "Maximum 12 inclusions" : "Add Inclusion"}</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity style={styles.primaryButton} onPress={savePackage} disabled={saving || Boolean(uploadingKey)}>
           {saving ? <ActivityIndicator color="#fff" size="small" /> : <Ionicons name="save-outline" size={18} color="#fff" />}
@@ -215,6 +306,20 @@ const styles = StyleSheet.create({
   itemTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   itemTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   itemTitle: { color: "#22312d", fontSize: 15, fontWeight: "900" },
+  removeButton: { flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: 5, paddingHorizontal: 3 },
+  removeButtonText: { color: "#a43b3b", fontSize: 12, fontWeight: "800" },
+  fieldLabel: { color: "#4e5d57", fontSize: 12, fontWeight: "800" },
+  nameInput: {
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: "#d2d9d5",
+    borderRadius: 8,
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 12,
+    color: "#22312d",
+    fontSize: 14,
+    fontWeight: "700",
+  },
   preview: { width: "100%", height: 170, borderRadius: 8, backgroundColor: "#eef2f0" },
   placeholder: {
     height: 170,
@@ -236,6 +341,22 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   imageButtonText: { color: "#22312d", fontSize: 13, fontWeight: "900" },
+  emptyState: { alignItems: "center", gap: 6, paddingVertical: 18, paddingHorizontal: 16 },
+  emptyTitle: { color: "#22312d", fontSize: 15, fontWeight: "900" },
+  emptyText: { color: "#69766f", fontSize: 13, lineHeight: 19, textAlign: "center" },
+  addButton: {
+    minHeight: 46,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: "#c9d2ce",
+    borderStyle: "dashed",
+    backgroundColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 7,
+  },
+  addButtonText: { color: "#22312d", fontSize: 13, fontWeight: "900" },
   primaryButton: {
     minHeight: 50,
     borderRadius: 10,

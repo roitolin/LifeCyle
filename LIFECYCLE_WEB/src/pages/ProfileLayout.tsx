@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import type { User } from '@supabase/supabase-js'
 import BrandLogo from '@/components/BrandLogo'
+import LogoutLink from '@/components/LogoutLink'
 import { supabase } from '@/lib/supabase'
 import './UserProfilePage.css'
 
@@ -69,7 +70,7 @@ export default function ProfileLayout({ children, title, subtitle }: { children:
                 <Link to="/user/requests">Service requests</Link>
                 <Link to="/user/notifications">Notifications</Link>
                 <Link to="/auth/switch-account" className="sp-dropdown-switch">Switch account</Link>
-                <Link to="/auth/logout">Log out</Link>
+                <LogoutLink>Log out</LogoutLink>
               </div>
             </div>
           </div>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import PageBackButton from '@/components/PageBackButton'
 import AdminServiceRequestDetail from './AdminServiceRequestDetail'
 import type { ServiceRequest } from './AdminOrdersPage'
 
@@ -75,7 +76,7 @@ function AdminServiceRequestDetailPage() {
         <h2>Request unavailable</h2>
         <p className="panel-sub">{error || 'This service request could not be found.'}</p>
         <div className="quick-actions">
-          <button type="button" className="ghost-btn" onClick={() => navigate('/admin/orders')}>Back to All Service Requests</button>
+          <PageBackButton to="/admin/orders" label="Back to all service requests" />
           <button type="button" className="solid-btn" onClick={() => void load()}>Try again</button>
         </div>
       </section>

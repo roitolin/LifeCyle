@@ -1667,6 +1667,39 @@
   .sr-lightbox { padding: 52px 16px 24px; }
 }
 
+@media (max-width: 420px) {
+  .sr-card,
+  .sr-record-overview,
+  .sr-record-person,
+  .sr-product,
+  .sr-product-copy,
+  .sr-detail-row,
+  .sr-receipt-service {
+    min-width: 0;
+  }
+
+  .sr-record-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .sr-deceased-photo {
+    width: min(100%, 220px);
+    height: auto;
+    aspect-ratio: 4 / 5;
+  }
+
+  .sr-product-image,
+  .sr-product-placeholder {
+    width: 72px;
+    height: 72px;
+    flex-basis: 72px;
+  }
+
+  .sr-receipt-proof > button {
+    height: min(300px, 45dvh);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sr-button,
   .sr-spinner {

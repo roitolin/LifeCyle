@@ -25,6 +25,7 @@ const MAX_VARIATION_COUNT = 4;
 
 type ProductVariation = {
   name: string;
+  price?: string | null;
   imageUrl?: string | null;
 };
 
@@ -44,11 +45,18 @@ type ShopProduct = {
 };
 
 type ShopPackage = {
+  items?: { id?: string; name?: string; imageUrl?: string | null }[] | null;
   flowersImageUrl?: string | null;
   candlesImageUrl?: string | null;
   curtainsImageUrl?: string | null;
   vehicleImageUrl?: string | null;
   active: boolean;
+};
+
+type PackageDisplayItem = {
+  id: string;
+  name: string;
+  imageUrl?: string | null;
 };
 
 function normalizeProductImages(item?: ShopProduct | null) {
@@ -65,6 +73,7 @@ function normalizeVariations(item?: ShopProduct | null) {
   if (!item?.hasVariations || !Array.isArray(item.variations)) return [];
   return item.variations.map((entry) => ({
     name: String(entry?.name || ""),
+    price: entry?.price == null ? "" : String(entry.price),
     imageUrl: entry?.imageUrl || null,
   }));
 }
@@ -96,12 +105,25 @@ async function notifyShopFollowersOnNewProduct(
   }
 }
 
-const SHOP_PACKAGE_ITEMS: { label: string; field: keyof ShopPackage; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { label: "Flowers", field: "flowersImageUrl", icon: "flower-outline" },
-  { label: "Candles", field: "candlesImageUrl", icon: "flame-outline" },
-  { label: "Curtains", field: "curtainsImageUrl", icon: "albums-outline" },
-  { label: "Vehicle", field: "vehicleImageUrl", icon: "car-outline" },
-];
+function getPackageItems(row?: ShopPackage | null): PackageDisplayItem[] {
+  if (!row || row.active === false) return [];
+  if (Array.isArray(row.items) && row.items.length > 0) {
+    return row.items
+      .map((item, index) => ({
+        id: String(item?.id || `package-${index}`),
+        name: String(item?.name || "").trim(),
+        imageUrl: item?.imageUrl || null,
+      }))
+      .filter((item) => Boolean(item.name && item.imageUrl));
+  }
+
+  return [
+    { id: "legacy-flowers", name: "Flowers", imageUrl: row.flowersImageUrl },
+    { id: "legacy-candles", name: "Candles", imageUrl: row.candlesImageUrl },
+    { id: "legacy-curtains", name: "Curtains", imageUrl: row.curtainsImageUrl },
+    { id: "legacy-vehicle", name: "Vehicle", imageUrl: row.vehicleImageUrl },
+  ].filter((item) => Boolean(item.imageUrl));
+}
 
 export default function FuneralProductEditorScreen({ navigation, route }: any) {
   const productId = typeof route?.params?.productId === "string" ? route.params.productId : null;
@@ -119,6 +141,7 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
   const [shopPackage, setShopPackage] = useState<ShopPackage | null>(null);
   const [productDescription, setProductDescription] = useState("");
   const [productImages, setProductImages] = useState<(string | null)[]>((Array<string | null>(PHOTO_SLOT_COUNT).fill(null)));
+  const packageItems = getPackageItems(shopPackage);
 
   useEffect(() => {
     const load = async () => {
@@ -135,13 +158,13 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
             .from("funeral_products")
             .select(`
               *,
-              funeral_product_variations ( id, name, imageUrl ),
+              funeral_product_variations ( id, name, price, imageUrl ),
               funeral_product_images ( id, imageUrl, displayOrder )
             `)
             .eq("shopId", user.uid),
           supabase
             .from("funeral_shop_packages")
-            .select("flowersImageUrl, candlesImageUrl, curtainsImageUrl, vehicleImageUrl, active")
+            .select("items, flowersImageUrl, candlesImageUrl, curtainsImageUrl, vehicleImageUrl, active")
             .eq("shopId", user.uid)
             .eq("active", true)
             .maybeSingle(),
@@ -165,6 +188,7 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
           hasVariations: row.hasVariations,
           variations: (row.funeral_product_variations || []).map((v: any) => ({
             name: v.name,
+            price: v.price == null ? "" : String(v.price),
             imageUrl: v.imageUrl,
           })),
           active: row.active,
@@ -228,7 +252,7 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
   const updateVariationCount = (count: number) => {
     setVariationCount(count);
     setVariationEntries((current) => {
-      const next = Array.from({ length: count }, (_, index) => current[index] || { name: "", imageUrl: null });
+      const next = Array.from({ length: count }, (_, index) => current[index] || { name: "", price: "", imageUrl: null });
       return next;
     });
   };
@@ -280,9 +304,12 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
 
     const normalizedVariations = hasVariations ? variationEntries.slice(0, variationCount) : [];
     if (hasVariations) {
-      const hasInvalidVariation = normalizedVariations.some((entry) => !entry.name.trim() || !entry.imageUrl);
+      const hasInvalidVariation = normalizedVariations.some((entry) => {
+        const variationPrice = Number(String(entry.price || "").replace(/[^\d.]/g, ""));
+        return !entry.name.trim() || !entry.imageUrl || !Number.isFinite(variationPrice) || variationPrice <= 0;
+      });
       if (hasInvalidVariation) {
-        Alert.alert("Variation incomplete", "Each casket variation needs a variation name and one photo.");
+        Alert.alert("Variation incomplete", "Each casket variation needs a name, price, and one photo.");
         return;
       }
     }
@@ -324,6 +351,7 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
         const variationRows = normalizedVariations.map((entry) => ({
           productId: finalProductId,
           name: entry.name.trim(),
+          price: Number(String(entry.price || "").replace(/[^\d.]/g, "")),
           imageUrl: entry.imageUrl || null,
         }));
         await supabase.from("funeral_product_variations").insert(variationRows);
@@ -467,7 +495,7 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
           {hasVariations ? (
             <View style={styles.variationSection}>
               <Text style={styles.variationHeading}>Casket Variations</Text>
-              <Text style={styles.variationSubheading}>Choose how many variations this casket has. Each variation needs only a name and one photo.</Text>
+              <Text style={styles.variationSubheading}>Choose how many variations this casket has. Each variation needs its own name, full price, and photo.</Text>
 
               <View style={styles.variationCountRow}>
                 {Array.from({ length: MAX_VARIATION_COUNT }, (_, index) => index + 1).map((count) => (
@@ -495,6 +523,15 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
                       placeholder="Example: Mahogany Gloss"
                     />
 
+                    <Text style={styles.inputLabel}>Variation Price</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={String(variation.price || "")}
+                      onChangeText={(value) => updateVariationField(index, "price", normalizePesoInput(value))}
+                      placeholder="₱0"
+                      keyboardType="number-pad"
+                    />
+
                     {variation.imageUrl ? (
                       <Image source={{ uri: variation.imageUrl }} style={styles.variationImage} resizeMode="cover" />
                     ) : (
@@ -515,28 +552,29 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
           <View style={styles.packageSection}>
             <Text style={styles.variationHeading}>Packages</Text>
             <Text style={styles.variationSubheading}>Your saved shop package will appear automatically on this product.</Text>
-            {!shopPackage ? (
+            {packageItems.length === 0 ? (
               <View style={styles.packageEmptyBox}>
                 <Ionicons name="gift-outline" size={22} color="#87928d" />
-                <Text style={styles.packageEmptyText}>Add package pictures from Shop Center so buyers can see Flowers, Candles, Curtains, and Vehicle.</Text>
+                <Text style={styles.packageEmptyText}>Add your own package inclusions and photos from Shop Center so buyers can see what you provide.</Text>
               </View>
             ) : (
               <View style={styles.packageList}>
-                {SHOP_PACKAGE_ITEMS.map((item) => {
-                  const imageUrl = shopPackage[item.field] as string | null | undefined;
-                  return (
-                    <View key={item.label} style={styles.packageOption}>
-                      <View style={styles.packageOptionIcon}>
-                        <Ionicons name={item.icon} size={18} color="#22312d" />
-                      </View>
+                {packageItems.map((item) => (
+                    <View key={item.id} style={styles.packageOption}>
+                      {item.imageUrl ? (
+                        <Image source={{ uri: item.imageUrl }} style={styles.packageOptionImage} resizeMode="cover" />
+                      ) : (
+                        <View style={styles.packageOptionIcon}>
+                          <Ionicons name="gift-outline" size={18} color="#22312d" />
+                        </View>
+                      )}
                       <View style={styles.packageOptionCopy}>
-                        <Text style={styles.packageOptionName}>{item.label}</Text>
-                        <Text style={styles.packageOptionDescription}>{imageUrl ? "Picture added" : "No picture yet"}</Text>
+                        <Text style={styles.packageOptionName}>{item.name}</Text>
+                        <Text style={styles.packageOptionDescription}>Included in your shop package</Text>
                       </View>
-                      <Ionicons name={imageUrl ? "checkmark-circle" : "ellipse-outline"} size={21} color={imageUrl ? "#22312d" : "#9aa39e"} />
+                      <Ionicons name="checkmark-circle" size={21} color="#22312d" />
                     </View>
-                  );
-                })}
+                ))}
               </View>
             )}
           </View>
@@ -875,6 +913,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#edf1ef",
     alignItems: "center",
     justifyContent: "center",
+  },
+  packageOptionImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: "#edf1ef",
   },
   packageOptionIconActive: {
     backgroundColor: "#22312d",

@@ -23,6 +23,7 @@ import * as Sharing from "expo-sharing";
 import { KeyboardAwareScrollView } from "@/components";
 import ServiceRequestScheduleFields from "@/components/ServiceRequestScheduleFields";
 import ServiceXenditSheet from "@/components/ServiceXenditSheet";
+import { syncServiceXenditCheckout } from "@/services/serviceXendit";
 import { supabase } from "@/services/supabaseClient";
 import { auth, uploadCertificate } from "@/services";
 import { hapticMedium, hapticSuccess } from "@/utils/haptics";
@@ -70,7 +71,6 @@ type FuneralServiceRequest = {
   pickupAddress: string;
   contactNumber: string;
   status: string;
-  paymentQrUrl?: string | null;
   paymentAmount?: number | string | null;
   paymentPayerName?: string | null;
   paymentGcashName?: string | null;
@@ -286,18 +286,18 @@ const getStatusMeta = (status: string) => {
   }
   if (normalized === "paid_waiting_for_split") {
     return {
-      label: "Payment Received",
+      label: "Payment Confirmed",
       background: "#fef3c7",
       text: "#86654a",
-      message: "Xendit received your payment. The order will continue after the 30% admin commission is confirmed.",
+      message: "Payment received. The shop payout is being processed and the shop is preparing your order.",
     };
   }
   if (normalized === "commission_failed") {
     return {
-      label: "Commission Needs Review",
+      label: "Payout Review",
       background: "#fde8e8",
       text: "#991b1b",
-      message: "Your payment was received, but Xendit could not confirm the commission split. Support must review it before the order continues.",
+      message: "Your payment was received, but shop payout needs administrator review. Support is resolving it.",
     };
   }
   if (normalized === "payment_verified") {
@@ -487,6 +487,22 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
       setSelectedRequest((current) => nextRequests.find((item: any) => item.id === current?.id) || null);
       setReconnecting(false);
       setLoading(false);
+
+      // Auto-sync any awaiting Xendit payments seamlessly in the background
+      const awaitingXendit = (rows || []).filter(
+        (r: any) =>
+          String(r.status || "").toLowerCase() === "awaiting_payment" &&
+          (r.paymentProvider === "xendit" || Boolean(r.providerCheckoutId))
+      );
+      if (awaitingXendit.length > 0) {
+        Promise.allSettled(awaitingXendit.map((r: any) => syncServiceXenditCheckout(r.id))).then((results) => {
+          const anyPaid = results.some((res) => res.status === "fulfilled" && res.value?.paid === true);
+          if (anyPaid) {
+            void loadRequests();
+          }
+        });
+      }
+
       return true;
     } catch {
       setReconnecting(true);
@@ -981,7 +997,20 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                 key={item.id}
                 style={[styles.requestCard, paymentRequired ? styles.requestCardPayment : null]}
                 activeOpacity={0.92}
-                onPress={() => navigation.navigate("ServiceRequestDetails", { request: item, requesterView: true })}
+                onPress={async () => {
+                  if (
+                    String(item.status || "").toLowerCase() === "awaiting_payment" &&
+                    (item.paymentProvider === "xendit" || Boolean((item as any).providerCheckoutId))
+                  ) {
+                    try {
+                      const res = await syncServiceXenditCheckout(item.id);
+                      if (res.paid) {
+                        await loadRequests();
+                      }
+                    } catch {}
+                  }
+                  navigation.navigate("ServiceRequestDetails", { request: item, requesterView: true });
+                }}
               >
                 {item.productImageUrl ? (
                   <Image source={{ uri: item.productImageUrl }} style={styles.requestImage} resizeMode="cover" />
@@ -1007,9 +1036,21 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                   {canShowPaymentSection(item) ? (
                     <TouchableOpacity
                       style={styles.cardPaymentButton}
-                      onPress={() => {
+                      onPress={async () => {
                         setPaymentInfoExpanded(false);
                         setSubmittedProofExpanded(false);
+                        if (
+                          String(item.status || "").toLowerCase() === "awaiting_payment" &&
+                          (item.paymentProvider === "xendit" || Boolean((item as any).providerCheckoutId))
+                        ) {
+                          try {
+                            const res = await syncServiceXenditCheckout(item.id);
+                            if (res.paid) {
+                              await loadRequests();
+                              return;
+                            }
+                          } catch {}
+                        }
                         setPaymentRequest(item);
                       }}
                     >
@@ -1386,7 +1427,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                         onPress={() => setXenditRequest(selectedRequest)}
                       >
                         <Ionicons name="flash" size={19} color="#ffffff" />
-                        <Text style={styles.submitPaymentButtonText}>1-Click Pay with Xendit</Text>
+                        <Text style={styles.submitPaymentButtonText}>Pay Online (GCash, Cards & Maya)</Text>
                       </TouchableOpacity>
                     ) : null}
 
@@ -1745,14 +1786,6 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                       </View>
                     ) : null}
                   </View>
-                ) : paymentRequest.paymentQrUrl ? (
-                  <>
-                    <Text style={styles.paymentDetailsMediaTitle}>Shop Payment QR</Text>
-                    <TouchableOpacity activeOpacity={0.9} onPress={() => setPaymentViewerUrl(paymentRequest.paymentQrUrl || null)}>
-                      <Image source={{ uri: paymentRequest.paymentQrUrl }} style={styles.paymentDetailsQrImage} resizeMode="contain" />
-                    </TouchableOpacity>
-                    <Text style={styles.paymentDetailsMediaHint}>Tap the QR code to enlarge it.</Text>
-                  </>
                 ) : null}
 
                 <View style={styles.paymentSuccessDivider} />
@@ -1768,7 +1801,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                     onPress={() => setXenditRequest(paymentRequest)}
                   >
                     <Ionicons name="flash" size={18} color="#ffffff" />
-                    <Text style={styles.receiptActionButtonPrimaryText}>1-Click Pay with Xendit</Text>
+                    <Text style={styles.receiptActionButtonPrimaryText}>Pay Online (GCash, Cards & Maya)</Text>
                   </TouchableOpacity>
                 ) : null}
 
@@ -1924,9 +1957,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
               />
             ) : null}
             <Text style={styles.qrZoomCaption}>
-              {paymentViewerUrl === selectedRequest?.paymentQrUrl
-                ? "Scan this QR code to send the payment."
-                : paymentViewerUrl === selectedRequest?.paymentProofImageUrl
+              {paymentViewerUrl === selectedRequest?.paymentProofImageUrl
                 ? "Your submitted proof of payment."
                 : paymentViewerUrl === selectedRequest?.productImageUrl
                 ? "Product reference image."
@@ -2515,20 +2546,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "900",
   },
-  paymentQrImage: {
-    width: "100%",
-    height: 210,
-    borderRadius: 16,
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#e6e3da",
-  },
-  paymentQrHint: {
-    color: "#8a948f",
-    fontSize: 12,
-    textAlign: "center",
-    marginTop: 6,
-  },
   photoEnlargeHint: {
     color: "#8a948f",
     fontSize: 12,
@@ -2846,14 +2863,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e5e7e6",
     backgroundColor: "#f1f3f2",
-  },
-  paymentDetailsQrImage: {
-    width: "100%",
-    height: 230,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#e5e7e6",
-    backgroundColor: "#ffffff",
   },
   paymentDetailsMediaHint: {
     color: "#7d8580",

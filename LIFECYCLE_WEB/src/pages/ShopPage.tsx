@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { User } from '@supabase/supabase-js'
 import BrandLogo from '@/components/BrandLogo'
+import NotificationDropdown from '@/components/NotificationDropdown'
+import AnnouncementDropdown from '@/components/AnnouncementDropdown'
+import LogoutLink from '@/components/LogoutLink'
+import PageBackButton from '@/components/PageBackButton'
 import { supabase } from '@/lib/supabase'
 import { loadFuneralCart } from '@/utils/funeralCart'
 import './ShopPage.css'
@@ -157,9 +161,10 @@ export default function ShopPage() {
     <div className="sp-bg shop-detail-page">
       <div className="sp-topbar">
         <div className="sp-topbar-inner">
-          <div className="sp-topbar-left"><Link to="/seller">Seller Centre</Link></div>
+          <div className="sp-topbar-left"><Link to="/seller">Shop Center</Link></div>
           <div className="sp-topbar-right">
-            <Link to="/user/notifications">Notifications</Link>
+            <AnnouncementDropdown />
+            <NotificationDropdown />
             <Link to="/user/help">Help Centre</Link>
             <span className="sp-divider">|</span>
             {isLoggedIn ? (
@@ -173,7 +178,7 @@ export default function ShopPage() {
                   <Link to="/user/profile">My account</Link>
                   <Link to="/user/requests">Service requests</Link>
                   <Link to="/auth/switch-account" className="sp-dropdown-switch">Switch account</Link>
-                  <Link to="/auth/logout">Log out</Link>
+                  <LogoutLink>Log out</LogoutLink>
                 </div>
               </div>
             ) : <><Link to="/register" className="sp-signup">Sign up</Link><Link to="/login">Log in</Link></>}
@@ -191,7 +196,7 @@ export default function ShopPage() {
             </div>
           </div>
           <div className="sp-cart-area">
-            <Link to={isLoggedIn ? '/user/cart' : '/login?next=/user/cart'} className="sp-cart-btn" aria-label="Cart">
+            <Link to={isLoggedIn ? '/user/cart' : '/login?next=/user/cart'} className="sp-cart-btn" aria-label="Shopping cart" title="Shopping cart">
               <HeaderCartIcon />
               {isLoggedIn && cartCount > 0 && <span className="sp-cart-count">{cartCount}</span>}
             </Link>
@@ -200,29 +205,39 @@ export default function ShopPage() {
       </header>
 
       <main className="sp-container shop-detail-main">
-        <button type="button" className="shop-detail-back" onClick={() => navigate(-1)}>← Back</button>
+        <div className="page-back-row"><PageBackButton /></div>
 
-        <section
-          className={`shop-detail-summary${coverImageUrl ? ' shop-detail-summary-cover' : ''}`}
-          style={coverImageUrl ? { backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.66), rgba(15, 23, 42, 0.74)), url("${coverImageUrl}")` } : undefined}
-        >
-          {shop.shopImageUrl ? <img src={shop.shopImageUrl} alt="" className="shop-detail-avatar" /> : <div className="shop-detail-avatar shop-detail-avatar-fallback" aria-hidden="true">{shop.shopName.charAt(0).toUpperCase()}</div>}
-          <div className="shop-detail-identity">
-            <h1>{shop.shopName}</h1>
-            <p>{shop.generalLocation || shop.shopAddress || 'Location not provided'}</p>
-            <div className="shop-detail-facts">
-              <span>{products.length} {products.length === 1 ? 'product' : 'products'}</span>
-              <span>{followerCount} {followerCount === 1 ? 'follower' : 'followers'}</span>
-              {joinedDate && <span>Joined {joinedDate}</span>}
+        <section className="shop-detail-overview" id="shop-overview" aria-label={`${shop.shopName} shop information`}>
+          <div
+            className={`shop-detail-summary${coverImageUrl ? ' shop-detail-summary-cover' : ''}`}
+            style={coverImageUrl ? { backgroundImage: `linear-gradient(110deg, rgba(25, 48, 41, 0.94), rgba(34, 49, 45, 0.72)), url("${coverImageUrl}")` } : undefined}
+          >
+            <div className="shop-detail-profile">
+              {shop.shopImageUrl ? <img src={shop.shopImageUrl} alt="" className="shop-detail-avatar" /> : <div className="shop-detail-avatar shop-detail-avatar-fallback" aria-hidden="true">{shop.shopName.charAt(0).toUpperCase()}</div>}
+              <div className="shop-detail-identity">
+                <h1>{shop.shopName}</h1>
+                <p className="shop-detail-status"><span aria-hidden="true">•</span> Online</p>
+                <p className="shop-detail-location">{shop.generalLocation || shop.shopAddress || 'Location not provided'}</p>
+              </div>
+            </div>
+            <div className="shop-detail-actions">
+              <button type="button" className="shop-secondary-button" onClick={handleFollow} disabled={followLoading}>{isFollowing ? 'Following' : 'Follow shop'}</button>
+              <button type="button" className="shop-primary-button" onClick={handleOpenChat}>Chat with shop</button>
             </div>
           </div>
-          <div className="shop-detail-actions">
-            <button type="button" className="shop-secondary-button" onClick={handleFollow} disabled={followLoading}>{isFollowing ? 'Following' : 'Follow shop'}</button>
-            <button type="button" className="shop-primary-button" onClick={handleOpenChat}>Chat with shop</button>
-          </div>
+          <dl className="shop-detail-facts">
+            <div><dt>Products</dt><dd>{products.length}</dd></div>
+            <div><dt>Followers</dt><dd>{followerCount}</dd></div>
+            {joinedDate && <div><dt>Joined</dt><dd>{joinedDate}</dd></div>}
+          </dl>
         </section>
 
-        <section className="shop-detail-products">
+        <nav className="shop-detail-tabs" aria-label="Shop navigation">
+          <a href="#shop-overview">Shop</a>
+          <a href="#shop-products">All products</a>
+        </nav>
+
+        <section className="shop-detail-products" id="shop-products">
           <div className="shop-detail-products-header">
             <div><h2>Products</h2><p>{visibleProducts.length} shown</p></div>
             <label className="shop-sort-control">Sort

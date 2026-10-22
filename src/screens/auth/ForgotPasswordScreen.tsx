@@ -22,7 +22,7 @@ export default function ForgotPasswordScreen({ navigation, route }: any) {
   const { isDesktop } = useResponsive();
   const scrollRef = useRef<any>(null);
   const emailRef = useRef<TextInput>(null);
-  const entrance = useRef(new Animated.Value(0)).current;
+  const [entrance] = useState(() => new Animated.Value(0));
   const { showDialog, dialog } = useAppDialog();
 
   useEffect(() => {
@@ -70,7 +70,7 @@ export default function ForgotPasswordScreen({ navigation, route }: any) {
     setLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: getSupabaseEmailRedirectTo(),
+        redirectTo: getSupabaseEmailRedirectTo('recovery'),
       });
       if (error) throw error;
       showDialog({

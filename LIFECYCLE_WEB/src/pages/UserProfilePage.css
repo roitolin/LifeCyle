@@ -27,6 +27,17 @@
 
 .profile-browse-link:hover { color: #ffffff; }
 
+/* Match the homepage header color. */
+.profile-page > .sp-topbar,
+.profile-page > .sp-header {
+  background: #22312d;
+}
+
+.profile-page > .sp-header .lc-brand {
+  --lc-brand-ink: #ffffff;
+  --lc-brand-soft: #c7d1dc;
+}
+
 .profile-sidebar {
   display: flex;
   flex-direction: column;
@@ -1243,6 +1254,150 @@
   }
   .settings-activity-row time {
     grid-column: 2;
+  }
+}
+
+/* Responsive account shell shared by profile, favorites, preferences, and support pages. */
+.profile-body-grid,
+.profile-sidebar,
+.profile-main,
+.profile-content,
+.profile-content > * {
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .profile-nav {
+    margin-right: -16px;
+    margin-left: -16px;
+    padding-right: 16px;
+    padding-left: 16px;
+    overscroll-behavior-inline: contain;
+    scroll-snap-type: inline proximity;
+    scrollbar-width: none;
+  }
+
+  .profile-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .profile-nav a {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+  }
+}
+
+@media (max-width: 560px) {
+  .profile-main {
+    padding: 18px 14px;
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+  }
+
+  .profile-header h1 {
+    overflow-wrap: anywhere;
+    font-size: 21px;
+  }
+
+  .profile-header p,
+  .help-faq-answer {
+    overflow-wrap: anywhere;
+  }
+
+  .profile-settings-footer {
+    width: 100%;
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  .profile-settings-footer .btn-save {
+    width: 100%;
+  }
+
+  .settings-inline-action > button,
+  .settings-inline-action > a {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .settings-page-content,
+  .settings-panel,
+  .contact-content,
+  .contact-form,
+  .about-content,
+  .feedback-content,
+  .help-content {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .settings-toggle-row {
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .settings-row-icon {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+  }
+
+  .settings-control-list button {
+    align-items: flex-start;
+    padding: 14px;
+  }
+
+  .settings-legal-links,
+  .fb-post-actions {
+    flex-wrap: wrap;
+  }
+
+  .contact-form > .btn-save,
+  .contact-success-action {
+    width: 100%;
+  }
+
+  .fb-summary {
+    display: grid;
+    gap: 7px;
+  }
+
+  .fb-section-header,
+  .fb-rating-head,
+  .fb-post-header,
+  .fb-reply-head {
+    display: grid;
+    justify-items: start;
+    gap: 4px;
+  }
+
+  .fb-modal-overlay {
+    align-items: end;
+    padding: 0;
+  }
+
+  .fb-modal {
+    max-height: 90dvh;
+    overflow-y: auto;
+    padding: 22px 16px 18px;
+    border-radius: 16px 16px 0 0;
+  }
+
+  .fb-modal-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .fb-modal-actions button {
+    width: 100%;
+  }
+
+  .fb-snackbar {
+    width: calc(100% - 28px);
+    padding: 10px 14px;
+    text-align: center;
   }
 }
 

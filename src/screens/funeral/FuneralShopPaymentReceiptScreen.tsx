@@ -1,6 +1,6 @@
-import { useState, type ComponentProps } from "react";
-import { Image, Modal, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { type ComponentProps } from "react";
+import { Image, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { formatPhilippinePeso } from "@/utils/funeralCatalog";
 
@@ -39,14 +39,14 @@ function getReceiptStatus(status?: string) {
   if (normalized === "payment_submitted") {
     return {
       title: "Payment Under Review",
-      message: "The family submitted a receipt. Check its information and proof before verifying it.",
+      message: "The family submitted payment details. Review the information before verifying it.",
       icon: "receipt-outline" as IoniconName,
       badge: "#f0b253",
     };
   }
   return {
     title: "Family Payment",
-    message: "Review the available payment and receipt information for this service request.",
+    message: "Review the available payment information for this service request.",
     icon: "wallet-outline" as IoniconName,
     badge: "#f0b253",
   };
@@ -77,7 +77,6 @@ function DetailLine({ label, value }: { label: string; value: string }) {
 export default function FuneralShopPaymentReceiptScreen({ navigation, route }: any) {
   const insets = useSafeAreaInsets();
   const request = route.params?.request as PaymentRequest;
-  const [viewerVisible, setViewerVisible] = useState(false);
   const statusMeta = getReceiptStatus(request?.status);
   const amount = Number(request?.paymentAmount) > 0
     ? formatPhilippinePeso(String(request.paymentAmount))
@@ -154,20 +153,6 @@ export default function FuneralShopPaymentReceiptScreen({ navigation, route }: a
             <DetailLine label="Amount" value={amount} />
           </View>
 
-          <Text style={styles.receiptImageTitle}>Submitted Receipt</Text>
-          {request.paymentProofImageUrl ? (
-            <TouchableOpacity activeOpacity={0.9} onPress={() => setViewerVisible(true)}>
-              <Image source={{ uri: request.paymentProofImageUrl }} style={styles.receiptImage} resizeMode="contain" />
-              <Text style={styles.imageHint}>Tap the receipt to enlarge it.</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.missingReceipt}>
-              <Ionicons name="image-outline" size={22} color="#9b403b" />
-              <Text style={styles.missingReceiptTitle}>Receipt unavailable</Text>
-              <Text style={styles.missingReceiptText}>No payment proof is attached to this request.</Text>
-            </View>
-          )}
-
           <TouchableOpacity
             style={styles.openRequestButton}
             activeOpacity={0.88}
@@ -182,17 +167,6 @@ export default function FuneralShopPaymentReceiptScreen({ navigation, route }: a
           </TouchableOpacity>
         </View>
       </ScrollView>
-
-      <Modal visible={viewerVisible} transparent animationType="fade" onRequestClose={() => setViewerVisible(false)}>
-        <SafeAreaView style={styles.viewer}>
-          <TouchableOpacity style={styles.viewerClose} onPress={() => setViewerVisible(false)}>
-            <Ionicons name="close" size={25} color="#ffffff" />
-          </TouchableOpacity>
-          {request.paymentProofImageUrl ? (
-            <Image source={{ uri: request.paymentProofImageUrl }} style={styles.viewerImage} resizeMode="contain" />
-          ) : null}
-        </SafeAreaView>
-      </Modal>
     </View>
   );
 }
@@ -222,15 +196,6 @@ const styles = StyleSheet.create({
   sectionHeadingRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   sectionHeadingIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: "#f1f3f2", alignItems: "center", justifyContent: "center" },
   receiptInfoCard: { borderRadius: 15, backgroundColor: "#f7f8f7", gap: 15, padding: 14, marginTop: 12 },
-  receiptImageTitle: { color: "#191c1b", fontSize: 16, fontWeight: "900", marginTop: 26, marginBottom: 12 },
-  receiptImage: { width: "100%", height: 330, borderRadius: 15, borderWidth: 1, borderColor: "#e0e4e2", backgroundColor: "#f7f8f7" },
-  imageHint: { color: "#7d8580", fontSize: 11, textAlign: "center", marginTop: 8 },
-  missingReceipt: { minHeight: 150, borderRadius: 16, borderWidth: 1, borderColor: "#efceca", backgroundColor: "#fff7f6", alignItems: "center", justifyContent: "center", padding: 18 },
-  missingReceiptTitle: { color: "#91463f", fontSize: 14, fontWeight: "900", marginTop: 8 },
-  missingReceiptText: { color: "#9b5d57", fontSize: 12, textAlign: "center", marginTop: 4 },
   openRequestButton: { minHeight: 52, borderRadius: 15, backgroundColor: "#22312d", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 26 },
   openRequestButtonText: { color: "#ffffff", fontSize: 14, fontWeight: "900" },
-  viewer: { flex: 1, backgroundColor: "rgba(8, 10, 9, 0.97)", alignItems: "center", justifyContent: "center" },
-  viewerClose: { position: "absolute", top: 16, right: 16, zIndex: 2, width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.14)", alignItems: "center", justifyContent: "center" },
-  viewerImage: { width: "94%", height: "86%" },
 });

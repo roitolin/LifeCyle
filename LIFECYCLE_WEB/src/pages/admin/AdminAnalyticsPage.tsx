@@ -37,13 +37,6 @@ type PaymentRow = {
   verifiedAt: string | null
 }
 
-type RefundRow = {
-  id: string
-  service_request_id: string | null
-  status: string | null
-  requested_at: string | null
-}
-
 type TrendPoint = {
   label: string
   users: number
@@ -57,7 +50,6 @@ type AnalyticsData = {
   shops: ShopRow[]
   services: ServiceRow[]
   payments: PaymentRow[]
-  refunds: RefundRow[]
 }
 
 const RANGE_DAYS: Record<DateRange, number> = { '7d': 7, '30d': 30, '90d': 90 }
@@ -82,7 +74,7 @@ const SHOP_STATUS_COLORS: Record<string, string> = {
   rejected: '#dc2626',
 }
 
-const EMPTY_DATA: AnalyticsData = { users: [], shops: [], services: [], payments: [], refunds: [] }
+const EMPTY_DATA: AnalyticsData = { users: [], shops: [], services: [], payments: [] }
 
 function normalize(value: string | null | undefined) {
   return String(value || '').trim().toLowerCase()
@@ -246,15 +238,14 @@ export default function AdminAnalyticsPage() {
     setError('')
     try {
       const cutoff = new Date(Date.now() - 181 * DAY_MS).toISOString()
-      const [usersResult, shopsResult, servicesResult, paymentsResult, refundsResult] = await Promise.all([
+      const [usersResult, shopsResult, servicesResult, paymentsResult] = await Promise.all([
         supabase.from('users').select('id, role, createdAt').gte('createdAt', cutoff).order('createdAt', { ascending: false }).limit(5000),
         supabase.from('funeral_shops').select('id, shopName, status, createdAt').order('createdAt', { ascending: false }).limit(5000),
         supabase.from('funeral_service_requests').select('id, shopId, shopName, status, paymentAmount, createdAt, completedAt, paymentVerifiedAt').gte('createdAt', cutoff).order('createdAt', { ascending: false }).limit(5000),
         supabase.from('shop_payments').select('id, amount, status, createdAt, verifiedAt').gte('createdAt', cutoff).order('createdAt', { ascending: false }).limit(5000),
-        supabase.from('service_refund_requests').select('id, service_request_id, status, requested_at').gte('requested_at', cutoff).order('requested_at', { ascending: false }).limit(5000),
       ])
 
-      const firstError = usersResult.error || shopsResult.error || servicesResult.error || paymentsResult.error || refundsResult.error
+      const firstError = usersResult.error || shopsResult.error || servicesResult.error || paymentsResult.error
       if (firstError) throw firstError
 
       setData({
@@ -262,7 +253,6 @@ export default function AdminAnalyticsPage() {
         shops: (shopsResult.data || []) as ShopRow[],
         services: (servicesResult.data || []) as ServiceRow[],
         payments: (paymentsResult.data || []) as PaymentRow[],
-        refunds: (refundsResult.data || []) as RefundRow[],
       })
       setLoadedAt(Date.now())
     } catch (loadError) {
@@ -340,10 +330,6 @@ export default function AdminAnalyticsPage() {
     const serviceValue = currentServices
       .filter((row) => PAID_STATUSES.has(normalize(row.status)))
       .reduce((sum, row) => sum + moneyOf(row.paymentAmount), 0)
-    const currentRefunds = data.refunds.filter((row) => inCurrent(row.requested_at))
-    const openRefunds = currentRefunds.filter((row) => ['pending', 'approved'].includes(normalize(row.status)))
-    const serviceById = new Map(data.services.map((row) => [row.id, row]))
-    const refundExposure = openRefunds.reduce((sum, row) => sum + moneyOf(serviceById.get(row.service_request_id || '')?.paymentAmount), 0)
 
     return {
       currentUsers,
@@ -363,9 +349,6 @@ export default function AdminAnalyticsPage() {
       shopStatuses,
       liveShops,
       serviceValue,
-      currentRefunds,
-      openRefunds,
-      refundExposure,
     }
   }, [data, loadedAt, range])
 
@@ -407,7 +390,7 @@ export default function AdminAnalyticsPage() {
       <header className="analytics-header">
         <div>
           <h2>Analytics</h2>
-          <p>Users, service requests, shop activity, payments, and refunds.</p>
+          <p>Users, service requests, shop activity, and payments.</p>
         </div>
         <div className="analytics-actions">
           <label className="analytics-range">
@@ -601,13 +584,11 @@ export default function AdminAnalyticsPage() {
 
         <article className="analytics-card">
           <div className="analytics-card-head">
-            <h3>Payments and refunds</h3>
+            <h3>Payments</h3>
           </div>
           <dl className="analytics-finance-list">
             <div><dt>Paid service value</dt><dd>{formatPeso(analytics.serviceValue)}</dd></div>
             <div><dt>Verified shop fees</dt><dd>{formatPeso(analytics.verifiedFees)}</dd></div>
-            <div><dt>Refund requests</dt><dd>{analytics.currentRefunds.length}</dd></div>
-            <div className={analytics.openRefunds.length ? 'attention' : ''}><dt>Open refund exposure</dt><dd>{formatPeso(analytics.refundExposure)}</dd></div>
           </dl>
         </article>
       </div>

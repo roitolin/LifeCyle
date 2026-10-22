@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { getSupabaseEmailRedirectTo } from '@/lib/supabaseAuthRedirect'
 import { normalizeEmail } from '@/utils/inputSecurity'
 import { APP_ICON_TRANSPARENT_URL } from '@/assets/appIconAssets'
+import PageBackButton from '@/components/PageBackButton'
 
 type Gender = 'male' | 'female' | 'other' | ''
 
@@ -123,9 +124,7 @@ function RegisterPage() {
         </section>
 
         <section className="auth-card" aria-label="Register form">
-          <button type="button" className="back-btn" onClick={goBack}>
-            {'< Back'}
-          </button>
+          <div className="page-back-row auth-page-back"><PageBackButton onClick={goBack} /></div>
 
           <div className="auth-card-head">
             <h1>Create Account</h1>

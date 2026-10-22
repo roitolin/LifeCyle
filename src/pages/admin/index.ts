@@ -9,6 +9,7 @@ export { default as AdminModerationScreen } from "@/screens/admin/AdminModeratio
 export { default as AdminMoreScreen } from "@/screens/admin/AdminMoreScreen";
 export { default as AdminOrdersScreen } from "@/screens/admin/AdminOrdersScreen";
 export { default as AdminPaymentsScreen } from "@/screens/admin/AdminPaymentsScreen";
+export { default as AdminPayoutAccountsScreen } from "@/screens/admin/AdminPayoutAccountsScreen";
 export { default as AdminProductsScreen } from "@/screens/admin/AdminProductsScreen";
 export { default as AdminSupportMessages } from "@/screens/admin/AdminSupportMessages";
 export { default as AdminUserDetailScreen } from "@/screens/admin/AdminUserDetailScreen";

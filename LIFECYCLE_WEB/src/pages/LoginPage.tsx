@@ -6,11 +6,13 @@ import { ensureOwnUserProfile } from '@/lib/userProfile'
 import { clearLoginAttempts, getLoginBlockState, recordFailedLoginAttempt } from '@/utils/authAttemptGuard'
 import { normalizeEmail } from '@/utils/inputSecurity'
 import { APP_ICON_TRANSPARENT_URL } from '@/assets/appIconAssets'
+import PageBackButton from '@/components/PageBackButton'
 import { recordWebAdminLoginActivity } from '@/utils/adminActivity'
 import {
   recordWebAccountLoginActivity,
   registerWebAccountSession,
 } from '@/utils/accountActivity'
+import { rememberWebAccount } from '@/utils/webDeviceAccounts'
 
 type BanDialog = {
   reason: string
@@ -64,7 +66,9 @@ function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const supportEmail = 'support@lifecycle.app'
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(() => (
+    new URLSearchParams(location.search).get('email') || ''
+  ))
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -82,6 +86,7 @@ function LoginPage() {
     const search = new URLSearchParams(location.search)
     if (search.get('registered') === '1') return 'Registration successful. Check your email to verify your account.'
     if (search.get('verifyExpired') === '1') return 'Verification session expired after 30 minutes. Please log in again.'
+    if (search.get('passwordReset') === '1') return 'Your password has been reset. You can now log in with your new password.'
     return ''
   }, [location.search])
   const redirectAfterLogin = useMemo(() => {
@@ -185,6 +190,7 @@ function LoginPage() {
 
       clearLoginAttempts(normalizedEmail)
       await registerWebAccountSession(authData.session)
+      if (authData.session) rememberWebAccount(authData.session, userData)
       await recordWebAccountLoginActivity('login_success')
       await recordWebAdminLoginActivity('login_success', userRole)
       navigate(targetAfterLogin)
@@ -226,9 +232,7 @@ function LoginPage() {
         </section>
 
         <section className="auth-card" aria-label="Login form">
-          <button type="button" className="back-btn" onClick={goBack}>
-            {'< Back'}
-          </button>
+          <div className="page-back-row auth-page-back"><PageBackButton onClick={goBack} /></div>
 
           <div className="auth-card-head">
             <h1>Welcome Back</h1>
@@ -289,6 +293,10 @@ function LoginPage() {
                   </svg>
                 )}
               </button>
+            </div>
+
+            <div className='auth-forgot-row'>
+              <Link to='/forgot-password'>Forgot password?</Link>
             </div>
 
             <button type="submit" className={`solid-btn auth-submit${loading ? ' auth-submit-loading' : ''}`} disabled={loading}>

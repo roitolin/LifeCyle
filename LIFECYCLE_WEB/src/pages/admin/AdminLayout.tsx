@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
-import { fetchNotificationsForUser } from '@/utils/supabaseNotifications'
 import { APP_ICON_TRANSPARENT_URL } from '@/assets/appIconAssets'
 import { logWebAdminActivity, recordWebAdminLoginActivity } from '@/utils/adminActivity'
+import { useConfirmDialog } from '@/hooks/useConfirmDialog'
+import NotificationDropdown, { type WebNotification } from '@/components/NotificationDropdown'
 import './AdminLayout.css'
 
 type ProfileData = {
@@ -15,29 +16,30 @@ type ProfileData = {
 
 type AdminRole = 'super_admin' | 'admin' | 'funeral_admin' | 'user'
 
-type AdminNotification = {
-  id: string
-  title?: string
-  message?: string
-  body?: string
-  type?: string
-  read?: boolean
-  createdAt?: { toDate?: () => Date } | string | null
-}
-
 function getDefaultAvatar(gender: string) {
   if (gender === 'female') return '/Female_Default_Profile.png'
   return '/Male_Default_Profile.png'
 }
 
-function getTimeLabel(value: { toDate?: () => Date } | string | null | undefined) {
-  if (!value) return ''
-  if (typeof value === 'object' && value !== null && 'toDate' in value) {
-    return value.toDate?.()?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) || ''
-  }
-  const parsed = new Date(String(value))
-  if (Number.isNaN(parsed.getTime())) return ''
-  return parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
+function resolveAdminNotificationRoute(item: WebNotification) {
+  const type = String(item.type || '').toLowerCase()
+  const data = item.data || {}
+  const requestId = data.requestId || data.serviceRequestId
+  const shopId = data.shopId
+  const userId = data.userId
+
+  if (requestId) return '/admin/orders/' + encodeURIComponent(String(requestId))
+  if (type.includes('order') || type.includes('request') || type.includes('booking') || type.includes('casket')) return '/admin/orders'
+  if (type.includes('payout')) return '/admin/payout-accounts'
+  if (type.includes('payment')) return '/admin/payments'
+  if (shopId) return '/admin/funeral-shops/' + encodeURIComponent(String(shopId)) + '/details'
+  if (type.includes('shop')) return '/admin/funeral-shops'
+  if (type.includes('account_deletion')) return '/admin/account-deletions'
+  if (type.includes('feedback') || type.includes('review')) return '/admin/feedback'
+  if (type.includes('support') || type.includes('message') || type.includes('chat')) return '/admin/support'
+  if (userId) return '/admin/users/' + encodeURIComponent(String(userId))
+  if (type.includes('user') || type.includes('account')) return '/admin/users'
+  return '/admin/dashboard'
 }
 
 
@@ -48,10 +50,9 @@ function AdminLayout() {
   const [userRole, setUserRole] = useState<AdminRole>('user')
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [notificationsOpen, setNotificationsOpen] = useState(false)
-  const [notifications, setNotifications] = useState<AdminNotification[]>([])
   const [profile, setProfile] = useState<ProfileData>({ fullName: 'Admin', photoURL: '', gender: '' })
   const lastTrackedClickRef = useRef({ signature: '', time: 0 })
+  const { openConfirm, confirmDialog } = useConfirmDialog()
 
   useEffect(() => {
     void supabase.auth.getSession().then(({ data }) => {
@@ -87,31 +88,6 @@ function AdminLayout() {
     void loadProfile()
   }, [user])
 
-  useEffect(() => {
-    if (!user) return
-    let active = true
-    const load = async () => {
-      const list = await fetchNotificationsForUser(user.id)
-      if (!active) return
-      setNotifications(list as AdminNotification[])
-    }
-
-    void load()
-    const channel = supabase
-      .channel(`admin-layout-notifications-${Date.now()}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => {
-        void load()
-      })
-      .subscribe()
-
-    return () => {
-      active = false
-      void supabase.removeChannel(channel)
-    }
-  }, [user])
-
-  const visibleNotifications = useMemo(() => (user ? notifications : []), [notifications, user])
-  const unreadCount = useMemo(() => visibleNotifications.filter((item) => !item.read).length, [visibleNotifications])
   const avatarSrc = profile.photoURL || getDefaultAvatar(profile.gender)
   const isRootAdmin = userRole === 'super_admin' || userRole === 'admin'
   const isFuneralAdmin = isRootAdmin || userRole === 'funeral_admin'
@@ -124,7 +100,7 @@ function AdminLayout() {
   const homePath = '/admin/dashboard'
   const homeLabel = 'Dashboard'
   const handleLogout = async () => {
-    await Promise.all([
+    await Promise.allSettled([
       recordWebAdminLoginActivity('logout', userRole),
       logWebAdminActivity({
         adminId: user?.id,
@@ -134,8 +110,22 @@ function AdminLayout() {
         summary: 'Signed out of the admin web console.',
       }),
     ])
-    await supabase.auth.signOut()
+    const { error } = await supabase.auth.signOut({ scope: 'local' })
+    if (error) throw error
     navigate('/')
+  }
+
+  const confirmLogout = () => {
+    setMenuOpen(false)
+    openConfirm({
+      title: 'Log Out',
+      message: 'Are you sure you want to log out?',
+      confirmLabel: 'Log Out',
+      cancelLabel: 'Cancel',
+      pendingLabel: 'Logging out...',
+      tone: 'session',
+      onConfirm: handleLogout,
+    })
   }
 
   useEffect(() => {
@@ -258,6 +248,17 @@ function AdminLayout() {
             </span>
             <span className="sidebar-label">Payments</span>
           </NavLink> : null}
+          {isFuneralAdmin ? <NavLink to="/admin/payout-accounts" className={({ isActive }) => `user-nav-link${isActive ? ' active' : ''}`}>
+            <span className="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none">
+                <rect x="2" y="5" width="20" height="14" rx="2" strokeWidth="1.8" />
+                <line x1="2" y1="10" x2="22" y2="10" strokeWidth="1.8" />
+                <path d="M6 15H9" strokeWidth="1.8" strokeLinecap="round" />
+                <path d="M14 15L16 17L20 13" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+            <span className="sidebar-label">Payout Accounts</span>
+          </NavLink> : null}
           {isRootAdmin ? <span className="admin-nav-section sidebar-label">Root Tools</span> : null}
           {isRootAdmin ? <NavLink to="/admin/home-content" className={({ isActive }) => isActive ? 'user-nav-link active' : 'user-nav-link'}>
             <span className="nav-icon" aria-hidden="true">
@@ -357,35 +358,12 @@ function AdminLayout() {
       <main className="user-main">
         <header className="user-header">
           <div className="user-header-right">
-            <div className="user-menu-wrap">
-              <button
-                type="button"
-                className="admin-notification-btn"
-                onClick={() => setNotificationsOpen((prev) => !prev)}
-                aria-haspopup="dialog"
-                aria-expanded={notificationsOpen}
-                aria-controls="admin-notification-menu"
-              >
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M12 3C9.2 3 7 5.2 7 8V10.7L5.4 13.4A1 1 0 0 0 6.3 15H17.7A1 1 0 0 0 18.6 13.4L17 10.7V8C17 5.2 14.8 3 12 3Z" strokeWidth="1.8" />
-                  <path d="M10 18C10.4 19.2 11.1 20 12 20C12.9 20 13.6 19.2 14 18" strokeWidth="1.8" strokeLinecap="round" />
-                </svg>
-                {unreadCount > 0 ? <span className="admin-notification-badge">{unreadCount > 9 ? '9+' : unreadCount}</span> : null}
-              </button>
-
-              {notificationsOpen ? (
-                <div id="admin-notification-menu" className="user-dropdown admin-notification-dropdown" role="dialog" aria-label="Admin notifications" aria-modal="false">
-                  {visibleNotifications.length === 0 ? <p className="panel-sub">No notifications yet.</p> : null}
-                  {visibleNotifications.slice(0, 12).map((item) => (
-                    <article key={item.id} className={`admin-notification-row${item.read ? '' : ' unread'}`}>
-                      <strong>{item.title || item.type || 'Notification'}</strong>
-                      <p>{item.message || item.body || ''}</p>
-                      <span>{getTimeLabel(item.createdAt)}</span>
-                    </article>
-                  ))}
-                </div>
-              ) : null}
-            </div>
+            <NotificationDropdown
+              variant="seller-centre"
+              className="admin-home-notifications"
+              routeResolver={resolveAdminNotificationRoute}
+              viewAllPath="/user/notifications"
+            />
 
             <div className="user-menu-wrap">
               <button
@@ -405,7 +383,7 @@ function AdminLayout() {
 
               {menuOpen ? (
                 <div id="admin-profile-menu" className="user-dropdown" role="dialog" aria-label="Admin profile menu" aria-modal="false">
-                  <button type="button" className="user-dropdown-item" data-no-activity="true" onClick={handleLogout}>Logout</button>
+                  <button type='button' className='user-dropdown-item' data-no-activity='true' onClick={confirmLogout}>Logout</button>
                 </div>
               ) : null}
             </div>
@@ -416,6 +394,7 @@ function AdminLayout() {
           <Outlet />
         </div>
       </main>
+      {confirmDialog}
     </div>
   )
 }

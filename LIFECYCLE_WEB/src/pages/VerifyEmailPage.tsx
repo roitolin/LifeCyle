@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { getSupabaseEmailRedirectTo } from '@/lib/supabaseAuthRedirect'
 import { APP_ICON_TRANSPARENT_URL } from '@/assets/appIconAssets'
+import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 
 const VERIFICATION_WINDOW_MS = 30 * 60 * 1000
 
@@ -25,6 +26,7 @@ function VerifyEmailPage() {
   const [checking, setChecking] = useState(false)
   const [resending, setResending] = useState(false)
   const [status, setStatus] = useState('')
+  const { openConfirm, confirmDialog } = useConfirmDialog()
 
   const nextPath = useMemo(() => {
     const params = new URLSearchParams(location.search)
@@ -162,6 +164,18 @@ function VerifyEmailPage() {
     navigate('/login', { replace: true })
   }
 
+  const confirmLogout = () => {
+    openConfirm({
+      title: 'Log Out',
+      message: 'Are you sure you want to log out?',
+      confirmLabel: 'Log Out',
+      cancelLabel: 'Cancel',
+      pendingLabel: 'Logging out...',
+      tone: 'session',
+      onConfirm: logoutNow,
+    })
+  }
+
   const totalSeconds = Math.ceil(remainingMs / 1000)
   const minutes = Math.floor(totalSeconds / 60)
   const seconds = totalSeconds % 60
@@ -218,12 +232,13 @@ function VerifyEmailPage() {
             >
               {resending ? 'Sending...' : 'Resend Verification Email'}
             </button>
-            <button type="button" className="ghost-btn auth-submit" onClick={() => void logoutNow()}>
+            <button type='button' className='ghost-btn auth-submit' onClick={confirmLogout}>
               Logout Now
             </button>
           </div>
         </section>
       </div>
+      {confirmDialog}
     </main>
   )
 }

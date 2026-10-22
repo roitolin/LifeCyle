@@ -155,7 +155,7 @@ export function getNotificationPreferenceCategory(
 ): NotificationPreferenceCategory | null {
   const type = notificationType.trim().toLowerCase();
 
-  if (type.includes("payment") || type.includes("refund")) return "payments";
+  if (type.includes("payment")) return "payments";
 
   if (
     type === "support_message" ||

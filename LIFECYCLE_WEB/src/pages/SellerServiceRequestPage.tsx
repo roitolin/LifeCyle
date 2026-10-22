@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import BrandLogo from '@/components/BrandLogo'
+import DeathCertificateVaultCard from '@/components/DeathCertificateVaultCard'
+import PageBackButton from '@/components/PageBackButton'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import { supabase } from '@/lib/supabase'
@@ -10,7 +12,6 @@ import './SellerServiceRequestPage.css'
 type ShopSummary = {
   id: string
   shopName: string
-  paymentQrUrl?: string | null
   serviceFeeAmount?: number | string | null
 }
 
@@ -168,7 +169,7 @@ export default function SellerServiceRequestPage() {
       const [shopResult, requestResult] = await Promise.all([
         supabase
           .from('funeral_shops')
-          .select('id, "shopName", "paymentQrUrl", "serviceFeeAmount"')
+          .select('id, "shopName", "serviceFeeAmount"')
           .eq('id', user.id)
           .maybeSingle(),
         supabase
@@ -239,13 +240,14 @@ export default function SellerServiceRequestPage() {
   const updateRequestStatus = (nextStatus: 'accepted_by_shop' | 'declined_by_shop') => {
     if (!request || actionBusy) return
     const accepting = nextStatus === 'accepted_by_shop'
-    const paymentQrUrl = String(shop?.paymentQrUrl || '').trim()
     const serviceFee = Number(shop?.serviceFeeAmount) || 0
+    const requestProductPrice = Number(request.productPrice) || 0
+    const finalAmount = requestProductPrice > 0 ? requestProductPrice : serviceFee
 
-    if (accepting && (!paymentQrUrl || serviceFee <= 0)) {
+    if (accepting && finalAmount <= 0) {
       openAlert({
         title: 'Payment setup required',
-        message: 'Save your payment QR code and default service amount before accepting this request.',
+        message: 'Configure the casket product price or shop default amount before accepting this request.',
         tone: 'warning',
         okLabel: 'Got it',
       })
@@ -259,7 +261,7 @@ export default function SellerServiceRequestPage() {
         : 'The family will be notified that your shop cannot take this case.',
       details: accepting
         ? [
-            `Payment amount: ${formatPeso(serviceFee)}.`,
+            `Payment amount: ${formatPeso(finalAmount)}. The customer can complete payment securely via Xendit.`,
             request.productId === 'custom_casket_design'
               ? 'This custom design request will not change product stock.'
               : 'One item will be reserved from the product stock.',
@@ -293,7 +295,7 @@ export default function SellerServiceRequestPage() {
               type: accepting ? 'funeral_payment_ready' : 'funeral_request_updated',
               title: accepting ? 'Request Accepted - Payment Ready' : 'Request Declined',
               body: accepting
-                ? `${shop?.shopName || 'The shop'} accepted your request. Please pay ${formatPeso(serviceFee)} using the payment details in your request.`
+                ? `${shop?.shopName || 'The shop'} accepted your request. Please pay ${formatPeso(finalAmount)} using the payment options in your request.`
                 : `${shop?.shopName || 'The shop'} declined your service request.`,
             })
           } catch {
@@ -532,10 +534,9 @@ export default function SellerServiceRequestPage() {
           </>
         )}
       </div>
-      <Link to="/seller?tab=orders" className="sr-back-link">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
-        Back to Arrangement Cases
-      </Link>
+      <div className="page-back-row">
+        <PageBackButton to="/seller?tab=orders" label="Back to arrangement cases" />
+      </div>
     </header>
   )
 
@@ -593,12 +594,12 @@ export default function SellerServiceRequestPage() {
     : normalizedStatus === 'payment_submitted'
       ? {
           title: 'Payment under review',
-          message: 'Check the receipt information and submitted proof before verifying it.',
+          message: 'Review the submitted payment information before verifying it.',
           tone: 'review',
         }
       : {
           title: 'Family payment',
-          message: 'Review the available payment and receipt information for this request.',
+          message: 'Review the available payment information for this request.',
           tone: 'default',
         }
 
@@ -849,27 +850,6 @@ export default function SellerServiceRequestPage() {
                       <p>{request.paymentRejectionReason}</p>
                     </div>
                   )}
-
-                  <section className="sr-receipt-proof">
-                    <div>
-                      <h3>Submitted receipt</h3>
-                      <span>{request.paymentProofImageUrl ? 'Select the image to view it full size.' : 'No receipt was attached.'}</span>
-                    </div>
-                    {request.paymentProofImageUrl ? (
-                      <button
-                        type="button"
-                        onClick={() => setLightboxUrl(request.paymentProofImageUrl as string)}
-                        aria-label="View submitted receipt full size"
-                      >
-                        <img src={request.paymentProofImageUrl} alt="Submitted payment receipt" />
-                      </button>
-                    ) : (
-                      <div className="sr-receipt-missing">
-                        <strong>Receipt unavailable</strong>
-                        <span>No payment proof is attached to this request.</span>
-                      </div>
-                    )}
-                  </section>
                 </div>
                   </section>
                 </div>
@@ -1043,6 +1023,8 @@ export default function SellerServiceRequestPage() {
                 </button>
               </section>
             )}
+
+            <DeathCertificateVaultCard serviceRequestId={request.id} role="shop" />
 
             <section className="sr-card">
               <div className="sr-section-heading">

@@ -2,9 +2,13 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { User } from '@supabase/supabase-js'
 import BrandLogo from '@/components/BrandLogo'
+import NotificationDropdown from '@/components/NotificationDropdown'
+import AnnouncementDropdown from '@/components/AnnouncementDropdown'
+import LogoutLink from '@/components/LogoutLink'
+import PageBackButton from '@/components/PageBackButton'
 import { supabase } from '@/lib/supabase'
 import { loadFuneralCart } from '@/utils/funeralCart'
-import './ShopPage.css'
+import './FuneralLandingPage.css'
 import './FuneralShopsPage.css'
 
 const HeaderCartIcon = () => (
@@ -106,10 +110,11 @@ export default function FuneralShopsPage() {
       <div className="sp-topbar">
         <div className="sp-topbar-inner">
           <div className="sp-topbar-left">
-            <Link to="/seller">Seller Centre</Link>
+            <Link to="/seller">Shop Center</Link>
           </div>
           <div className="sp-topbar-right">
-            <Link to="/user/notifications">Notifications</Link>
+            <AnnouncementDropdown />
+            <NotificationDropdown />
             <Link to="/user/help">Help Centre</Link>
             <span className="sp-divider">|</span>
             {isLoggedIn
@@ -130,7 +135,7 @@ export default function FuneralShopsPage() {
                     <Link to="/user/profile">My Account</Link>
                     <Link to="/user/purchase">Purchases</Link>
                     <Link to="/auth/switch-account" className="sp-dropdown-switch">Switch Account</Link>
-                    <Link to="/auth/logout">Log out</Link>
+                    <LogoutLink>Log out</LogoutLink>
                   </div>
                 </div>
               )
@@ -159,15 +164,10 @@ export default function FuneralShopsPage() {
                 <SearchIcon />
               </button>
             </div>
-            <div className="sp-trending">
-              {['Caskets', 'Floral Tributes', 'Urns', 'Memorial Package', 'Burial Needs'].map(t => (
-                <button key={t} onClick={() => navigate(`/funeral?search=${encodeURIComponent(t)}`)}>{t}</button>
-              ))}
-            </div>
           </div>
 
           <div className="sp-cart-area">
-            <Link to={isLoggedIn ? '/user/cart' : '/login?next=/user/cart'} className="sp-cart-btn" aria-label="Cart">
+            <Link to={isLoggedIn ? '/user/cart' : '/login?next=/user/cart'} className="sp-cart-btn" aria-label="Shopping cart" title="Shopping cart">
               <HeaderCartIcon />
               {isLoggedIn && cartCount > 0 && <span className="sp-cart-count">{cartCount}</span>}
             </Link>
@@ -176,10 +176,7 @@ export default function FuneralShopsPage() {
       </header>
 
       <div className="sp-container">
-        <button type="button" onClick={() => navigate(-1)} className="fsp-back-btn">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"></path><polyline points="12 19 5 12 12 5"></polyline></svg>
-          Back
-        </button>
+        <div className="page-back-row"><PageBackButton /></div>
 
         <div className="fsp-hero">
           <h1>Funeral shops</h1>

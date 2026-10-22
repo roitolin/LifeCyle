@@ -16,15 +16,26 @@ let chatCancellationVersion = 0;
 let activeChatId: string | null = null;
 const playedNotificationIds = new Set<string>();
 const MAX_REMEMBERED_NOTIFICATION_IDS = 500;
-const notificationSoundReady = preload(NOTIFICATION_SOUND).catch((error) => {
-  console.warn("Unable to preload notification sound:", error);
-});
+
+let preloadAttempted = false;
+async function safelyPreloadSound() {
+  if (preloadAttempted) return;
+  preloadAttempted = true;
+  try {
+    await Promise.race([
+      preload(NOTIFICATION_SOUND),
+      new Promise((resolve) => setTimeout(resolve, 3000)),
+    ]);
+  } catch {
+    // Preload is an optional optimization; createAudioPlayer loads on demand if network times out
+  }
+}
 
 async function ensurePlayer(): Promise<AudioPlayer | null> {
   try {
     await ensureAppAudioReady();
-    await notificationSoundReady;
     if (!soundPlayer) {
+      void safelyPreloadSound();
       soundPlayer = createAudioPlayer(NOTIFICATION_SOUND, { keepAudioSessionActive: true });
       soundPlayer.volume = 1;
     }

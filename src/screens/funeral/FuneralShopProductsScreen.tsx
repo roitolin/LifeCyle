@@ -12,7 +12,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  useWindowDimensions,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -116,15 +115,9 @@ function getNumericProductPrice(value: string) {
 
 function ProductCard({
   item,
-  width,
-  rating,
-  reviewCount,
   onPress,
 }: {
   item: ShopProduct;
-  width: number;
-  rating: number;
-  reviewCount: number;
   onPress: () => void;
 }) {
   const imageUrl = getPrimaryProductImage(item);
@@ -138,54 +131,38 @@ function ProductCard({
     <TouchableOpacity
       accessibilityRole="button"
       accessibilityLabel={`${item.name}, ${formatPhilippinePeso(item.price)}, ${item.stock > 0 ? `${item.stock} available` : "sold out"}`}
-      style={[styles.productCard, { width }]}
-      activeOpacity={0.9}
+      style={styles.productCard}
+      activeOpacity={0.78}
       onPress={onPress}
     >
-      {imageUrl && !imageFailed ? (
-        <Image
-          source={{ uri: imageUrl }}
-          style={styles.productImage}
-          resizeMode="contain"
-          onError={() => setImageFailed(true)}
-        />
-      ) : (
-        <View style={styles.productImageFallback}>
-          <Ionicons name="cube-outline" size={38} color="#718079" />
-        </View>
-      )}
-
-      {item.hasVariations ? (
-        <View style={styles.variationBadge}>
-          <Text style={styles.variationBadgeText}>{item.variations.length} options</Text>
-        </View>
-      ) : null}
-
-      {item.stock <= 0 ? (
-        <View style={styles.soldOutBadge}>
-          <Text style={styles.soldOutBadgeText}>Sold out</Text>
-        </View>
-      ) : null}
-
-      <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
-      <Text style={styles.productPrice}>{formatPhilippinePeso(item.price)}</Text>
-      <View style={styles.productMetaRow}>
-        <View style={styles.productRatingGroup}>
-          <Ionicons name="star" size={12} color="#f3ad24" />
-          <Text style={styles.productMetaText}>
-            {rating > 0 ? `${rating.toFixed(1)} (${reviewCount})` : "No reviews"}
-          </Text>
-        </View>
-        <Text numberOfLines={1} style={[styles.productStockText, item.stock <= 0 ? styles.productMetaSoldOut : null]}>
-          {item.stock > 0 ? `${item.stock} available` : "Sold out"}
-        </Text>
+      <View style={styles.productImageFrame}>
+        {imageUrl && !imageFailed ? (
+          <Image
+            source={{ uri: imageUrl }}
+            style={styles.productImage}
+            resizeMode="cover"
+            onError={() => setImageFailed(true)}
+          />
+        ) : (
+          <View style={styles.productImageFallback}>
+            <Ionicons name="cube-outline" size={30} color="#718079" />
+          </View>
+        )}
+        {item.stock <= 0 ? (
+          <View style={styles.soldOutBadge}>
+            <Text style={styles.soldOutBadgeText}>Sold out</Text>
+          </View>
+        ) : null}
+      </View>
+      <View style={styles.productDetails}>
+        <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
+        <Text style={styles.productPrice}>{formatPhilippinePeso(item.price)}</Text>
       </View>
     </TouchableOpacity>
   );
 }
 
 export default function FuneralShopProductsScreen({ navigation, route }: any) {
-  const { width: viewportWidth } = useWindowDimensions();
   const shopId = String(route?.params?.shopId || "");
   const fallbackShopName = String(route?.params?.shopName || "Shop");
   const [loading, setLoading] = useState(true);
@@ -350,8 +327,6 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
     });
   }, [categoryFilter, products, searchText]);
 
-  const availableProductCount = useMemo(() => filteredProducts.filter((item) => item.stock > 0).length, [filteredProducts]);
-
   const sortedProducts = useMemo(() => {
     return [...filteredProducts].sort((a, b) => {
       if (productSort === "Price: Low") return getNumericProductPrice(a.price) - getNumericProductPrice(b.price);
@@ -370,7 +345,6 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
   const shopAddress = String(shop?.generalLocation || shop?.shopAddress || "Location not provided");
   const shopPhoneNumber = String(shop?.shopPhoneNumber || "");
   const heroImageUrl = shop?.coverImageUrl || shop?.shopImageUrl || getPrimaryProductImage(products[0]);
-  const gridCardWidth = Math.max(120, Math.min(210, (viewportWidth - spacing.lg - spacing.sm) / 2));
 
   const handleBack = () => {
     if (navigation.canGoBack?.()) navigation.goBack();
@@ -408,7 +382,11 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
       Alert.alert("Your shop", "You cannot start a chat with your own shop account.");
       return;
     }
-    navigation.navigate("ShopChat", { otherUserId: shopId, otherUserName: shopName || "Funeral Shop" });
+    navigation.navigate("ShopChat", {
+      otherUserId: shopId,
+      otherUserName: shopName || "Funeral Shop",
+      shopId,
+    });
   };
 
   const callShop = async () => {
@@ -459,9 +437,11 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
   };
 
   const showShopMenu = () => {
-    const actions: any[] = [
-      { text: "Custom casket request", onPress: openCustomRequest },
-    ];
+    const actions: any[] = [];
+    if (viewerId === shopId) {
+      actions.push({ text: "Add new product", onPress: () => navigation.navigate("ProductEditor") });
+    }
+    actions.push({ text: "Custom casket request", onPress: openCustomRequest });
     if (shopPhoneNumber) {
       actions.push({ text: "Call shop", onPress: () => void callShop() });
     }
@@ -484,33 +464,29 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
     setCategoryFilter("all");
   };
 
-  const renderProductStrip = (title: string, items: ShopProduct[], showMore = true) => (
-    <View style={styles.sectionCard}>
+  const renderProductPreview = (title: string, items: ShopProduct[]) => (
+    <View style={styles.productSection}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>{title}</Text>
-        {showMore && items.length > 0 ? (
-          <TouchableOpacity onPress={() => { setCategoryFilter("all"); setActiveTab("products"); }}>
-            <Text style={styles.seeMoreText}>See More  ›</Text>
+        {items.length > 0 ? (
+          <TouchableOpacity accessibilityRole="button" onPress={() => { setCategoryFilter("all"); setActiveTab("products"); }}>
+            <Text style={styles.seeMoreText}>View all</Text>
           </TouchableOpacity>
         ) : null}
       </View>
       {items.length > 0 ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.productStrip}>
-          {items.map((item) => (
+        <View style={styles.productGrid}>
+          {items.slice(0, 4).map((item) => (
             <ProductCard
               key={`${title}_${item.id}`}
               item={item}
-              width={142}
-              rating={ratingStats.get(item.id)?.average || 0}
-              reviewCount={ratingStats.get(item.id)?.count || 0}
               onPress={() => openProduct(item)}
             />
           ))}
-        </ScrollView>
+        </View>
       ) : (
         <View style={styles.inlineEmpty}>
-          <Ionicons name="search-outline" size={22} color="#8a928d" />
-          <Text style={styles.inlineEmptyText}>No products are currently in stock.</Text>
+          <Text style={styles.inlineEmptyText}>No products available right now.</Text>
         </View>
       )}
     </View>
@@ -518,19 +494,18 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
 
   const renderShopTab = () => (
     <View style={styles.tabContent}>
-      {renderProductStrip("Available products", availableFeaturedProducts)}
+      {renderProductPreview("Available products", availableFeaturedProducts)}
 
-      <TouchableOpacity style={styles.customBanner} activeOpacity={0.9} onPress={openCustomRequest}>
-        <View style={styles.customBannerIcon}>
-          <Ionicons name="color-wand-outline" size={25} color="#ffffff" />
+      <TouchableOpacity style={styles.customRequest} activeOpacity={0.78} onPress={openCustomRequest}>
+        <View style={styles.customRequestIcon}>
+          <Ionicons name="create-outline" size={20} color={colors.text} />
         </View>
-        <View style={styles.customBannerCopy}>
-          <Text style={styles.customBannerTitle}>Custom casket request</Text>
-          <Text style={styles.customBannerText}>Share the material, finish, and memorial details you prefer.</Text>
+        <View style={styles.customRequestCopy}>
+          <Text style={styles.customRequestTitle}>Request a custom casket</Text>
+          <Text style={styles.customRequestText}>Tell this shop what you need.</Text>
         </View>
-        <Ionicons name="chevron-forward" size={20} color="#ffffff" />
+        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
       </TouchableOpacity>
-
     </View>
   );
 
@@ -538,17 +513,11 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
     <View style={styles.tabContent}>
       <View style={styles.productsHeadingRow}>
         <View>
-          <Text style={styles.pageSectionTitle}>All Products</Text>
+          <Text style={styles.pageSectionTitle}>Products</Text>
           <Text style={styles.pageSectionSubtitle}>
-            {availableProductCount} available · {filteredProducts.length} total
+            {filteredProducts.length} {filteredProducts.length === 1 ? "item" : "items"}
           </Text>
         </View>
-        {categoryFilter !== "all" ? (
-          <TouchableOpacity style={styles.clearFilterButton} onPress={() => setCategoryFilter("all")}>
-            <Ionicons name="close" size={14} color="#22312d" />
-            <Text style={styles.clearFilterText}>Clear filter</Text>
-          </TouchableOpacity>
-        ) : null}
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.productSortRow}>
@@ -583,9 +552,6 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
             <ProductCard
               key={item.id}
               item={item}
-              width={gridCardWidth}
-              rating={ratingStats.get(item.id)?.average || 0}
-              reviewCount={ratingStats.get(item.id)?.count || 0}
               onPress={() => openProduct(item)}
             />
           ))}
@@ -610,15 +576,15 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
     count: number;
     icon: keyof typeof Ionicons.glyphMap;
   }[] = [
-    { key: "all", title: "All Caskets", subtitle: "Browse the full collection", count: products.length, icon: "grid-outline" },
-    { key: "variations", title: "With Variations", subtitle: "Multiple styles or finishes", count: products.filter((item) => item.hasVariations).length, icon: "layers-outline" },
-    { key: "standard", title: "Standard Caskets", subtitle: "Ready-to-order designs", count: products.filter((item) => !item.hasVariations).length, icon: "cube-outline" },
-    { key: "available", title: "Available Now", subtitle: "Currently in stock", count: products.filter((item) => item.stock > 0).length, icon: "checkmark-circle-outline" },
+    { key: "all", title: "All products", subtitle: "Full catalog", count: products.length, icon: "grid-outline" },
+    { key: "variations", title: "With options", subtitle: "More than one style", count: products.filter((item) => item.hasVariations).length, icon: "layers-outline" },
+    { key: "standard", title: "Standard", subtitle: "Single style", count: products.filter((item) => !item.hasVariations).length, icon: "cube-outline" },
+    { key: "available", title: "Available", subtitle: "In stock", count: products.filter((item) => item.stock > 0).length, icon: "checkmark-circle-outline" },
   ];
 
   const renderCategoriesTab = () => (
     <View style={styles.tabContent}>
-      <Text style={styles.pageSectionTitle}>Shop Categories</Text>
+      <Text style={styles.pageSectionTitle}>Categories</Text>
       <View style={styles.categoryGrid}>
         {categories.map((category) => (
           <TouchableOpacity key={category.key} style={styles.categoryCard} activeOpacity={0.88} onPress={() => selectCategory(category.key)}>
@@ -748,34 +714,33 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.shopIdentityRow}>
-              <View style={styles.shopAvatarWrap}>
-                {shop?.shopImageUrl ? (
-                  <Image source={{ uri: shop.shopImageUrl }} style={styles.shopAvatar} />
-                ) : (
-                  <View style={styles.shopAvatarFallback}>
-                    <Ionicons name="storefront" size={28} color="#22312d" />
-                  </View>
-                )}
-              </View>
-              <View style={styles.shopIdentityCopy}>
-                <View style={styles.shopNameRow}>
+            <View>
+              <View style={styles.shopIdentityRow}>
+                <View style={styles.shopAvatarWrap}>
+                  {shop?.shopImageUrl ? (
+                    <Image source={{ uri: shop.shopImageUrl }} style={styles.shopAvatar} />
+                  ) : (
+                    <View style={styles.shopAvatarFallback}>
+                      <Ionicons name="storefront" size={24} color="#22312d" />
+                    </View>
+                  )}
+                </View>
+                <View style={styles.shopIdentityCopy}>
                   <Text style={styles.shopName} numberOfLines={1}>{shopName}</Text>
-                  <Ionicons name="chevron-forward" size={17} color="#ffffff" />
-                </View>
-                <View style={styles.shopStatsRow}>
-                  <Ionicons name="star" size={14} color="#ffd166" />
-                  <Text style={styles.shopStatsText}>{overallRating > 0 ? overallRating.toFixed(1) : "Unrated"}</Text>
-                  <View style={styles.shopStatsDot} />
-                  <Text style={styles.shopStatsText}>{formatFollowerCount(followerCount)} Followers</Text>
-                </View>
-                <Text style={styles.shopLocation} numberOfLines={1}>{shopAddress}</Text>
+                  <View style={styles.shopStatsRow}>
+                    <Ionicons name="star" size={13} color="#ffd166" />
+                    <Text style={styles.shopStatsText}>{overallRating > 0 ? overallRating.toFixed(1) : "No ratings"}</Text>
+                    <View style={styles.shopStatsDot} />
+                    <Text style={styles.shopStatsText}>{formatFollowerCount(followerCount)} followers</Text>
+                  </View>
+                  <Text style={styles.shopLocation} numberOfLines={1}>{shopAddress}</Text>
+                  </View>
               </View>
-              <View style={styles.shopActionColumn}>
+              <View style={styles.shopActionsRow}>
                 <TouchableOpacity
                   accessibilityRole="button"
                   accessibilityState={{ disabled: followBusy || viewerId === shopId, selected: following }}
-                  style={[styles.shopActionButton, following && styles.shopActionButtonActive]}
+                  style={[styles.shopActionButton, styles.followButton, following && styles.shopActionButtonActive]}
                   disabled={followBusy || viewerId === shopId}
                   onPress={() => void toggleFollow()}
                 >
@@ -786,13 +751,12 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
                   )}
                   <Text style={styles.shopActionText}>{viewerId === shopId ? "Your Shop" : following ? "Following" : "Follow"}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Chat with ${shopName}`} style={styles.shopActionButton} onPress={openChat}>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Chat with ${shopName}`} style={[styles.shopActionButton, styles.chatButton]} onPress={openChat}>
                   <Ionicons name="chatbubble-ellipses-outline" size={14} color="#ffffff" />
                   <Text style={styles.shopActionText}>Chat</Text>
                 </TouchableOpacity>
               </View>
             </View>
-
           </View>
         </ImageBackground>
 
@@ -813,13 +777,12 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
         <View style={styles.tabBar}>
           {STOREFRONT_TABS.map((tab) => {
             const selected = activeTab === tab.key;
-            const isMiddleTab = tab.key === "products" || tab.key === "categories";
             return (
               <TouchableOpacity
                 key={tab.key}
                 accessibilityRole="tab"
                 accessibilityState={{ selected }}
-                style={[styles.tabButton, isMiddleTab ? styles.tabButtonMiddle : styles.tabButtonEdge, selected && styles.tabButtonActive]}
+                style={styles.tabButton}
                 onPress={() => setActiveTab(tab.key)}
               >
                 <Text numberOfLines={1} style={[styles.tabLabel, selected && styles.tabLabelActive]}>{tab.label}</Text>
@@ -841,7 +804,7 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.surfaceMuted },
+  screen: { flex: 1, backgroundColor: colors.surface },
   loadingScreen: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, backgroundColor: "#f1f3ef" },
   loadingText: { color: "#62706b", fontSize: 14, fontWeight: "700" },
   errorScreen: { flex: 1, backgroundColor: colors.surfaceMuted, padding: spacing.lg },
@@ -850,110 +813,90 @@ const styles = StyleSheet.create({
   errorText: { color: colors.textMuted, fontSize: 13, lineHeight: 20, textAlign: "center", marginTop: spacing.sm },
   retryButton: { minHeight: 44, borderRadius: radii.md, backgroundColor: colors.primaryDark, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.xl, marginTop: spacing.lg },
   retryButtonText: { color: colors.surface, fontSize: 13, fontWeight: "900" },
-  hero: { minHeight: 150, backgroundColor: "#d6e2d2", justifyContent: "flex-end" },
+  hero: { minHeight: 224, backgroundColor: "#d6e2d2", justifyContent: "flex-end" },
   heroImage: { resizeMode: "cover" },
-  heroOverlay: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(25, 25, 32, 0.45)" },
-  heroContent: { flex: 1, justifyContent: "space-between", paddingHorizontal: 10, paddingTop: 5, paddingBottom: 12 },
-  topControls: { flexDirection: "row", alignItems: "center", gap: 8 },
-  roundControl: { width: 28, height: 36, alignItems: "center", justifyContent: "center" },
-  searchBox: { flex: 1, minHeight: 36, borderRadius: 6, paddingHorizontal: 9, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(33, 39, 54, 0.5)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
+  heroOverlay: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(20, 29, 26, 0.46)" },
+  heroContent: { flex: 1, justifyContent: "space-between", paddingHorizontal: 12, paddingTop: 6, paddingBottom: 14 },
+  topControls: { flexDirection: "row", alignItems: "center", gap: 10 },
+  roundControl: { width: 36, height: 40, alignItems: "center", justifyContent: "center" },
+  searchBox: { flex: 1, minHeight: 40, borderRadius: 12, paddingHorizontal: 11, flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: "rgba(24, 34, 31, 0.62)", borderWidth: 1, borderColor: "rgba(255,255,255,0.16)" },
   searchInput: { flex: 1, color: "#ffffff", fontSize: 13, paddingVertical: 6 },
-  shopIdentityRow: { flexDirection: "row", alignItems: "center", gap: 9 },
-  shopAvatarWrap: { width: 56, height: 56, borderRadius: 28, padding: 3, backgroundColor: "#ffffff", position: "relative" },
+  shopIdentityRow: { flexDirection: "row", alignItems: "center", gap: 11 },
+  shopAvatarWrap: { width: 54, height: 54, borderRadius: 27, padding: 2, backgroundColor: "#ffffff" },
   shopAvatar: { width: "100%", height: "100%", borderRadius: 25 },
   shopAvatarFallback: { flex: 1, borderRadius: 25, alignItems: "center", justifyContent: "center", backgroundColor: "#e8efe9" },
   shopIdentityCopy: { flex: 1 },
-  shopNameRow: { flexDirection: "row", alignItems: "center" },
-  shopName: { color: "#ffffff", fontSize: 14, fontWeight: "900", maxWidth: "86%" },
+  shopName: { color: "#ffffff", fontSize: 17, lineHeight: 22, fontWeight: "800" },
   shopStatsRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 3 },
-  shopStatsText: { color: "#f3f6f4", fontSize: 10, fontWeight: "700" },
+  shopStatsText: { color: "#f3f6f4", fontSize: 11, fontWeight: "600" },
   shopStatsDot: { width: 3, height: 3, borderRadius: 2, backgroundColor: "#dce4df", marginHorizontal: 2 },
-  shopLocation: { color: "#dbe4df", fontSize: 9, marginTop: 3 },
-  shopActionColumn: { width: 82, gap: 4 },
-  shopActionButton: { width: 82, height: 26, borderRadius: 4, borderWidth: 1, borderColor: "rgba(255,255,255,0.9)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 5 },
-  shopActionButtonActive: { backgroundColor: "rgba(255,255,255,0.16)" },
-  shopActionText: { color: "#ffffff", fontSize: 10, fontWeight: "800" },
+  shopLocation: { color: "#dbe4df", fontSize: 10, marginTop: 4 },
+  shopActionsRow: { flexDirection: "row", gap: 8, marginTop: 12 },
+  shopActionButton: { height: 38, borderRadius: 10, borderWidth: 1, borderColor: "rgba(255,255,255,0.72)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 12 },
+  followButton: { flex: 1, backgroundColor: "rgba(255,255,255,0.14)" },
+  chatButton: { flex: 1 },
+  shopActionButtonActive: { backgroundColor: "rgba(255,255,255,0.24)" },
+  shopActionText: { color: "#ffffff", fontSize: 12, fontWeight: "800" },
   previewBanner: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: "#e6e3da", paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   previewBannerText: { flex: 1, color: colors.text, fontSize: 11, lineHeight: 16, fontWeight: "700" },
   refreshWarning: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: "#fff1f1", paddingHorizontal: spacing.lg },
   refreshWarningText: { flex: 1, color: colors.danger, fontSize: 11, fontWeight: "700" },
   tabBar: {
-    height: 52,
+    height: 48,
     flexDirection: "row",
-    flexWrap: "nowrap",
     alignItems: "center",
-    paddingHorizontal: 4,
-    marginTop: 8,
-    marginHorizontal: 8,
-    width: "auto",
-    borderRadius: 16,
-    backgroundColor: "#d6e2d2",
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
     zIndex: 10,
   },
   tabButton: {
-    flexBasis: 0,
-    flexShrink: 1,
-    height: 44,
-    borderRadius: 12,
+    flex: 1,
+    height: 48,
     alignItems: "center",
     justifyContent: "center",
-    paddingTop: 2,
-    paddingHorizontal: 4,
     position: "relative",
   },
-  tabButtonEdge: { flexGrow: 0.78 },
-  tabButtonMiddle: { flexGrow: 1.22 },
-  tabButtonActive: { backgroundColor: "#22312d" },
-  tabLabel: { color: "#62706b", fontSize: 12, fontWeight: "700", flexShrink: 1 },
-  tabLabelActive: { color: "#ffffff", fontWeight: "900" },
-  tabIndicator: { display: "none" },
-  pageBody: { paddingBottom: 40, backgroundColor: colors.surfaceMuted },
-  tabContent: { padding: spacing.sm, gap: spacing.sm },
-  sectionCard: { borderRadius: radii.md, backgroundColor: colors.surface, paddingVertical: spacing.md, borderWidth: 1, borderColor: colors.borderWarm, overflow: "hidden" },
-  sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 10, marginBottom: 10 },
-  sectionTitle: { color: "#22312d", fontSize: 14, fontWeight: "900" },
-  seeMoreText: { color: "#8a928d", fontSize: 11, fontWeight: "700" },
-  productStrip: { paddingHorizontal: 8, gap: 7 },
-  productCard: { borderRadius: radii.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderWarm, padding: spacing.sm, position: "relative" },
-  productImage: { width: "100%", height: 125, borderRadius: 9, backgroundColor: "#ebf1e8" },
-  productImageFallback: { height: 125, borderRadius: 2, alignItems: "center", justifyContent: "center", backgroundColor: "#f1f2ef" },
-  variationBadge: { position: "absolute", top: 14, left: 14, borderRadius: 4, backgroundColor: "rgba(34,49,45,0.88)", paddingHorizontal: 6, paddingVertical: 3 },
-  variationBadgeText: { color: "#ffffff", fontSize: 9, fontWeight: "800" },
-  soldOutBadge: { position: "absolute", top: 14, right: 14, borderRadius: 4, backgroundColor: "rgba(120,35,35,0.92)", paddingHorizontal: 6, paddingVertical: 3 },
-  soldOutBadgeText: { color: "#ffffff", fontSize: 9, fontWeight: "900", letterSpacing: 0.4 },
-  productMetaSoldOut: { color: "#9b2c2c", fontWeight: "900" },
-  productName: { minHeight: 36, marginTop: 8, color: "#33413c", fontSize: 12, lineHeight: 17, fontWeight: "700" },
-  productPrice: { color: "#22312d", fontSize: 17, fontWeight: "900", marginTop: 3 },
-  productMetaRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.xs, marginTop: 5 },
-  productRatingGroup: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-  productMetaText: { color: "#66736e", fontSize: 10, fontWeight: "700" },
-  productStockText: { flexShrink: 1, color: "#66736e", fontSize: 10, fontWeight: "700", textAlign: "right" },
-  inlineEmpty: { alignItems: "center", justifyContent: "center", gap: 7, paddingVertical: 24 },
+  tabLabel: { color: colors.textMuted, fontSize: 11, fontWeight: "700" },
+  tabLabelActive: { color: colors.text, fontWeight: "900" },
+  tabIndicator: { position: "absolute", bottom: 0, width: 28, height: 2, borderRadius: 1, backgroundColor: colors.primaryDark },
+  pageBody: { paddingBottom: 40, backgroundColor: colors.surface },
+  tabContent: { paddingHorizontal: spacing.lg, paddingTop: 20, paddingBottom: 8, gap: spacing.lg },
+  productSection: { backgroundColor: colors.surface },
+  sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
+  sectionTitle: { color: colors.text, fontSize: 18, fontWeight: "900" },
+  seeMoreText: { color: colors.primary, fontSize: 12, fontWeight: "800" },
+  productCard: { width: "48%" },
+  productImageFrame: { position: "relative", width: "100%", aspectRatio: 0.82, overflow: "hidden", borderRadius: 18, backgroundColor: colors.surfaceMuted },
+  productImage: { width: "100%", height: "100%" },
+  productImageFallback: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceMuted },
+  soldOutBadge: { position: "absolute", top: 8, right: 8, borderRadius: 7, backgroundColor: "rgba(92,38,38,0.9)", paddingHorizontal: 7, paddingVertical: 4 },
+  soldOutBadgeText: { color: "#ffffff", fontSize: 9, fontWeight: "800" },
+  productDetails: { paddingTop: 6 },
+  productName: { color: colors.text, fontSize: 13, lineHeight: 17, fontWeight: "800", marginTop: 1 },
+  productPrice: { color: colors.text, fontSize: 13, fontWeight: "800", marginTop: 2 },
+  inlineEmpty: { alignItems: "flex-start", justifyContent: "center", paddingVertical: 24 },
   inlineEmptyText: { color: "#78827d", fontSize: 12 },
-  customBanner: { minHeight: 96, borderRadius: 13, backgroundColor: "#22312d", overflow: "hidden", padding: 13, flexDirection: "row", alignItems: "center", gap: 11 },
-  customBannerIcon: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", backgroundColor: "#5a6b64" },
-  customBannerCopy: { flex: 1 },
-  customBannerTitle: { color: "#ffffff", fontSize: 15, lineHeight: 18, fontWeight: "900" },
-  customBannerText: { color: "#ced8d2", fontSize: 10, lineHeight: 14, marginTop: 4 },
-  customBannerLinkRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 10 },
-  customBannerLink: { color: "#ffffff", fontSize: 12, fontWeight: "900" },
-  productsHeadingRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderRadius: 12, backgroundColor: "#ffffff", paddingHorizontal: 12, paddingVertical: 11, borderWidth: 1, borderColor: "#e7e9e6" },
-  pageSectionTitle: { color: "#26332e", fontSize: 19, fontWeight: "900" },
-  pageSectionSubtitle: { color: "#76817c", fontSize: 12, marginTop: 3 },
+  customRequest: { minHeight: 68, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 16, flexDirection: "row", alignItems: "center", gap: 12 },
+  customRequestIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceMuted },
+  customRequestCopy: { flex: 1 },
+  customRequestTitle: { color: colors.text, fontSize: 14, lineHeight: 18, fontWeight: "800" },
+  customRequestText: { color: colors.textMuted, fontSize: 11, lineHeight: 16, marginTop: 2 },
+  productsHeadingRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  pageSectionTitle: { color: colors.text, fontSize: 20, fontWeight: "900" },
+  pageSectionSubtitle: { color: colors.textMuted, fontSize: 12, marginTop: 3 },
   productSortRow: { alignItems: "center", gap: 7, paddingVertical: 2, paddingHorizontal: 1 },
-  productFilterButton: { borderRadius: radii.pill, borderWidth: 1, borderColor: colors.borderWarm, backgroundColor: colors.surface, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  productFilterButtonActive: { borderColor: colors.primaryDark, backgroundColor: "#e6e3da" },
-  productFilterButtonText: { color: "#62706b", fontSize: 11, fontWeight: "700" },
-  productFilterButtonTextActive: { color: colors.primaryDark, fontWeight: "900" },
-  productSortLabel: { color: "#62706b", fontSize: 11, fontWeight: "800", marginRight: 2 },
-  productSortButton: { borderRadius: 999, borderWidth: 1, borderColor: "#d9d6cd", backgroundColor: "#ffffff", paddingHorizontal: 12, paddingVertical: 8 },
-  productSortButtonActive: { borderColor: "#22312d", backgroundColor: "#22312d" },
-  productSortButtonText: { color: "#62706b", fontSize: 11, fontWeight: "700" },
-  productSortButtonTextActive: { color: "#ffffff", fontWeight: "900" },
-  clearFilterButton: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 999, backgroundColor: "#e8ede9", paddingHorizontal: 10, paddingVertical: 7 },
-  clearFilterText: { color: "#22312d", fontSize: 11, fontWeight: "800" },
-  productGrid: { flexDirection: "row", flexWrap: "wrap", columnGap: spacing.sm, rowGap: spacing.md, justifyContent: "space-between" },
-  largeEmptyCard: { minHeight: 180, borderRadius: 16, backgroundColor: "#ffffff", alignItems: "center", justifyContent: "center", padding: 20, borderWidth: 1, borderColor: "#e5e9e5" },
+  productFilterButton: { borderRadius: radii.pill, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  productFilterButtonActive: { backgroundColor: colors.primaryDark },
+  productFilterButtonText: { color: colors.textMuted, fontSize: 11, fontWeight: "700" },
+  productFilterButtonTextActive: { color: colors.surface, fontWeight: "900" },
+  productSortLabel: { color: colors.textMuted, fontSize: 11, fontWeight: "800", marginRight: 2 },
+  productSortButton: { borderRadius: radii.pill, backgroundColor: colors.surfaceMuted, paddingHorizontal: 12, paddingVertical: 8 },
+  productSortButtonActive: { backgroundColor: colors.text },
+  productSortButtonText: { color: colors.textMuted, fontSize: 11, fontWeight: "700" },
+  productSortButtonTextActive: { color: colors.surface, fontWeight: "900" },
+  productGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: spacing.xl },
+  largeEmptyCard: { minHeight: 180, alignItems: "center", justifyContent: "center", padding: 20 },
   emptyTitle: { color: "#26332e", fontSize: 17, fontWeight: "900", marginTop: 10 },
   emptyText: { color: "#76817c", fontSize: 12, lineHeight: 18, textAlign: "center", marginTop: 5 },
   emptyActionButton: { minHeight: 40, borderRadius: radii.md, backgroundColor: colors.primaryDark, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg, marginTop: spacing.md },

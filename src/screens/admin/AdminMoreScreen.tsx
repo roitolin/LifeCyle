@@ -61,6 +61,11 @@ export default function AdminMoreScreen({ navigation }: any) {
               Shop Payments
             </Button>
           ) : null}
+          {isFuneralAdmin ? (
+            <Button mode="contained" icon="bank-check" buttonColor="#2563eb" textColor="#fff" onPress={() => navigation.navigate("PayoutAccounts")}>
+              Payout Accounts
+            </Button>
+          ) : null}
           <Button mode="contained-tonal" onPress={() => navigation.navigate("Moderation")}>
             Moderation
           </Button>

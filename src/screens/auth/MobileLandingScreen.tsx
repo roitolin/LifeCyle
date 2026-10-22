@@ -17,6 +17,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { markOnboardingCompleted } from '@/services/onboarding';
 
 type OnboardingStep = {
   label: string;
@@ -204,7 +205,12 @@ export default function MobileLandingScreen({ navigation }: any) {
     });
   };
 
-  const completeOnboarding = (destination: 'Login' | 'Register') => {
+  const completeOnboarding = async (destination: 'Login' | 'Register') => {
+    try {
+      await markOnboardingCompleted();
+    } catch (error) {
+      console.warn('Unable to save onboarding completion:', error);
+    }
     navigation.replace(destination);
   };
 
@@ -298,7 +304,7 @@ export default function MobileLandingScreen({ navigation }: any) {
               accessibilityLabel='Skip onboarding'
               accessibilityRole='button'
               hitSlop={10}
-              onPress={() => completeOnboarding('Login')}
+              onPress={() => void completeOnboarding('Login')}
               style={({ pressed }) => [styles.skipButton, pressed && styles.buttonPressed]}
             >
               <Text style={styles.skipText}>Skip</Text>
@@ -433,7 +439,7 @@ export default function MobileLandingScreen({ navigation }: any) {
               accessibilityRole='button'
               onPress={() => {
                 if (isLastStep) {
-                  completeOnboarding('Register');
+                  void completeOnboarding('Register');
                   return;
                 }
                 showStep(currentIndex + 1);
@@ -476,7 +482,7 @@ export default function MobileLandingScreen({ navigation }: any) {
             <Pressable
               accessibilityRole='button'
               hitSlop={8}
-              onPress={() => completeOnboarding('Login')}
+              onPress={() => void completeOnboarding('Login')}
               style={({ pressed }) => [styles.signInButton, pressed && styles.buttonPressed]}
             >
               <Text style={styles.signInText}>Already have an account? </Text>

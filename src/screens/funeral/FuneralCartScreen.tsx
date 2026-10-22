@@ -202,7 +202,7 @@ export default function FuneralCartScreen({ navigation }: any) {
               </View>
             ) : null}
 
-            {items.map((item: any) => {
+            {items.map((item: FuneralCartItem) => {
               const isSelected = selectionMode ? selectedIds.has(item.cartId) : selectedCartId === item.cartId;
 
               return (

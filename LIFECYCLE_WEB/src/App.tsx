@@ -1,8 +1,10 @@
 import { Suspense, lazy } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import ProtectedRoute from '@/components/ProtectedRoute'
-import ChatWidget from '@/components/ChatWidget'
 import LoadingBird from '@/components/LoadingBird'
+import { LogoutConfirmationProvider } from '@/components/LogoutConfirmationProvider'
+
+const ChatWidget = lazy(() => import('@/components/ChatWidget'))
 
 const FuneralLandingPage = lazy(() => import('./pages/FuneralLandingPage'))
 const FuneralShopsPage = lazy(() => import('./pages/FuneralShopsPage'))
@@ -13,6 +15,8 @@ const SellerPaymentPage = lazy(() => import('./pages/SellerPaymentPage'))
 const SellerServiceRequestPage = lazy(() => import('./pages/SellerServiceRequestPage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const RegisterPage = lazy(() => import('./pages/RegisterPage'))
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'))
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'))
 const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage'))
 const UserProfilePage = lazy(() => import('./pages/UserProfilePage'))
 const AccountSettingsPage = lazy(() => import('./pages/AccountSettingsPage'))
@@ -24,7 +28,6 @@ const AboutPage = lazy(() => import('./pages/AboutPage'))
 const FeedbackPage = lazy(() => import('./pages/FeedbackPage'))
 const PurchasePage = lazy(() => import('./pages/PurchasePage'))
 const NotificationPage = lazy(() => import('./pages/NotificationPage'))
-const LogoutPage = lazy(() => import('./pages/LogoutPage'))
 const SwitchAccountPage = lazy(() => import('./pages/SwitchAccountPage'))
 const CartPage = lazy(() => import('./pages/CartPage'))
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage'))
@@ -52,6 +55,7 @@ const AdminOrdersPage = lazy(() => import('./pages/admin/AdminOrdersPage'))
 const AdminProductDetailPage = lazy(() => import('./pages/admin/AdminProductDetailPage'))
 const AdminServiceRequestDetailPage = lazy(() => import('./pages/admin/AdminServiceRequestDetailPage'))
 const AdminPaymentsPage = lazy(() => import('./pages/admin/AdminPaymentsPage'))
+const AdminPayoutAccountsPage = lazy(() => import('./pages/admin/AdminPayoutAccountsPage'))
 const AdminRoleGuard = lazy(() => import('./pages/admin/AdminRoleGuard'))
 const AdminRoleRedirectPage = lazy(() => import('./pages/admin/AdminRoleRedirectPage'))
 const AdminShopCentrePage = lazy(() => import('./pages/admin/AdminShopCentrePage'))
@@ -64,11 +68,21 @@ function PageFallback() {
   return <LoadingBird fullScreen />
 }
 
+function RouteScopedChatWidget() {
+  const { pathname } = useLocation()
+  const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname
+
+  if (normalizedPath !== '/funeral' && normalizedPath !== '/seller') return null
+
+  return <ChatWidget />
+}
+
 function App() {
   return (
     <BrowserRouter>
       <Suspense fallback={<PageFallback />}>
-        <Routes>
+        <LogoutConfirmationProvider>
+          <Routes>
           <Route path="/" element={<Navigate to="/funeral" replace />} />
           <Route path="/services" element={<Navigate to="/funeral" replace />} />
           <Route path="/funeral" element={<FuneralLandingPage />} />
@@ -80,9 +94,12 @@ function App() {
           <Route path="/seller" element={<SellerCentrePage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
-          <Route path="/auth/logout" element={<LogoutPage />} />
+          <Route path="/auth/logout" element={<Navigate to="/funeral" replace />} />
           <Route path="/auth/switch-account" element={<SwitchAccountPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
+
+          <Route path='/forgot-password' element={<ForgotPasswordPage />} />
+          <Route path='/reset-password' element={<ResetPasswordPage />} />
 
           {/* User Profile & Protected Routes */}
           <Route element={<ProtectedRoute />}>
@@ -120,6 +137,7 @@ function App() {
                 <Route path="orders" element={<AdminOrdersPage />} />
                 <Route path="orders/:requestId" element={<AdminServiceRequestDetailPage />} />
                 <Route path="payments" element={<AdminPaymentsPage />} />
+                <Route path="payout-accounts" element={<AdminPayoutAccountsPage />} />
               </Route>
               <Route element={<AdminRoleGuard allowedRoles={['super_admin', 'admin']} />}>
                 <Route path="analytics" element={<AdminAnalyticsPage />} />
@@ -132,6 +150,9 @@ function App() {
               <Route path="moderation" element={<AdminModerationPage />} />
               <Route path="feedback" element={<AdminFeedbackPage />} />
               <Route path="support" element={<AdminSupportPage />} />
+              <Route path="payout-accounts" element={<AdminPayoutAccountsPage />} />
+              <Route path="payouts" element={<Navigate to="/admin/payout-accounts" replace />} />
+              <Route path="shop-payouts" element={<Navigate to="/admin/payout-accounts" replace />} />
               <Route path="activity-logs" element={<AdminAuditLogsPage />} />
               <Route path="login-security" element={<AdminLoginSecurityPage />} />
               <Route path="audit-logs" element={<Navigate to="/admin/activity-logs" replace />} />
@@ -139,8 +160,9 @@ function App() {
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-        <ChatWidget />
+          </Routes>
+          <RouteScopedChatWidget />
+        </LogoutConfirmationProvider>
       </Suspense>
     </BrowserRouter>
   )

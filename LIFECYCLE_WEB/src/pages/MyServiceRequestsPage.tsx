@@ -3,6 +3,11 @@ import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 import BrandLogo from '@/components/BrandLogo'
+import LogoutLink from '@/components/LogoutLink'
+import ServiceXenditModal from '@/components/ServiceXenditModal'
+import DeathCertificateVaultCard from '@/components/DeathCertificateVaultCard'
+import PageBackButton from '@/components/PageBackButton'
+import { syncServiceXenditCheckout } from '@/utils/serviceXendit'
 import './MyServiceRequestsPage.css'
 
 type ViewerProfile = {
@@ -40,7 +45,6 @@ type ServiceRequest = {
   shopContactNumber?: string | null
   shopAddress?: string | null
   status: string
-  paymentQrUrl?: string | null
   paymentAmount?: number | string | null
   paymentPayerName?: string | null
   paymentGcashName?: string | null
@@ -174,7 +178,7 @@ function statusDetail(status?: string | null): {
         label: 'Awaiting Payment',
         background: '#e0eefa',
         text: '#1c4f7e',
-        message: 'Payment details are ready. Send the amount to the shop and submit your proof below.',
+        message: 'Payment is ready. Complete the secure online checkout below.',
         icon: 'wallet',
       }
     case 'payment_submitted':
@@ -256,6 +260,8 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
   const [detailsRequest, setDetailsRequest] = useState<ServiceRequest | null>(null)
   const [paymentInfoExpanded, setPaymentInfoExpanded] = useState(false)
   const [submittedProofExpanded, setSubmittedProofExpanded] = useState(false)
+  const [xenditModalRequest, setXenditModalRequest] = useState<ServiceRequest | null>(null)
+  const [manualPaymentExpanded, setManualPaymentExpanded] = useState<Record<string, boolean>>({})
 
   const markedSeenRef = useRef<Record<string, boolean>>({})
   useEffect(() => {
@@ -351,6 +357,30 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
       if (retryTimer) clearTimeout(retryTimer)
     }
   }, [viewerId, loadRequests, refreshKey])
+
+  // Automatically sync online payment when window gains focus
+  useEffect(() => {
+    if (!viewerId) return
+    const handleFocusSync = async () => {
+      const awaitingReq = requests.find(r => String(r.status || '').toLowerCase() === 'awaiting_payment')
+      if (awaitingReq) {
+        try {
+          const res = await syncServiceXenditCheckout(awaitingReq.id)
+          if (res.paid || res.status === 'payment_verified') {
+            void loadRequests(viewerId)
+          }
+        } catch {
+          // ignore background sync errors
+        }
+      }
+    }
+    window.addEventListener('focus', handleFocusSync)
+    document.addEventListener('visibilitychange', handleFocusSync)
+    return () => {
+      window.removeEventListener('focus', handleFocusSync)
+      document.removeEventListener('visibilitychange', handleFocusSync)
+    }
+  }, [viewerId, requests, loadRequests, refreshKey])
 
   useEffect(() => {
     if (!detailRequestId) return
@@ -508,24 +538,13 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
 
   const canShowPaymentSection = (r: ServiceRequest) => {
     const status = String(r.status || '').toLowerCase()
-    const hasPaymentSetup = Boolean(r.paymentQrUrl) && r.paymentAmount != null && Number(r.paymentAmount) > 0
+    const hasPaymentSetup = r.paymentAmount != null && Number(r.paymentAmount) > 0
     return ['awaiting_payment', 'payment_submitted', 'payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(status) && hasPaymentSetup
   }
 
   return (
     <div className="requests-shop-page">
       <div className="requests-topbar">
-        <div className="requests-topbar-left">
-          <button
-            type="button"
-            className="requests-back-btn"
-            onClick={() => navigate(detailRequestId ? '/user/requests' : '/user/profile')}
-            aria-label={detailRequestId ? 'Back to service requests' : 'Go back to profile'}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-            Back
-          </button>
-        </div>
         <div className="requests-topbar-right">
           <Link to="/user/notifications">Notifications</Link>
           <Link to="/user/help">Help Centre</Link>
@@ -546,7 +565,7 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
               <Link to="/user/profile">My Account</Link>
               <Link to="/user/purchase">Payments</Link>
               <Link to="/auth/switch-account">Switch Account</Link>
-              <Link to="/auth/logout">Log out</Link>
+              <LogoutLink>Log out</LogoutLink>
             </div>
           </div>
         </div>
@@ -559,14 +578,26 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
       </header>
 
       {!detailRequestId ? <main className="requests-main">
-        <button
-          type="button"
-          className="requests-refresh-btn"
-          disabled={loading}
-          onClick={() => setRefreshKey(key => key + 1)}
-        >
-          {loading ? 'Refreshing…' : 'Refresh Requests'}
-        </button>
+        <div className="page-back-row"><PageBackButton to="/user/profile" /></div>
+        <div className="requests-list-toolbar">
+          <div>
+            <strong>{loading ? 'Loading requests' : requests.length + ' ' + (requests.length === 1 ? 'request' : 'requests')}</strong>
+            <span>Track your arrangements and payment status.</span>
+          </div>
+          <button
+            type="button"
+            className="requests-refresh-btn"
+            disabled={loading}
+            onClick={() => setRefreshKey(key => key + 1)}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polyline points="23 4 23 10 17 10" />
+              <polyline points="1 20 1 14 7 14" />
+              <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+            </svg>
+            {loading ? 'Refreshing...' : 'Refresh'}
+          </button>
+        </div>
         {loading ? (
           <section className="requests-empty-state">
             <h2>{reconnecting ? 'Reconnecting…' : 'Loading…'}</h2>
@@ -605,22 +636,25 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                       {request.variationName && <p className="requests-card-sub">Variation: {request.variationName}</p>}
                     </div>
                   </div>
-                  <span className={`requests-status status-${(request.status || 'pending').toLowerCase()}`}>{payMeta.label}</span>
+                  <div className="requests-card-header-right">
+                    <span className={`requests-status status-${(request.status || 'pending').toLowerCase()}`}>{payMeta.label}</span>
+                  </div>
                 </div>
 
                 <div className="requests-card-meta">
-                  <span className="requests-meta-item"><strong>Deceased:</strong> {request.deceasedFullName || '—'}</span>
-                  {request.deceasedDateOfBirth && <span className="requests-meta-item"><strong>Date of Birth:</strong> {formatDate(request.deceasedDateOfBirth)}</span>}
-                  {request.deceasedDateOfPassing && <span className="requests-meta-item"><strong>Date of Passing:</strong> {formatDate(request.deceasedDateOfPassing)}</span>}
-                  {request.deceasedAge != null && <span className="requests-meta-item"><strong>Age at Passing:</strong> {request.deceasedAge}</span>}
+                  <span className="requests-meta-item"><small>Deceased</small><strong>{request.deceasedFullName || 'Not provided'}</strong></span>
+                  {request.deceasedDateOfPassing && <span className="requests-meta-item"><small>Date of passing</small><strong>{formatDate(request.deceasedDateOfPassing)}</strong></span>}
                   {(request.wakeStartDate || request.wakeEndDate) && (
-                    <span className="requests-meta-item">
-                      <strong>Wake Schedule:</strong>{' '}
-                      {formatScheduleDate(request.wakeStartDate)} to {formatScheduleDate(request.wakeEndDate)}
+                    <span className="requests-meta-item requests-meta-wide">
+                      <small>Wake schedule</small>
+                      <strong>{formatScheduleDate(request.wakeStartDate)} to {formatScheduleDate(request.wakeEndDate)}</strong>
                     </span>
                   )}
-                  {request.burialTime && <span className="requests-meta-item"><strong>Burial Time:</strong> {formatTime(request.burialTime)}</span>}
-                  <span className="requests-meta-item"><strong>Requested:</strong> {request.createdAt ? formatDate(request.createdAt) : '—'}</span>
+                  {request.burialTime && <span className="requests-meta-item"><small>Burial time</small><strong>{formatTime(request.burialTime)}</strong></span>}
+                  {canSubmit && request.paymentAmount != null && Number(request.paymentAmount) > 0 ? (
+                    <span className="requests-meta-item"><small>Amount due</small><strong>{formatPeso(request.paymentAmount)}</strong></span>
+                  ) : null}
+                  <span className="requests-meta-item"><small>Requested</small><strong>{request.createdAt ? formatDate(request.createdAt) : 'Not provided'}</strong></span>
                 </div>
 
                 {showPayment && (
@@ -630,28 +664,32 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                       <span className={`requests-pay-pill pay-${payMeta.tone}`}>{payMeta.label}</span>
                     </div>
                     <div className="requests-payment-body">
-                      <div className="requests-payment-qr">
-                        {request.paymentQrUrl ? (
-                          <button
-                            type="button"
-                            className="requests-qr-btn"
-                            aria-label="View payment QR full size"
-                            title="Click to view full size"
-                            onClick={() => setViewerUrl(request.paymentQrUrl!)}
-                          >
-                            <img src={request.paymentQrUrl} alt="Payment QR" />
-                          </button>
-                        ) : (
-                          <div className="requests-payment-qr-empty">No QR available</div>
-                        )}
-                      </div>
                       <div className="requests-payment-info">
                         <div className="requests-amount">
                           <span>Amount to send</span>
                           <strong>{request.paymentAmount != null && Number(request.paymentAmount) > 0 ? formatPeso(request.paymentAmount) : '—'}</strong>
                         </div>
+
+                        {canSubmit && (
+                          <div className="requests-online-pay-box">
+                            <button
+                              type="button"
+                              className="requests-pay-online-primary-btn"
+                              onClick={() => setXenditModalRequest(request)}
+                            >
+                              <span className="requests-pay-flash-icon">⚡</span>
+                              <span>Pay Online (GCash, Cards & Maya)</span>
+                            </button>
+                            <p className="requests-online-pay-hint">
+                              Fast, automated payment verification via Xendit. Instant order confirmation.
+                            </p>
+                          </div>
+                        )}
+
                         <p className="requests-payment-hint">
-                          Scan the QR code with your GCash (or other e-wallet) app and send the exact amount above. Then fill in your details and upload proof of payment.
+                          {canSubmit
+                            ? 'Use secure online checkout to pay with GCash, Maya, cards, or online banking.'
+                            : 'Payment details and confirmation appear here after checkout.'}
                         </p>
 
                         {String(request.status || '').toLowerCase() === 'awaiting_payment' && request.paymentRejectionReason && (
@@ -704,93 +742,107 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                           </div>
                         )}
 
-                        {canSubmit && (
-                          <div className="requests-payment-form">
-                            <div className="requests-form-row">
-                              <label>Payer Name</label>
-                              <input
-                                type="text"
-                                className="requests-input"
-                                placeholder="Name used on the payment"
-                                value={paymentForm.payerName}
-                                onChange={e => setFormField(request.id, 'payerName', e.target.value)}
-                              />
-                            </div>
-                            <div className="requests-form-row">
-                              <label>GCash Account Name</label>
-                              <input
-                                type="text"
-                                className="requests-input"
-                                placeholder="Name registered to the GCash account"
-                                value={paymentForm.gcashName}
-                                onChange={e => setFormField(request.id, 'gcashName', e.target.value)}
-                              />
-                            </div>
-                            <div className="requests-form-row">
-                              <label>GCash Number</label>
-                              <input
-                                type="text"
-                                className="requests-input"
-                                placeholder="e.g. 0917 123 4567"
-                                value={paymentForm.gcashNumber}
-                                onChange={e => setFormField(request.id, 'gcashNumber', e.target.value)}
-                              />
-                            </div>
-                            <div className="requests-form-row">
-                              <label>Reference Number (Optional)</label>
-                              <input
-                                type="text"
-                                className="requests-input"
-                                placeholder="Enter it if shown on your receipt"
-                                value={paymentForm.referenceNumber}
-                                onChange={e => setFormField(request.id, 'referenceNumber', e.target.value)}
-                              />
-                            </div>
-                            <div className="requests-form-row">
-                              <label>Proof of Payment</label>
-                              <input
-                                ref={el => { proofFileInputRef.current = el }}
-                                type="file"
-                                accept="image/*"
-                                style={{ display: 'none' }}
-                                onChange={e => {
-                                  handleProofFileChange(request.id, e.target.files?.[0] ?? null)
-                                  e.target.value = ''
-                                }}
-                              />
-                              {proofPreviews[request.id] ? (
-                                <div className="requests-proof-preview">
-                                  <button
-                                    type="button"
-                                    className="requests-proof-img-btn"
-                                    aria-label="View uploaded proof full size"
-                                    title="Click to view full size"
-                                    onClick={() => setViewerUrl(proofPreviews[request.id] as string)}
-                                  >
-                                    <img src={proofPreviews[request.id] as string} alt="Proof preview" />
-                                  </button>
-                                  <button type="button" className="requests-remove-proof" onClick={() => {
-                                    if (proofPreviews[request.id]) URL.revokeObjectURL(proofPreviews[request.id] as string)
-                                    setProofFiles(prev => ({ ...prev, [request.id]: null }))
-                                    setProofPreviews(prev => ({ ...prev, [request.id]: null }))
-                                  }}>
-                                    Remove
-                                  </button>
-                                </div>
-                              ) : (
-                                <button type="button" className="requests-upload-btn" onClick={() => proofFileInputRef.current?.click()}>
-                                  Upload Proof Image
-                                </button>
-                              )}
-                            </div>
+                        {false && canSubmit && (
+                          <div className="requests-manual-accordion">
                             <button
                               type="button"
-                              className="requests-submit-btn"
-                              disabled={Boolean(submittingId)}
-                              onClick={() => void handleSubmitPayment(request)}
+                              className="requests-manual-accordion-btn"
+                              onClick={() => setManualPaymentExpanded(prev => ({ ...prev, [request.id]: !prev[request.id] }))}
                             >
-                              {submittingId === request.id ? 'Submitting…' : 'Submit Payment Proof'}
+                              <span>Alternative manual payment</span>
+                              <span>{manualPaymentExpanded[request.id] ? '▴' : '▾'}</span>
                             </button>
+                            {manualPaymentExpanded[request.id] && (
+                              <div className="requests-manual-accordion-body">
+                                <div className="requests-payment-form">
+                                  <div className="requests-form-row">
+                                    <label>Payer Name</label>
+                                    <input
+                                      type="text"
+                                      className="requests-input"
+                                      placeholder="Name used on the payment"
+                                      value={paymentForm.payerName}
+                                      onChange={e => setFormField(request.id, 'payerName', e.target.value)}
+                                    />
+                                  </div>
+                                  <div className="requests-form-row">
+                                    <label>GCash Account Name</label>
+                                    <input
+                                      type="text"
+                                      className="requests-input"
+                                      placeholder="Name registered to the GCash account"
+                                      value={paymentForm.gcashName}
+                                      onChange={e => setFormField(request.id, 'gcashName', e.target.value)}
+                                    />
+                                  </div>
+                                  <div className="requests-form-row">
+                                    <label>GCash Number</label>
+                                    <input
+                                      type="text"
+                                      className="requests-input"
+                                      placeholder="e.g. 0917 123 4567"
+                                      value={paymentForm.gcashNumber}
+                                      onChange={e => setFormField(request.id, 'gcashNumber', e.target.value)}
+                                    />
+                                  </div>
+                                  <div className="requests-form-row">
+                                    <label>Reference Number (Optional)</label>
+                                    <input
+                                      type="text"
+                                      className="requests-input"
+                                      placeholder="Enter it if shown on your receipt"
+                                      value={paymentForm.referenceNumber}
+                                      onChange={e => setFormField(request.id, 'referenceNumber', e.target.value)}
+                                    />
+                                  </div>
+                                  <div className="requests-form-row">
+                                    <label>Proof of Payment</label>
+                                    <input
+                                      ref={el => { proofFileInputRef.current = el }}
+                                      type="file"
+                                      accept="image/*"
+                                      style={{ display: 'none' }}
+                                      onChange={e => {
+                                        handleProofFileChange(request.id, e.target.files?.[0] ?? null)
+                                        e.target.value = ''
+                                      }}
+                                    />
+                                    {proofPreviews[request.id] ? (
+                                      <div className="requests-proof-preview">
+                                        <button
+                                          type="button"
+                                          className="requests-proof-img-btn"
+                                          aria-label="View uploaded proof full size"
+                                          title="Click to view full size"
+                                          onClick={() => setViewerUrl(proofPreviews[request.id] as string)}
+                                        >
+                                          <img src={proofPreviews[request.id] as string} alt="Proof preview" />
+                                        </button>
+                                        <button type="button" className="requests-remove-proof" onClick={() => {
+                                          if (proofPreviews[request.id]) URL.revokeObjectURL(proofPreviews[request.id] as string)
+                                          setProofFiles(prev => ({ ...prev, [request.id]: null }))
+                                          setProofPreviews(prev => ({ ...prev, [request.id]: null }))
+                                        }}>
+                                          Remove
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button type="button" className="requests-upload-btn" onClick={() => proofFileInputRef.current?.click()}>
+                                        Upload Proof Image
+                                      </button>
+                                    )}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className="requests-submit-btn"
+                                    disabled={Boolean(submittingId)}
+                                    onClick={() => void handleSubmitPayment(request)}
+                                  >
+                                    {submittingId === request.id ? 'Submitting…' : 'Submit Payment Proof'}
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -816,13 +868,34 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                     </div>
                   </div>
                 )}
-                {!showPayment ? (
+                {(
                   <div className="requests-card-footer">
                     <button type="button" className="requests-details-btn" onClick={() => navigate(`/user/requests/${request.id}`)}>
-                      View request details
+                      View details
                     </button>
+                    <div className="requests-card-actions">
+                      {String(request.status || '').toLowerCase() === 'awaiting_customer_confirmation' ? (
+                        <button
+                          type="button"
+                          className="requests-confirm-btn"
+                          disabled={Boolean(submittingId)}
+                          onClick={() => void handleConfirmCompletion(request)}
+                        >
+                          {submittingId === request.id ? 'Confirming...' : 'Mark as done'}
+                        </button>
+                      ) : null}
+                      {canSubmit ? (
+                        <button
+                          type="button"
+                          className="requests-card-pay-btn"
+                          onClick={() => setXenditModalRequest(request)}
+                        >
+                          Pay now
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
-                ) : null}
+                )}
               </section>
             )
           })
@@ -831,6 +904,7 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
 
       {detailRequestId && !detailsRequest ? (
         <main className="requests-main">
+          <div className="page-back-row"><PageBackButton to="/user/requests" /></div>
           <section className="requests-empty-state">
             <h2>{loading || reconnecting ? 'Loading request…' : 'Request not found'}</h2>
             {!loading && !reconnecting ? (
@@ -865,6 +939,7 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
 
         return (
           <div className="requests-detail-page">
+            <div className="page-back-row"><PageBackButton to="/user/requests" /></div>
             <div
               className="requests-modal-card requests-payment-details-card"
               role="main"
@@ -880,6 +955,16 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                   </div>
                 </div>
                 <div className="requests-pd-head-actions">
+                  {paymentStatus === 'awaiting_payment' && (
+                    <button
+                      type="button"
+                      className="requests-card-pay-btn"
+                      onClick={() => setXenditModalRequest(detail)}
+                    >
+                      <span>⚡</span>
+                      <span>Pay Online (GCash, Cards & Maya)</span>
+                    </button>
+                  )}
                   <span className={`requests-pay-pill pay-${statusMeta(detail.status).tone}`}>{statusLabel}</span>
                 </div>
               </div>
@@ -1010,6 +1095,8 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                   </details>
                 </section>
 
+                <DeathCertificateVaultCard serviceRequestId={detail.id} role="customer" />
+
                 {showPaymentWorkspace ? (
                 <div className="requests-pd-layout">
                   <aside className="requests-pd-sidebar">
@@ -1050,137 +1137,170 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                 <div className="requests-pd-pay-card">
                   <span className="requests-pd-kicker">Payment to shop</span>
                   <strong className="requests-pd-pay-amount">{amount}</strong>
-                  {detail.paymentQrUrl ? (
-                    <button
-                      type="button"
-                      className="requests-pd-qr-button"
-                      onClick={() => setViewerUrl(detail.paymentQrUrl!)}
-                      aria-label="Enlarge shop payment QR code"
-                    >
-                      <img src={detail.paymentQrUrl} alt="Shop payment QR code" />
-                      <span>Click to enlarge</span>
-                    </button>
-                  ) : (
-                    <div className="requests-pd-qr-missing">Payment QR is not available.</div>
-                  )}
                   <ol className="requests-pd-steps">
-                    <li>Scan the QR code with GCash or your e-wallet.</li>
-                    <li>Send the exact amount shown above.</li>
-                    <li>Enter the transaction details and attach your receipt.</li>
+                    <li>Open secure online checkout.</li>
+                    <li>Choose GCash, Maya, card, or online banking.</li>
+                    <li>Complete payment and return to this request.</li>
                   </ol>
                 </div>
                   </aside>
 
                   <section className="requests-pd-main">
                 {paymentStatus === 'awaiting_payment' ? (
-                  <div className="requests-pd-form-card">
-                    <div className="requests-pd-form-heading">
-                      <div>
-                        <span className="requests-pd-kicker">Payment information</span>
-                        <h3>Submit your payment</h3>
+                  <>
+                    <div className="requests-pd-online-pay-card">
+                      <div className="requests-pd-form-heading">
+                        <div>
+                          <span className="requests-pd-kicker">Recommended Payment</span>
+                          <h3>Instant Online Checkout</h3>
+                        </div>
+                        <span className="requests-secure-pill">🛡️ Automated & Verified</span>
                       </div>
-                      <span>All fields marked * are required</span>
+                      <p className="requests-pd-online-desc">
+                        Pay using GCash, Maya, debit or credit card, or online banking. Your payment is verified automatically via Xendit.
+                      </p>
+                      <button
+                        type="button"
+                        className="requests-pay-online-primary-btn requests-pd-pay-btn"
+                        onClick={() => setXenditModalRequest(detail)}
+                      >
+                        <span className="requests-pay-flash-icon">⚡</span>
+                        <span>Pay Online (GCash, Cards & Maya)</span>
+                      </button>
                     </div>
 
-                    {detail.paymentRejectionReason ? (
-                      <div className="requests-reject-card requests-pd-reject">
-                        <strong>Your previous submission needs attention</strong>
-                        <p>{detail.paymentRejectionReason}</p>
-                      </div>
-                    ) : null}
+                    {false && <div className="requests-manual-accordion">
+                      <button
+                        type="button"
+                        className="requests-manual-accordion-btn"
+                        onClick={() => setManualPaymentExpanded(prev => ({ ...prev, [detail.id]: !prev[detail.id] }))}
+                      >
+                        <span>Alternative manual payment</span>
+                        <span>{manualPaymentExpanded[detail.id] ? '▴' : '▾'}</span>
+                      </button>
+                      {manualPaymentExpanded[detail.id] && (
+                        <div className="requests-manual-accordion-body">
+                          <div className="requests-pd-form-card">
+                            <div className="requests-pd-form-heading">
+                              <div>
+                                <span className="requests-pd-kicker">Payment information</span>
+                                <h3>Submit your payment</h3>
+                              </div>
+                              <span>All fields marked * are required</span>
+                            </div>
 
-                    <div className="requests-pd-form-grid">
-                      <label className="requests-form-row">
-                        <span>Sender Name *</span>
-                        <input
-                          type="text"
-                          className="requests-input"
-                          autoComplete="name"
-                          placeholder="Person sending the payment"
-                          value={paymentForm.payerName}
-                          onChange={e => setFormField(detail.id, 'payerName', e.target.value)}
-                        />
-                      </label>
-                      <label className="requests-form-row">
-                        <span>GCash Account Name *</span>
-                        <input
-                          type="text"
-                          className="requests-input"
-                          placeholder="Name registered to GCash"
-                          value={paymentForm.gcashName}
-                          onChange={e => setFormField(detail.id, 'gcashName', e.target.value)}
-                        />
-                      </label>
-                      <label className="requests-form-row">
-                        <span>GCash Number *</span>
-                        <input
-                          type="tel"
-                          className="requests-input"
-                          inputMode="tel"
-                          autoComplete="tel"
-                          placeholder="09XX XXX XXXX"
-                          value={paymentForm.gcashNumber}
-                          onChange={e => setFormField(detail.id, 'gcashNumber', e.target.value)}
-                        />
-                      </label>
-                      <label className="requests-form-row">
-                        <span>Reference Number</span>
-                        <input
-                          type="text"
-                          className="requests-input"
-                          placeholder="Optional transaction reference"
-                          value={paymentForm.referenceNumber}
-                          onChange={e => setFormField(detail.id, 'referenceNumber', e.target.value)}
-                        />
-                      </label>
-                    </div>
+                            {detail.paymentRejectionReason ? (
+                              <div className="requests-reject-card requests-pd-reject">
+                                <strong>Your previous submission needs attention</strong>
+                                <p>{detail.paymentRejectionReason}</p>
+                              </div>
+                            ) : null}
 
-                    <div className="requests-form-row requests-pd-upload-field">
-                      <span>Proof of Payment *</span>
-                      <input
-                        ref={el => { proofFileInputRef.current = el }}
-                        type="file"
-                        accept="image/*"
-                        hidden
-                        onChange={e => {
-                          handleProofFileChange(detail.id, e.target.files?.[0] ?? null)
-                          e.target.value = ''
-                        }}
-                      />
-                      {proofPreviews[detail.id] ? (
-                        <div className="requests-pd-upload-preview">
-                          <button type="button" onClick={() => setViewerUrl(proofPreviews[detail.id] as string)}>
-                            <img src={proofPreviews[detail.id] as string} alt="Selected payment proof" />
-                          </button>
-                          <div>
-                            <strong>{proofFiles[detail.id]?.name || 'Payment receipt'}</strong>
-                            <span>Image ready to submit</span>
-                            <button type="button" className="requests-remove-proof" onClick={() => {
-                              if (proofPreviews[detail.id]) URL.revokeObjectURL(proofPreviews[detail.id] as string)
-                              setProofFiles(prev => ({ ...prev, [detail.id]: null }))
-                              setProofPreviews(prev => ({ ...prev, [detail.id]: null }))
-                            }}>Remove</button>
+                            <div className="requests-pd-form-grid">
+                              <label className="requests-form-row">
+                                <span>Sender Name *</span>
+                                <input
+                                  type="text"
+                                  className="requests-input"
+                                  autoComplete="name"
+                                  placeholder="Person sending the payment"
+                                  value={paymentForm.payerName}
+                                  onChange={e => setFormField(detail.id, 'payerName', e.target.value)}
+                                />
+                              </label>
+                              <label className="requests-form-row">
+                                <span>GCash Account Name *</span>
+                                <input
+                                  type="text"
+                                  className="requests-input"
+                                  placeholder="Name registered to GCash"
+                                  value={paymentForm.gcashName}
+                                  onChange={e => setFormField(detail.id, 'gcashName', e.target.value)}
+                                />
+                              </label>
+                              <label className="requests-form-row">
+                                <span>GCash Number *</span>
+                                <input
+                                  type="tel"
+                                  className="requests-input"
+                                  inputMode="tel"
+                                  autoComplete="tel"
+                                  placeholder="09XX XXX XXXX"
+                                  value={paymentForm.gcashNumber}
+                                  onChange={e => setFormField(detail.id, 'gcashNumber', e.target.value)}
+                                />
+                              </label>
+                              <label className="requests-form-row">
+                                <span>Reference Number</span>
+                                <input
+                                  type="text"
+                                  className="requests-input"
+                                  placeholder="Optional transaction reference"
+                                  value={paymentForm.referenceNumber}
+                                  onChange={e => setFormField(detail.id, 'referenceNumber', e.target.value)}
+                                />
+                              </label>
+                            </div>
+
+                            <div className="requests-form-row requests-pd-upload-field">
+                              <span>Proof of Payment *</span>
+                              <input
+                                ref={el => { proofFileInputRef.current = el }}
+                                type="file"
+                                accept="image/*"
+                                hidden
+                                onChange={e => {
+                                  handleProofFileChange(detail.id, e.target.files?.[0] ?? null)
+                                  e.target.value = ''
+                                }}
+                              />
+                              {proofPreviews[detail.id] ? (
+                                <div className="requests-pd-upload-preview">
+                                  <button
+                                    type="button"
+                                    className="requests-proof-img-btn"
+                                    onClick={() => setViewerUrl(proofPreviews[detail.id] as string)}
+                                    aria-label="View uploaded payment receipt"
+                                  >
+                                    <img src={proofPreviews[detail.id] as string} alt="Uploaded payment receipt" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="requests-remove-proof"
+                                    onClick={() => {
+                                      if (proofPreviews[detail.id]) URL.revokeObjectURL(proofPreviews[detail.id] as string)
+                                      setProofFiles(prev => ({ ...prev, [detail.id]: null }))
+                                      setProofPreviews(prev => ({ ...prev, [detail.id]: null }))
+                                    }}
+                                  >
+                                    Remove receipt
+                                  </button>
+                                </div>
+                              ) : (
+                                <button type="button" className="requests-pd-upload" onClick={() => proofFileInputRef.current?.click()}>
+                                  <svg viewBox="0 0 24 24" fill="none" width="28" height="28">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                    <polyline points="17 8 12 3 7 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                    <line x1="12" y1="3" x2="12" y2="15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                  </svg>
+                                  <span><strong>Upload payment receipt</strong>PNG, JPG, or other image format</span>
+                                </button>
+                              )}
+                            </div>
+
+                            <button
+                              type="button"
+                              className="requests-submit-btn requests-pd-submit"
+                              disabled={Boolean(submittingId)}
+                              onClick={() => void handleSubmitPayment(detail)}
+                            >
+                              {submittingId === detail.id ? 'Submitting…' : 'Submit Payment Details'}
+                            </button>
                           </div>
                         </div>
-                      ) : (
-                        <button type="button" className="requests-pd-upload" onClick={() => proofFileInputRef.current?.click()}>
-                          <svg viewBox="0 0 24 24" fill="none" width="24" height="24" aria-hidden="true">
-                            <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                          <span><strong>Upload payment receipt</strong>PNG, JPG, or other image format</span>
-                        </button>
                       )}
-                    </div>
-
-                    <button
-                      type="button"
-                      className="requests-submit-btn requests-pd-submit"
-                      disabled={Boolean(submittingId)}
-                      onClick={() => void handleSubmitPayment(detail)}
-                    >
-                      {submittingId === detail.id ? 'Submitting…' : 'Submit Payment Details'}
-                    </button>
-                  </div>
+                    </div>}
+                  </>
                 ) : null}
 
                 <button
@@ -1326,6 +1446,18 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
       })()}
 
       {alertDialog}
+
+      <ServiceXenditModal
+        isOpen={Boolean(xenditModalRequest)}
+        request={xenditModalRequest}
+        onClose={() => setXenditModalRequest(null)}
+        onSuccess={() => {
+          if (viewerId) void loadRequests(viewerId)
+          if (detailsRequest && xenditModalRequest?.id === detailsRequest.id) {
+            setDetailsRequest(prev => prev ? { ...prev, status: 'payment_verified' } : prev)
+          }
+        }}
+      />
     </div>
   )
 }

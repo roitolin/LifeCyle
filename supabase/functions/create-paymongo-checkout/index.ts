@@ -3,7 +3,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const PAYMONGO_CREATE_URL = 'https://api.paymongo.com/v2/checkout_sessions';
 const PAYMONGO_RETRIEVE_URL = 'https://api.paymongo.com/v1/checkout_sessions';
-const SHOP_PAYMENT_SETTING_KEY = 'payment_qr_code';
+const SHOP_PAYMENT_SETTING_KEY = 'shop_payment_settings';
 const CHECKOUT_DESCRIPTION = 'LifeCycle shop registration and renewal';
 
 type CheckoutRequest = {
@@ -77,11 +77,12 @@ function returnUrls(request: Request, payload: CheckoutRequest) {
 }
 
 function configuredPaymentMethods() {
-  const configured = (Deno.env.get('PAYMONGO_PAYMENT_METHODS') || 'card,gcash,qrph')
+  const configured = (Deno.env.get('PAYMONGO_PAYMENT_METHODS') || 'card,gcash')
     .split(',')
     .map((item) => item.trim().toLowerCase())
-    .filter(Boolean);
-  return [...new Set(configured)];
+    .filter((item) => Boolean(item) && !item.startsWith('qr'));
+  const methods = [...new Set(configured)];
+  return methods.length ? methods : ['card', 'gcash'];
 }
 
 async function paymongoRequest(secretKey: string, url: string, init?: RequestInit) {
@@ -145,7 +146,7 @@ Deno.serve(async (request) => {
     return jsonResponse(request, { error: 'Payment service configuration is incomplete.' }, 503);
   }
   if (!paymongoSecretKey.startsWith('sk_test_')) {
-    return jsonResponse(request, { error: 'LifeCycle shop payments are locked to PayMongo test mode.' }, 503);
+    return jsonResponse(request, { error: 'Shop payments are temporarily unavailable. Please contact support.' }, 503);
   }
 
   const authorization = request.headers.get('authorization') || '';
