@@ -1,5 +1,6 @@
 // eslint-disable-next-line import/no-unresolved
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { consumeUserRateLimit } from '../_shared/security.ts';
 
 const CREATE_SESSION_URL = 'https://api.xendit.co/sessions';
 const XENDIT_PAYOUTS_URL = 'https://api.xendit.co/v2/payouts';
@@ -32,7 +33,12 @@ function corsHeaders(request: Request) {
 function jsonResponse(request: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders(request), 'Content-Type': 'application/json' },
+    headers: {
+      ...corsHeaders(request),
+      'Cache-Control': 'no-store',
+      'Content-Type': 'application/json',
+      'X-Content-Type-Options': 'nosniff',
+    },
   });
 }
 
@@ -300,6 +306,28 @@ Deno.serve(async (request) => {
   const isMethodsAction = action === 'methods';
   const requestedPaymentMethod = String(input?.paymentMethod || '').trim().toUpperCase();
   if (!isUuid(requestId)) return jsonResponse(request, { error: 'A valid service request is required.' }, 400);
+
+  const rateLimitScope = isMethodsAction
+    ? 'service-xendit-methods'
+    : isSyncAction
+      ? 'service-xendit-sync'
+      : 'service-xendit-checkout';
+  const rateLimit = await consumeUserRateLimit(
+    admin,
+    rateLimitScope,
+    userData.user.id,
+    isMethodsAction ? 60 : isSyncAction ? 30 : 8,
+    5 * 60,
+  );
+  if (rateLimit.unavailable) {
+    return jsonResponse(request, { error: 'Security checks are temporarily unavailable.' }, 503);
+  }
+  if (!rateLimit.allowed) {
+    return jsonResponse(request, {
+      error: 'Too many payment requests. Please wait before trying again.',
+      retryAfterSeconds: rateLimit.retryAfterSeconds,
+    }, 429);
+  }
 
   const { data: serviceRequest, error: requestError } = await admin
     .from('funeral_service_requests')

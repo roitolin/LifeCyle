@@ -1,5 +1,6 @@
 // eslint-disable-next-line import/no-unresolved
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { consumeUserRateLimit } from '../_shared/security.ts';
 
 const ADMIN_ROLES = new Set(['admin', 'super_admin', 'funeral_admin']);
 const PAYOUT_READY_SHOP_STATUSES = new Set(['verified', 'live', 'offline']);
@@ -28,7 +29,12 @@ function corsHeaders(request: Request) {
 function jsonResponse(request: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders(request), 'Content-Type': 'application/json' },
+    headers: {
+      ...corsHeaders(request),
+      'Cache-Control': 'no-store',
+      'Content-Type': 'application/json',
+      'X-Content-Type-Options': 'nosniff',
+    },
   });
 }
 
@@ -62,7 +68,7 @@ function createEmailAuthClient(supabaseUrl: string, anonKey: string) {
 }
 
 async function verifyPayoutChangeCode(
-  emailAuth: ReturnType<typeof createClient>,
+  emailAuth: any,
   email: string,
   code: string,
 ) {
@@ -76,7 +82,7 @@ async function verifyPayoutChangeCode(
 }
 
 async function getShopEmail(
-  admin: ReturnType<typeof createClient>,
+  admin: any,
   shopId: string,
 ) {
   const { data, error } = await admin.auth.admin.getUserById(shopId);
@@ -157,6 +163,23 @@ Deno.serve(async (request) => {
   if (!isUuid(shopId)) return jsonResponse(request, { error: 'A valid funeral shop is required.' }, 400);
 
   const action = String(input?.action || 'verify').trim().toLowerCase();
+  const sensitiveAction = ['update', 'confirm-update', 'resend-update-code'].includes(action);
+  const rateLimit = await consumeUserRateLimit(
+    admin,
+    sensitiveAction ? 'shop-payout-verification' : 'shop-payout-management',
+    userData.user.id,
+    sensitiveAction ? 10 : 100,
+    sensitiveAction ? 10 * 60 : 5 * 60,
+  );
+  if (rateLimit.unavailable) {
+    return jsonResponse(request, { error: 'Security checks are temporarily unavailable.' }, 503);
+  }
+  if (!rateLimit.allowed) {
+    return jsonResponse(request, {
+      error: 'Too many payout-account requests. Please wait before trying again.',
+      retryAfterSeconds: rateLimit.retryAfterSeconds,
+    }, 429);
+  }
 
   // Admin save action. "verify" remains as a backwards-compatible alias.
   if (action === 'save' || action === 'verify') {

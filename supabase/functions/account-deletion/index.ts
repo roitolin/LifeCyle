@@ -1,10 +1,19 @@
 // eslint-disable-next-line import/no-unresolved
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import {
+  consumeUserRateLimit,
+  readJsonBody,
+  RequestBodyError,
+} from '../_shared/security.ts';
 
 function response(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Cache-Control': 'no-store',
+      'Content-Type': 'application/json',
+      'X-Content-Type-Options': 'nosniff',
+    },
   });
 }
 
@@ -30,6 +39,23 @@ Deno.serve(async (request) => {
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+  const rateLimit = await consumeUserRateLimit(
+    admin,
+    'account-deletion',
+    callerData.user.id,
+    5,
+    15 * 60,
+  );
+  if (rateLimit.unavailable) {
+    return response({ error: 'Security checks are temporarily unavailable.' }, 503);
+  }
+  if (!rateLimit.allowed) {
+    return response({
+      error: 'Too many deletion attempts. Please wait before trying again.',
+      retryAfterSeconds: rateLimit.retryAfterSeconds,
+    }, 429);
+  }
+
   const { data: callerProfile } = await admin
     .from('users')
     .select('role')
@@ -41,10 +67,11 @@ Deno.serve(async (request) => {
 
   let deletionRequestId = '';
   try {
-    const body = await request.json();
+    const body = await readJsonBody<{ deletionRequestId?: unknown }>(request, 8 * 1024);
     deletionRequestId = String(body?.deletionRequestId || '').trim();
-  } catch {
-    return response({ error: 'Invalid request body.' }, 400);
+  } catch (error) {
+    const status = error instanceof RequestBodyError ? error.status : 400;
+    return response({ error: 'Invalid request body.' }, status);
   }
   if (!deletionRequestId) return response({ error: 'Deletion request ID is required.' }, 400);
 

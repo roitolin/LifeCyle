@@ -1,5 +1,6 @@
 // eslint-disable-next-line import/no-unresolved
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { readJsonBody, RequestBodyError } from '../_shared/security.ts';
 
 type NotificationRecord = {
   id: string;
@@ -44,7 +45,11 @@ const MAX_EXPO_BATCH_SIZE = 100;
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Cache-Control': 'no-store',
+      'Content-Type': 'application/json',
+      'X-Content-Type-Options': 'nosniff',
+    },
   });
 }
 
@@ -120,9 +125,10 @@ Deno.serve(async (request) => {
 
   let payload: WebhookPayload;
   try {
-    payload = await request.json();
-  } catch {
-    return jsonResponse({ error: 'Invalid JSON payload.' }, 400);
+    payload = await readJsonBody<WebhookPayload>(request, 64 * 1024);
+  } catch (error) {
+    const status = error instanceof RequestBodyError ? error.status : 400;
+    return jsonResponse({ error: 'Invalid JSON payload.' }, status);
   }
 
   const notification = payload.record;

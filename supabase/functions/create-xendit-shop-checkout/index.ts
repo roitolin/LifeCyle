@@ -1,6 +1,7 @@
 /// <reference path="../deno.d.ts" />
 // eslint-disable-next-line import/no-unresolved
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { consumeUserRateLimit } from '../_shared/security.ts';
 
 const CREATE_SESSION_URL = 'https://api.xendit.co/sessions';
 const SHOP_PAYMENT_SETTING_KEY = 'shop_payment_settings';
@@ -47,7 +48,12 @@ function corsHeaders(request: Request) {
 function jsonResponse(request: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders(request), 'Content-Type': 'application/json' },
+    headers: {
+      ...corsHeaders(request),
+      'Cache-Control': 'no-store',
+      'Content-Type': 'application/json',
+      'X-Content-Type-Options': 'nosniff',
+    },
   });
 }
 
@@ -232,6 +238,23 @@ Deno.serve(async (request: Request) => {
   const user = userData.user;
   if (userError || !user) {
     return jsonResponse(request, { error: 'Your session is invalid or expired.' }, 401);
+  }
+
+  const rateLimit = await consumeUserRateLimit(
+    admin,
+    'shop-xendit-checkout',
+    user.id,
+    30,
+    5 * 60,
+  );
+  if (rateLimit.unavailable) {
+    return jsonResponse(request, { error: 'Security checks are temporarily unavailable.' }, 503);
+  }
+  if (!rateLimit.allowed) {
+    return jsonResponse(request, {
+      error: 'Too many checkout requests. Please wait before trying again.',
+      retryAfterSeconds: rateLimit.retryAfterSeconds,
+    }, 429);
   }
 
   let payload: CheckoutRequest;

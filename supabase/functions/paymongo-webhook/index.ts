@@ -1,6 +1,7 @@
 // eslint-disable-next-line import/no-unresolved
 // @ts-ignore
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { readLimitedText, RequestBodyError } from '../_shared/security.ts';
 
 declare const Deno: any;
 
@@ -10,7 +11,11 @@ const MAX_SIGNATURE_AGE_SECONDS = 10 * 60;
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Cache-Control': 'no-store',
+      'Content-Type': 'application/json',
+      'X-Content-Type-Options': 'nosniff',
+    },
   });
 }
 
@@ -79,7 +84,13 @@ Deno.serve(async (request: Request) => {
     return jsonResponse({ error: 'Webhook configuration is incomplete.' }, 503);
   }
 
-  const rawBody = await request.text();
+  let rawBody: string;
+  try {
+    rawBody = await readLimitedText(request, 256 * 1024);
+  } catch (error) {
+    const status = error instanceof RequestBodyError ? error.status : 400;
+    return jsonResponse({ error: 'Invalid webhook payload.' }, status);
+  }
   const signatureHeader =
     request.headers.get('paymongo-signature') ||
     request.headers.get('x-paymongo-signature') ||

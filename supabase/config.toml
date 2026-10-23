@@ -393,22 +393,22 @@ deno_version = 2
 verify_jwt = false
 
 [functions.create-paymongo-checkout]
-verify_jwt = false
+verify_jwt = true
 
 [functions.paymongo-webhook]
 verify_jwt = false
 
 [functions.create-service-paymongo-checkout]
-verify_jwt = false
+verify_jwt = true
 
 [functions.provision-xendit-shop]
-verify_jwt = false
+verify_jwt = true
 
 [functions.create-service-xendit-checkout]
-verify_jwt = false
+verify_jwt = true
 
 [functions.create-xendit-shop-checkout]
-verify_jwt = false
+verify_jwt = true
 
 [functions.xendit-webhook]
 verify_jwt = false
