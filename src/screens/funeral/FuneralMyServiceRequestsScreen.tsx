@@ -455,6 +455,19 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
     }
   }, []);
 
+  const openShopChat = useCallback((request: FuneralServiceRequest) => {
+    if (!request.shopId || request.shopId === auth.currentUser?.uid) {
+      Alert.alert("Chat unavailable", "This request does not have a shop account available to contact.");
+      return;
+    }
+    navigation.navigate("Chat", {
+      otherUserId: request.shopId,
+      otherUserName: request.shopName || "Funeral shop",
+      shopId: request.shopId,
+      requestId: request.id,
+    });
+  }, [navigation]);
+
   const loadRequests = useCallback(async (): Promise<boolean> => {
     const user = auth.currentUser;
     if (!user) return false;
@@ -1291,12 +1304,12 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                     <Text style={styles.contactActionButtonText}>Call Shop</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.contactActionButton, !selectedRequest.shopContactNumber ? styles.contactActionButtonDisabled : null]}
-                    onPress={() => void openPhoneLink("sms", selectedRequest.shopContactNumber)}
-                    disabled={!selectedRequest.shopContactNumber}
+                    style={[styles.contactActionButton, !selectedRequest.shopId || selectedRequest.shopId === auth.currentUser?.uid ? styles.contactActionButtonDisabled : null]}
+                    onPress={() => openShopChat(selectedRequest)}
+                    disabled={!selectedRequest.shopId || selectedRequest.shopId === auth.currentUser?.uid}
                   >
                     <Ionicons name="chatbubble-ellipses-outline" size={16} color="#22312d" />
-                    <Text style={styles.contactActionButtonText}>SMS Shop</Text>
+                    <Text style={styles.contactActionButtonText}>Chat Shop</Text>
                   </TouchableOpacity>
                 </View>
 

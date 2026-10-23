@@ -32,7 +32,6 @@ type ShopRecord = {
   shopImageUrl?: string | null;
   coverImageUrl?: string | null;
   serviceFeeAmount?: number | string | null;
-  serviceCapacity?: number | string | null;
   xenditAccountId?: string | null;
   paidUntil?: string | null;
   status?: ShopStatus | null;
@@ -265,7 +264,7 @@ export default function FuneralShopSettingsScreen({ navigation, route }: any) {
   const [adminPaymentsVisible, setAdminPaymentsVisible] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [uploadingImage, setUploadingImage] = useState<"logo" | "cover" | null>(null);
-  const [profileDraft, setProfileDraft] = useState({ name: "", address: "", phone: "", capacity: "1", logo: null as string | null, cover: null as string | null });
+  const [profileDraft, setProfileDraft] = useState({ name: "", address: "", phone: "", logo: null as string | null, cover: null as string | null });
   const [payoutVisible, setPayoutVisible] = useState(false);
   const [screenOpenedAt] = useState(Date.now);
 
@@ -322,7 +321,6 @@ export default function FuneralShopSettingsScreen({ navigation, route }: any) {
       name: String(shop?.shopName || ""),
       address: String(shop?.shopAddress || ""),
       phone: String(shop?.shopPhoneNumber || ""),
-      capacity: String(Math.max(1, Number(shop?.serviceCapacity) || 1)),
       logo: shop?.shopImageUrl || null,
       cover: shop?.coverImageUrl || null,
     });
@@ -346,18 +344,13 @@ export default function FuneralShopSettingsScreen({ navigation, route }: any) {
     const name = sanitizePlainText(profileDraft.name, 120);
     const address = sanitizePlainText(profileDraft.address, 220);
     const phone = sanitizePlainText(profileDraft.phone, 24);
-    const capacity = Number(profileDraft.capacity);
     if (!name || !address || !phone) {
       Alert.alert("Missing information", "Shop name, address, and phone number are required.");
       return;
     }
-    if (!Number.isInteger(capacity) || capacity < 1 || capacity > 20) {
-      Alert.alert("Invalid capacity", "Service capacity must be a whole number from 1 to 20.");
-      return;
-    }
     setSavingProfile(true);
     try {
-      const update = { shopName: name, shopAddress: address, shopPhoneNumber: phone, serviceCapacity: capacity, shopImageUrl: profileDraft.logo,
+      const update = { shopName: name, shopAddress: address, shopPhoneNumber: phone, shopImageUrl: profileDraft.logo,
         coverImageUrl: profileDraft.cover, updatedAt: new Date().toISOString() };
       const { error } = await supabase.from("funeral_shops").update(update).eq("id", user.uid);
       if (error) throw error;
@@ -561,15 +554,6 @@ export default function FuneralShopSettingsScreen({ navigation, route }: any) {
               <Text style={styles.inputLabel}>Phone Number</Text>
               <TextInput style={styles.input} value={profileDraft.phone}
                 onChangeText={(phone) => setProfileDraft((current) => ({ ...current, phone }))} keyboardType="phone-pad" />
-              <Text style={styles.inputLabel}>Simultaneous Service Capacity</Text>
-              <TextInput
-                style={styles.input}
-                value={profileDraft.capacity}
-                onChangeText={(capacity) => setProfileDraft((current) => ({ ...current, capacity: capacity.replace(/\D/g, "") }))}
-                keyboardType="number-pad"
-                maxLength={2}
-              />
-              <Text style={styles.inputHelp}>Maximum overlapping wake services your shop can handle (1–20).</Text>
               <TouchableOpacity style={[styles.primaryButton, savingProfile ? styles.buttonDisabled : null]}
                 onPress={() => void saveProfile()} disabled={savingProfile || Boolean(uploadingImage)}>
                 {savingProfile ? <ActivityIndicator size="small" color="#ffffff" /> : <Ionicons name="checkmark-circle-outline" size={18} color="#ffffff" />}

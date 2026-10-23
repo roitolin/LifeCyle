@@ -35,6 +35,13 @@ const PASSWORD_REQUIREMENTS = [
 const STRONG_PASSWORD_MESSAGE =
   "Use 8 or more characters with lowercase and uppercase letters, a number, and a special character.";
 
+const TRANSIENT_NETWORK_ERROR_PATTERN = /network|fetch failed|network request failed|socketexception|connection reset|econnreset|timed out|timeout/i;
+
+function isTransientNetworkError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error || '');
+  return TRANSIENT_NETWORK_ERROR_PATTERN.test(message);
+}
+
 function getPasswordChecks(value: string) {
   return PASSWORD_REQUIREMENTS.map((requirement) => ({
     id: requirement.id,
@@ -47,7 +54,9 @@ function isStrongPassword(value: string): boolean {
   return PASSWORD_REQUIREMENTS.every((requirement) => requirement.test(value));
 }
 
-function PasswordStrengthChecklist({ password }: { password: string }) {
+function PasswordStrengthChecklist({ password, onLayout, innerRef }: { password: string; onLayout?: (event: any) => void; innerRef?: any }) {
+  if (password.length === 0) return null;
+
   const checks = getPasswordChecks(password);
   const passedCount = checks.filter((check) => check.met).length;
   const level = password.length === 0 ? 0 : passedCount === checks.length ? 3 : passedCount >= 3 ? 2 : 1;
@@ -57,7 +66,9 @@ function PasswordStrengthChecklist({ password }: { password: string }) {
 
   return (
     <View
+      ref={innerRef}
       style={styles.passwordStrengthCard}
+      onLayout={onLayout}
       accessible
       accessibilityLiveRegion="polite"
       accessibilityLabel={`Password strength ${label}. ${passedCount} of ${checks.length} requirements met.`}
@@ -105,13 +116,18 @@ export default function RegisterScreen({ navigation }: any) {
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
   const confirmPasswordRef = useRef<TextInput>(null);
+  const passwordStrengthRef = useRef<View>(null);
   const passwordIsStrong = isStrongPassword(password);
   const passwordsMatch = confirmPassword.length > 0 && password === confirmPassword;
 
-  const scrollToInput = (inputRef: any) => {
-    const inputHandle = findNodeHandle(inputRef.current);
+  const scrollToNode = (nodeRef: any, additionalOffset: number) => {
+    const inputHandle = findNodeHandle(nodeRef.current);
     if (!inputHandle) return;
-    (scrollRef.current as any)?.scrollResponderScrollNativeHandleToKeyboard(inputHandle, 120, true);
+    (scrollRef.current as any)?.scrollResponderScrollNativeHandleToKeyboard(inputHandle, additionalOffset, true);
+  };
+
+  const scrollToInput = (inputRef: any) => {
+    scrollToNode(inputRef, 120);
   };
 
   const handleRegister = async () => {
@@ -156,6 +172,10 @@ export default function RegisterScreen({ navigation }: any) {
 
       navigation.replace("VerifyEmail", { email: normalizedEmail });
     } catch (error: any) {
+      if (isTransientNetworkError(error)) {
+        Alert.alert('Network Error', 'We could not reach the registration service. Check your connection and try again.');
+        return;
+      }
       const message = String(error?.message || "").toLowerCase();
       if (message.includes("already") || message.includes("already registered")) {
         Alert.alert("Registration Failed", "Email already in use. Try logging in instead.");
@@ -289,7 +309,16 @@ export default function RegisterScreen({ navigation }: any) {
                 <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={colors.text} />
               </TouchableOpacity>
             </View>
-            <PasswordStrengthChecklist password={password} />
+            {focusedField === "password" ? (
+              <PasswordStrengthChecklist
+                password={password}
+                innerRef={passwordStrengthRef}
+                onLayout={(event) => {
+                  const cardHeight = event.nativeEvent.layout.height;
+                  requestAnimationFrame(() => scrollToNode(passwordStrengthRef, cardHeight + 32));
+                }}
+              />
+            ) : null}
           </View>
 
           <View style={styles.fieldGroup}>

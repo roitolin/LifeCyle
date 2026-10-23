@@ -1,18 +1,18 @@
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createDrawerNavigator } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '@/context/AuthContext';
-import { AppHeaderBackButton } from '@/components';
+import { AdminSidebarContent } from '@/components';
 import {
   AdminAuditLogsScreen,
+  AdminAnnouncementsScreen,
   AdminDeletionRequestsScreen,
   AdminDashboard,
   AdminFuneralShopVerificationsScreen,
   AdminHomeContentScreen,
   AdminLoginSecurityScreen,
   AdminModerationScreen,
-  AdminMoreScreen,
   AdminOrdersScreen,
   AdminPaymentsScreen,
   AdminPayoutAccountsScreen,
@@ -21,28 +21,60 @@ import {
   AdminUsersScreen,
 } from '@/pages/admin';
 import { AppFeedbackScreen } from '@/pages/shared';
-import { useAdminNotificationCount, useUnreadSupportCount } from '@/hooks';
+import { useAdminNotificationCount } from '@/hooks';
 import { logAdminAction } from '@/utils/adminAuditLog';
+import { colors } from '@/theme';
 
-const Tab = createBottomTabNavigator();
+const Drawer = createDrawerNavigator();
 
 const routeLabels: Record<string, string> = {
-  Dashboard: 'Dashboard', Products: 'Products', Orders: 'Service Requests', Funeral: 'Funeral Shops',
-  Users: 'Users', More: 'More Tools', Payments: 'Shop Payments', Moderation: 'Moderation',
-  Feedback: 'Rate & Feedback', Support: 'Support Inbox', ActivityLogs: 'Activity Logs',
+  Dashboard: 'Dashboard',
+  Analytics: 'Analytics',
+  Products: 'Products',
+  Orders: 'Service Requests',
+  Funeral: 'Funeral Shops',
+  Users: 'Users',
+  Payments: 'Shop Payments',
+  Moderation: 'Moderation',
+  Feedback: 'Rate & Feedback',
+  Support: 'Support Inbox',
+  ActivityLogs: 'Activity Logs',
   LoginSecurity: 'Login & Security',
   Deletions: 'Account Deletion Requests',
   HomeContent: 'Mobile Home Feature',
   PayoutAccounts: 'Payout Accounts',
+  Announcements: 'Announcements',
 };
+
+function HeaderMenuButton({ navigation }: { navigation: any }) {
+  return (
+    <TouchableOpacity
+      accessibilityLabel="Open admin navigation"
+      accessibilityRole="button"
+      onPress={() => navigation.openDrawer()}
+      style={styles.menuButton}
+    >
+      <Ionicons name="menu-outline" size={27} color={colors.surface} />
+    </TouchableOpacity>
+  );
+}
 
 function NotificationBell() {
   const navigation = useNavigation<any>();
   const unreadCount = useAdminNotificationCount();
+
+  const openNotifications = () => {
+    navigation.getParent()?.navigate('Notifications');
+  };
+
   return (
-    <TouchableOpacity onPress={() => navigation.navigate('Notifications')} style={styles.notificationButton} accessibilityLabel='Open notifications'>
+    <TouchableOpacity
+      accessibilityLabel="Open notifications"
+      onPress={openNotifications}
+      style={styles.notificationButton}
+    >
       <View>
-        <Ionicons name='notifications-outline' size={24} color='white' />
+        <Ionicons name="notifications-outline" size={24} color={colors.surface} />
         {unreadCount > 0 ? <CountBadge count={unreadCount} /> : null}
       </View>
     </TouchableOpacity>
@@ -50,29 +82,22 @@ function NotificationBell() {
 }
 
 function CountBadge({ count }: { count: number }) {
-  return <View style={styles.badgeWrap}><Text style={styles.badgeText}>{count > 9 ? '9+' : count}</Text></View>;
-}
-
-function TabIcon({ name, color, size, badgeCount }: any) {
-  return <View><Ionicons name={name} size={size} color={color} />{badgeCount > 0 ? <CountBadge count={badgeCount} /> : null}</View>;
+  return (
+    <View style={styles.badgeWrap}>
+      <Text style={styles.badgeText}>{count > 9 ? '9+' : count}</Text>
+    </View>
+  );
 }
 
 export default function AdminTabsNavigator() {
   const { role, user } = useAuth();
-  const unreadSupportCount = useUnreadSupportCount();
   const isRootAdmin = role === 'super_admin' || role === 'admin';
   const isFuneralAdmin = isRootAdmin || role === 'funeral_admin';
-  const initialRouteName = role === 'funeral_admin' ? 'Funeral' : 'Dashboard';
-  const hiddenTabOptions = { tabBarButton: () => null, tabBarItemStyle: { display: 'none' as const } };
-  const hiddenWithBack = (navigation: any, title: string) => ({
-    title,
-    ...hiddenTabOptions,
-    headerLeft: () => <AppHeaderBackButton onPress={() => navigation.navigate('More')} />,
-  });
 
   return (
-    <Tab.Navigator
-      initialRouteName={initialRouteName}
+    <Drawer.Navigator
+      initialRouteName="Dashboard"
+      drawerContent={(props) => <AdminSidebarContent {...props} />}
       screenListeners={({ route }) => ({
         focus: () => {
           void logAdminAction({
@@ -85,59 +110,84 @@ export default function AdminTabsNavigator() {
           });
         },
       })}
-      screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
-          let iconName = 'help-outline';
-          let badgeCount = 0;
-          if (route.name === 'Dashboard') iconName = focused ? 'home' : 'home-outline';
-          else if (route.name === 'Products') iconName = focused ? 'cube' : 'cube-outline';
-          else if (route.name === 'Orders') iconName = focused ? 'receipt' : 'receipt-outline';
-          else if (route.name === 'Payments') iconName = focused ? 'wallet' : 'wallet-outline';
-          else if (route.name === 'Funeral') iconName = focused ? 'business' : 'business-outline';
-          else if (route.name === 'Users') iconName = focused ? 'people' : 'people-outline';
-          else if (route.name === 'More') {
-            iconName = focused ? 'ellipsis-horizontal-circle' : 'ellipsis-horizontal-circle-outline';
-            badgeCount = unreadSupportCount;
-          } else if (route.name === 'Feedback') iconName = focused ? 'star' : 'star-outline';
-          else if (route.name === 'Support') {
-            iconName = focused ? 'chatbubble-ellipses' : 'chatbubble-ellipses-outline';
-            badgeCount = unreadSupportCount;
-          } else if (route.name === 'Moderation') iconName = focused ? 'shield-checkmark' : 'shield-checkmark-outline';
-          else if (route.name === 'ActivityLogs') iconName = focused ? 'pulse' : 'pulse-outline';
-          else if (route.name === 'LoginSecurity') iconName = focused ? 'lock-closed' : 'lock-closed-outline';
-          return <TabIcon name={iconName} color={color} size={size} badgeCount={badgeCount} />;
-        },
-        tabBarActiveTintColor: '#d32f2f',
-        tabBarInactiveTintColor: '#77827d',
+      screenOptions={({ navigation }) => ({
+        drawerType: 'front',
+        drawerStyle: styles.drawer,
+        headerLeft: () => <HeaderMenuButton navigation={navigation} />,
         headerRight: () => <NotificationBell />,
-        headerStyle: { backgroundColor: '#d32f2f' },
-        headerTintColor: 'white',
+        headerStyle: styles.header,
+        headerTintColor: colors.surface,
+        headerTitleStyle: styles.headerTitle,
+        drawerActiveTintColor: colors.primary,
+        drawerInactiveTintColor: colors.textMuted,
+        drawerActiveBackgroundColor: colors.surfaceMuted,
+        drawerLabelStyle: styles.drawerLabel,
+        drawerItemStyle: styles.drawerItem,
       })}
     >
-      <Tab.Screen name='Dashboard' component={AdminDashboard} options={{ title: 'Dashboard' }} />
-      {isFuneralAdmin ? <Tab.Screen name='Products' component={AdminProductsScreen} options={{ title: 'Products' }} /> : null}
-      {isFuneralAdmin ? <Tab.Screen name='Orders' component={AdminOrdersScreen} options={{ title: 'Service Requests', tabBarLabel: 'Requests' }} /> : null}
-      {isFuneralAdmin ? <Tab.Screen name='Funeral' component={AdminFuneralShopVerificationsScreen} options={{ title: 'Shops' }} /> : null}
-      <Tab.Screen name='Users' component={AdminUsersScreen} options={{ title: 'Users' }} />
-      <Tab.Screen name='More' component={AdminMoreScreen} options={{ title: 'More' }} />
-      <Tab.Screen name='Payments' component={AdminPaymentsScreen} options={({ navigation }) => hiddenWithBack(navigation, 'Shop Payments')} />
-      <Tab.Screen name='Moderation' component={AdminModerationScreen} options={({ navigation }) => hiddenWithBack(navigation, 'Moderation')} />
-      <Tab.Screen name='Feedback' component={AppFeedbackScreen} options={({ navigation }) => hiddenWithBack(navigation, 'Rate & Feedback')} />
-      <Tab.Screen name='Support' component={AdminSupportMessages} options={({ navigation }) => hiddenWithBack(navigation, 'Support Inbox')} />
-      <Tab.Screen name='ActivityLogs' component={AdminAuditLogsScreen} options={({ navigation }) => hiddenWithBack(navigation, 'Activity Logs')} />
-      <Tab.Screen name='LoginSecurity' component={AdminLoginSecurityScreen} options={({ navigation }) => hiddenWithBack(navigation, 'Login & Security')} />
-      {isRootAdmin ? <Tab.Screen name='Deletions' component={AdminDeletionRequestsScreen} options={({ navigation }) => hiddenWithBack(navigation, 'Account Deletion Requests')} /> : null}
-      {isRootAdmin ? <Tab.Screen name='HomeContent' component={AdminHomeContentScreen} options={({ navigation }) => hiddenWithBack(navigation, 'Mobile Home Feature')} /> : null}
-      {isFuneralAdmin ? <Tab.Screen name='PayoutAccounts' component={AdminPayoutAccountsScreen} options={({ navigation }) => hiddenWithBack(navigation, 'Payout Accounts')} /> : null}
-    </Tab.Navigator>
+      <Drawer.Screen name="Dashboard" component={AdminDashboard} options={{ title: 'Dashboard' }} />
+      {isRootAdmin ? <Drawer.Screen name="Analytics" component={AdminDashboard} options={{ title: 'Analytics' }} /> : null}
+      {isFuneralAdmin ? <Drawer.Screen name="Products" component={AdminProductsScreen} options={{ title: 'Products' }} /> : null}
+      {isFuneralAdmin ? <Drawer.Screen name="Orders" component={AdminOrdersScreen} options={{ title: 'Service Requests' }} /> : null}
+      {isFuneralAdmin ? <Drawer.Screen name="Funeral" component={AdminFuneralShopVerificationsScreen} options={{ title: 'Funeral Shops' }} /> : null}
+      <Drawer.Screen name="Users" component={AdminUsersScreen} options={{ title: 'Users' }} />
+      <Drawer.Screen name="Payments" component={AdminPaymentsScreen} options={{ title: 'Shop Payments' }} />
+      <Drawer.Screen name="Moderation" component={AdminModerationScreen} options={{ title: 'Moderation' }} />
+      <Drawer.Screen name="Feedback" component={AppFeedbackScreen} options={{ title: 'Rate & Feedback' }} />
+      <Drawer.Screen name="Support" component={AdminSupportMessages} options={{ title: 'Support Inbox' }} />
+      <Drawer.Screen name="ActivityLogs" component={AdminAuditLogsScreen} options={{ title: 'Activity Logs' }} />
+      <Drawer.Screen name="LoginSecurity" component={AdminLoginSecurityScreen} options={{ title: 'Login & Security' }} />
+      {isRootAdmin ? <Drawer.Screen name="Deletions" component={AdminDeletionRequestsScreen} options={{ title: 'Account Deletions' }} /> : null}
+      {isRootAdmin ? <Drawer.Screen name="HomeContent" component={AdminHomeContentScreen} options={{ title: 'Mobile Home Feature' }} /> : null}
+      {isFuneralAdmin ? <Drawer.Screen name="PayoutAccounts" component={AdminPayoutAccountsScreen} options={{ title: 'Payout Accounts' }} /> : null}
+      {isRootAdmin ? <Drawer.Screen name="Announcements" component={AdminAnnouncementsScreen} options={{ title: 'Announcements' }} /> : null}
+    </Drawer.Navigator>
   );
 }
 
 const styles = StyleSheet.create({
-  notificationButton: { marginRight: 15 },
-  badgeWrap: {
-    position: 'absolute', right: -6, top: -3, backgroundColor: '#ef4444', borderRadius: 10,
-    width: 16, height: 16, justifyContent: 'center', alignItems: 'center',
+  drawer: {
+    width: 304,
+    backgroundColor: colors.surface,
   },
-  badgeText: { color: 'white', fontSize: 10, fontWeight: 'bold' },
+  header: {
+    backgroundColor: colors.primaryDark,
+  },
+  headerTitle: {
+    color: colors.surface,
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  menuButton: {
+    marginLeft: 12,
+    padding: 7,
+  },
+  notificationButton: {
+    marginRight: 15,
+    padding: 5,
+  },
+  badgeWrap: {
+    position: 'absolute',
+    right: -6,
+    top: -3,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 3,
+    backgroundColor: colors.accent,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  badgeText: {
+    color: colors.surface,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  drawerLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  drawerItem: {
+    borderRadius: 11,
+  },
 });

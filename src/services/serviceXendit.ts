@@ -9,6 +9,13 @@ export type ServiceXenditCheckoutResult = {
   status?: string;
   testMode?: boolean;
   livemode?: boolean;
+  paymentMethod?: string;
+};
+
+export type ServicePaymentMethod = {
+  code: string;
+  label: string;
+  type: 'wallet' | 'bank';
 };
 
 const getFunctionErrorMessage = async (error: unknown): Promise<string> => {
@@ -29,9 +36,27 @@ const getFunctionErrorMessage = async (error: unknown): Promise<string> => {
   return error.message || fallback;
 };
 
-export async function createServiceXenditCheckout(requestId: string): Promise<ServiceXenditCheckoutResult> {
+export async function getServicePaymentMethods(
+  requestId: string,
+): Promise<{ methods: ServicePaymentMethod[]; selectedMethod?: string }> {
   const { data, error } = await supabase.functions.invoke('create-service-xendit-checkout', {
-    body: { requestId, platform: 'mobile' },
+    body: { requestId, action: 'methods', platform: 'mobile' },
+  });
+
+  if (error) throw new Error(await getFunctionErrorMessage(error));
+
+  return {
+    methods: Array.isArray(data?.methods) ? data.methods as ServicePaymentMethod[] : [],
+    selectedMethod: typeof data?.selectedMethod === 'string' ? data.selectedMethod : undefined,
+  };
+}
+
+export async function createServiceXenditCheckout(
+  requestId: string,
+  paymentMethod: string,
+): Promise<ServiceXenditCheckoutResult> {
+  const { data, error } = await supabase.functions.invoke('create-service-xendit-checkout', {
+    body: { requestId, paymentMethod, platform: 'mobile' },
   });
 
   if (error) throw new Error(await getFunctionErrorMessage(error));

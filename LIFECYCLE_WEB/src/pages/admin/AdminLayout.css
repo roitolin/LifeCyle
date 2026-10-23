@@ -840,3 +840,1253 @@
     @apply flex-[1_1_130px] justify-center;
   }
 }
+
+/* Keep the admin console usable between desktop and phone widths. At tablet
+   widths the navigation remains a compact rail; the content keeps its own
+   scrolling surface instead of being squeezed into a second narrow column. */
+@media (min-width: 1440px) {
+  .admin-console-shell .user-content {
+    width: min(100%, 1440px);
+  }
+}
+
+@media (max-width: 1020px) {
+  .admin-console-shell,
+  .admin-console-shell.sidebar-collapsed {
+    grid-template-columns: 210px minmax(0, 1fr);
+    min-height: 100dvh;
+  }
+
+  .admin-console-shell .user-sidebar {
+    width: 210px;
+  }
+
+  .admin-console-shell .user-header,
+  .admin-console-shell.sidebar-collapsed .user-header {
+    left: 210px;
+    padding-right: 16px;
+  }
+}
+
+@media (max-width: 700px) {
+  .admin-console-shell,
+  .admin-console-shell.sidebar-collapsed {
+    grid-template-columns: 58px minmax(0, 1fr);
+  }
+
+  .admin-console-shell .user-sidebar {
+    width: 58px;
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  .admin-console-shell .user-brand,
+  .admin-console-shell.sidebar-collapsed .user-brand {
+    width: 58px;
+    justify-content: center;
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  .admin-console-shell .user-nav-link {
+    justify-content: center;
+    gap: 0;
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  .admin-console-shell .sidebar-label,
+  .admin-console-shell .utility-actions {
+    display: none;
+  }
+
+  .admin-console-shell .user-header,
+  .admin-console-shell.sidebar-collapsed .user-header {
+    left: 58px;
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .admin-console-shell .user-content.admin-content-full-bleed {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+}
+
+.admin-mobile-header-brand,
+.admin-mobile-menu-backdrop {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  .admin-console-shell,
+  .admin-console-shell.sidebar-collapsed {
+    display: block;
+    min-height: 100dvh;
+    padding-top: 60px;
+  }
+
+  .admin-console-shell .user-sidebar {
+    position: fixed;
+    z-index: 50;
+    top: 60px;
+    bottom: 0;
+    left: 0;
+    width: min(86vw, 320px);
+    height: calc(100dvh - 60px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 12px 0 max(16px, env(safe-area-inset-bottom));
+    background: #ffffff;
+    box-shadow: 16px 0 40px rgba(15, 23, 42, 0.18);
+    transform: translateX(-105%);
+    transition: transform 180ms ease;
+  }
+
+  .admin-console-shell.mobile-sidebar-open .user-sidebar {
+    transform: translateX(0);
+  }
+
+  .admin-console-shell .user-brand,
+  .admin-console-shell.sidebar-collapsed .user-brand {
+    display: none;
+  }
+
+  .admin-console-shell .user-nav-link,
+  .admin-console-shell.sidebar-collapsed .user-nav-link {
+    justify-content: flex-start;
+    gap: 12px;
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+
+  .admin-console-shell.mobile-sidebar-open .sidebar-toggle-row {
+    justify-content: flex-end;
+    min-height: 44px;
+    padding-right: 14px;
+    border-bottom: 1px solid #f1f3f5;
+  }
+
+  .admin-console-shell.mobile-sidebar-open .sidebar-toggle-row .sidebar-label {
+    display: none;
+  }
+
+  .admin-console-shell.mobile-sidebar-open .sidebar-toggle-row .nav-icon {
+    width: 24px;
+    height: 24px;
+  }
+
+  .admin-console-shell.mobile-sidebar-open .sidebar-toggle-row .nav-icon svg {
+    display: none;
+  }
+
+  .admin-console-shell.mobile-sidebar-open .sidebar-toggle-row .nav-icon::before {
+    content: '×';
+    color: #34453f;
+    font-size: 28px;
+    font-weight: 400;
+    line-height: 1;
+  }
+
+  .admin-console-shell.mobile-sidebar-open .sidebar-label {
+    display: inline;
+  }
+
+  .admin-console-shell.mobile-sidebar-open .admin-nav-section {
+    display: block;
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+
+  .admin-console-shell.mobile-sidebar-open .utility-actions {
+    display: block;
+  }
+
+  .admin-console-shell .user-main {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+    padding-top: 60px;
+  }
+
+  .admin-console-shell .user-header,
+  .admin-console-shell.sidebar-collapsed .user-header {
+    position: fixed;
+    z-index: 60;
+    left: 0;
+    right: 0;
+    padding: 0 12px;
+  }
+
+  .admin-mobile-header-brand {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .admin-mobile-menu-trigger {
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    display: inline-grid;
+    place-items: center;
+    padding: 0;
+    color: #315f50;
+    background: transparent;
+    border: 0;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .admin-mobile-menu-trigger:hover,
+  .admin-mobile-menu-trigger:focus-visible {
+    background: #eef4f1;
+  }
+
+  .admin-mobile-menu-trigger:focus-visible {
+    outline: 2px solid rgba(49, 95, 80, 0.28);
+    outline-offset: 2px;
+  }
+
+  .admin-mobile-menu-trigger svg {
+    width: 23px;
+    height: 23px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.9;
+    stroke-linecap: round;
+  }
+
+  .admin-mobile-brand-link {
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #315f50;
+    text-decoration: none;
+  }
+
+  .admin-mobile-brand-logo {
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    object-fit: contain;
+  }
+
+  .admin-mobile-brand-link strong {
+    max-width: 148px;
+    overflow: hidden;
+    color: #22312d;
+    font-size: 13px;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .admin-mobile-menu-backdrop {
+    position: fixed;
+    z-index: 40;
+    inset: 60px 0 0;
+    display: block;
+    width: 100%;
+    height: auto;
+    padding: 0;
+    background: rgba(18, 27, 24, 0.48);
+    border: 0;
+    cursor: pointer;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-console-shell .user-sidebar {
+    transition: none;
+  }
+}
+
+.admin-mobile-sidebar-head,
+.admin-mobile-sidebar-profile {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  .admin-console-shell .user-sidebar {
+    top: 0;
+    z-index: 70;
+    width: min(78vw, 320px);
+    height: 100dvh;
+    padding: 0 0 max(16px, env(safe-area-inset-bottom));
+    border-right: 1px solid #e3e8e5;
+    border-radius: 0;
+  }
+
+  .admin-console-shell.mobile-sidebar-open .sidebar-toggle-row {
+    display: none;
+  }
+
+  .admin-mobile-sidebar-head {
+    min-height: 58px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px 0 18px;
+    border-bottom: 1px solid #e3e8e5;
+    color: #2f403a;
+  }
+
+  .admin-mobile-sidebar-head strong {
+    font-size: 14px;
+    font-weight: 800;
+  }
+
+  .admin-mobile-sidebar-head button {
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    color: #34453f;
+    background: transparent;
+    border: 0;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .admin-mobile-sidebar-head button:hover,
+  .admin-mobile-sidebar-head button:focus-visible {
+    background: #f1f4f2;
+  }
+
+  .admin-mobile-sidebar-head button:focus-visible {
+    outline: 2px solid rgba(49, 95, 80, 0.24);
+    outline-offset: 2px;
+  }
+
+  .admin-mobile-sidebar-head svg {
+    width: 19px;
+    height: 19px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+  }
+
+  .admin-mobile-sidebar-profile {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 14px;
+    padding: 14px 0 13px;
+    border-bottom: 1px solid #edf0ee;
+  }
+
+  .admin-mobile-sidebar-avatar {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    object-fit: cover;
+    background: #e5ebe7;
+    border-radius: 50%;
+  }
+
+  .admin-mobile-sidebar-profile-copy {
+    min-width: 0;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .admin-mobile-sidebar-profile-copy strong,
+  .admin-mobile-sidebar-profile-copy span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .admin-mobile-sidebar-profile-copy strong {
+    color: #2f403a;
+    font-size: 13px;
+    line-height: 1.25;
+  }
+
+  .admin-mobile-sidebar-profile-copy span {
+    color: #71807a;
+    font-size: 10px;
+    line-height: 1.3;
+  }
+
+  .admin-mobile-sidebar-logout {
+    min-height: 30px;
+    flex: 0 0 auto;
+    padding: 0 10px;
+    color: #a33a3a;
+    background: #fff8f7;
+    border: 1px solid #e8c8c5;
+    border-radius: 6px;
+    font: inherit;
+    font-size: 10px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .admin-mobile-sidebar-logout:hover,
+  .admin-mobile-sidebar-logout:focus-visible {
+    background: #fff0ee;
+    border-color: #d9a7a2;
+  }
+
+  .admin-console-shell.mobile-sidebar-open .user-nav {
+    width: 100%;
+    min-width: 0;
+    display: flex !important;
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+    gap: 1px;
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+    padding: 10px 10px 16px;
+  }
+
+  .admin-console-shell.mobile-sidebar-open .user-nav-link {
+    width: 100% !important;
+    min-width: 0;
+    min-height: 40px;
+    flex: 0 0 auto !important;
+    padding-right: 10px;
+    padding-left: 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    white-space: normal;
+  }
+
+  .admin-console-shell.mobile-sidebar-open .admin-nav-section {
+    width: 100%;
+    display: block !important;
+    flex: 0 0 auto;
+    padding: 12px 10px 5px;
+    color: #8a9691;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .admin-mobile-menu-backdrop {
+    inset: 0;
+  }
+}
+
+/* Shared mobile guardrails for every routed admin workspace. Page-level
+   styles can still control their visual treatment while this layer prevents
+   nested grids, controls, tables, and dialogs from widening the viewport. */
+@media (max-width: 700px) {
+  .admin-console-shell .user-main {
+    width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
+  }
+
+  .admin-console-shell .user-content.admin-content-full-bleed {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+    padding: 12px;
+  }
+
+  .admin-console-shell .admin-content-full-bleed > *,
+  .admin-console-shell .admin-content-full-bleed :is(
+    .dashboard-operational-grid,
+    .dashboard-section,
+    .analytics-grid,
+    .analytics-grid-main,
+    .analytics-grid-bottom,
+    .analytics-card,
+    .operations-page,
+    .operations-toolbar,
+    .operations-queue-card,
+    .announcements-layout,
+    .announcement-composer,
+    .payments-panel,
+    .payments-grid,
+    .payments-card,
+    .payments-submissions,
+    .admin-product-layout,
+    .admin-product-main,
+    .admin-product-side,
+    .admin-user-detail-layout,
+    .admin-user-section,
+    .admin-user-side,
+    .home-content-layout,
+    .home-content-form,
+    .home-content-preview-column,
+    .admin-support-grid,
+    .admin-support-list,
+    .admin-support-thread,
+    .admin-shop-overview,
+    .admin-shop-content,
+    .sc-workspace,
+    .sc-content-area,
+    .sr-layout,
+    .sr-primary-column,
+    .sr-side-column
+  ) {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .admin-console-shell .admin-content-full-bleed > * {
+    width: 100%;
+  }
+
+  .admin-console-shell :is(
+    .operations-page-header,
+    .analytics-header,
+    .payments-header,
+    .payments-submissions-head,
+    .admin-page-heading,
+    .home-content-header,
+    .admin-user-detail-topbar,
+    .admin-product-topbar,
+    .admin-detail-page-head,
+    .admin-shop-workspace-head,
+    .dashboard-section-head
+  ) {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .admin-console-shell :is(
+    .analytics-actions,
+    .payout-header-actions,
+    .admin-user-profile-actions,
+    .operations-card-actions,
+    .operations-modal-actions,
+    .payments-actions,
+    .payments-modal-footer,
+    .admin-shop-receipt-actions,
+    .quick-actions,
+    .request-actions
+  ) {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .admin-console-shell :is(
+    .payments-tabs,
+    .operations-filter-tabs,
+    .activity-filters,
+    .admin-shop-tabs,
+    .sc-tabs
+  ) {
+    width: 100%;
+    max-width: 100%;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-console-shell :is(
+    .payments-tab,
+    .operations-filter-tabs > *,
+    .activity-filters > *,
+    .admin-shop-tabs > *,
+    .sc-tabs > *
+  ) {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .admin-console-shell :is(
+    .admin-filters,
+    .admin-filters-advanced,
+    .activity-controls,
+    .payments-form-grid,
+    .payout-modal-form,
+    .commission-modal-details,
+    .admin-shop-overview,
+    .admin-user-detail-layout,
+    .admin-product-layout,
+    .home-content-layout,
+    .announcements-layout,
+    .analytics-grid-main,
+    .analytics-grid-bottom,
+    .payments-grid,
+    .dashboard-operational-grid,
+    .sc-details-grid,
+    .sr-layout,
+    .sr-card-grid
+  ) {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .admin-console-shell :is(
+    .operations-search,
+    .commission-toolbar-select,
+    .payout-toolbar,
+    .activity-search
+  ) {
+    width: 100%;
+    min-width: 0 !important;
+    max-width: 100%;
+  }
+
+  .admin-console-shell input:not([type='checkbox']):not([type='radio']),
+  .admin-console-shell select,
+  .admin-console-shell textarea {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    font-size: 16px;
+  }
+
+  .admin-console-shell button,
+  .admin-console-shell a,
+  .admin-console-shell img,
+  .admin-console-shell video,
+  .admin-console-shell canvas {
+    max-width: 100%;
+  }
+
+  .admin-console-shell :is(
+    .table-wrap,
+    .analytics-table-wrap,
+    .activity-table-wrap,
+    .security-table-wrap,
+    .sc-table-wrap
+  ) {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-console-shell .request-table {
+    min-width: 680px;
+  }
+
+  .admin-console-shell .analytics-table,
+  .admin-console-shell .sc-table {
+    min-width: 620px;
+  }
+
+  .admin-console-shell .admin-support-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .admin-console-shell .messages-thread-input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .admin-console-shell .messages-thread-input input {
+    flex: 1 1 auto;
+  }
+
+  .admin-console-shell .admin-content-full-bleed > .sc-page:not(.admin-shop-detail-page) .sc-workspace {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .admin-console-shell .admin-content-full-bleed > .sc-page:not(.admin-shop-detail-page) .sc-sidebar {
+    position: static;
+    width: 100% !important;
+    max-width: 100%;
+    height: auto;
+    flex: 0 0 auto;
+  }
+
+  .admin-console-shell .admin-content-full-bleed > .sc-page:not(.admin-shop-detail-page) .sc-content-area {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    padding: 14px;
+  }
+
+  .admin-console-shell .admin-shop-workspace .admin-shop-identity {
+    width: 100%;
+  }
+
+  .admin-console-shell .admin-shop-workspace .admin-shop-identity > div {
+    max-width: none;
+    text-align: left;
+  }
+
+  .admin-console-shell :is(
+    .operations-modal-overlay,
+    .payments-modal-overlay,
+    .ban-overlay,
+    .sc-modal-overlay,
+    .sr-receipt-modal-overlay,
+    .admin-receipt-overlay,
+    .admin-shop-receipt-overlay
+  ) {
+    box-sizing: border-box;
+    padding: 12px;
+  }
+
+  .admin-console-shell :is(
+    .operations-modal,
+    .payments-modal,
+    .payments-reject-modal,
+    .commission-breakdown-modal,
+    .ban-card,
+    .sc-modal,
+    .sr-receipt-modal,
+    .admin-shop-receipt-modal
+  ) {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    max-height: calc(100dvh - 24px);
+    overflow-y: auto;
+    margin: 0;
+  }
+
+  .admin-console-shell :is(
+    .admin-product-hero-copy,
+    .admin-user-profile-copy,
+    .admin-conversation-copy,
+    .operations-queue-copy,
+    .payments-header-text,
+    .admin-detail-page-head,
+    .sr-detail-row,
+    .sc-detail,
+    .code-font
+  ) {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-console-shell .user-content.admin-content-full-bleed {
+    padding: 10px;
+  }
+
+  .admin-console-shell .user-header,
+  .admin-console-shell.sidebar-collapsed .user-header {
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+
+  .admin-console-shell .admin-mobile-brand-link strong {
+    display: none;
+  }
+
+  .admin-console-shell .admin-mobile-header-brand {
+    gap: 4px;
+  }
+
+  .admin-console-shell .admin-mobile-menu-trigger {
+    width: 36px;
+    height: 36px;
+    flex-basis: 36px;
+  }
+
+  .admin-console-shell .admin-mobile-brand-logo {
+    width: 32px;
+    height: 32px;
+    flex-basis: 32px;
+  }
+
+  .admin-console-shell :is(
+    .analytics-actions,
+    .payout-header-actions,
+    .admin-user-profile-actions,
+    .operations-card-actions,
+    .operations-modal-actions,
+    .payments-actions,
+    .payments-modal-footer,
+    .admin-shop-receipt-actions,
+    .quick-actions,
+    .request-actions
+  ) > :is(button, a, select) {
+    width: 100%;
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+
+  .admin-console-shell .admin-shop-workspace .admin-shop-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-console-shell .admin-shop-workspace .admin-shop-summary > div,
+  .admin-console-shell .admin-shop-workspace .admin-shop-summary > div:nth-child(2) {
+    border-right: 0;
+    border-bottom: 1px solid var(--admin-border);
+  }
+
+  .admin-console-shell .admin-shop-workspace .admin-shop-summary > div:last-child {
+    border-bottom: 0;
+  }
+
+  .admin-console-shell :is(.payments-modal-header, .operations-modal-actions, .admin-section-heading) {
+    align-items: stretch;
+  }
+
+  .admin-console-shell :is(.payments-modal-footer, .operations-modal-actions, .admin-shop-receipt-actions) {
+    flex-direction: column;
+  }
+}
+
+/* Compact record pages shown in the mobile admin screenshots. */
+@media (max-width: 700px) {
+  .admin-console-shell,
+  .admin-console-shell.sidebar-collapsed {
+    padding-top: 0;
+  }
+
+  .admin-console-shell .user-main {
+    padding-top: 60px;
+  }
+
+  .admin-console-shell .admin-records-page > h2 {
+    margin-top: 0;
+    font-size: 20px;
+    line-height: 1.25;
+  }
+
+  .admin-console-shell .admin-records-page > .panel-sub {
+    margin-top: 5px;
+    line-height: 1.5;
+  }
+
+  .admin-console-shell .admin-records-page .admin-filters {
+    gap: 10px;
+    margin-top: 16px;
+    padding: 12px;
+  }
+
+  .admin-console-shell .admin-records-page .admin-filters > div:has(> .admin-export-btn) > label {
+    display: none;
+  }
+
+  .admin-console-shell .admin-records-page .admin-filters :is(.admin-export-btn, .table-action) {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .admin-console-shell .table-wrap:has(> .admin-responsive-table) {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .admin-console-shell .admin-responsive-table {
+    width: 100%;
+    min-width: 0;
+    display: block;
+    border: 0;
+  }
+
+  .admin-console-shell .admin-responsive-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .admin-console-shell .admin-responsive-table tbody {
+    display: grid;
+    gap: 12px;
+  }
+
+  .admin-console-shell .admin-responsive-table tbody tr {
+    min-width: 0;
+    display: grid;
+    overflow: hidden;
+    border: 1px solid var(--admin-border);
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(24, 39, 34, 0.04);
+  }
+
+  .admin-console-shell .admin-responsive-table tbody td {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(82px, 96px) minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 0;
+    color: #2f3d38;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+  }
+
+  .admin-console-shell .admin-responsive-table tbody td + td {
+    border-top: 1px solid #edf1ef;
+  }
+
+  .admin-console-shell .admin-responsive-table tbody td::before {
+    content: attr(data-label);
+    color: #78857f;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.055em;
+    line-height: 1.4;
+    text-transform: uppercase;
+  }
+
+  .admin-console-shell .admin-responsive-table tbody td:first-child {
+    grid-template-columns: minmax(0, 1fr);
+    padding-top: 13px;
+    background: #fbfcfb;
+  }
+
+  .admin-console-shell .admin-responsive-table tbody td:first-child::before {
+    margin-bottom: -4px;
+  }
+
+  .admin-console-shell .admin-responsive-table tbody td:last-child {
+    grid-template-columns: minmax(0, 1fr);
+    padding-bottom: 13px;
+  }
+
+  .admin-console-shell .admin-responsive-table :is(.request-actions, .payout-row-actions) {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .admin-console-shell .admin-responsive-table :is(.request-actions, .payout-row-actions) > * {
+    width: 100%;
+    min-width: 0;
+    justify-content: center;
+  }
+
+  .admin-console-shell .admin-responsive-table .admin-product-list-cell {
+    min-width: 0;
+    align-items: flex-start;
+  }
+
+  .admin-console-shell .admin-responsive-table .admin-product-list-cell > div {
+    min-width: 0;
+  }
+
+  .admin-console-shell .admin-responsive-table .admin-product-list-cell span,
+  .admin-console-shell .admin-responsive-table :is(.payout-primary, .payout-secondary) {
+    max-width: none;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .admin-console-shell .payments-header {
+    min-height: 0;
+    padding: 16px;
+  }
+
+  .admin-console-shell .payments-tabs {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    overflow: visible;
+    padding: 10px 16px;
+  }
+
+  .admin-console-shell .payments-tab {
+    min-width: 0;
+    min-height: 38px;
+    justify-content: center;
+    padding: 0 8px;
+    border: 1px solid #e0e6e3;
+    border-radius: 7px;
+    white-space: normal;
+    text-align: center;
+  }
+
+  .admin-console-shell .payments-tab.is-active {
+    border-color: #91aaa1;
+    background: #eef4f1;
+  }
+
+  .admin-console-shell .payments-tab::after {
+    display: none;
+  }
+
+  .admin-console-shell .payments-submissions {
+    padding: 16px;
+  }
+
+  .admin-console-shell .payments-submissions-head .admin-export-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .admin-console-shell .payments-submission-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .admin-console-shell .payments-submission-summary article,
+  .admin-console-shell .payments-submission-summary article:last-child {
+    min-width: 0;
+    min-height: 74px;
+    padding: 12px 10px;
+    border-right: 1px solid #e7ebef;
+    border-bottom: 0;
+  }
+
+  .admin-console-shell .payments-submission-summary article:last-child {
+    border-right: 0;
+  }
+
+  .admin-console-shell .payments-submission-summary article span {
+    overflow-wrap: anywhere;
+  }
+
+  .admin-console-shell .payments-submission-summary.four-up {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .admin-console-shell .payments-submission-summary.four-up article:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .admin-console-shell .payments-submission-summary.four-up article:nth-child(-n + 2) {
+    border-bottom: 1px solid #e7ebef;
+  }
+
+  .admin-console-shell .payout-header-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .admin-console-shell .payout-header-actions > button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .admin-console-shell .payout-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .admin-console-shell .payout-toolbar .operations-filter-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    overflow: visible;
+  }
+
+  .admin-console-shell .payout-toolbar .operations-filter-tabs > button {
+    width: 100%;
+    min-width: 0;
+    justify-content: center;
+    white-space: normal;
+  }
+}
+
+@media (max-width: 390px) {
+  .admin-console-shell .admin-responsive-table tbody td {
+    grid-template-columns: 76px minmax(0, 1fr);
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .admin-console-shell .payments-tabs,
+  .admin-console-shell .payments-submissions,
+  .admin-console-shell .payments-header {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+}
+
+/* Mobile administration refinements for users, moderation, and security. */
+@media (max-width: 700px) {
+  .admin-console-shell .user-header .user-menu-wrap,
+  .admin-console-shell .user-header .user-dropdown {
+    display: none;
+  }
+
+  .admin-console-shell .user-status-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  .admin-console-shell .user-status-card {
+    min-width: 0;
+    min-height: 78px;
+    gap: 7px;
+    padding: 12px;
+  }
+
+  .admin-console-shell .user-status-card span {
+    font-size: 11px;
+  }
+
+  .admin-console-shell .user-status-card strong {
+    font-size: 23px;
+  }
+
+  .admin-console-shell .admin-users-page .user-filter-reset {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .admin-console-shell .admin-users-page .user-account-status-cell {
+    min-width: 0;
+  }
+
+  .admin-console-shell .admin-users-page .user-ban-reason {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .admin-console-shell .moderation-page .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .admin-console-shell .moderation-page .stat-card {
+    min-width: 0;
+    min-height: 76px;
+    padding: 12px;
+  }
+
+  .admin-console-shell .moderation-page > .quick-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .admin-console-shell .moderation-page > .quick-actions > button {
+    width: 100%;
+    min-width: 0;
+    min-height: 38px;
+    padding: 5px 7px;
+    font-size: 10px;
+    line-height: 1.25;
+    white-space: normal;
+  }
+
+  .admin-console-shell .moderation-page .notification-item {
+    padding: 13px;
+  }
+
+  .admin-console-shell .moderation-page .section-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .admin-console-shell .moderation-page .section-actions > * {
+    width: 100%;
+    min-width: 0;
+    justify-content: center;
+  }
+
+  .admin-console-shell .admin-activity-panel .activity-controls {
+    gap: 10px;
+  }
+
+  .admin-console-shell .admin-activity-panel .activity-filters {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    overflow: visible;
+    margin-right: 0;
+    padding: 0;
+  }
+
+  .admin-console-shell .admin-activity-panel .activity-filters button {
+    width: 100%;
+    min-width: 0;
+    justify-content: space-between;
+    padding: 0 8px;
+    white-space: normal;
+  }
+
+  .admin-console-shell :is(.admin-activity-panel, .admin-security-panel) :is(.activity-summary-grid, .security-summary-grid) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+  }
+
+  .admin-console-shell :is(.admin-activity-panel, .admin-security-panel) :is(.activity-summary-grid, .security-summary-grid) article {
+    min-width: 0;
+    min-height: 78px;
+    padding: 11px;
+  }
+
+  .admin-console-shell :is(.admin-activity-panel, .admin-security-panel) .admin-page-title-wrap > div {
+    min-width: 0;
+  }
+
+  .admin-console-shell :is(.admin-activity-panel, .admin-security-panel) .admin-page-title-wrap h2,
+  .admin-console-shell :is(.admin-activity-panel, .admin-security-panel) .admin-page-title-wrap .panel-sub {
+    overflow-wrap: anywhere;
+  }
+
+  .admin-console-shell .admin-activity-panel :is(.activity-table-wrap, .activity-table tbody),
+  .admin-console-shell .admin-security-panel :is(.security-table-wrap, .security-table tbody) {
+    background: transparent;
+  }
+
+  .admin-console-shell .admin-activity-panel :is(.activity-table-wrap, .security-table-wrap),
+  .admin-console-shell .admin-security-panel :is(.activity-table-wrap, .security-table-wrap) {
+    border: 0;
+  }
+
+  .admin-console-shell .admin-security-panel .security-session-card,
+  .admin-console-shell .admin-security-panel .security-action-card {
+    padding: 14px;
+  }
+
+  .admin-console-shell .admin-security-panel .session-details {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-console-shell .admin-security-panel .session-details > div,
+  .admin-console-shell .admin-security-panel .session-details > div:not(:last-child) {
+    min-width: 0;
+    border: 0;
+  }
+
+  .admin-console-shell .admin-security-panel .session-details > div:nth-child(odd) {
+    border-right: 1px solid #e2e8f0;
+  }
+
+  .admin-console-shell .admin-security-panel .session-details > div:nth-child(-n + 2) {
+    border-bottom: 1px solid #e2e8f0;
+  }
+}
+
+@media (max-width: 360px) {
+  .admin-console-shell .moderation-page > .quick-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-console-shell .admin-activity-panel .activity-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

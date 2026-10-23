@@ -63,6 +63,12 @@
 .profile-app-header-inner {
   @apply items-center justify-between;
 }
+.profile-page .profile-app-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-direction: row;
+}
 .profile-browse-link {
   @apply text-[rgba(255,255,255,0.82)] text-[14px] font-semibold no-underline hover:text-white;
 }
@@ -816,6 +822,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-direction: row !important;
     padding: 0 14px;
   }
   .profile-page .profile-mobile-brand-row {

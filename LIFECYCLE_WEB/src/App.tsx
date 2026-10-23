@@ -76,6 +76,9 @@ function RouteScopedChatWidget() {
     || normalizedPath === '/funeral/shops'
     || normalizedPath.startsWith('/funeral/product/')
     || normalizedPath.startsWith('/shop/')
+    || normalizedPath === '/user/requests'
+    || normalizedPath.startsWith('/user/requests/')
+    || normalizedPath.startsWith('/seller/requests/')
 
   if (!isMarketplaceChatRoute) return null
 

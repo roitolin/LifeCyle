@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
@@ -88,10 +88,45 @@ function RegisterPage() {
   const [gender, setGender] = useState<Gender>('')
   const [dateOfBirth, setDateOfBirth] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [passwordFocused, setPasswordFocused] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const passwordStrengthRef = useRef<HTMLDivElement>(null)
   const passwordIsStrong = isStrongPassword(password)
   const passwordsMatch = confirmPassword.length > 0 && password === confirmPassword
+  const showPasswordStrength = passwordFocused && password.length > 0
+
+  useEffect(() => {
+    if (!showPasswordStrength) return
+
+    const revealChecklist = () => {
+      const checklist = passwordStrengthRef.current
+      if (!checklist) return
+
+      const viewport = window.visualViewport
+      const visibleTop = viewport?.offsetTop ?? 0
+      const visibleBottom = visibleTop + (viewport?.height ?? window.innerHeight)
+      const bounds = checklist.getBoundingClientRect()
+      const bottomGap = 16
+
+      if (bounds.bottom > visibleBottom - bottomGap) {
+        window.scrollBy({
+          top: bounds.bottom - visibleBottom + bottomGap,
+          behavior: 'smooth',
+        })
+      }
+    }
+
+    const animationFrame = window.requestAnimationFrame(revealChecklist)
+    const keyboardTimer = window.setTimeout(revealChecklist, 240)
+    window.visualViewport?.addEventListener('resize', revealChecklist)
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame)
+      window.clearTimeout(keyboardTimer)
+      window.visualViewport?.removeEventListener('resize', revealChecklist)
+    }
+  }, [showPasswordStrength])
 
   const goBack = () => {
     if (window.history.length > 1) {
@@ -225,14 +260,17 @@ function RegisterPage() {
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
+                onFocus={() => setPasswordFocused(true)}
+                onBlur={() => setPasswordFocused(false)}
                 autoComplete="new-password"
                 minLength={8}
-                aria-describedby="register-password-strength"
+                aria-describedby={showPasswordStrength ? 'register-password-strength' : undefined}
                 required
               />
               <button
                 type="button"
                 className="password-toggle"
+                onMouseDown={(event) => event.preventDefault()}
                 onClick={() => setShowPassword((prev) => !prev)}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
@@ -262,9 +300,11 @@ function RegisterPage() {
               </button>
             </div>
 
-            <div id="register-password-strength">
-              <PasswordStrengthChecklist password={password} />
-            </div>
+            {showPasswordStrength ? (
+              <div id="register-password-strength" ref={passwordStrengthRef} className="password-strength-shell">
+                <PasswordStrengthChecklist password={password} />
+              </div>
+            ) : null}
 
             <label htmlFor="register-confirm-password">Confirm Password</label>
             <input

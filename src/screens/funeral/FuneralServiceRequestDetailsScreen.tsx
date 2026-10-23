@@ -44,6 +44,7 @@ import {
   type ServicePreparationChecklist,
 } from '@/utils/servicePreparationChecklist';
 import { formatServiceDate, formatServiceTime } from "@/utils/serviceRequestSchedule";
+import { getProfileImageSource } from "@/utils/defaultProfileImage";
 
 type FuneralServiceRequest = {
   id: string;
@@ -109,6 +110,13 @@ type PaymentSubmissionForm = {
   gcashNumber: string;
   referenceNumber: string;
   proofImageUrl: string | null;
+};
+
+type ContactProfile = {
+  name?: string | null;
+  photoURL?: string | null;
+  gender?: string | null;
+  isShop?: boolean;
 };
 
 const EMPTY_PAYMENT_FORM: PaymentSubmissionForm = {
@@ -537,6 +545,7 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
   const [paymentSuccessRequest, setPaymentSuccessRequest] = useState<FuneralServiceRequest | null>(null);
   const [xenditVisible, setXenditVisible] = useState(false);
   const [completionProofUrl, setCompletionProofUrl] = useState<string | null>(initialRequest.completionProofImageUrl || null);
+  const [contactProfile, setContactProfile] = useState<ContactProfile | null>(null);
   const [uploadingCompletionProof, setUploadingCompletionProof] = useState(false);
   const [rejectReasonVisible, setRejectReasonVisible] = useState(false);
   const [rejectReasonRequest, setRejectReasonRequest] = useState<FuneralServiceRequest | null>(null);
@@ -583,6 +592,31 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
       };
     }, [request.id, request.status, request.paymentProvider])
   );
+
+  useEffect(() => {
+    let active = true;
+    const loadContactProfile = async () => {
+      const contactId = requesterView ? request.shopId : request.requesterId;
+      if (!contactId) {
+        setContactProfile(null);
+        return;
+      }
+      const { data } = requesterView
+        ? await supabase.from("funeral_shops").select("shopName, shopImageUrl").eq("id", contactId).maybeSingle()
+        : await supabase.from("users").select("fullName, photoURL, gender").eq("id", contactId).maybeSingle();
+      const profileData = data as any;
+      if (!active) return;
+      if (requesterView) {
+        setContactProfile(profileData ? { name: profileData.shopName, photoURL: profileData.shopImageUrl, isShop: true } : null);
+      } else {
+        setContactProfile(profileData ? { name: profileData.fullName, photoURL: profileData.photoURL, gender: profileData.gender } : null);
+      }
+    };
+    void loadContactProfile();
+    return () => {
+      active = false;
+    };
+  }, [request.requesterId, request.shopId, requesterView]);
 
   const scrollToSection = useCallback((position: number) => {
     scrollViewRef.current?.scrollTo({ y: Math.max(0, position - 12), animated: true });
@@ -706,6 +740,20 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
       Alert.alert("Unavailable", mode === "call" ? "Call is not available on this device." : "SMS is not available on this device.");
     }
   }, []);
+
+  const openContactChat = useCallback(() => {
+    const otherUserId = String(requesterView ? request.shopId : request.requesterId || "").trim();
+    if (!otherUserId) {
+      Alert.alert("Chat unavailable", "This request does not have a linked account available to contact.");
+      return;
+    }
+    navigation.navigate("Chat", {
+      otherUserId,
+      otherUserName: requesterView ? request.shopName || "Funeral shop" : request.familyCoordinatorName || "Family coordinator",
+      shopId: request.shopId,
+      requestId: request.id,
+    });
+  }, [navigation, request.familyCoordinatorName, request.id, request.requesterId, request.shopId, request.shopName, requesterView]);
 
   const pickPaymentProof = useCallback(async () => {
     const picker = await ImagePicker.launchImageLibraryAsync({
@@ -1188,6 +1236,9 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
   );
   const shopFamilyContactReady = Boolean(request.familyCoordinatorName && request.contactNumber);
   const shopScheduleReady = Boolean(request.wakeStartDate && request.wakeEndDate && request.burialTime);
+  const contactPhone = requesterView ? request.shopContactNumber : request.contactNumber;
+  const contactUserId = String(requesterView ? request.shopId : request.requesterId || "").trim();
+  const contactName = requesterView ? request.shopName || "Funeral shop" : request.familyCoordinatorName || "Family coordinator";
   let stickyAction: {
     context: string;
     label: string;
@@ -1543,6 +1594,23 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
           title={requesterView ? "Shop contact" : "Family contact"}
           subtitle={requesterView ? "Contact the provider handling this request" : "Contact the family coordinator"}
         >
+          <View style={styles.contactIdentityRow}>
+            {requesterView ? (
+              contactProfile?.photoURL ? (
+                <Image source={{ uri: contactProfile.photoURL }} style={styles.contactIdentityAvatar} />
+              ) : (
+                <View style={styles.contactIdentityFallback}>
+                  <Ionicons name="storefront-outline" size={22} color="#315f50" />
+                </View>
+              )
+            ) : (
+              <Image source={getProfileImageSource(contactProfile?.photoURL, contactProfile?.gender)} style={styles.contactIdentityAvatar} />
+            )}
+            <View style={styles.contactIdentityCopy}>
+              <Text style={styles.contactIdentityName} numberOfLines={1}>{contactProfile?.name || contactName}</Text>
+              <Text style={styles.contactIdentityCaption}>{requesterView ? "Service provider" : "Family coordinator"}</Text>
+            </View>
+          </View>
           <InfoRow
             icon={requesterView ? "business-outline" : "person-outline"}
             label={requesterView ? "Shop" : "Family coordinator"}
@@ -1561,20 +1629,20 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
           />
           <View style={styles.contactActionRow}>
             <TouchableOpacity
-              style={[styles.contactActionButton, requesterView && !request.shopContactNumber ? styles.buttonDisabled : null]}
-              onPress={() => void openPhoneLink("call", requesterView ? request.shopContactNumber : request.contactNumber)}
-              disabled={requesterView && !request.shopContactNumber}
+              style={[styles.contactActionButton, !contactPhone ? styles.buttonDisabled : null]}
+              onPress={() => void openPhoneLink("call", contactPhone)}
+              disabled={!contactPhone}
             >
               <Ionicons name="call-outline" size={17} color="#22312d" />
               <Text style={styles.contactActionButtonText}>{requesterView ? "Call shop" : "Call family"}</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.contactActionButton, requesterView && !request.shopContactNumber ? styles.buttonDisabled : null]}
-              onPress={() => void openPhoneLink("sms", requesterView ? request.shopContactNumber : request.contactNumber)}
-              disabled={requesterView && !request.shopContactNumber}
+              style={[styles.contactActionButton, !contactUserId ? styles.buttonDisabled : null]}
+              onPress={openContactChat}
+              disabled={!contactUserId}
             >
               <Ionicons name="chatbubble-ellipses-outline" size={17} color="#22312d" />
-              <Text style={styles.contactActionButtonText}>Send SMS</Text>
+              <Text style={styles.contactActionButtonText}>{requesterView ? "Chat with shop" : "Chat with family"}</Text>
             </TouchableOpacity>
           </View>
         </DetailCard>
@@ -3132,6 +3200,20 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 16,
   },
+  contactIdentityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingBottom: 13,
+    marginBottom: 2,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#e6e3da",
+  },
+  contactIdentityAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: "#e8efe9" },
+  contactIdentityFallback: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", backgroundColor: "#e8efe9" },
+  contactIdentityCopy: { flex: 1, minWidth: 0 },
+  contactIdentityName: { color: "#22312d", fontSize: 14, fontWeight: "900" },
+  contactIdentityCaption: { color: "#77827d", fontSize: 11, marginTop: 3 },
   contactActionButton: {
     flex: 1,
     minHeight: 42,

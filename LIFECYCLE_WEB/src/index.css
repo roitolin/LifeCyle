@@ -871,6 +871,149 @@ main {
 .funeral-store-footer {
   @apply [background:#22312d] border-t-[rgba(255,255,255,0.12)];
 }
+
+/* Final responsive layout guardrails. Keep wide layouts spacious while preventing
+   long labels, media, and nested panels from creating a horizontal page scroll. */
+html,
+body {
+  overflow-x: clip;
+}
+
+img,
+picture,
+video,
+canvas {
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  min-width: 0;
+}
+
+.landing-shell,
+.funeral-topbar,
+.funeral-page-main,
+.funeral-footer,
+.funeral-store-topbar,
+.funeral-store-main,
+.funeral-store-footer,
+.sp-page,
+.sp-header-inner,
+.sp-body-inner,
+.user-main,
+.user-content,
+.panel {
+  min-width: 0;
+}
+
+.funeral-hero > *,
+.funeral-panel-band > *,
+.funeral-footer > *,
+.funeral-store-hero > *,
+.funeral-store-support > *,
+.funeral-store-footer > *,
+.footer-contact-band > *,
+.footer-main > * {
+  min-width: 0;
+}
+
+@media (min-width: 1440px) {
+  .funeral-topbar,
+  .funeral-page-main,
+  .funeral-footer,
+  .funeral-store-topbar,
+  .funeral-store-main,
+  .funeral-store-footer {
+    width: min(1440px, calc(100% - 3rem));
+  }
+
+  .sp-topbar-inner,
+  .sp-header-inner,
+  .sp-body-inner,
+  .sp-footer-top,
+  .sp-footer-bottom {
+    max-width: 1360px;
+  }
+
+  .footer-contact-band,
+  .footer-main {
+    max-width: 1360px;
+  }
+}
+
+@media (max-width: 760px) {
+  .funeral-topbar,
+  .funeral-page-main,
+  .funeral-footer,
+  .funeral-store-topbar,
+  .funeral-store-main,
+  .funeral-store-footer {
+    width: calc(100% - 1rem);
+  }
+
+  .funeral-topbar,
+  .funeral-store-topbar {
+    top: 6px;
+    border-radius: 16px;
+  }
+
+  .funeral-top-actions,
+  .funeral-store-actions,
+  .funeral-hero-actions,
+  .funeral-store-hero-actions,
+  .funeral-store-support-actions {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .funeral-hero-visual {
+    min-height: clamp(300px, 72vw, 420px);
+  }
+
+  .footer-contact-band {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 20px;
+    border-radius: 22px;
+  }
+
+  .funeral-store-modal-overlay {
+    align-items: end;
+    padding: 0;
+  }
+
+  .funeral-store-modal-card {
+    width: 100%;
+    max-height: 92dvh;
+    overflow-y: auto;
+    border-radius: 24px 24px 0 0;
+  }
+}
+
+@media (max-width: 520px) {
+  .footer-contact-cards,
+  .footer-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .funeral-top-actions,
+  .funeral-store-actions,
+  .funeral-hero-actions,
+  .funeral-store-hero-actions,
+  .funeral-store-support-actions {
+    width: 100%;
+  }
+
+  .funeral-top-actions > *,
+  .funeral-store-actions > *,
+  .funeral-hero-actions > *,
+  .funeral-store-hero-actions > *,
+  .funeral-store-support-actions > * {
+    max-width: 100%;
+  }
+}
 .footer-contact-band {
   @apply w-[min(1220px,100%)] grid grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] gap-[22px] border [background:linear-gradient(145deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] shadow-[0_20px_34px_rgba(5,12,20,0.24)] mt-0 mb-[28px] mx-auto p-[24px] rounded-[28px] border-solid border-[rgba(155,185,214,0.14)];
 }
@@ -1624,8 +1767,15 @@ select:focus-visible {
 .password-toggle svg {
   @apply w-[18px] h-[18px] stroke-current;
 }
+.password-strength-shell {
+  min-width: 0;
+  scroll-margin-block: 16px;
+}
 .password-strength-card {
   @apply grid gap-[10px] border border-slate-200 [background:#f1f5f9] p-[13px] rounded-[12px];
+  width: 100%;
+  max-height: none;
+  overflow: visible;
 }
 .password-strength-heading {
   @apply flex items-center justify-between gap-[12px] text-[0.78rem];
@@ -1793,6 +1943,12 @@ select:focus-visible {
   }
   .password-strength-card {
     @apply p-[12px];
+  }
+  .password-strength-shell {
+    scroll-margin-block: 12px;
+  }
+  .password-requirements li {
+    align-items: flex-start;
   }
 }
 .terms-gate-overlay {

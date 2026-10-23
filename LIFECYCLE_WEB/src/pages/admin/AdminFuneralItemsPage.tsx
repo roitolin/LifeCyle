@@ -139,7 +139,7 @@ function AdminFuneralItemsPage() {
 
   return (
     <>
-      <section className="panel">
+      <section className="panel admin-records-page admin-products-page">
         <h2>Products</h2>
         <p className="panel-sub">
           Review published shop products from funeral accounts.
@@ -180,7 +180,7 @@ function AdminFuneralItemsPage() {
       {!loading && filtered.length === 0 ? <p className="panel-sub">No funeral items found.</p> : null}
 
         <div className="table-wrap">
-          <table className="request-table">
+          <table className="request-table admin-responsive-table">
             <thead>
               <tr>
                 <th>Item</th>
@@ -198,7 +198,7 @@ function AdminFuneralItemsPage() {
                 const busy = savingKey === `${item.shopId}_${item.id}`
                 return (
                   <tr key={item.id}>
-                    <td>
+                    <td data-label="Item">
                       <div className="admin-product-list-cell">
                         {item.imageUrl ? (
                           <img src={item.imageUrl} alt={item.name} />
@@ -211,20 +211,20 @@ function AdminFuneralItemsPage() {
                         </div>
                       </div>
                     </td>
-                    <td>{item.shopName}</td>
-                    <td>
+                    <td data-label="Shop">{item.shopName}</td>
+                    <td data-label="Owner">
                       <strong>{item.ownerName}</strong>
                       <div>{item.ownerEmail}</div>
                     </td>
-                    <td>{formatPeso(item.price)}</td>
-                    <td>{item.stock}</td>
-                    <td>
+                    <td data-label="Price">{formatPeso(item.price)}</td>
+                    <td data-label="Stock">{item.stock}</td>
+                    <td data-label="Status">
                       <span className={`status-pill ${item.active ? (item.stock > 0 ? 'verified' : 'pending') : 'rejected'}`}>
                         {item.active ? (item.stock > 0 ? 'available' : 'sold out') : 'hidden'}
                       </span>
                     </td>
-                    <td>{item.updatedAt ? new Date(item.updatedAt).toLocaleDateString() : '-'}</td>
-                    <td>
+                    <td data-label="Updated">{item.updatedAt ? new Date(item.updatedAt).toLocaleDateString() : '-'}</td>
+                    <td data-label="Actions">
                       <div className="request-actions">
                         <Link to={`/admin/funeral-items/${item.id}`} className="ghost-btn btn-link table-action">
                           View

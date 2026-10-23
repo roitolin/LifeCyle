@@ -209,7 +209,7 @@ function AdminOrdersPage() {
 
   return (
     <>
-      <section className="panel">
+      <section className="panel admin-records-page admin-orders-page">
         <h2>All Service Requests</h2>
         <p className="panel-sub">
           Review service requests submitted to funeral shops.
@@ -249,7 +249,7 @@ function AdminOrdersPage() {
         {!loading && filtered.length === 0 ? <p className="panel-sub">No service requests found.</p> : null}
 
         <div className="table-wrap">
-          <table className="request-table">
+          <table className="request-table admin-responsive-table">
             <thead>
               <tr>
                 <th>Deceased</th>
@@ -265,20 +265,20 @@ function AdminOrdersPage() {
             <tbody>
               {filtered.map((item) => (
                 <tr key={item.id}>
-                  <td>{item.deceasedFullName || '—'}</td>
-                  <td>{item.productName || 'Custom casket design'}</td>
-                  <td>{item.shopName || item.shopId || '—'}</td>
-                  <td>
+                  <td data-label="Deceased">{item.deceasedFullName || '—'}</td>
+                  <td data-label="Item">{item.productName || 'Custom casket design'}</td>
+                  <td data-label="Shop">{item.shopName || item.shopId || '—'}</td>
+                  <td data-label="Requester">
                     {item.requesterName ? <strong>{item.requesterName}</strong> : null}
                     {item.requesterEmail ? <div>{item.requesterEmail}</div> : null}
                     {!item.requesterName && !item.requesterEmail ? <span>{item.requesterId || '—'}</span> : null}
                   </td>
-                  <td>{item.productPrice != null ? formatPeso(item.productPrice) : 'Custom pricing'}</td>
-                  <td>
+                  <td data-label="Price">{item.productPrice != null ? formatPeso(item.productPrice) : 'Custom pricing'}</td>
+                  <td data-label="Status">
                     <span className={`status-pill ${statusPill(item.status)}`}>{statusLabel(item.status)}</span>
                   </td>
-                  <td>{item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '—'}</td>
-                  <td>
+                  <td data-label="Date">{item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '—'}</td>
+                  <td data-label="Actions">
                     <div className="request-actions">
                       <Link to={`/admin/orders/${item.id}`} className="ghost-btn btn-link table-action">
                         View Details

@@ -20,10 +20,6 @@ module.exports = {
       package: "com.Roi.lifecycle",
       googleServicesFile: "./google-services.json",
       softwareKeyboardLayoutMode: "resize",
-      adaptiveIcon: {
-        foregroundImage: "./assets/Icon/IconTraparent.png",
-        backgroundColor: "#607286",
-      },
       permissions: [],
     },
     plugins: [

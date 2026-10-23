@@ -276,6 +276,20 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
   const [manualPaymentExpanded, setManualPaymentExpanded] = useState<Record<string, boolean>>({})
 
   const markedSeenRef = useRef<Record<string, boolean>>({})
+  const openRequestChat = useCallback((otherUserId: string | null | undefined, contactLabel: string) => {
+    const targetId = String(otherUserId || '').trim()
+    if (!targetId || targetId === viewerId) {
+      openAlert({
+        title: 'Chat unavailable',
+        message: `This request does not have another ${contactLabel} account available to contact.`,
+        tone: 'warning',
+        okLabel: 'Got it',
+      })
+      return
+    }
+    window.dispatchEvent(new CustomEvent('open-chat', { detail: { userId: targetId } }))
+  }, [openAlert, viewerId])
+
   useEffect(() => {
     if (!detailsRequest) return
     if (String(detailsRequest.status || '').toLowerCase() !== 'awaiting_customer_confirmation') return
@@ -1036,6 +1050,26 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                       <div><span>Shop</span><strong>{detail.shopName || 'Not available'}</strong></div>
                       <div><span>Contact number</span><strong>{detail.shopContactNumber || 'Not available'}</strong></div>
                       <div className="requests-detail-wide"><span>Shop address</span><strong>{detail.shopAddress || 'Not available'}</strong></div>
+                    </div>
+                    <div className="requests-contact-actions" aria-label="Shop contact actions">
+                      <a
+                        className={`requests-contact-action${detail.shopContactNumber ? '' : ' is-disabled'}`}
+                        href={detail.shopContactNumber ? `tel:${detail.shopContactNumber.replace(/[^\d+]/g, '')}` : undefined}
+                        aria-disabled={!detail.shopContactNumber}
+                        onClick={event => { if (!detail.shopContactNumber) event.preventDefault() }}
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7A2 2 0 0 1 22 16.9Z" /></svg>
+                        <span>Call shop</span>
+                      </a>
+                      <button
+                        type="button"
+                        className={`requests-contact-action${detail.shopId ? '' : ' is-disabled'}`}
+                        disabled={!detail.shopId}
+                        onClick={() => openRequestChat(detail.shopId, 'shop')}
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-8.8 8.5 9.2 9.2 0 0 1-4.1-1l-4.1 1 1.1-3.7A8.2 8.2 0 0 1 3 11.5 8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5Z" /><path d="M8 11.5h.01M12 11.5h.01M16 11.5h.01" /></svg>
+                        <span>Chat with shop</span>
+                      </button>
                     </div>
                   </details>
 

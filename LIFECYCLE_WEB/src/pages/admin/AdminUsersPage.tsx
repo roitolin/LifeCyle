@@ -232,7 +232,7 @@ function AdminUsersPage() {
   }
 
   return (
-    <section className="panel">
+    <section className="panel admin-records-page admin-users-page">
       <h2>User Management</h2>
       <p className="panel-sub">
         {viewerRole === 'super_admin'
@@ -302,7 +302,7 @@ function AdminUsersPage() {
       {!loading && filtered.length === 0 ? <p className="panel-sub">No users found.</p> : null}
 
       <div className="table-wrap">
-        <table className="request-table">
+        <table className="request-table admin-responsive-table">
           <thead>
             <tr>
               <th>Name</th>
@@ -319,10 +319,10 @@ function AdminUsersPage() {
               const accountStatus = getAccountStatus(item)
               return (
                 <tr key={item.id}>
-                  <td>{item.fullName || '-'}</td>
-                  <td>{item.email || '-'}</td>
-                  <td>{item.role || 'user'}</td>
-                  <td>
+                  <td data-label="Name">{item.fullName || '-'}</td>
+                  <td data-label="Email">{item.email || '-'}</td>
+                  <td data-label="Role">{item.role || 'user'}</td>
+                  <td data-label="Status">
                     <div className="user-account-status-cell">
                       <span className={`user-account-status is-${accountStatus.tone}`}>
                         <span className="user-account-status-dot" aria-hidden="true" />
@@ -334,7 +334,7 @@ function AdminUsersPage() {
                       ) : null}
                     </div>
                   </td>
-                  <td>
+                  <td data-label="Actions">
                     <div className="request-actions">
                       <Link to={`/admin/users/${item.id}`} className="ghost-btn btn-link table-action">View</Link>
                       <button type="button" className="ghost-btn table-action" disabled={busy} onClick={() => void openChat(item)}>
@@ -389,4 +389,3 @@ function AdminUsersPage() {
 }
 
 export default AdminUsersPage
-

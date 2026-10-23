@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ComponentProps } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LoadingBird from '@/components/LoadingBird';
 import {
@@ -17,9 +17,10 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
+import { StatusBar } from "expo-status-bar";
 import { LineChart, PieChart, type lineDataItem } from "react-native-gifted-charts";
 import { AppBackButton, AdminPaymentModal, KeyboardAwareScrollView } from "@/components";
 import { supabase } from "@/services/supabaseClient";
@@ -536,6 +537,7 @@ function DetailRow({ icon, label, value }: { icon: IoniconName; label: string; v
 }
 
 export default function FuneralShopCenterScreen({ navigation }: any) {
+  const insets = useSafeAreaInsets();
   const { width: viewportWidth } = useWindowDimensions();
   const usesSidebarMenu = Platform.OS !== "web" || viewportWidth < 768;
   const analyticsChartWidth = Math.max(190, Math.min(viewportWidth - 88, 700));
@@ -543,6 +545,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
   const sidebarWidth = Math.min(Math.max(viewportWidth * 0.88, 280), 360);
   const [sidebarTranslateX] = useState(() => new Animated.Value(sidebarWidth));
   const [sidebarBackdropOpacity] = useState(() => new Animated.Value(0));
+  const sidebarOpenFrame = useRef<number | null>(null);
   const [dashboardNow] = useState(() => Date.now());
 
   const [loading, setLoading] = useState(true);
@@ -962,17 +965,24 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
   };
 
   const openShopSidebar = () => {
+    if (sidebarOpenFrame.current !== null) {
+      cancelAnimationFrame(sidebarOpenFrame.current);
+      sidebarOpenFrame.current = null;
+    }
     sidebarTranslateX.stopAnimation();
     sidebarBackdropOpacity.stopAnimation();
     sidebarTranslateX.setValue(sidebarWidth);
     sidebarBackdropOpacity.setValue(0);
     setSidebarVisible(true);
-    requestAnimationFrame(() => {
+    sidebarOpenFrame.current = requestAnimationFrame(() => {
+      sidebarOpenFrame.current = null;
       Animated.parallel([
-        Animated.timing(sidebarTranslateX, {
+        Animated.spring(sidebarTranslateX, {
           toValue: 0,
-          duration: 280,
-          easing: Easing.out(Easing.cubic),
+          damping: 26,
+          stiffness: 220,
+          mass: 0.9,
+          overshootClamping: true,
           useNativeDriver: true,
         }),
         Animated.timing(sidebarBackdropOpacity, {
@@ -986,6 +996,10 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
   };
 
   const closeShopSidebar = (afterClose?: () => void) => {
+    if (sidebarOpenFrame.current !== null) {
+      cancelAnimationFrame(sidebarOpenFrame.current);
+      sidebarOpenFrame.current = null;
+    }
     sidebarTranslateX.stopAnimation();
     sidebarBackdropOpacity.stopAnimation();
     Animated.parallel([
@@ -1001,9 +1015,11 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
         easing: Easing.in(Easing.quad),
         useNativeDriver: true,
       }),
-    ]).start(() => {
-      setSidebarVisible(false);
-      afterClose?.();
+    ]).start(({ finished }) => {
+      if (finished) {
+        setSidebarVisible(false);
+        afterClose?.();
+      }
     });
   };
 
@@ -1667,7 +1683,8 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
   }
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView edges={["left", "right"]} style={styles.screen}>
+      <StatusBar hidden={false} style="light" />
       <View style={styles.screenBody}>
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.heroSection}>
@@ -1676,7 +1693,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
             ) : null}
             <View style={styles.heroOverlay} />
 
-            <View style={styles.topBar}>
+            <View style={[styles.topBar, { paddingTop: Math.max(10, insets.top + 4) }]}>
               <AppBackButton onPress={handleBack} />
 
               <View style={styles.topBarText}>
@@ -1695,26 +1712,30 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
               </TouchableOpacity>
              </View>
 
-            <View style={styles.heroContent}>
-              <View style={styles.heroAvatarWrap}>
+            <View style={styles.centerProfilePanel}>
+              <View style={styles.centerProfileAvatarWrap}>
                 {shopImageUrl ? (
-                  <Image source={{ uri: shopImageUrl }} style={styles.heroAvatarImage} resizeMode="cover" />
+                  <Image source={{ uri: shopImageUrl }} style={styles.centerProfileAvatar} resizeMode="cover" />
                 ) : (
-                  <View style={styles.heroAvatarFallback}>
-                    <Ionicons name="storefront-outline" size={30} color="#22312d" />
-                    </View>
-                )}
-                </View>
-
-              <View style={styles.heroTextBlock}>
-                <Text style={styles.heroTitle}>{shopDisplayName}</Text>
-                <Text style={styles.heroSubtitle}>{shopLocation}</Text>
-                <View style={styles.heroMetaRow}>
-                  <Ionicons name="call-outline" size={14} color="#53615d" />
-                  <Text style={styles.heroMetaText}>{shopContact}</Text>
+                  <View style={styles.centerProfileAvatarFallback}>
+                    <Ionicons name="storefront-outline" size={44} color="#315f50" />
                   </View>
-               </View>
-             </View>
+                )}
+                <View style={[styles.centerOnlineIndicator, shopStatus !== "live" && styles.centerOfflineIndicator]} />
+              </View>
+              <Text style={styles.centerProfileName} numberOfLines={1}>{shopDisplayName}</Text>
+              <View style={styles.centerProfileMetaRow}>
+                <View style={styles.centerProfileMetaItem}>
+                  <Ionicons name="location-outline" size={14} color="#64736c" />
+                  <Text style={styles.centerProfileMetaText} numberOfLines={1}>{shopLocation}</Text>
+                </View>
+                <View style={styles.centerProfileDivider} />
+                <View style={styles.centerProfileMetaItem}>
+                  <Ionicons name="call-outline" size={14} color="#64736c" />
+                  <Text style={styles.centerProfileMetaText} numberOfLines={1}>{shopContact}</Text>
+                </View>
+              </View>
+            </View>
 
           </View>
 
@@ -3030,20 +3051,19 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   heroSection: {
-    minHeight: 214,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 28,
-    backgroundColor: "#d6e2d2",
-    overflow: "hidden",
+    height: 338,
+    paddingHorizontal: 12,
+    paddingTop: 0,
+    backgroundColor: "#24342e",
+    overflow: "visible",
   },
   heroImage: {
     ...StyleSheet.absoluteFill,
-    opacity: 0.52,
+    opacity: 0.9,
   },
   heroOverlay: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: "rgba(214, 226, 210, 0.62)",
+    backgroundColor: "rgba(15, 23, 20, 0.34)",
   },
   topBar: {
     zIndex: 2,
@@ -3075,8 +3095,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   topBarTitle: {
-    color: "#22312d",
-    fontSize: 28,
+    color: "#ffffff",
+    fontSize: 16,
     fontWeight: "900",
     marginTop: 2,
   },
@@ -3151,6 +3171,53 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
   },
+  centerProfilePanel: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    minHeight: 196,
+    paddingTop: 76,
+    paddingHorizontal: 18,
+    paddingBottom: 17,
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+  },
+  centerProfileAvatarWrap: {
+    position: "absolute",
+    top: -72,
+    width: 144,
+    height: 144,
+    padding: 5,
+    borderRadius: 72,
+    backgroundColor: "#ffffff",
+    shadowColor: "#17241e",
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 7,
+  },
+  centerProfileAvatar: { width: "100%", height: "100%", borderRadius: 67 },
+  centerProfileAvatarFallback: { flex: 1, alignItems: "center", justifyContent: "center", borderRadius: 67, backgroundColor: "#e8efe9" },
+  centerOnlineIndicator: {
+    position: "absolute",
+    right: 3,
+    bottom: 9,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 4,
+    borderColor: "#ffffff",
+    backgroundColor: "#20a545",
+  },
+  centerOfflineIndicator: { backgroundColor: "#8e9a94" },
+  centerProfileName: { maxWidth: "100%", color: "#111614", fontSize: 27, lineHeight: 32, fontWeight: "900", textAlign: "center" },
+  centerProfileMetaRow: { width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "center", flexWrap: "wrap", gap: 8, marginTop: 9 },
+  centerProfileMetaItem: { maxWidth: "46%", flexDirection: "row", alignItems: "center", gap: 5 },
+  centerProfileMetaText: { flexShrink: 1, color: "#68756f", fontSize: 11, fontWeight: "700" },
+  centerProfileDivider: { width: 3, height: 3, borderRadius: 2, backgroundColor: "#b0b9b4", marginHorizontal: 1 },
   shopStatusCard: {
     borderWidth: 1,
     borderColor: "#d9d6cd",

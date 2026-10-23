@@ -39,7 +39,6 @@ type ShopInfo = {
   createdAt: string
   updatedAt: string
   paidUntil: string | null
-  serviceCapacity: number | string | null
   payoutChannelCode: string | null
   payoutAccountName: string | null
   payoutAccountNumber: string | null
@@ -57,7 +56,6 @@ type ShopProfileDraft = {
   name: string
   address: string
   phone: string
-  capacity: string
 }
 
 type ShopProduct = {
@@ -775,7 +773,6 @@ export default function SellerCentrePage() {
     name: '',
     address: '',
     phone: '',
-    capacity: '1',
   })
   const [payoutDraft, setPayoutDraft] = useState({ channel: '', name: '', number: '' })
   const [payoutAccounts, setPayoutAccounts] = useState<ShopPayoutAccount[]>([])
@@ -1028,7 +1025,6 @@ export default function SellerCentrePage() {
     name: currentShop.shopName || '',
     address: currentShop.shopAddress || '',
     phone: currentShop.shopPhoneNumber || '',
-    capacity: String(Math.max(1, Number(currentShop.serviceCapacity) || 1)),
   })
 
   const openShopProfileEditor = () => {
@@ -1048,21 +1044,11 @@ export default function SellerCentrePage() {
     const name = shopProfileDraft.name.trim().replace(/\s+/g, ' ')
     const address = shopProfileDraft.address.trim().replace(/\s+/g, ' ')
     const phone = shopProfileDraft.phone.trim().replace(/\s+/g, ' ')
-    const capacity = Number(shopProfileDraft.capacity)
 
     if (!name || !address || !phone) {
       openAlert({
         title: 'Missing Information',
         message: 'Shop name, public address, and phone number are required.',
-        tone: 'warning',
-        okLabel: 'Got It',
-      })
-      return
-    }
-    if (!Number.isInteger(capacity) || capacity < 1 || capacity > 20) {
-      openAlert({
-        title: 'Invalid Capacity',
-        message: 'Service capacity must be a whole number from 1 to 20.',
         tone: 'warning',
         okLabel: 'Got It',
       })
@@ -1075,7 +1061,6 @@ export default function SellerCentrePage() {
         shopName: name,
         shopAddress: address,
         shopPhoneNumber: phone,
-        serviceCapacity: capacity,
         updatedAt: new Date().toISOString(),
       }
       const { error: updateError } = await supabase
@@ -1085,7 +1070,7 @@ export default function SellerCentrePage() {
       if (updateError) throw updateError
 
       setShop(current => current ? { ...current, ...update } : current)
-      setShopProfileDraft({ name, address, phone, capacity: String(capacity) })
+      setShopProfileDraft({ name, address, phone })
       setEditingShopProfile(false)
       openAlert({
         title: 'Shop Profile Updated',
@@ -1631,7 +1616,6 @@ export default function SellerCentrePage() {
           name: String(shopData.shopName || ''),
           address: String(shopData.shopAddress || ''),
           phone: String(shopData.shopPhoneNumber || ''),
-          capacity: String(Math.max(1, Number(shopData.serviceCapacity) || 1)),
         })
       }
       setPayoutDraft({
@@ -4731,11 +4715,6 @@ export default function SellerCentrePage() {
                               <label>
                                 <span>Phone number</span>
                                 <input type="tel" maxLength={24} value={shopProfileDraft.phone} onChange={event => setShopProfileDraft(current => ({ ...current, phone: event.target.value }))} />
-                              </label>
-                              <label>
-                                <span>Service capacity</span>
-                                <input type="number" min="1" max="20" step="1" value={shopProfileDraft.capacity} onChange={event => setShopProfileDraft(current => ({ ...current, capacity: event.target.value }))} />
-                                <small>Maximum overlapping wake services.</small>
                               </label>
                             </div>
                             <footer className="sc-settings-profile-actions">

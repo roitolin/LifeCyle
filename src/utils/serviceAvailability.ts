@@ -4,9 +4,9 @@ export type ServiceAvailability = {
   available: boolean;
   reason: string | null;
   message: string;
-  capacity: number;
+  capacity: number | null;
   activeBookings: number;
-  remainingCapacity: number;
+  remainingCapacity: number | null;
   blockedDate: string | null;
   stock: number | null;
 };
@@ -38,9 +38,9 @@ export async function checkServiceAvailability({
     available: result.available === true,
     reason: typeof result.reason === "string" ? result.reason : null,
     message: typeof result.message === "string" ? result.message : "Availability could not be confirmed.",
-    capacity: Number(result.capacity) || 0,
+    capacity: result.capacity == null ? null : Number(result.capacity),
     activeBookings: Number(result.activeBookings) || 0,
-    remainingCapacity: Number(result.remainingCapacity) || 0,
+    remainingCapacity: result.remainingCapacity == null ? null : Number(result.remainingCapacity),
     blockedDate: typeof result.blockedDate === "string" ? result.blockedDate : null,
     stock: result.stock == null ? null : Number(result.stock),
   };

@@ -2,6 +2,7 @@ export { default as AnnouncementsBanner } from "./AnnouncementsBanner";
 export { default as AdminPaymentModal } from "./XenditShopPaymentModal";
 export { default as AppBackButton } from "./AppBackButton";
 export { default as AppHeaderBackButton } from "./AppHeaderBackButton";
+export { default as AdminSidebarContent } from "./AdminSidebarContent";
 export { default as EmergencyBroadcastBanner } from "./EmergencyBroadcastBanner";
 export { default as KeyboardAwareScrollView } from "./KeyboardAwareScrollView";
 export { default as NotificationBell } from "./NotificationBell";

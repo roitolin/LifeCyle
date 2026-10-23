@@ -53,6 +53,16 @@ export type PaymentSubmission = {
   providerPaymentMethod: string | null
 }
 
+function getSellerIdentity(entry: PaymentSubmission) {
+  const primary = entry.payerName || entry.ownerFullName || entry.ownerEmail || '-'
+  const primaryKey = primary.trim().toLowerCase()
+  const secondary = [entry.ownerFullName, entry.ownerEmail].find(
+    (value) => value && value.trim().toLowerCase() !== primaryKey,
+  ) || ''
+
+  return { primary, secondary }
+}
+
 export default function AdminPaymentsPage() {
   const { openAlert, alertDialog } = useAlertDialog()
   const { openConfirm, confirmDialog } = useConfirmDialog()
@@ -480,7 +490,7 @@ export default function AdminPaymentsPage() {
 
           {!paymentsLoading && payments.length > 0 ? (
             <div className="table-wrap">
-              <table className="request-table">
+              <table className="request-table admin-responsive-table">
                 <thead>
                   <tr>
                     <th>Seller</th>
@@ -494,20 +504,21 @@ export default function AdminPaymentsPage() {
                 <tbody>
                   {payments.map((entry) => {
                     const busy = payingId === entry.id
+                    const sellerIdentity = getSellerIdentity(entry)
                     return (
                       <tr key={entry.id}>
-                        <td>
-                          {entry.payerName || '-'}
-                          <div className="row-muted">{entry.ownerFullName || entry.ownerEmail || ''}</div>
+                        <td data-label="Seller">
+                          {sellerIdentity.primary}
+                          {sellerIdentity.secondary ? <div className="row-muted">{sellerIdentity.secondary}</div> : null}
                           <div className="row-muted">{entry.gcashNumber || ''}</div>
                         </td>
-                        <td>{entry.shopName || '-'}</td>
-                        <td>{entry.amount > 0 ? `₱${Number(entry.amount).toLocaleString('en-PH')}` : '—'}</td>
-                        <td>{formatUpdatedAt(entry.createdAt)}</td>
-                        <td>
+                        <td data-label="Shop">{entry.shopName || '-'}</td>
+                        <td data-label="Amount">{entry.amount > 0 ? `₱${Number(entry.amount).toLocaleString('en-PH')}` : '—'}</td>
+                        <td data-label="Submitted">{formatUpdatedAt(entry.createdAt)}</td>
+                        <td data-label="Status">
                           <span className={`status-pill ${entry.status}`}>{entry.status}</span>
                         </td>
-                        <td>
+                        <td data-label="Actions">
                           <div className="request-actions">
                             <button
                               type="button"

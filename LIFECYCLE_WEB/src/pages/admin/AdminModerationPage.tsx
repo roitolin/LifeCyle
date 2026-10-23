@@ -299,7 +299,7 @@ function AdminModerationPage() {
   const highRiskCount = useMemo(() => riskProfiles.filter((item) => item.level === 'high').length, [riskProfiles])
 
   return (
-    <section className="panel">
+    <section className="panel admin-records-page moderation-page">
       <h2>Moderation Queue</h2>
       <p className="panel-sub">Reports, block records, and risk scoring for suspicious users.</p>
 
@@ -366,7 +366,7 @@ function AdminModerationPage() {
           <h3 className="moderation-section-heading">User Block Records</h3>
           {blocks.length === 0 ? <p className="panel-sub">No block records found.</p> : null}
           <div className="table-wrap">
-            <table className="request-table">
+            <table className="request-table admin-responsive-table">
               <thead>
                 <tr>
                   <th>Status</th>
@@ -382,12 +382,12 @@ function AdminModerationPage() {
                   const active = item.active !== false
                   return (
                     <tr key={item.id}>
-                      <td>{active ? 'active' : 'inactive'}</td>
-                      <td>{item.blockerId || '-'}</td>
-                      <td>{item.blockedId || '-'}</td>
-                      <td>{item.reason || '-'}</td>
-                      <td>{toDateText(item.createdAt)}</td>
-                      <td>
+                      <td data-label="Status">{active ? 'active' : 'inactive'}</td>
+                      <td data-label="Blocker">{item.blockerId || '-'}</td>
+                      <td data-label="Blocked User">{item.blockedId || '-'}</td>
+                      <td data-label="Reason">{item.reason || '-'}</td>
+                      <td data-label="Created">{toDateText(item.createdAt)}</td>
+                      <td data-label="Actions">
                         <div className="request-actions">
                           {item.blockerId ? <Link to={`/admin/users/${item.blockerId}`} className="ghost-btn btn-link table-action">Blocker</Link> : null}
                           {item.blockedId ? <Link to={`/admin/users/${item.blockedId}`} className="ghost-btn btn-link table-action">Blocked</Link> : null}

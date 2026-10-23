@@ -7,6 +7,7 @@ import {
   ImageBackground,
   Linking,
   RefreshControl,
+  Share,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,8 +15,9 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { StatusBar } from "expo-status-bar";
 import { useFocusEffect } from "@react-navigation/native";
 import { AppBackButton } from "@/components";
 import { supabase } from "@/services/supabaseClient";
@@ -163,6 +165,7 @@ function ProductCard({
 }
 
 export default function FuneralShopProductsScreen({ navigation, route }: any) {
+  const insets = useSafeAreaInsets();
   const shopId = String(route?.params?.shopId || "");
   const fallbackShopName = String(route?.params?.shopName || "Shop");
   const [loading, setLoading] = useState(true);
@@ -449,6 +452,17 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
     Alert.alert(shopName, "Choose an action", actions);
   };
 
+  const shareShop = async () => {
+    try {
+      await Share.share({
+        title: shopName,
+        message: `${shopName} on LifeCycle${shopAddress ? ` · ${shopAddress}` : ""}`,
+      });
+    } catch {
+      // Sharing can be cancelled by the user; no error state is needed.
+    }
+  };
+
   const selectCategory = (filter: CategoryFilter) => {
     setCategoryFilter(filter);
     setActiveTab("products");
@@ -680,7 +694,8 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
   const heroSource = heroImageUrl ? { uri: heroImageUrl } : require("../../../assets/Icon/IconTraparent.png");
 
   return (
-    <SafeAreaView edges={["top", "left", "right"]} style={styles.screen}>
+    <SafeAreaView edges={["left", "right"]} style={styles.screen}>
+      <StatusBar hidden={false} style="light" />
       <ScrollView
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -688,77 +703,89 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
       >
         <ImageBackground source={heroSource} style={styles.hero} imageStyle={styles.heroImage}>
           <View style={styles.heroOverlay} />
-          <View style={styles.heroContent}>
+          <View style={[styles.heroContent, { paddingTop: Math.max(14, insets.top + 4) }]}>
             <View style={styles.topControls}>
-              <AppBackButton onPress={handleBack} />
-              <View style={styles.searchBox}>
-                <Ionicons name="search" size={18} color="#dfe7e2" />
-                <TextInput
-                  value={searchText}
-                  onChangeText={handleSearchChange}
-                  placeholder="Search in shop"
-                  placeholderTextColor="#d6ded9"
-                  style={styles.searchInput}
-                  returnKeyType="search"
-                  accessibilityLabel={`Search products from ${shopName}`}
-                  onSubmitEditing={() => setActiveTab("products")}
-                />
-                {searchText ? (
-                  <TouchableOpacity accessibilityLabel="Clear product search" onPress={() => setSearchText("")}>
-                    <Ionicons name="close-circle" size={18} color="#dfe7e2" />
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="More shop actions" style={styles.roundControl} onPress={showShopMenu}>
-                <Ionicons name="ellipsis-vertical" size={21} color="#ffffff" />
+              <AppBackButton onPress={handleBack} style={styles.heroBackButton} />
+              <View style={styles.topControlsSpacer} />
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={`Search products from ${shopName}`}
+                style={styles.roundControl}
+                onPress={() => setActiveTab("products")}
+              >
+                <Ionicons name="search" size={22} color="#ffffff" />
               </TouchableOpacity>
-            </View>
-
-            <View>
-              <View style={styles.shopIdentityRow}>
-                <View style={styles.shopAvatarWrap}>
-                  {shop?.shopImageUrl ? (
-                    <Image source={{ uri: shop.shopImageUrl }} style={styles.shopAvatar} />
-                  ) : (
-                    <View style={styles.shopAvatarFallback}>
-                      <Ionicons name="storefront" size={24} color="#22312d" />
-                    </View>
-                  )}
-                </View>
-                <View style={styles.shopIdentityCopy}>
-                  <Text style={styles.shopName} numberOfLines={1}>{shopName}</Text>
-                  <View style={styles.shopStatsRow}>
-                    <Ionicons name="star" size={13} color="#ffd166" />
-                    <Text style={styles.shopStatsText}>{overallRating > 0 ? overallRating.toFixed(1) : "No ratings"}</Text>
-                    <View style={styles.shopStatsDot} />
-                    <Text style={styles.shopStatsText}>{formatFollowerCount(followerCount)} followers</Text>
-                  </View>
-                  <Text style={styles.shopLocation} numberOfLines={1}>{shopAddress}</Text>
-                  </View>
-              </View>
-              <View style={styles.shopActionsRow}>
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: followBusy || viewerId === shopId, selected: following }}
-                  style={[styles.shopActionButton, styles.followButton, following && styles.shopActionButtonActive]}
-                  disabled={followBusy || viewerId === shopId}
-                  onPress={() => void toggleFollow()}
-                >
-                  {followBusy ? (
-                    <ActivityIndicator size="small" color="#ffffff" />
-                  ) : (
-                    <Ionicons name={following ? "checkmark" : "add"} size={14} color="#ffffff" />
-                  )}
-                  <Text style={styles.shopActionText}>{viewerId === shopId ? "Your Shop" : following ? "Following" : "Follow"}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Chat with ${shopName}`} style={[styles.shopActionButton, styles.chatButton]} onPress={openChat}>
-                  <Ionicons name="chatbubble-ellipses-outline" size={14} color="#ffffff" />
-                  <Text style={styles.shopActionText}>Chat</Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="More shop actions" style={styles.roundControl} onPress={showShopMenu}>
+                <Ionicons name="ellipsis-horizontal-circle-outline" size={25} color="#ffffff" />
+              </TouchableOpacity>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Share ${shopName}`} style={styles.roundControl} onPress={() => void shareShop()}>
+                <Ionicons name="arrow-redo-outline" size={24} color="#ffffff" />
+              </TouchableOpacity>
             </View>
           </View>
         </ImageBackground>
+
+        <View style={styles.profilePanel}>
+          <View style={styles.profileAvatarWrap}>
+            {shop?.shopImageUrl ? (
+              <Image source={{ uri: shop.shopImageUrl }} style={styles.profileAvatar} />
+            ) : (
+              <View style={styles.profileAvatarFallback}>
+                <Ionicons name="storefront" size={44} color="#315f50" />
+              </View>
+            )}
+            <View style={[styles.onlineIndicator, shop?.status !== "live" && styles.offlineIndicator]} />
+          </View>
+          <Text style={styles.profileName} numberOfLines={1}>{shopName}</Text>
+          <View style={styles.profileMetaRow}>
+            <View style={styles.profileMetaItem}>
+              <Ionicons name="star" size={14} color="#d89a1b" />
+              <Text style={styles.profileMetaText}>{overallRating > 0 ? overallRating.toFixed(1) : "New"}</Text>
+            </View>
+            <View style={styles.profileMetaDivider} />
+            <Text style={styles.profileMetaText}>{formatFollowerCount(followerCount)} followers</Text>
+            <View style={styles.profileMetaDivider} />
+            <Text style={styles.profileMetaText} numberOfLines={1}>{shopAddress}</Text>
+          </View>
+          <View style={styles.profileActionsRow}>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityState={{ disabled: followBusy || viewerId === shopId, selected: following }}
+              style={[styles.profileActionButton, styles.profileFollowButton, following && styles.profileFollowButtonActive]}
+              disabled={followBusy || viewerId === shopId}
+              onPress={() => void toggleFollow()}
+            >
+              {followBusy ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <Ionicons name={following ? "checkmark" : "add"} size={15} color="#ffffff" />
+              )}
+              <Text style={styles.profileActionText}>{viewerId === shopId ? "Your Shop" : following ? "Following" : "Follow"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Chat with ${shopName}`} style={[styles.profileActionButton, styles.profileChatButton]} onPress={openChat}>
+              <Ionicons name="chatbubble-ellipses-outline" size={15} color="#315f50" />
+              <Text style={styles.profileChatText}>Chat</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.profileSearchBox}>
+            <Ionicons name="search" size={18} color="#64736c" />
+            <TextInput
+              value={searchText}
+              onChangeText={handleSearchChange}
+              placeholder="Search products in this shop"
+              placeholderTextColor="#8b9791"
+              style={styles.profileSearchInput}
+              returnKeyType="search"
+              accessibilityLabel={`Search products from ${shopName}`}
+              onSubmitEditing={() => setActiveTab("products")}
+            />
+            {searchText ? (
+              <TouchableOpacity accessibilityLabel="Clear product search" onPress={() => setSearchText("")}>
+                <Ionicons name="close-circle" size={18} color="#64736c" />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </View>
 
         {viewerId === shopId && shop?.status !== "live" ? (
           <View style={styles.previewBanner}>
@@ -813,12 +840,29 @@ const styles = StyleSheet.create({
   errorText: { color: colors.textMuted, fontSize: 13, lineHeight: 20, textAlign: "center", marginTop: spacing.sm },
   retryButton: { minHeight: 44, borderRadius: radii.md, backgroundColor: colors.primaryDark, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.xl, marginTop: spacing.lg },
   retryButtonText: { color: colors.surface, fontSize: 13, fontWeight: "900" },
-  hero: { minHeight: 224, backgroundColor: "#d6e2d2", justifyContent: "flex-end" },
+  hero: { height: 286, backgroundColor: "#d6e2d2", justifyContent: "flex-end" },
   heroImage: { resizeMode: "cover" },
-  heroOverlay: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(20, 29, 26, 0.46)" },
-  heroContent: { flex: 1, justifyContent: "space-between", paddingHorizontal: 12, paddingTop: 6, paddingBottom: 14 },
-  topControls: { flexDirection: "row", alignItems: "center", gap: 10 },
-  roundControl: { width: 36, height: 40, alignItems: "center", justifyContent: "center" },
+  heroOverlay: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(20, 29, 26, 0.28)" },
+  heroContent: { flex: 1, paddingHorizontal: 12, paddingBottom: 18 },
+  topControls: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 42 },
+  topControlsSpacer: { flex: 1 },
+  heroBackButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    borderColor: "rgba(23, 23, 23, 0.12)",
+  },
+  roundControl: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(21, 33, 29, 0.62)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.42)",
+  },
   searchBox: { flex: 1, minHeight: 40, borderRadius: 12, paddingHorizontal: 11, flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: "rgba(24, 34, 31, 0.62)", borderWidth: 1, borderColor: "rgba(255,255,255,0.16)" },
   searchInput: { flex: 1, color: "#ffffff", fontSize: 13, paddingVertical: 6 },
   shopIdentityRow: { flexDirection: "row", alignItems: "center", gap: 11 },
@@ -837,6 +881,59 @@ const styles = StyleSheet.create({
   chatButton: { flex: 1 },
   shopActionButtonActive: { backgroundColor: "rgba(255,255,255,0.24)" },
   shopActionText: { color: "#ffffff", fontSize: 12, fontWeight: "800" },
+  profilePanel: {
+    position: "relative",
+    marginTop: -58,
+    paddingTop: 72,
+    paddingHorizontal: 18,
+    paddingBottom: 18,
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+  },
+  profileAvatarWrap: {
+    position: "absolute",
+    top: -72,
+    width: 144,
+    height: 144,
+    padding: 5,
+    borderRadius: 72,
+    backgroundColor: colors.surface,
+    shadowColor: "#17241e",
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 7,
+  },
+  profileAvatar: { width: "100%", height: "100%", borderRadius: 67 },
+  profileAvatarFallback: { flex: 1, alignItems: "center", justifyContent: "center", borderRadius: 67, backgroundColor: "#e8efe9" },
+  onlineIndicator: {
+    position: "absolute",
+    right: 3,
+    bottom: 9,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 4,
+    borderColor: colors.surface,
+    backgroundColor: "#20a545",
+  },
+  offlineIndicator: { backgroundColor: "#8e9a94" },
+  profileName: { maxWidth: "100%", color: "#111614", fontSize: 27, lineHeight: 32, fontWeight: "900", textAlign: "center" },
+  profileMetaRow: { width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "center", flexWrap: "wrap", gap: 7, marginTop: 9 },
+  profileMetaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+  profileMetaText: { color: "#68756f", fontSize: 11, fontWeight: "700", maxWidth: 150 },
+  profileMetaDivider: { width: 3, height: 3, borderRadius: 2, backgroundColor: "#b0b9b4", marginHorizontal: 1 },
+  profileActionsRow: { width: "100%", maxWidth: 320, flexDirection: "row", gap: 9, marginTop: 16 },
+  profileActionButton: { height: 40, flex: 1, borderRadius: 11, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1 },
+  profileFollowButton: { borderColor: colors.primaryDark, backgroundColor: colors.primaryDark },
+  profileFollowButtonActive: { backgroundColor: colors.primary },
+  profileChatButton: { borderColor: "#b7c8bf", backgroundColor: colors.surface },
+  profileActionText: { color: colors.surface, fontSize: 12, fontWeight: "900" },
+  profileChatText: { color: "#315f50", fontSize: 12, fontWeight: "900" },
+  profileSearchBox: { width: "100%", minHeight: 46, marginTop: 14, borderRadius: 14, paddingHorizontal: 13, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#f2f5f1", borderWidth: 1, borderColor: "#d9e1db" },
+  profileSearchInput: { flex: 1, color: colors.text, fontSize: 13, paddingVertical: 7 },
   previewBanner: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: "#e6e3da", paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   previewBannerText: { flex: 1, color: colors.text, fontSize: 11, lineHeight: 16, fontWeight: "700" },
   refreshWarning: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: "#fff1f1", paddingHorizontal: spacing.lg },

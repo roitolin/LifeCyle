@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -6,10 +6,12 @@ import {
   AppState,
   Easing,
   Image,
+  ImageSourcePropType,
   ImageStyle,
   Linking,
   Modal,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -17,7 +19,12 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { createServiceXenditCheckout, syncServiceXenditCheckout } from '@/services/serviceXendit';
+import {
+  createServiceXenditCheckout,
+  getServicePaymentMethods,
+  type ServicePaymentMethod,
+  syncServiceXenditCheckout,
+} from '@/services/serviceXendit';
 import { formatPhilippinePeso } from '@/utils/funeralCatalog';
 
 export type XenditServiceRequest = {
@@ -42,12 +49,41 @@ type Props = {
   onChanged?: () => void | Promise<void>;
 };
 
+const PAYMENT_METHOD_LOGOS: Record<string, ImageSourcePropType> = {
+  PH_GCASH: require('../../assets/Payment Logos/Gcash_Logo.png'),
+  PH_MAYA: require('../../assets/Payment Logos/PayMaya_Logo.png'),
+  PH_BDO: require('../../assets/Payment Logos/BDO_Logo.png'),
+  PH_BPI: require('../../assets/Payment Logos/BPI_Logo.png'),
+  PH_METROBANK: require('../../assets/Payment Logos/MetroBank_Logo.png'),
+  PH_LANDBANK: require('../../assets/Payment Logos/Landbank_logo.png'),
+  PH_CHINABANK: require('../../assets/Payment Logos/Chinabank_Logo.png'),
+};
+
+function PaymentMethodIcon({ method }: { method: ServicePaymentMethod }) {
+  const logo = PAYMENT_METHOD_LOGOS[method.code];
+  if (logo) {
+    return <Image source={logo} style={styles.paymentMethodLogo} resizeMode={'contain'} />;
+  }
+
+  return (
+    <Ionicons
+      name={method.type === 'wallet' ? 'wallet-outline' : 'business-outline'}
+      size={21}
+      color={'#047857'}
+    />
+  );
+}
+
 export default function ServiceXenditSheet({ visible, request, onClose, onChanged }: Props) {
   const insets = useSafeAreaInsets();
   const [starting, setStarting] = useState(false);
+  const [loadingMethods, setLoadingMethods] = useState(false);
+  const [paymentMethods, setPaymentMethods] = useState<ServicePaymentMethod[]>([]);
+  const [selectedMethod, setSelectedMethod] = useState('');
+  const [methodsError, setMethodsError] = useState<string | null>(null);
 
-  const backdropOpacity = useRef(new Animated.Value(0)).current;
-  const sheetProgress = useRef(new Animated.Value(0)).current;
+  const [backdropOpacity] = useState(() => new Animated.Value(0));
+  const [sheetProgress] = useState(() => new Animated.Value(0));
 
   // Spring animation for bottom sheet presentation
   useEffect(() => {
@@ -72,7 +108,45 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
     }
   }, [visible, backdropOpacity, sheetProgress]);
 
-  const handleClose = () => {
+  useEffect(() => {
+    if (!visible || !request) return;
+
+    const targetRequestId = String(request.id || (request as any)?.requestId || (request as any)?._id || '').trim();
+    if (!targetRequestId) return;
+
+    let active = true;
+
+    void Promise.resolve()
+      .then(() => {
+        if (!active) return null;
+        setLoadingMethods(true);
+        setPaymentMethods([]);
+        setSelectedMethod('');
+        setMethodsError(null);
+        return getServicePaymentMethods(targetRequestId);
+      })
+      .then((result) => {
+        if (!active || !result) return;
+        setPaymentMethods(result.methods);
+        const savedMethod = result.methods.some((method) => method.code === result.selectedMethod)
+          ? result.selectedMethod || ''
+          : '';
+        setSelectedMethod(savedMethod || (result.methods.length === 1 ? result.methods[0].code : ''));
+      })
+      .catch((error) => {
+        if (!active) return;
+        setMethodsError(error instanceof Error ? error.message : 'Unable to load the shop payment methods.');
+      })
+      .finally(() => {
+        if (active) setLoadingMethods(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [request, visible]);
+
+  const handleClose = useCallback(() => {
     if (starting) return;
     Animated.parallel([
       Animated.timing(sheetProgress, {
@@ -90,7 +164,7 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
     ]).start(() => {
       onClose();
     });
-  };
+  }, [backdropOpacity, onClose, sheetProgress, starting]);
 
   // Listen for AppState changes when user returns from Xendit checkout
   useEffect(() => {
@@ -115,7 +189,7 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
       }
     });
     return () => subscription.remove();
-  }, [onChanged, visible, request]);
+  }, [handleClose, onChanged, visible, request]);
 
   // Compute clean full price only
   const totalAmount = useMemo(() => {
@@ -125,7 +199,7 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
   }, [request?.paymentAmount, request?.productPrice]);
 
   const handleOneClickPay = async () => {
-    if (!request || starting) return;
+    if (!request || !selectedMethod || starting) return;
     const targetRequestId = String(request.id || (request as any)?.requestId || (request as any)?._id || '').trim();
     if (!targetRequestId) {
       Alert.alert(
@@ -136,7 +210,7 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
     }
     setStarting(true);
     try {
-      const result = await createServiceXenditCheckout(targetRequestId);
+      const result = await createServiceXenditCheckout(targetRequestId, selectedMethod);
       if (result.paid) {
         await onChanged?.();
         Alert.alert(
@@ -212,6 +286,13 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
         >
           {/* Grab Handle */}
           <View style={styles.handle} />
+
+          <ScrollView
+            style={styles.scrollArea}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+          >
 
           {/* Header Row */}
           <View style={styles.header}>
@@ -292,10 +373,69 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
             <Ionicons name="checkmark-circle" size={18} color="#059669" />
           </View>
 
+          <View style={styles.methodPicker}>
+            <View style={styles.methodPickerHeader}>
+              <Text style={styles.methodPickerTitle}>Choose how to pay</Text>
+              {!loadingMethods && paymentMethods.length > 0 ? (
+                <Text style={styles.methodCount}>
+                  {paymentMethods.length} {paymentMethods.length === 1 ? 'method' : 'methods'} available
+                </Text>
+              ) : null}
+            </View>
+
+            {loadingMethods ? (
+              <View style={styles.methodsStatusRow}>
+                <ActivityIndicator size={'small'} color={'#059669'} />
+                <Text style={styles.methodsStatusText}>Loading payment methods...</Text>
+              </View>
+            ) : paymentMethods.length > 0 ? (
+              <View style={styles.methodOptions}>
+                {paymentMethods.map((method) => {
+                  const selected = selectedMethod === method.code;
+                  return (
+                    <TouchableOpacity
+                      key={method.code}
+                      style={[styles.methodOption, selected && styles.methodOptionSelected]}
+                      onPress={() => setSelectedMethod(method.code)}
+                      activeOpacity={0.78}
+                      accessibilityRole={'radio'}
+                      accessibilityState={{ checked: selected }}
+                      accessibilityLabel={`${method.label}, ${method.type === 'wallet' ? 'E-wallet' : 'Online bank transfer'}`}
+                    >
+                      <View style={[styles.methodOptionIcon, selected && styles.methodOptionIconSelected]}>
+                        <PaymentMethodIcon method={method} />
+                      </View>
+                      <View style={styles.methodOptionCopy}>
+                        <Text style={styles.methodOptionTitle}>{method.label}</Text>
+                        <Text style={styles.methodOptionSubtitle}>
+                          {method.type === 'wallet' ? 'E-wallet' : 'Online bank transfer'}
+                        </Text>
+                      </View>
+                      <Ionicons
+                        name={selected ? 'radio-button-on' : 'radio-button-off'}
+                        size={22}
+                        color={selected ? '#059669' : '#94a3b8'}
+                      />
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ) : (
+              <View style={styles.noMethodsCard}>
+                <Ionicons name={'alert-circle-outline'} size={22} color={'#b45309'} />
+                <Text style={styles.noMethodsText}>
+                  {methodsError || 'This shop has no active payment receiver account yet. Please contact the shop before paying.'}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          </ScrollView>
+
           {/* High-visibility Action Button */}
           <TouchableOpacity
-            style={[styles.payButton, (starting || !request) && styles.buttonDisabled]}
-            disabled={starting || !request}
+            style={[styles.payButton, (starting || loadingMethods || !request || !selectedMethod || totalAmount <= 0) && styles.buttonDisabled]}
+            disabled={starting || loadingMethods || !request || !selectedMethod || totalAmount <= 0}
             onPress={() => void handleOneClickPay()}
             activeOpacity={0.88}
           >
@@ -308,7 +448,9 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
               <View style={styles.buttonInnerRow}>
                 <Ionicons name="lock-closed" size={17} color="#ffffff" />
                 <Text style={styles.payButtonText}>
-                  Pay {formatPhilippinePeso(totalAmount)}
+                  {selectedMethod
+                    ? `Pay ${formatPhilippinePeso(totalAmount)} with ${paymentMethods.find((method) => method.code === selectedMethod)?.label || 'selected method'}`
+                    : 'Select a payment method'}
                 </Text>
               </View>
             )}
@@ -341,6 +483,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 20,
     elevation: 24,
+    maxHeight: '92%',
   },
   handle: {
     alignSelf: 'center',
@@ -349,6 +492,12 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: '#cbd5e1',
     marginBottom: 14,
+  },
+  scrollArea: {
+    flexShrink: 1,
+  },
+  scrollContent: {
+    paddingBottom: 2,
   },
   header: {
     flexDirection: 'row',
@@ -537,6 +686,110 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 1,
   },
+  methodPicker: {
+    marginBottom: 14,
+  },
+  methodPickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 9,
+    paddingHorizontal: 2,
+  },
+  methodPickerTitle: {
+    color: '#0f172a',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  methodCount: {
+    color: '#64748b',
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  methodsStatusRow: {
+    minHeight: 58,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+    borderRadius: 14,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  methodsStatusText: {
+    color: '#475569',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  methodOptions: {
+    gap: 8,
+  },
+  methodOption: {
+    minHeight: 62,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#ffffff',
+  },
+  methodOptionSelected: {
+    borderColor: '#10b981',
+    backgroundColor: '#ecfdf5',
+  },
+  methodOptionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    overflow: 'hidden',
+  },
+  methodOptionIconSelected: {
+    backgroundColor: '#ffffff',
+    borderColor: '#a7f3d0',
+  },
+  paymentMethodLogo: {
+    width: 32,
+    height: 25,
+  },
+  methodOptionCopy: {
+    flex: 1,
+  },
+  methodOptionTitle: {
+    color: '#0f172a',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  methodOptionSubtitle: {
+    color: '#64748b',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  noMethodsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#fcd34d',
+    backgroundColor: '#fffbeb',
+  },
+  noMethodsText: {
+    flex: 1,
+    color: '#92400e',
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '600',
+  },
   payButton: {
     minHeight: 52,
     borderRadius: 16,
@@ -548,6 +801,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 10,
     elevation: 6,
+    marginTop: 4,
   },
   buttonInnerRow: {
     flexDirection: 'row',

@@ -321,7 +321,7 @@ export default function AdminCommissionsPanel() {
       {/* Clean Financial Ledger Table */}
       {!loading && filtered.length > 0 ? (
         <div className="table-wrap">
-          <table className="request-table">
+          <table className="request-table admin-responsive-table">
             <thead>
               <tr>
                 <th>Arrangement / Order</th>
@@ -338,30 +338,30 @@ export default function AdminCommissionsPanel() {
             <tbody>
               {filtered.map((rec) => (
                 <tr key={rec.id}>
-                  <td>
+                  <td data-label="Arrangement / Order">
                     <strong>{rec.deceasedFullName || 'Funeral Service'}</strong>
                     <div className="row-muted">Order #{rec.id.slice(0, 8).toUpperCase()}</div>
                   </td>
-                  <td>{rec.shopName}</td>
-                  <td>
+                  <td data-label="Funeral Shop">{rec.shopName}</td>
+                  <td data-label="Customer">
                     {rec.requesterName}
                     {rec.requesterEmail ? <div className="row-muted">{rec.requesterEmail}</div> : null}
                   </td>
-                  <td>
+                  <td data-label="Gross Paid">
                     <strong>{formatPeso(rec.paymentAmount)}</strong>
                     <div className="row-muted">{rec.providerPaymentMethod.toUpperCase()}</div>
                   </td>
-                  <td>
+                  <td data-label="Commission (30%)">
                     <span className="commission-amount-cell">{formatPeso(rec.commissionAmount)}</span>
                   </td>
-                  <td>{formatPeso(rec.shopNetAmount)}</td>
-                  <td>
+                  <td data-label="Shop Net (70%)">{formatPeso(rec.shopNetAmount)}</td>
+                  <td data-label="Status">
                     <span className={`status-pill ${statusPillClass(rec.status)}`}>
                       {statusPillLabel(rec.status)}
                     </span>
                   </td>
-                  <td>{formatDate(rec.paymentVerifiedAt)}</td>
-                  <td>
+                  <td data-label="Date">{formatDate(rec.paymentVerifiedAt)}</td>
+                  <td data-label="Actions">
                     <div className="request-actions">
                       <button
                         type="button"

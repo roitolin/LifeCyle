@@ -190,7 +190,7 @@ function AdminFuneralShopsPage() {
 
   return (
     <>
-      <section className="panel">
+      <section className="panel admin-records-page admin-funeral-shops-page">
         <h2>Funeral Shop Management</h2>
         <p className="panel-sub">Review funeral shop registrations and approve or reject submitted shop records.</p>
 
@@ -228,7 +228,7 @@ function AdminFuneralShopsPage() {
         {!loading && filtered.length === 0 ? <p className="panel-sub">No funeral shops found.</p> : null}
 
         <div className="table-wrap">
-          <table className="request-table">
+          <table className="request-table admin-responsive-table">
             <thead>
               <tr>
                 <th>Shop</th>
@@ -246,16 +246,16 @@ function AdminFuneralShopsPage() {
                 const busy = savingId === item.id
                 return (
                   <tr key={item.id}>
-                    <td>{item.shopName || '-'}</td>
-                    <td>{item.ownerFullName || '-'}</td>
-                    <td>{item.ownerEmail || '-'}</td>
-                    <td>{item.businessName || '-'}</td>
-                    <td>{item.generalLocation || '-'}</td>
-                    <td>
+                    <td data-label="Shop">{item.shopName || '-'}</td>
+                    <td data-label="Owner">{item.ownerFullName || '-'}</td>
+                    <td data-label="Email">{item.ownerEmail || '-'}</td>
+                    <td data-label="Business">{item.businessName || '-'}</td>
+                    <td data-label="Location">{item.generalLocation || '-'}</td>
+                    <td data-label="Status">
                       <span className={`status-pill ${status}`}>{status}</span>
                       {item.rejectionReason ? <div>{item.rejectionReason}</div> : null}
                     </td>
-                    <td>
+                    <td data-label="Actions">
                       <div className="request-actions">
                         <Link to={`/admin/funeral-shops/${item.id}/details`} className="ghost-btn btn-link table-action">
                           View Details

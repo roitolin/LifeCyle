@@ -49,6 +49,7 @@ function AdminLayout() {
   const [user, setUser] = useState<User | null>(null)
   const [userRole, setUserRole] = useState<AdminRole>('user')
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [profile, setProfile] = useState<ProfileData>({ fullName: 'Admin', photoURL: '', gender: '' })
   const lastTrackedClickRef = useRef({ signature: '', time: 0 })
@@ -149,6 +150,9 @@ function AdminLayout() {
       .trim()
       .slice(0, 120)
     if (!label) return
+    if (mobileSidebarOpen && element.tagName.toLowerCase() === 'a') {
+      setMobileSidebarOpen(false)
+    }
     const signature = `${location.pathname}:${label}`
     const now = Date.now()
     if (lastTrackedClickRef.current.signature === signature && now - lastTrackedClickRef.current.time < 700) return
@@ -163,9 +167,59 @@ function AdminLayout() {
     })
   }
 
+  useEffect(() => {
+    const closeMobileSidebarOnDesktop = () => {
+      if (window.innerWidth > 700) setMobileSidebarOpen(false)
+    }
+    window.addEventListener('resize', closeMobileSidebarOnDesktop)
+    return () => window.removeEventListener('resize', closeMobileSidebarOnDesktop)
+  }, [])
+
+  const handleSidebarToggle = () => {
+    if (window.matchMedia('(max-width: 700px)').matches) {
+      setMobileSidebarOpen(false)
+      return
+    }
+    setSidebarOpen((previous) => !previous)
+  }
+
   return (
-    <div className={`user-shell admin-console-shell${sidebarOpen ? '' : ' sidebar-collapsed'}`} onClickCapture={handleAdminClick}>
+    <div className={`user-shell admin-console-shell${sidebarOpen ? '' : ' sidebar-collapsed'}${mobileSidebarOpen ? ' mobile-sidebar-open' : ''}`} onClickCapture={handleAdminClick}>
+      {mobileSidebarOpen ? (
+        <button
+          type="button"
+          className="admin-mobile-menu-backdrop"
+          onClick={() => setMobileSidebarOpen(false)}
+          aria-label="Close admin navigation"
+          data-no-activity="true"
+        />
+      ) : null}
       <aside className="user-sidebar">
+        <div className="admin-mobile-sidebar-head">
+          <strong>Menu</strong>
+          <button
+            type="button"
+            onClick={() => setMobileSidebarOpen(false)}
+            aria-label="Close admin navigation"
+            data-no-activity="true"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 6L18 18M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="admin-mobile-sidebar-profile">
+          <img src={avatarSrc} alt="" className="admin-mobile-sidebar-avatar" />
+          <div className="admin-mobile-sidebar-profile-copy">
+            <strong>{profile.fullName}</strong>
+            <span>{user?.email || 'admin'}</span>
+          </div>
+          <button type="button" className="admin-mobile-sidebar-logout" onClick={confirmLogout} data-no-activity="true">
+            Log out
+          </button>
+        </div>
+
         <Link to={homePath} className="brand user-brand">
           <img src={APP_ICON_TRANSPARENT_URL} alt="LifeCycle logo" className="brand-logo" />
           <strong className="sidebar-label">{adminTitle}</strong>
@@ -175,9 +229,9 @@ function AdminLayout() {
           <button
             type="button"
             className="user-nav-link sidebar-toggle-row"
-            onClick={() => setSidebarOpen((prev) => !prev)}
-            aria-label={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
-            title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
+            onClick={handleSidebarToggle}
+            aria-label="Toggle admin navigation"
+            title="Toggle admin navigation"
           >
             <span className="nav-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none">
@@ -357,6 +411,24 @@ function AdminLayout() {
 
       <main className="user-main">
         <header className="user-header">
+          <div className="admin-mobile-header-brand">
+            <button
+              type="button"
+              className="admin-mobile-menu-trigger"
+              onClick={() => setMobileSidebarOpen(true)}
+              aria-label="Open admin navigation"
+              aria-haspopup="dialog"
+              aria-expanded={mobileSidebarOpen}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 7H20M4 12H20M4 17H20" />
+              </svg>
+            </button>
+            <Link to={homePath} className="admin-mobile-brand-link">
+              <img src={APP_ICON_TRANSPARENT_URL} alt="LifeCycle logo" className="admin-mobile-brand-logo" />
+              <strong>{adminTitle}</strong>
+            </Link>
+          </div>
           <div className="user-header-right">
             <NotificationDropdown
               variant="seller-centre"

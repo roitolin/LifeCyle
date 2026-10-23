@@ -5,9 +5,7 @@ import { Button, Card } from "react-native-paper";
 import { supabase } from "@/services/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
 import { useResponsive } from "../../utils/responsive";
-import { useAppDialog } from "../../hooks/useAppDialog";
 import { useDoubleTapAction } from "../../hooks/useDoubleTapAction";
-import { confirmLogout } from '@/utils/logoutConfirmation';
 import { SimpleBarChart } from "@/components";
 import { formatPhilippinePeso } from "@/utils/funeralCatalog";
 import {
@@ -43,14 +41,13 @@ function MetricTile({ value, label }: { value: string | number; label: string })
 }
 
 export default function AdminDashboard({ navigation }: any) {
-  const { logout, role } = useAuth();
+  const { role } = useAuth();
   const { isDesktop } = useResponsive();
   const [metrics, setMetrics] = useState<DashboardMetrics>(EMPTY_METRICS);
   const [loadingMetrics, setLoadingMetrics] = useState(true);
   const [sales, setSales] = useState<SalesOverview | null>(null);
   const [loadingSales, setLoadingSales] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const { showDialog, dialog } = useAppDialog();
   const isRootAdmin = role === "super_admin" || role === "admin";
   const isFuneralAdmin = isRootAdmin || role === "funeral_admin";
   const canSeeCommsAndInsights = isRootAdmin || isFuneralAdmin;
@@ -60,10 +57,6 @@ export default function AdminDashboard({ navigation }: any) {
     role === "funeral_admin"
       ? "Monitor funeral shop approvals, users, and support tools."
       : "Monitor funeral shop approvals, users, and support channels.";
-
-  const handleLogout = () => {
-    confirmLogout({ logout, showDialog });
-  };
 
   const loadMetrics = useCallback(async () => {
     setLoadingMetrics(true);
@@ -113,11 +106,17 @@ export default function AdminDashboard({ navigation }: any) {
   }, [canSeeSales]);
 
   useEffect(() => {
-    loadMetrics();
+    const task = setTimeout(() => {
+      void loadMetrics();
+    }, 0);
+    return () => clearTimeout(task);
   }, [loadMetrics]);
 
   useEffect(() => {
-    loadSales();
+    const task = setTimeout(() => {
+      void loadSales();
+    }, 0);
+    return () => clearTimeout(task);
   }, [loadSales]);
 
   const refreshDashboard = useCallback(async () => {
@@ -141,7 +140,7 @@ export default function AdminDashboard({ navigation }: any) {
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.subtitle}>{subtitle}</Text>
         </View>
-        <Button mode="outlined" icon="refresh" onPress={handleDoubleTapRefresh} compact>
+        <Button mode="outlined" icon="refresh" onPress={handleDoubleTapRefresh} textColor={colors.primary} compact>
           Refresh x2
         </Button>
       </View>
@@ -182,24 +181,24 @@ export default function AdminDashboard({ navigation }: any) {
             </View>
 
             <Card style={styles.actionCard} mode="outlined">
-              <Card.Title title="Revenue — Last 6 Months" />
+              <Card.Title title="Revenue - Last 6 Months" />
               <Card.Content>
                 <SimpleBarChart
                   data={sales.monthlyRevenue}
                   formatValue={formatCompactPeso}
                   showValues
-                  barColor="#d32f2f"
+                  barColor={colors.primary}
                 />
               </Card.Content>
             </Card>
 
             <Card style={styles.actionCard} mode="outlined">
-              <Card.Title title="Confirmed Sales — Last 6 Months" />
+              <Card.Title title="Confirmed Sales - Last 6 Months" />
               <Card.Content>
                 <SimpleBarChart
                   data={sales.monthlySales}
                   showValues
-                  barColor="#16a34a"
+                  barColor={colors.info}
                 />
               </Card.Content>
             </Card>
@@ -243,8 +242,8 @@ export default function AdminDashboard({ navigation }: any) {
               Review funeral shop registrations, inspect business records, and approve or reject shop submissions.
             </Text>
           </Card.Content>
-          <Card.Actions>
-            <Button mode="contained-tonal" onPress={() => navigation.navigate("Funeral")}>
+          <Card.Actions style={styles.cardActions}>
+            <Button mode="contained-tonal" buttonColor={colors.surfaceMuted} textColor={colors.primaryDark} onPress={() => navigation.navigate("Funeral")}>
               Open Queue ({metrics.pendingFuneralShops})
             </Button>
           </Card.Actions>
@@ -259,11 +258,11 @@ export default function AdminDashboard({ navigation }: any) {
               View every product listed across all funeral shops and all submitted service requests.
             </Text>
           </Card.Content>
-          <Card.Actions>
-            <Button mode="contained-tonal" onPress={() => navigation.navigate("Products")}>
+          <Card.Actions style={styles.cardActions}>
+            <Button mode="contained-tonal" buttonColor={colors.surfaceMuted} textColor={colors.primaryDark} onPress={() => navigation.navigate("Products")}>
               Products
             </Button>
-            <Button mode="outlined" onPress={() => navigation.navigate("Orders")}>
+            <Button mode="outlined" textColor={colors.primary} onPress={() => navigation.navigate("Orders")}>
               Service Requests
             </Button>
           </Card.Actions>
@@ -277,8 +276,8 @@ export default function AdminDashboard({ navigation }: any) {
             View user profiles and manage user records.
           </Text>
         </Card.Content>
-        <Card.Actions>
-          <Button mode="contained-tonal" onPress={() => navigation.navigate("Users")}>
+        <Card.Actions style={styles.cardActions}>
+          <Button mode="contained-tonal" buttonColor={colors.surfaceMuted} textColor={colors.primaryDark} onPress={() => navigation.navigate("Users")}>
             Manage Users
           </Button>
         </Card.Actions>
@@ -292,20 +291,14 @@ export default function AdminDashboard({ navigation }: any) {
               Review user ratings, reply to feedback, and react to community comments.
             </Text>
           </Card.Content>
-          <Card.Actions>
-            <Button mode="outlined" onPress={() => navigation.navigate("Feedback")}>
+          <Card.Actions style={styles.cardActions}>
+            <Button mode="outlined" textColor={colors.primary} onPress={() => navigation.navigate("Feedback")}>
               Open Feedback Board
             </Button>
           </Card.Actions>
         </Card>
       ) : null}
 
-      <View style={styles.logoutWrap}>
-        <Button mode="contained" buttonColor="#22312d" onPress={handleLogout}>
-          Logout
-        </Button>
-      </View>
-      {dialog}
     </ScrollView>
   );
 }
@@ -325,20 +318,20 @@ const styles = StyleSheet.create({
   headerTextWrap: {
     flex: 1,
   },
-  title: { fontSize: 30, fontWeight: "800", marginTop: 4, color: "#d32f2f" },
-  subtitle: { fontSize: 14, color: "#666", marginBottom: 6 },
+  title: { fontSize: 30, fontWeight: "800", marginTop: 4, color: colors.primaryDark },
+  subtitle: { fontSize: 14, color: colors.textMuted, marginBottom: 6, lineHeight: 20 },
   loadingWrap: {
     borderRadius: radii.md,
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: colors.border,
     padding: spacing.md,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
   },
   loadingText: {
-    color: "#4b5563",
+    color: colors.textMuted,
     fontWeight: "600",
   },
   metricsGrid: {
@@ -356,19 +349,19 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     justifyContent: "center",
   },
-  metricValue: { fontSize: 24, fontWeight: "800", color: "#b71c1c" },
-  metricDesc: { fontSize: 12, color: "#666", marginTop: 4 },
+  metricValue: { fontSize: 24, fontWeight: "800", color: colors.primary },
+  metricDesc: { fontSize: 12, color: colors.textMuted, marginTop: 4, lineHeight: 17 },
   sectionHeader: {
     marginTop: 8,
   },
   sectionTitle: {
     fontSize: 22,
     fontWeight: "800",
-    color: "#0f172a",
+    color: colors.primaryDark,
   },
   sectionSubtitle: {
     fontSize: 13,
-    color: "#64748b",
+    color: colors.textMuted,
     marginTop: 2,
   },
   breakdownRow: {
@@ -381,7 +374,7 @@ const styles = StyleSheet.create({
     width: 130,
     fontSize: 13,
     fontWeight: "700",
-    color: "#334155",
+    color: colors.text,
   },
   breakdownTrack: {
     flex: 1,
@@ -399,20 +392,24 @@ const styles = StyleSheet.create({
     textAlign: "right",
     fontSize: 13,
     fontWeight: "800",
-    color: "#0f172a",
+    color: colors.primaryDark,
   },
   actionCard: {
-    borderRadius: 12,
-    backgroundColor: "#fff",
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  cardActions: {
+    flexWrap: "wrap",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
   },
   cardText: {
     fontSize: 14,
-    color: "#555",
+    color: colors.textMuted,
     lineHeight: 21,
-  },
-  logoutWrap: {
-    marginTop: 8,
-    marginBottom: 10,
   },
   containerDesktop: { maxWidth: 700, alignSelf: "center", width: "100%" },
 });

@@ -155,6 +155,20 @@ export default function SellerServiceRequestPage() {
   const [rejectMode, setRejectMode] = useState(false)
   const [rejectionReason, setRejectionReason] = useState('')
 
+  const openFamilyChat = useCallback(() => {
+    const targetId = String(request?.requesterId || '').trim()
+    if (!targetId) {
+      openAlert({
+        title: 'Chat unavailable',
+        message: 'This request does not have a linked family account available to contact.',
+        tone: 'warning',
+        okLabel: 'Got it',
+      })
+      return
+    }
+    window.dispatchEvent(new CustomEvent('open-chat', { detail: { userId: targetId } }))
+  }, [openAlert, request?.requesterId])
+
   const loadRequest = useCallback(async () => {
     if (!requestId) {
       setError('This arrangement case does not have a valid request ID.')
@@ -722,6 +736,26 @@ export default function SellerServiceRequestPage() {
                   <DetailRow label="Requestor" value={request.familyCoordinatorName || request.requesterName || 'Not provided'} />
                   <DetailRow label="Contact number" value={request.contactNumber || 'Not provided'} />
                 </DetailList>
+                <div className="sr-contact-actions" aria-label="Family contact actions">
+                  <a
+                    className={`sr-contact-action${request.contactNumber ? '' : ' is-disabled'}`}
+                    href={request.contactNumber ? `tel:${request.contactNumber.replace(/[^\d+]/g, '')}` : undefined}
+                    aria-disabled={!request.contactNumber}
+                    onClick={event => { if (!request.contactNumber) event.preventDefault() }}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7A2 2 0 0 1 22 16.9Z" /></svg>
+                    <span>Call family</span>
+                  </a>
+                  <button
+                    type="button"
+                    className={`sr-contact-action${request.requesterId ? '' : ' is-disabled'}`}
+                    disabled={!request.requesterId}
+                    onClick={openFamilyChat}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-8.8 8.5 9.2 9.2 0 0 1-4.1-1l-4.1 1 1.1-3.7A8.2 8.2 0 0 1 3 11.5 8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5Z" /><path d="M8 11.5h.01M12 11.5h.01M16 11.5h.01" /></svg>
+                    <span>Chat with family</span>
+                  </button>
+                </div>
               </section>
 
               <section className="sr-card">
