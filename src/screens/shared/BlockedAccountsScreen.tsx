@@ -7,6 +7,7 @@ import { KeyboardAwareScrollView } from '@/components';
 import { auth } from '@/services/supabaseAuth';
 import { supabase } from '@/services/supabaseClient';
 import { unblockUser } from '@/utils/userModeration';
+import { getProfileImageSource } from '@/utils/defaultProfileImage';
 
 type BlockedAccount = {
   blockId: string;
@@ -17,8 +18,6 @@ type BlockedAccount = {
   gender?: string | null;
   createdAt?: string;
 };
-
-import { getProfileImageSource } from '@/utils/defaultProfileImage';
 
 export default function BlockedAccountsScreen() {
   const [accounts, setAccounts] = useState<BlockedAccount[]>([]);

@@ -316,7 +316,7 @@ export default function AdminModerationScreen() {
           ListEmptyComponent={
             !loading ? (
               <Text style={styles.empty}>No records in this moderation queue.</Text>
-            ) : null
+            ) : undefined
           }
           contentContainerStyle={styles.listContent}
         />
@@ -330,7 +330,7 @@ export default function AdminModerationScreen() {
           ListEmptyComponent={
             !loading ? (
               <Text style={styles.empty}>No records in this moderation queue.</Text>
-            ) : null
+            ) : undefined
           }
           contentContainerStyle={styles.listContent}
         />
@@ -344,7 +344,7 @@ export default function AdminModerationScreen() {
           ListEmptyComponent={
             !loading ? (
               <Text style={styles.empty}>No risk signals found yet.</Text>
-            ) : null
+            ) : undefined
           }
           contentContainerStyle={styles.listContent}
         />

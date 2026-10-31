@@ -819,7 +819,7 @@ export default function NotificationsScreen({ navigation, route }: any) {
             </Text>
           </View>
         }
-        ListFooterComponent={notifications.length && !selectionMode ? <Text style={styles.holdHint}>Press and hold a notification to select multiple.</Text> : null}
+        ListFooterComponent={notifications.length && !selectionMode ? <Text style={styles.holdHint}>Press and hold a notification to select multiple.</Text> : undefined}
       />
 
       {selectionMode ? (

@@ -10,7 +10,9 @@ import LogoutLink from '@/components/LogoutLink'
 import MarketplaceFooter from '@/components/MarketplaceFooter'
 import MarketplaceMobileDrawer from '@/components/MarketplaceMobileDrawer'
 import PageBackButton from '@/components/PageBackButton'
+import ProductRating from '@/components/ProductRating'
 import { getProfileAvatar } from '@/utils/profileAvatar'
+import { summarizeProductRatings } from '@/utils/productRatings'
 import './ProductDetailPage.css'
 
 type Product = {
@@ -29,6 +31,11 @@ type Product = {
   galleryImageUrls: string[]
   variations: { id: string; name: string; price?: number | null; imageUrl?: string | null }[]
   packageItems: PackageDisplayItem[]
+  downpaymentEnabled: boolean
+  downpaymentAmount: number | null
+  downpaymentPercentage: number | null
+  rating: number
+  ratingCount: number
 }
 
 type ShopPackage = {
@@ -51,6 +58,8 @@ type RelatedProduct = {
   price: number
   stock: number
   imageUrl: string | null
+  rating: number
+  ratingCount: number
 }
 
 function getPackageItems(row?: ShopPackage | null): PackageDisplayItem[] {
@@ -187,6 +196,12 @@ export default function ProductDetailPage() {
     ? selectedVariationItem.price
     : product?.price || 0
   const calculatedTotal = selectedProductPrice
+  const canUseDownpayment = Boolean(
+    product?.downpaymentEnabled
+    && product.downpaymentAmount
+    && product.downpaymentPercentage
+    && product.downpaymentAmount <= calculatedTotal
+  )
   const baseGallery = product?.galleryImageUrls.length ? product.galleryImageUrls
     : product?.imageUrl ? [product.imageUrl]
     : []
@@ -270,9 +285,10 @@ export default function ProductDetailPage() {
         const { data, error: err } = await supabase
           .from('funeral_products')
           .select(`
-            id, name, description, price, stock, "imageUrl", active, "shopId", "hasVariations",
+            id, name, description, price, stock, "imageUrl", active, "shopId", "hasVariations", "downpaymentEnabled", "downpaymentAmount", "downpaymentPercentage",
             funeral_product_images ( "imageUrl", "displayOrder" ),
             funeral_product_variations ( id, name, price, "imageUrl" ),
+            funeral_product_ratings ( rating ),
             funeral_shops!inner ( "shopName", "shopImageUrl", "shopAddress", "shopPhoneNumber", "generalLocation", status )
           `)
           .eq('id', productId)
@@ -288,6 +304,7 @@ export default function ProductDetailPage() {
         }
 
         const row = data as any
+        const ratingSummary = summarizeProductRatings(row.funeral_product_ratings)
         const imgs = (row.funeral_product_images ?? []) as any[]
         const sorted = [...imgs].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
         const galleryUrls = sorted.map((img: any) => img.imageUrl).filter((url: string) => Boolean(url))
@@ -315,6 +332,11 @@ export default function ProductDetailPage() {
           galleryImageUrls: galleryUrls,
           variations: variationList,
           packageItems: [],
+          downpaymentEnabled: Boolean(row.downpaymentEnabled),
+          downpaymentAmount: row.downpaymentAmount == null ? null : Number(row.downpaymentAmount),
+          downpaymentPercentage: row.downpaymentPercentage == null ? null : Number(row.downpaymentPercentage),
+          rating: ratingSummary.average,
+          ratingCount: ratingSummary.count,
         }
 
         const { data: packageData } = await supabase
@@ -333,7 +355,7 @@ export default function ProductDetailPage() {
         // Load related products from the same shop (excluding this product)
         const { data: relData } = await supabase
           .from('funeral_products')
-          .select(`id, name, price, stock, "imageUrl", active, funeral_shops!inner(status)`)
+          .select(`id, name, price, stock, "imageUrl", active, funeral_product_ratings(rating), funeral_shops!inner(status)`)
           .eq('active', true)
           .gt('stock', 0)
           .eq('funeral_shops.status', 'live')
@@ -343,13 +365,18 @@ export default function ProductDetailPage() {
           .limit(6)
 
         if (relData && !cancelled) {
-          setRelatedProducts((relData as any[]).map(r => ({
-            id: String(r.id),
-            name: String(r.name ?? ''),
-            price: Number(r.price) || 0,
-            stock: Number(r.stock) || 0,
-            imageUrl: r.imageUrl ?? null,
-          })))
+          setRelatedProducts((relData as any[]).map(r => {
+            const summary = summarizeProductRatings(r.funeral_product_ratings)
+            return {
+              id: String(r.id),
+              name: String(r.name ?? ''),
+              price: Number(r.price) || 0,
+              stock: Number(r.stock) || 0,
+              imageUrl: r.imageUrl ?? null,
+              rating: summary.average,
+              ratingCount: summary.count,
+            }
+          }))
         }
       } catch (e: any) {
         console.error('Unable to load product details', e)
@@ -382,6 +409,11 @@ export default function ProductDetailPage() {
       shopName: product.shopName,
       name: product.name,
       price: calculatedTotal,
+      fullPrice: calculatedTotal,
+      paymentOption: 'full',
+      downpaymentAmount: product.downpaymentAmount,
+      downpaymentPercentage: product.downpaymentPercentage,
+      remainingBalance: 0,
       imageUrl: varItem?.imageUrl ?? product.imageUrl,
       variationId: varItem?.id ?? null,
       variationName: varItem?.name ?? null,
@@ -414,6 +446,11 @@ export default function ProductDetailPage() {
       shopName: product.shopName,
       name: product.name,
       price: calculatedTotal,
+      fullPrice: calculatedTotal,
+      paymentOption: 'full',
+      downpaymentAmount: product.downpaymentAmount,
+      downpaymentPercentage: product.downpaymentPercentage,
+      remainingBalance: 0,
       imageUrl: varItem?.imageUrl ?? product.imageUrl,
       variationId: varItem?.id ?? null,
       variationName: varItem?.name ?? null,
@@ -454,7 +491,7 @@ export default function ProductDetailPage() {
 
   const mainImage = gallery[galleryIndex] || product.imageUrl || ''
   const accountPath = isLoggedIn ? '/user/profile' : '/login?next=/user/profile'
-  const purchasesPath = isLoggedIn ? '/user/purchase' : '/login?next=/user/purchase'
+  const serviceRequestsPath = isLoggedIn ? '/user/requests' : '/login?next=/user/requests'
   const helpPath = isLoggedIn ? '/user/help' : '/login?next=/user/help'
 
   const openMessages = () => {
@@ -478,7 +515,7 @@ export default function ProductDetailPage() {
         photoUrl={userProfile?.photoURL}
         gender={userProfile?.gender}
         accountPath={accountPath}
-        purchasesPath={purchasesPath}
+        serviceRequestsPath={serviceRequestsPath}
         helpPath={helpPath}
         onOpenMessages={openMessages}
       />
@@ -504,7 +541,7 @@ export default function ProductDetailPage() {
                   </div>
                   <div className="sp-user-dropdown">
                     <Link to="/user/profile">My Account</Link>
-                    <Link to="/user/purchase">My Payments</Link>
+                    <Link to="/user/requests">My service request</Link>
                     <Link to="/auth/switch-account" className="sp-dropdown-switch">Switch Account</Link>
                     <LogoutLink>Log out</LogoutLink>
                   </div>
@@ -633,6 +670,9 @@ export default function ProductDetailPage() {
             
             <div className="pd-meta">
               <div className="pd-meta-item">
+                <ProductRating rating={product.rating} count={product.ratingCount} />
+              </div>
+              <div className="pd-meta-item">
                 <span className="pd-stock-dot" aria-hidden="true"></span>
                 <span>{product.stock > 0 ? 'Available' : 'Contact provider'}</span>
               </div>
@@ -642,8 +682,13 @@ export default function ProductDetailPage() {
             </div>
 
             <div className="pd-price-block">
-              <span className="pd-price-label">Total price</span>
+              <span className="pd-price-label">Full product price</span>
               <div className="pd-price-value">{formatPeso(calculatedTotal)}</div>
+              {canUseDownpayment ? (
+                <span className="pd-price-breakdown">
+                  Down payment {formatPeso(Number(product?.downpaymentAmount))} ({product?.downpaymentPercentage}%) can be selected after shop approval.
+                </span>
+              ) : null}
               {selectedVariationItem && (
                 <span className="pd-price-breakdown">
                   Selected variation: {selectedVariationItem.name}
@@ -694,6 +739,7 @@ export default function ProductDetailPage() {
                 {showVariationToast && <p className="pd-variation-error">Select a variation before continuing.</p>}
               </div>
             )}
+
 
             {product.packageItems.length > 0 && (
             <section className="pd-package-section" aria-labelledby="pd-package-title">
@@ -835,6 +881,7 @@ export default function ProductDetailPage() {
                       <span className="pd-related-price">{formatPeso(rp.price)}</span>
                       <span className="pd-related-sold">{rp.stock} in stock</span>
                     </div>
+                    <ProductRating rating={rp.rating} count={rp.ratingCount} />
                   </div>
                 </Link>
               ))}

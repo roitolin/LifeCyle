@@ -8,14 +8,18 @@ import LogoutLink from '@/components/LogoutLink'
 import MarketplaceFooter from '@/components/MarketplaceFooter'
 import MarketplaceMobileDrawer from '@/components/MarketplaceMobileDrawer'
 import PageBackButton from '@/components/PageBackButton'
+import ProductRating from '@/components/ProductRating'
+import { useProductScrollReveal } from '@/hooks/useProductScrollReveal'
 import { supabase } from '@/lib/supabase'
 import { loadFuneralCart } from '@/utils/funeralCart'
 import { getProfileAvatar } from '@/utils/profileAvatar'
+import { summarizeProductRatings } from '@/utils/productRatings'
 import './ShopPage.css'
 
 type ShopRecord = {
   id: string
   shopName: string
+  bio?: string | null
   shopAddress?: string | null
   generalLocation?: string | null
   shopImageUrl?: string | null
@@ -29,6 +33,8 @@ type ProductRecord = {
   price: number
   imageUrl?: string | null
   stock: number
+  rating: number
+  ratingCount: number
 }
 
 const SORT_OPTIONS = ['Name', 'Price: Low to High', 'Price: High to Low']
@@ -113,20 +119,25 @@ export default function ShopPage() {
     setLoading(true)
     setError(null)
     Promise.all([
-      supabase.from('funeral_shops').select('id, shopName, shopAddress, generalLocation, shopImageUrl, coverImageUrl, createdAt').eq('id', shopId).eq('status', 'live').gt('paidUntil', new Date().toISOString()).maybeSingle(),
-      supabase.from('funeral_products').select('id, name, price, imageUrl, stock').eq('shopId', shopId).eq('active', true),
+      supabase.from('funeral_shops').select('id, shopName, bio, shopAddress, generalLocation, shopImageUrl, coverImageUrl, createdAt').eq('id', shopId).eq('status', 'live').gt('paidUntil', new Date().toISOString()).maybeSingle(),
+      supabase.from('funeral_products').select('id, name, price, imageUrl, stock, funeral_product_ratings(rating)').eq('shopId', shopId).eq('active', true),
     ]).then(([shopResult, productResult]) => {
       if (shopResult.error) throw shopResult.error
       if (!shopResult.data) throw new Error('Shop not found.')
       if (productResult.error) throw productResult.error
       setShop(shopResult.data as ShopRecord)
-      setProducts((productResult.data ?? []).map((product: any) => ({
-        id: String(product.id),
-        name: String(product.name || ''),
-        price: Number(product.price || 0),
-        imageUrl: product.imageUrl || null,
-        stock: Number(product.stock || 0),
-      })))
+      setProducts((productResult.data ?? []).map((product: any) => {
+        const summary = summarizeProductRatings(product.funeral_product_ratings)
+        return {
+          id: String(product.id),
+          name: String(product.name || ''),
+          price: Number(product.price || 0),
+          imageUrl: product.imageUrl || null,
+          stock: Number(product.stock || 0),
+          rating: summary.average,
+          ratingCount: summary.count,
+        }
+      }))
     }).catch((reason: any) => {
       setShop(null)
       setError(reason?.message || 'Unable to load this shop.')
@@ -150,6 +161,7 @@ export default function ShopPage() {
     if (sortBy === 'Price: High to Low') return [...list].sort((a, b) => b.price - a.price)
     return [...list].sort((a, b) => a.name.localeCompare(b.name))
   }, [products, queryText, sortBy])
+  const productGridRef = useProductScrollReveal<HTMLDivElement>(visibleProducts.map(product => product.id).join('|'))
 
   const handleFollow = async () => {
     if (!viewer) {
@@ -180,7 +192,7 @@ export default function ShopPage() {
   }
 
   const accountPath = isLoggedIn ? '/user/profile' : '/login?next=/user/profile'
-  const purchasesPath = isLoggedIn ? '/user/purchase' : '/login?next=/user/purchase'
+  const serviceRequestsPath = isLoggedIn ? '/user/requests' : '/login?next=/user/requests'
   const helpPath = isLoggedIn ? '/user/help' : '/login?next=/user/help'
 
   const openMessages = () => {
@@ -210,7 +222,7 @@ export default function ShopPage() {
         photoUrl={userProfile?.photoURL}
         gender={userProfile?.gender}
         accountPath={accountPath}
-        purchasesPath={purchasesPath}
+        serviceRequestsPath={serviceRequestsPath}
         helpPath={helpPath}
         onOpenMessages={openMessages}
       />
@@ -232,7 +244,7 @@ export default function ShopPage() {
                 </div>
                 <div className="sp-user-dropdown">
                   <Link to="/user/profile">My account</Link>
-                  <Link to="/user/requests">Service requests</Link>
+                  <Link to="/user/requests">My service request</Link>
                   <Link to="/auth/switch-account" className="sp-dropdown-switch">Switch account</Link>
                   <LogoutLink>Log out</LogoutLink>
                 </div>
@@ -282,6 +294,7 @@ export default function ShopPage() {
                 <h1>{shop.shopName}</h1>
                 <p className="shop-detail-status"><span aria-hidden="true">•</span> Online</p>
                 <p className="shop-detail-location">{shop.generalLocation || shop.shopAddress || 'Location not provided'}</p>
+                {shop.bio ? <p className="shop-detail-bio">{shop.bio}</p> : null}
               </div>
             </div>
             <div className="shop-detail-actions">
@@ -313,14 +326,20 @@ export default function ShopPage() {
           {visibleProducts.length === 0 ? (
             <div className="shop-detail-empty">{queryText ? 'No products match your search.' : 'This shop has no active products.'}</div>
           ) : (
-            <div className="shop-detail-grid">
+            <div className="shop-detail-grid" ref={productGridRef}>
               {visibleProducts.map(product => (
-                <Link key={product.id} to={`/funeral/product/${product.id}`} className="shop-product-card">
+                <Link
+                  key={product.id}
+                  to={`/funeral/product/${product.id}`}
+                  className="shop-product-card product-scroll-reveal"
+                  data-product-scroll-reveal
+                >
                   {product.imageUrl ? <img src={product.imageUrl} alt={product.name} /> : <div className="shop-product-image-empty">No image</div>}
                   <div className="shop-product-copy">
                     <h3>{product.name}</h3>
                     <strong>₱{product.price.toLocaleString()}</strong>
                     <span>{product.stock} available</span>
+                    <ProductRating rating={product.rating} count={product.ratingCount} />
                   </div>
                 </Link>
               ))}

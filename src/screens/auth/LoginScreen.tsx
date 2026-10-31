@@ -10,13 +10,17 @@ import {
   findNodeHandle,
   Linking,
   Modal,
+  type TextInputInstance,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NavigationBar } from "expo-navigation-bar";
 import { StatusBar } from "expo-status-bar";
+import { LinearGradient } from "expo-linear-gradient";
 import { Button as PaperButton } from "react-native-paper";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppBackButton, KeyboardAwareScrollView } from "@/components";
+import SocialAuthButtons from "@/components/SocialAuthButtons";
 import { colors, radii, spacing } from "@/theme";
 import { supabase } from "../../services/supabaseClient";
 import { ensureOwnUserProfile } from "../../services/userProfile";
@@ -27,20 +31,23 @@ import { recordAdminLoginActivity } from "../../utils/adminLoginActivity";
 
 import { recordAccountLoginActivity } from '../../utils/accountLoginActivity';
 
-const PAGE_COLOR = colors.surfaceWarm;
+const PAGE_COLOR = "#edf0f2";
+const REMEMBERED_EMAIL_KEY = "@lifecycle/remembered-login-email";
+const LIFECYCLE_MARK = require("../../../assets/Icon/IconTraparent.png");
 
 export default function LoginScreen({ navigation, route }: any) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [banDialog, setBanDialog] = useState<{ reason: string; banEndsLabel: string } | null>(null);
   const { banNotice, clearBanNotice, refreshUserProfile } = useAuth();
   const scrollRef = useRef<any>(null);
-  const emailRef = useRef<TextInput>(null);
-  const passwordRef = useRef<TextInput>(null);
+  const emailRef = useRef<TextInputInstance>(null);
+  const passwordRef = useRef<TextInputInstance>(null);
   const supportPhone = "+639123456789";
   const supportEmail = "support@lifecycle.app";
   const isAddingAccount = Boolean(route?.params?.addAccount);
@@ -48,7 +55,21 @@ export default function LoginScreen({ navigation, route }: any) {
   useEffect(() => {
     if (route?.params?.email) {
       setEmail(String(route.params.email));
+      return;
     }
+
+    let cancelled = false;
+    AsyncStorage.getItem(REMEMBERED_EMAIL_KEY)
+      .then((storedEmail) => {
+        if (cancelled || !storedEmail) return;
+        setEmail(storedEmail);
+        setRememberMe(true);
+      })
+      .catch((error) => console.warn("Remembered email could not be loaded:", error));
+
+    return () => {
+      cancelled = true;
+    };
   }, [route?.params?.email]);
 
   useEffect(() => {
@@ -155,6 +176,15 @@ export default function LoginScreen({ navigation, route }: any) {
       }
 
       await clearLoginAttempts(normalizedEmail);
+      try {
+        if (rememberMe) {
+          await AsyncStorage.setItem(REMEMBERED_EMAIL_KEY, normalizedEmail);
+        } else {
+          await AsyncStorage.removeItem(REMEMBERED_EMAIL_KEY);
+        }
+      } catch (storageError) {
+        console.warn("Remembered email preference could not be saved:", storageError);
+      }
       await recordAccountLoginActivity('login_success');
       await recordAdminLoginActivity(
         "login_success",
@@ -172,6 +202,18 @@ export default function LoginScreen({ navigation, route }: any) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const toggleRememberMe = () => {
+    setRememberMe((current) => {
+      const next = !current;
+      if (!next) {
+        void AsyncStorage.removeItem(REMEMBERED_EMAIL_KEY).catch((error) => {
+          console.warn("Remembered email could not be cleared:", error);
+        });
+      }
+      return next;
+    });
   };
 
   const openSupportChannel = async (channel: "sms" | "email") => {
@@ -235,61 +277,58 @@ export default function LoginScreen({ navigation, route }: any) {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
-        <View style={styles.formShell}>
+        <LinearGradient colors={["#d9eee7", "#edf2e7", "#f4eadc"]} style={styles.hero}>
           {navigation.canGoBack?.() ? (
             <AppBackButton style={styles.backButton} onPress={() => navigation.goBack()} />
           ) : null}
-
-          <View style={styles.brandRow}>
-            <Image source={require("../../../assets/Icon/IconTraparent.png")} style={styles.brandMark} resizeMode="contain" />
+          <View style={styles.brandLockup}>
+            <Image source={LIFECYCLE_MARK} resizeMode="contain" style={styles.brandMark} />
             <Text style={styles.brandName}>LifeCycle</Text>
           </View>
-
+          <Text style={styles.heroMessage}>Peace of mind, one step at a time.</Text>
+        </LinearGradient>
+        <View style={styles.formShell}>
           <View style={styles.headingBlock}>
-            <Text style={styles.title}>{isAddingAccount ? "Add another account" : "Welcome back"}</Text>
+            <Text style={styles.title}>{isAddingAccount ? "Add another account" : "Log in"}</Text>
             <Text style={styles.subtitle}>
               {isAddingAccount
                 ? "Your current account will remain saved on this device."
-                : "Log in to continue to your account."}
+                : "Enter your email and password to securely access your account."}
             </Text>
           </View>
 
           <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Email address</Text>
-            <TextInput
-              ref={emailRef}
-              accessibilityLabel="Email address"
-              placeholder="name@example.com"
-              placeholderTextColor={colors.textMuted}
-              value={email}
-              onChangeText={setEmail}
-              onFocus={() => {
-                setEmailFocused(true);
-                scrollToInput(emailRef);
-              }}
-              onBlur={() => setEmailFocused(false)}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              autoComplete="email"
-              textContentType="emailAddress"
-              importantForAutofill="yes"
-              returnKeyType="next"
-              onSubmitEditing={() => passwordRef.current?.focus()}
-              style={[styles.input, emailFocused && styles.inputFocused]}
-            />
+            <Text style={styles.fieldLabel}>Email</Text>
+            <View style={[styles.inputShell, emailFocused && styles.inputFocused]}>
+              <Ionicons name="mail-outline" size={19} color={emailFocused ? colors.primary : colors.textMuted} />
+              <TextInput
+                ref={emailRef}
+                accessibilityLabel="Email address"
+                placeholder="Email address"
+                placeholderTextColor={colors.textMuted}
+                value={email}
+                onChangeText={setEmail}
+                onFocus={() => {
+                  setEmailFocused(true);
+                  scrollToInput(emailRef);
+                }}
+                onBlur={() => setEmailFocused(false)}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                autoComplete="off"
+                textContentType="none"
+                importantForAutofill="no"
+                returnKeyType="next"
+                onSubmitEditing={() => passwordRef.current?.focus()}
+                style={styles.input}
+              />
+            </View>
           </View>
 
           <View style={styles.fieldGroup}>
-            <View style={styles.passwordLabelRow}>
-              <Text style={styles.fieldLabel}>Password</Text>
-              <TouchableOpacity
-                accessibilityRole="button"
-                onPress={() => navigation.navigate("ForgotPassword", { email: email.trim() })}
-              >
-                <Text style={styles.forgotLink}>Forgot password?</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.passwordFieldWrap}>
+            <Text style={styles.fieldLabel}>Password</Text>
+            <View style={[styles.inputShell, passwordFocused && styles.inputFocused]}>
+              <Ionicons name="lock-closed-outline" size={19} color={passwordFocused ? colors.primary : colors.textMuted} />
               <TextInput
                 ref={passwordRef}
                 accessibilityLabel="Password"
@@ -303,12 +342,12 @@ export default function LoginScreen({ navigation, route }: any) {
                 }}
                 onBlur={() => setPasswordFocused(false)}
                 secureTextEntry={!showPassword}
-                autoComplete="password"
-                textContentType="password"
-                importantForAutofill="yes"
+                autoComplete="off"
+                textContentType="none"
+                importantForAutofill="no"
                 returnKeyType="done"
                 onSubmitEditing={handleLogin}
-                style={[styles.input, styles.passwordInput, passwordFocused && styles.inputFocused]}
+                style={[styles.input, styles.passwordInput]}
               />
               <TouchableOpacity
                 accessibilityRole="button"
@@ -317,6 +356,28 @@ export default function LoginScreen({ navigation, route }: any) {
                 onPress={() => setShowPassword((previous) => !previous)}
               >
                 <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.loginOptionsRow}>
+              <TouchableOpacity
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: rememberMe }}
+                accessibilityLabel="Remember my email address"
+                onPress={toggleRememberMe}
+                activeOpacity={0.72}
+                style={styles.rememberButton}
+              >
+                <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+                  {rememberMe ? <Ionicons name="checkmark" size={13} color="#ffffff" /> : null}
+                </View>
+                <Text style={styles.rememberText}>Remember me</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="button"
+                onPress={() => navigation.navigate("ForgotPassword", { email: email.trim() })}
+                style={styles.forgotButton}
+              >
+                <Text style={styles.forgotLink}>Forgot Password?</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -334,6 +395,11 @@ export default function LoginScreen({ navigation, route }: any) {
             {loading ? "Logging in..." : "Log in"}
           </PaperButton>
 
+          <SocialAuthButtons
+            disabled={loading}
+            onError={(title, message) => Alert.alert(title, message)}
+          />
+
           <View style={styles.accountPrompt}>
             <Text style={styles.accountPromptText}>New to LifeCycle?</Text>
             <TouchableOpacity accessibilityRole="button" onPress={() => navigation.navigate("Register")}>
@@ -341,18 +407,6 @@ export default function LoginScreen({ navigation, route }: any) {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.supportArea}>
-            <Text style={styles.supportLabel}>Need help signing in?</Text>
-            <View style={styles.supportLinks}>
-              <TouchableOpacity accessibilityRole="button" onPress={() => void openSupportChannel("sms")}>
-                <Text style={styles.supportLink}>Contact support</Text>
-              </TouchableOpacity>
-              <Text style={styles.supportSeparator}>·</Text>
-              <TouchableOpacity accessibilityRole="button" onPress={() => void openSupportChannel("email")}>
-                <Text style={styles.supportLink}>Report an issue</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
         </View>
         </KeyboardAwareScrollView>
       </SafeAreaView>
@@ -363,51 +417,48 @@ export default function LoginScreen({ navigation, route }: any) {
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: PAGE_COLOR },
   screen: { flex: 1, backgroundColor: PAGE_COLOR },
-  scrollContent: { flexGrow: 1, justifyContent: "center", paddingHorizontal: spacing.xl, paddingVertical: spacing.xxl },
-  formShell: { width: "100%", maxWidth: 440, alignSelf: "center" },
-  backButton: { alignSelf: "flex-start", marginBottom: spacing.xl, backgroundColor: "transparent", borderWidth: 0 },
-  brandRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.xl },
-  brandMark: { width: 88, height: 88 },
-  brandName: { color: colors.text, fontSize: 26, fontWeight: "800" },
-  headingBlock: { marginBottom: spacing.xl },
-  title: { color: colors.text, fontSize: 32, lineHeight: 40, fontWeight: "800" },
+  scrollContent: { flexGrow: 1, backgroundColor: colors.surface },
+  hero: { minHeight: 188, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: 36, alignItems: "center", justifyContent: "center" },
+  brandLockup: { flexDirection: "row", alignItems: "center", gap: 9 },
+  brandMark: { width: 66, height: 66 },
+  brandName: { color: colors.text, fontSize: 25, fontWeight: "900", letterSpacing: -0.5 },
+  heroMessage: { color: colors.textMuted, fontSize: 11, fontWeight: "600", marginTop: 2 },
+  formShell: { flexGrow: 1, width: "100%", maxWidth: 560, alignSelf: "center", marginTop: -28, borderTopLeftRadius: 28, borderTopRightRadius: 28, backgroundColor: colors.surface, paddingHorizontal: 22, paddingTop: 22, paddingBottom: spacing.lg },
+  backButton: { position: "absolute", top: spacing.md, left: spacing.lg, width: 42, height: 42, borderRadius: 21, backgroundColor: "rgba(255,255,255,0.88)", borderWidth: 0 },
+  headingBlock: { alignItems: "center", marginBottom: spacing.lg, paddingHorizontal: spacing.sm },
+  title: { color: colors.text, fontSize: 27, lineHeight: 34, fontWeight: "900", textAlign: "center" },
   subtitle: {
     color: colors.textMuted,
-    fontSize: 15,
-    lineHeight: 24,
-    marginTop: spacing.sm,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 6,
+    textAlign: "center",
   },
-  fieldGroup: { marginBottom: spacing.lg },
-  fieldLabel: { color: colors.text, fontSize: 13, fontWeight: "700", marginBottom: spacing.sm },
-  passwordLabelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  fieldGroup: { marginBottom: spacing.md },
+  fieldLabel: { color: colors.text, fontSize: 11, fontWeight: "800", marginBottom: 7, marginLeft: 2 },
+  inputShell: { minHeight: 50, flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderColor: "#e1e6e3", borderRadius: 15, paddingHorizontal: 14, backgroundColor: "#f7f9f8" },
   input: {
-    minHeight: 52,
-    borderWidth: 1,
-    borderColor: colors.borderWarm,
-    borderRadius: radii.md,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    backgroundColor: colors.surface,
+    flex: 1,
+    minHeight: 48,
+    paddingVertical: 10,
+    paddingHorizontal: 0,
     color: colors.text,
-    fontSize: 15,
+    fontSize: 14,
   },
   inputFocused: {
-    borderColor: colors.primaryDark,
+    borderColor: colors.primary,
+    backgroundColor: colors.surface,
   },
-  passwordFieldWrap: { position: "relative" },
-  passwordInput: { paddingRight: 52 },
+  passwordInput: { paddingRight: 0 },
   eyeButton: {
-    position: "absolute",
-    right: 2,
-    top: 2,
-    width: 48,
-    height: 48,
+    width: 36,
+    height: 46,
     alignItems: "center",
     justifyContent: "center",
   },
   primaryButton: {
     borderRadius: radii.md,
-    marginTop: spacing.sm,
+    marginTop: spacing.xs,
     elevation: 0,
   },
   primaryButtonContent: { minHeight: 52 },
@@ -420,26 +471,17 @@ const styles = StyleSheet.create({
   forgotLink: {
     color: colors.primary,
     fontWeight: "800",
-    fontSize: 13,
+    fontSize: 11,
   },
-  accountPrompt: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs, marginTop: spacing.lg },
+  loginOptionsRow: { minHeight: 36, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, marginTop: 5 },
+  rememberButton: { minHeight: 36, flexDirection: "row", alignItems: "center", gap: 7, paddingRight: spacing.sm },
+  checkbox: { width: 18, height: 18, borderRadius: 5, borderWidth: 1.5, borderColor: colors.borderWarm, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
+  checkboxChecked: { borderColor: colors.primary, backgroundColor: colors.primary },
+  rememberText: { color: colors.text, fontSize: 11, fontWeight: "700" },
+  forgotButton: { minHeight: 36, justifyContent: "center", paddingLeft: spacing.sm },
+  accountPrompt: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs, marginTop: spacing.md },
   accountPromptText: { color: colors.textMuted, fontSize: 13 },
   accountPromptLink: { color: colors.primary, fontSize: 13, fontWeight: "800" },
-  supportArea: {
-    marginTop: spacing.xxl,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderWarm,
-    paddingTop: spacing.lg,
-  },
-  supportLabel: {
-    textAlign: "center",
-    color: colors.textMuted,
-    fontSize: 13,
-    marginBottom: spacing.sm,
-  },
-  supportLinks: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: spacing.sm },
-  supportLink: { color: colors.primary, fontSize: 13, fontWeight: "700" },
-  supportSeparator: { color: colors.textMuted, fontSize: 13 },
   banOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",

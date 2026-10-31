@@ -196,7 +196,7 @@ export default function AdminLoginSecurityScreen() {
       renderItem={renderActivity}
       ListHeaderComponent={listHeader}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={loadActivity} tintColor='#d32f2f' />}
-      ListEmptyComponent={!loading ? <View style={styles.emptyCard}><Ionicons name='finger-print-outline' size={30} color='#8b938c' /><Text style={styles.emptyTitle}>{errorMessage ? 'Login history unavailable' : 'No login history yet'}</Text><Text style={styles.emptyText}>{errorMessage || 'Your next admin sign-in will appear here.'}</Text></View> : null}
+      ListEmptyComponent={!loading ? <View style={styles.emptyCard}><Ionicons name='finger-print-outline' size={30} color='#8b938c' /><Text style={styles.emptyTitle}>{errorMessage ? 'Login history unavailable' : 'No login history yet'}</Text><Text style={styles.emptyText}>{errorMessage || 'Your next admin sign-in will appear here.'}</Text></View> : undefined}
     />
   );
 }

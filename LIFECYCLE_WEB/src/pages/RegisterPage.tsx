@@ -6,8 +6,7 @@ import { getSupabaseEmailRedirectTo } from '@/lib/supabaseAuthRedirect'
 import { normalizeEmail } from '@/utils/inputSecurity'
 import { APP_ICON_TRANSPARENT_URL } from '@/assets/appIconAssets'
 import PageBackButton from '@/components/PageBackButton'
-
-type Gender = 'male' | 'female' | 'other' | ''
+import SocialAuthButtons from '@/components/SocialAuthButtons'
 
 const PASSWORD_SYMBOLS = "!@#$%^&*()_+-=[]{};'\\:\"|<>?,./`~"
 const PASSWORD_REQUIREMENTS = [
@@ -85,8 +84,6 @@ function RegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [gender, setGender] = useState<Gender>('')
-  const [dateOfBirth, setDateOfBirth] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [passwordFocused, setPasswordFocused] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -145,7 +142,7 @@ function RegisterPage() {
   const handleRegister = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
-    if (!fullName.trim() || !gender || !dateOfBirth || !email.trim() || !password.trim()) {
+    if (!fullName.trim() || !email.trim() || !password.trim()) {
       setError('Please fill in all fields.')
       return
     }
@@ -172,8 +169,6 @@ function RegisterPage() {
           emailRedirectTo: getSupabaseEmailRedirectTo(),
           data: {
             fullName: fullName.trim(),
-            gender,
-            dateOfBirth: new Date(dateOfBirth).toISOString(),
           },
         },
       })
@@ -330,33 +325,16 @@ function RegisterPage() {
                   : 'Passwords do not match.'}
             </p>
 
-            <label htmlFor="register-gender">Gender</label>
-            <select
-              id="register-gender"
-              value={gender}
-              onChange={(event) => setGender(event.target.value as Gender)}
-              required
-            >
-              <option value="">Select gender...</option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-              <option value="other">Other</option>
-            </select>
-
-            <label htmlFor="register-dob">Date of Birth</label>
-            <input
-              id="register-dob"
-              type="date"
-              value={dateOfBirth}
-              onChange={(event) => setDateOfBirth(event.target.value)}
-              max={new Date().toISOString().slice(0, 10)}
-              required
-            />
-
             <button type="submit" className="solid-btn auth-submit" disabled={loading || !passwordIsStrong || !passwordsMatch}>
               {loading ? 'Registering...' : 'Sign up'}
             </button>
           </form>
+
+          <SocialAuthButtons
+            next={redirectAfterRegister}
+            disabled={loading}
+            onError={setError}
+          />
 
           <p className="auth-switch">
             Already have an account? <Link to={redirectAfterRegister ? `/login?next=${encodeURIComponent(redirectAfterRegister)}` : '/login'}>Login</Link>

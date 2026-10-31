@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { getDefaultProfileAvatar } from '@/utils/profileAvatar'
 import './ChatWidget.css'
 
 type Conversation = {
@@ -23,6 +24,7 @@ type ChatMessage = {
   text?: string
   imageUrl?: string
   senderId?: string
+  replyToId?: string | null
   timestamp?: string
   readBy?: string[]
   deliveredTo?: string[]
@@ -42,8 +44,7 @@ type ChatPartnerProfile = UserInfo & {
 }
 
 function getDefaultAvatar(gender?: string) {
-  if (String(gender || '').toLowerCase() === 'female') return '/Female.png'
-  return '/Male.png'
+  return getDefaultProfileAvatar(gender)
 }
 
 function getChatDisplayName(info?: UserInfo | null) {
@@ -205,6 +206,7 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
   const [activeConvId, setActiveConvId] = useState<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = useState('')
+  const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null)
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadingMessages, setLoadingMessages] = useState(false)
@@ -524,7 +526,7 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
     if (showLoader) setLoadingMessages(true)
     try {
       const { data, error } = await supabase
-        .from('messages')
+        .from('chat_messages')
         .select('*')
         .eq('conversationId', conversationToLoad)
         .order('timestamp', { ascending: false })
@@ -564,6 +566,7 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
     initialConversationScrollRef.current = true
     pinToLatestRef.current = true
     setMessages([])
+    setReplyingTo(null)
     if (activeConvId) void loadMessages()
     else setLoadingMessages(false)
     return () => {
@@ -631,7 +634,10 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
         const eventType = String(payload.eventType || '')
         if (eventType === 'DELETE') {
           const deletedId = String((payload.old as Partial<ChatMessage> | undefined)?.id || '')
-          if (deletedId) setMessages(current => current.filter(message => message.id !== deletedId))
+          if (deletedId) {
+            setMessages(current => current.filter(message => message.id !== deletedId))
+            setReplyingTo(current => current?.id === deletedId ? null : current)
+          }
           return
         }
 
@@ -640,11 +646,9 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
         if (eventType === 'INSERT' && (changedMessage.senderId === userId || pinToLatestRef.current)) {
           pinToLatestRef.current = true
         }
-        setMessages(current => {
-          const existing = current.find(message => message.id === changedMessage.id)
-          if (existing && JSON.stringify(existing) === JSON.stringify(changedMessage)) return current
-          return upsertChatMessage(current, changedMessage)
-        })
+        // Realtime observes ciphertext from the protected base table. Only add
+        // message text after refetching it through the secure decrypted view.
+        void loadMessages(false)
       })
       .subscribe(status => {
         if (status === 'SUBSCRIBED') void loadMessages(false)
@@ -697,15 +701,17 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
         senderId: userId,
         text,
         readBy: [userId],
+        replyToId: replyingTo?.id ?? null,
       }).select('*').single()
       if (error) throw error
       if (!insertedMessage) throw new Error('The sent message was not returned by the server.')
 
-      const sentMessage = insertedMessage as ChatMessage
+      const sentMessage = { ...insertedMessage, text } as ChatMessage
       const sentAt = sentMessage.timestamp || new Date().toISOString()
       pinToLatestRef.current = true
       initialConversationScrollRef.current = false
       setMessages(current => upsertChatMessage(current, sentMessage))
+      setReplyingTo(null)
 
       await supabase.from('conversations').update({
         lastMessage: { id: sentMessage.id, text, senderId: userId, timestamp: sentAt, readBy: [userId] },
@@ -731,6 +737,10 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
   const otherUser = otherUserId ? userInfoMap[otherUserId] : null
   const otherName = getChatDisplayName(otherUser)
   const otherAvatar = getChatAvatar(otherUser)
+  const messageById = useMemo(
+    () => new Map(messages.map(message => [message.id, message])),
+    [messages]
+  )
   const latestOutgoingMessageId = useMemo(
     () => [...messages].reverse().find(message => message.senderId === userId)?.id ?? null,
     [messages, userId]
@@ -785,7 +795,7 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
 
       {/* Chat Panel Split View */}
       {open && (
-        <div className={`cw-panel${embedded ? ' cw-panel-embedded' : ''} ${isCollapsed ? 'collapsed' : ''} ${activeConvId ? 'has-active-conversation' : ''}`}>
+        <div className={`cw-panel${embedded ? ' cw-panel-embedded' : ''} ${isCollapsed ? 'collapsed' : ''} ${activeConvId ? 'has-active-conversation' : ''} ${replyingTo ? 'has-reply' : ''}`}>
           
           {/* Sidebar (Left) */}
           <div className="cw-sidebar">
@@ -1014,6 +1024,13 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
                   
                   {messages.map((msg, idx) => {
                     const mine = msg.senderId === userId
+                    const repliedMessage = msg.replyToId ? messageById.get(msg.replyToId) : null
+                    const replyTargetName = repliedMessage
+                      ? repliedMessage.senderId === userId
+                        ? mine ? 'yourself' : 'you'
+                        : mine ? otherName : 'themselves'
+                      : ''
+                    const replyContextLabel = `${mine ? 'You' : otherName} replied${replyTargetName ? ` to ${replyTargetName}` : ''}`
                     const showSeenAvatar = mine && msg.id === latestSeenOutgoingMessageId
                     const showDeliveryLabel = mine && msg.id === latestOutgoingMessageId && !showSeenAvatar
                     const deliveryLabel = otherUserId && msg.deliveredTo?.includes(otherUserId)
@@ -1031,20 +1048,45 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
                         )}
                         <div className={`cw-msg ${mine ? 'cw-msg-mine' : 'cw-msg-other'}`}>
                           {!mine && <img src={otherAvatar} alt="" className="cw-msg-avatar" />}
-                          <div className={`cw-msg-bubble ${mine ? 'cw-bubble-mine' : 'cw-bubble-other'}`}>
-                            {msg.imageUrl && (
-                              <img
-                                src={msg.imageUrl}
-                                alt=""
-                                className="cw-msg-image"
-                                onLoad={() => {
-                                  if (pinToLatestRef.current) scrollToLatest('auto')
-                                }}
-                              />
-                            )}
-                            {msg.text && <p className="cw-msg-text">{msg.text}</p>}
-                            <span className="cw-msg-time">{formatMsgTime(msg.timestamp)}</span>
+                          <div className={`cw-msg-cluster ${mine ? 'cw-msg-cluster-mine' : 'cw-msg-cluster-other'}`}>
+                            {msg.replyToId ? (
+                              <div className="cw-reply-context">
+                                <div className="cw-reply-context-label">
+                                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5" /><path d="M4 9h9a7 7 0 0 1 7 7v4" /></svg>
+                                  <span>{replyContextLabel}</span>
+                                </div>
+                                <div className="cw-reply-quote">
+                                  {repliedMessage?.text || (repliedMessage?.imageUrl ? 'Photo' : 'Message is no longer available')}
+                                </div>
+                              </div>
+                            ) : null}
+                            <div className={`cw-msg-bubble ${mine ? 'cw-bubble-mine' : 'cw-bubble-other'}`}>
+                              {msg.imageUrl && (
+                                <img
+                                  src={msg.imageUrl}
+                                  alt=""
+                                  className="cw-msg-image"
+                                  onLoad={() => {
+                                    if (pinToLatestRef.current) scrollToLatest('auto')
+                                  }}
+                                />
+                              )}
+                              {msg.text && <p className="cw-msg-text">{msg.text}</p>}
+                              <span className="cw-msg-time">{formatMsgTime(msg.timestamp)}</span>
+                            </div>
                           </div>
+                          <button
+                            type="button"
+                            className="cw-msg-reply-btn"
+                            onClick={() => {
+                              setReplyingTo(msg)
+                              inputRef.current?.focus()
+                            }}
+                            aria-label={`Reply to ${mine ? 'your message' : otherName}`}
+                            title="Reply"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 14-5-5 5-5" /><path d="M4 9h9a7 7 0 0 1 7 7v4" /></svg>
+                          </button>
                         </div>
                         {showSeenAvatar ? (
                           <img
@@ -1062,6 +1104,16 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
                 </div>
 
                 <div className="cw-input-area">
+                  {replyingTo ? (
+                    <div className="cw-reply-composer">
+                      <svg className="cw-reply-composer-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 14-5-5 5-5" /><path d="M4 9h9a7 7 0 0 1 7 7v4" /></svg>
+                      <div className="cw-reply-composer-copy">
+                        <strong>Replying to {replyingTo.senderId === userId ? 'yourself' : otherName}</strong>
+                        <span>{replyingTo.text || (replyingTo.imageUrl ? 'Photo' : 'Message')}</span>
+                      </div>
+                      <button type="button" className="cw-reply-cancel" onClick={() => setReplyingTo(null)} aria-label="Cancel reply">×</button>
+                    </div>
+                  ) : null}
                   <div className="cw-input-bar">
                     <input
                       ref={inputRef}

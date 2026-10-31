@@ -1,4 +1,5 @@
 import ProfileLayout from './ProfileLayout'
+import { Link } from 'react-router-dom'
 
 const sections = [
   {
@@ -32,6 +33,23 @@ export default function AboutPage() {
             </section>
           ))}
         </div>
+
+        <section className="about-team-card" aria-labelledby="about-team-title">
+          <div className="about-team-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="9" cy="8" r="3" />
+              <path d="M3.5 19c.6-3 2.5-4.5 5.5-4.5s4.9 1.5 5.5 4.5M16 11.5a2.5 2.5 0 1 0-1.5-4.5M16 15c2.4 0 3.9 1.1 4.5 3.2" />
+            </svg>
+          </div>
+          <div className="about-team-copy">
+            <h2 id="about-team-title">Meet the team</h2>
+            <p>Get to know the six people building the LifeCycle experience.</p>
+          </div>
+          <Link to="/user/developers" className="about-team-link">
+            View our developers
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+          </Link>
+        </section>
       </div>
     </ProfileLayout>
   )

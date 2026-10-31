@@ -4,9 +4,11 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LoadingBird from '@/components/LoadingBird';
+import ProductRating from '@/components/ProductRating';
 import { supabase } from '@/services/supabaseClient';
 import { colors, radii, spacing } from '@/theme';
 import { formatPhilippinePeso } from '@/utils/funeralCatalog';
+import { summarizeProductRatings } from '@/utils/productRatings';
 
 type ProductVariation = { name: string; imageUrl?: string | null };
 type SearchProduct = {
@@ -31,30 +33,31 @@ function getPrimaryProductImage(item: SearchProduct) {
   return item.imageUrl || item.galleryImageUrls?.[0] || item.variations?.find((entry) => entry.imageUrl)?.imageUrl || null;
 }
 
-function mapProductRows(rows: any[], ratingSummary: Map<string, { total: number; count: number }>): SearchProduct[] {
-  return rows.map((row: any) => ({
-    id: row.id,
-    name: row.name,
-    description: row.description || '',
-    price: String(row.price),
-    stock: row.stock,
-    imageUrl: row.imageUrl,
-    galleryImageUrls: (row.funeral_product_images || [])
-      .sort((a: any, b: any) => (a.displayOrder || 0) - (b.displayOrder || 0))
-      .map((image: any) => image.imageUrl),
-    hasVariations: row.hasVariations,
-    variations: (row.funeral_product_variations || []).map((variation: any) => ({
-      name: variation.name,
-      imageUrl: variation.imageUrl,
-    })),
-    active: row.active,
-    shopId: row.shopId,
-    shopName: String(row.funeral_shops?.shopName || 'Funeral shop'),
-    rating: ratingSummary.has(String(row.id))
-      ? (ratingSummary.get(String(row.id))?.total || 0) / (ratingSummary.get(String(row.id))?.count || 1)
-      : 0,
-    reviewCount: ratingSummary.get(String(row.id))?.count || 0,
-  })).filter((product: SearchProduct) => getPrimaryProductImage(product));
+function mapProductRows(rows: any[]): SearchProduct[] {
+  return rows.map((row: any) => {
+    const summary = summarizeProductRatings(row.funeral_product_ratings);
+    return {
+      id: row.id,
+      name: row.name,
+      description: row.description || '',
+      price: String(row.price),
+      stock: row.stock,
+      imageUrl: row.imageUrl,
+      galleryImageUrls: (row.funeral_product_images || [])
+        .sort((a: any, b: any) => (a.displayOrder || 0) - (b.displayOrder || 0))
+        .map((image: any) => image.imageUrl),
+      hasVariations: row.hasVariations,
+      variations: (row.funeral_product_variations || []).map((variation: any) => ({
+        name: variation.name,
+        imageUrl: variation.imageUrl,
+      })),
+      active: row.active,
+      shopId: row.shopId,
+      shopName: String(row.funeral_shops?.shopName || 'Funeral shop'),
+      rating: summary.average,
+      reviewCount: summary.count,
+    };
+  }).filter((product: SearchProduct) => getPrimaryProductImage(product));
 }
 
 export default function FuneralSearchScreen({ navigation, route }: any) {
@@ -78,34 +81,14 @@ export default function FuneralSearchScreen({ navigation, route }: any) {
       setLoadError(false);
       const { data: rows, error } = await supabase
         .from('funeral_products')
-        .select('*, funeral_product_variations ( name, imageUrl ), funeral_product_images ( imageUrl, displayOrder ), funeral_shops!inner ( shopName, status )')
+        .select('*, funeral_product_variations ( name, imageUrl ), funeral_product_images ( imageUrl, displayOrder ), funeral_product_ratings ( rating ), funeral_shops!inner ( shopName, status )')
         .eq('active', true)
         .gt('stock', 0)
         .eq('funeral_shops.status', 'live')
         .gt('funeral_shops.paidUntil', new Date().toISOString());
       if (error) throw error;
 
-      const productIds = (rows || []).map((row: any) => String(row.id));
-      let ratingRows: any[] = [];
-      if (productIds.length > 0) {
-        const { data: ratingData, error: ratingError } = await supabase
-          .from('funeral_product_ratings')
-          .select('productId, rating')
-          .in('productId', productIds);
-        if (ratingError) console.warn('Unable to load product ratings:', ratingError.message);
-        else ratingRows = ratingData || [];
-      }
-
-      const ratingSummary = new Map<string, { total: number; count: number }>();
-      ratingRows.forEach((row: any) => {
-        const productId = String(row.productId || '');
-        const ratingValue = Number(row.rating) || 0;
-        if (!productId || ratingValue <= 0) return;
-        const current = ratingSummary.get(productId) || { total: 0, count: 0 };
-        ratingSummary.set(productId, { total: current.total + ratingValue, count: current.count + 1 });
-      });
-
-      setProducts(mapProductRows(rows || [], ratingSummary));
+      setProducts(mapProductRows(rows || []));
     } catch (error) {
       console.error('Unable to load search products:', error);
       setLoadError(true);
@@ -311,6 +294,7 @@ export default function FuneralSearchScreen({ navigation, route }: any) {
                   <Text style={styles.shopName} numberOfLines={1}>{item.shopName}</Text>
                   <Text style={styles.productTitle} numberOfLines={2}>{item.name}</Text>
                   <Text style={styles.price}>{price}</Text>
+                  <ProductRating rating={item.rating} count={item.reviewCount} />
                 </View>
               </TouchableOpacity>
             );

@@ -46,6 +46,7 @@ export default function ProfileScreen({ navigation }: any) {
   const [email, setEmail] = useState("");
   const [photoURL, setPhotoURL] = useState<string | null>(null);
   const [gender, setGender] = useState<string | null>(null);
+  const [dateOfBirth, setDateOfBirth] = useState<string | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [shopStatus, setShopStatus] = useState<ShopStatus>("none");
   const [checkingShopAccess, setCheckingShopAccess] = useState(false);
@@ -57,7 +58,7 @@ export default function ProfileScreen({ navigation }: any) {
     try {
       const { data, error } = await supabase
         .from("users")
-        .select("fullName, email, photoURL, gender")
+        .select("fullName, email, photoURL, gender, dateOfBirth")
         .eq("id", user.uid)
         .single();
       if (error) throw error;
@@ -65,6 +66,7 @@ export default function ProfileScreen({ navigation }: any) {
       setEmail(String(data.email || user.email || ""));
       setPhotoURL(data.photoURL || null);
       setGender(data.gender || null);
+      setDateOfBirth(data.dateOfBirth || null);
 
       const { data: shopData, error: shopError } = await supabase
         .from("funeral_shops")
@@ -152,6 +154,8 @@ export default function ProfileScreen({ navigation }: any) {
           ? "Manage your verified funeral shop"
           : "Register your funeral shop";
 
+  const profileSetupIncomplete = !gender || !dateOfBirth;
+
   const handleLogout = () => {
     confirmLogout({
       logout,
@@ -166,7 +170,7 @@ export default function ProfileScreen({ navigation }: any) {
     >
       <TouchableOpacity
         accessibilityRole='button'
-        accessibilityLabel='Edit personal information'
+        accessibilityLabel={profileSetupIncomplete ? 'Edit personal information. Profile setup unfinished.' : 'Edit personal information'}
         onPress={() => navigation.navigate('ManageProfile')}
         style={styles.identityCard}
       >
@@ -180,6 +184,12 @@ export default function ProfileScreen({ navigation }: any) {
         <View style={styles.identityCopy}>
           <Text numberOfLines={1} style={styles.identityName}>{fullName || "LifeCycle User"}</Text>
           <Text numberOfLines={1} style={styles.identityEmail}>{email || "No email available"}</Text>
+          {!loadingProfile && profileSetupIncomplete ? (
+            <View style={styles.setupStatus}>
+              <View style={styles.setupStatusDot} />
+              <Text style={styles.setupStatusText}>Finish setup</Text>
+            </View>
+          ) : null}
         </View>
         <View style={styles.identityEdit}>
           <Text style={styles.identityEditText}>Edit</Text>
@@ -363,6 +373,23 @@ const styles = StyleSheet.create({
     color: "#8a928d",
     fontSize: 11,
     marginTop: 2,
+  },
+  setupStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginTop: 5,
+  },
+  setupStatusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: "#d98218",
+  },
+  setupStatusText: {
+    color: "#a75d0b",
+    fontSize: 10,
+    fontWeight: "800",
   },
   identityEdit: {
     flexDirection: 'row',

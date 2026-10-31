@@ -9,12 +9,14 @@ import {
 type AppBackButtonProps = {
   onPress: () => void;
   accessibilityLabel?: string;
+  color?: string;
   style?: StyleProp<ViewStyle>;
 };
 
 export default function AppBackButton({
   onPress,
   accessibilityLabel = "Go back",
+  color = "#22312d",
   style,
 }: AppBackButtonProps) {
   return (
@@ -26,7 +28,7 @@ export default function AppBackButton({
       onPress={onPress}
       style={[styles.button, style]}
     >
-      <Ionicons name="chevron-back" size={23} color="#22312d" />
+      <Ionicons name="chevron-back" size={23} color={color} />
     </TouchableOpacity>
   );
 }
@@ -38,8 +40,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#eef1ec",
-    borderWidth: 1,
-    borderColor: "#d9d6cd",
+    backgroundColor: "transparent",
   },
 });

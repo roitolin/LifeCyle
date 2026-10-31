@@ -1,14 +1,17 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Animated, Easing, Image, ImageBackground, Modal, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Animated, Easing, Image, ImageBackground, Modal, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, type ScrollViewInstance } from "react-native";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import LoadingBird from "@/components/LoadingBird";
+import ProductRating from "@/components/ProductRating";
 import { useUnreadCount, useUnreadMessageCount } from "@/hooks";
 import { supabase } from "@/services/supabaseClient";
 import { colors, radii, spacing } from "@/theme";
 import { formatPhilippinePeso } from "@/utils/funeralCatalog";
+import { summarizeProductRatings } from "@/utils/productRatings";
 import { getHomeHeroContent, type HomeHeroContent } from '@/utils/homeHero';
 import { subscribeTabRefresh } from "@/utils/tabRefresh";
 
@@ -29,6 +32,9 @@ type ShopProduct = {
   galleryImageUrls?: string[];
   hasVariations?: boolean;
   variations?: ProductVariation[];
+  downpaymentEnabled?: boolean;
+  downpaymentAmount?: number | null;
+  downpaymentPercentage?: number | null;
   active: boolean;
 };
 
@@ -61,7 +67,7 @@ export default function FuneralHomeScreen({ navigation }: any) {
   const [maxPrice, setMaxPrice] = useState("");
   const [minimumRating, setMinimumRating] = useState(0);
   const [favoriteProductIds, setFavoriteProductIds] = useState<Set<string>>(() => new Set());
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const catalogOffsetRef = useRef(0);
   const filterBackdropOpacity = useRef(new Animated.Value(0)).current;
   const filterSheetProgress = useRef(new Animated.Value(0)).current;
@@ -72,9 +78,10 @@ export default function FuneralHomeScreen({ navigation }: any) {
       const { data: productRows, error } = await supabase
         .from("funeral_products")
         .select(`
-          id, name, description, price, stock, imageUrl, hasVariations, active, shopId,
+          id, name, description, price, stock, imageUrl, hasVariations, downpaymentEnabled, downpaymentAmount, downpaymentPercentage, active, shopId,
           funeral_product_variations ( name, imageUrl ),
           funeral_product_images ( imageUrl, displayOrder ),
+          funeral_product_ratings ( rating ),
           funeral_shops!inner ( shopName, status, paidUntil )
         `)
         .eq("active", true)
@@ -84,9 +91,8 @@ export default function FuneralHomeScreen({ navigation }: any) {
 
       if (error) throw error;
 
-      const productIds = (productRows || []).map((row: any) => String(row.id));
-
       const nextProducts: HomeProduct[] = (productRows || []).map((row: any) => {
+        const ratingSummary = summarizeProductRatings(row.funeral_product_ratings);
         const variations = (row.funeral_product_variations || []).map((v: any) => ({
           name: v.name,
           imageUrl: v.imageUrl,
@@ -105,45 +111,20 @@ export default function FuneralHomeScreen({ navigation }: any) {
           galleryImageUrls,
           hasVariations: row.hasVariations,
           variations,
+          downpaymentEnabled: Boolean(row.downpaymentEnabled),
+          downpaymentAmount: row.downpaymentAmount == null ? null : Number(row.downpaymentAmount),
+          downpaymentPercentage: row.downpaymentPercentage == null ? null : Number(row.downpaymentPercentage),
           active: row.active,
           shopId: row.shopId,
           shopName: String(row.funeral_shops?.shopName || "Funeral shop"),
-          rating: 0,
-          reviewCount: 0,
+          rating: ratingSummary.average,
+          reviewCount: ratingSummary.count,
         };
       }).filter((p: HomeProduct) => getPrimaryProductImage(p));
 
       nextProducts.sort((first, second) => first.name.localeCompare(second.name));
       setProducts(nextProducts);
 
-      // Ratings only affect the optional filter. Load them after the catalog is
-      // visible so a slow ratings query cannot delay the first mobile screen.
-      if (productIds.length > 0) {
-        void supabase
-          .from("funeral_product_ratings")
-          .select("productId, rating")
-          .in("productId", productIds)
-          .then(({ data: ratingData, error: ratingError }) => {
-            if (ratingError) {
-              console.warn("Unable to load home product ratings:", ratingError.message);
-              return;
-            }
-            const ratingSummary = new Map<string, { total: number; count: number }>();
-            (ratingData || []).forEach((row: any) => {
-              const productId = String(row.productId || "");
-              const ratingValue = Number(row.rating) || 0;
-              if (!productId || ratingValue <= 0) return;
-              const current = ratingSummary.get(productId) || { total: 0, count: 0 };
-              ratingSummary.set(productId, { total: current.total + ratingValue, count: current.count + 1 });
-            });
-            setProducts((current) => current.map((product) => {
-              const summary = ratingSummary.get(product.id);
-              return summary
-                ? { ...product, rating: summary.total / summary.count, reviewCount: summary.count }
-                : product;
-            }));
-          });
-      }
     } catch (error) {
       console.error("Unable to load home products:", error);
       setLoadError(true);
@@ -300,6 +281,7 @@ export default function FuneralHomeScreen({ navigation }: any) {
     <SafeAreaView edges={["top", "left", "right"]} style={styles.screen}>
       <ScrollView
         ref={scrollRef}
+        style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingBottom: Math.max(tabBarHeight, spacing.xl) }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -312,6 +294,11 @@ export default function FuneralHomeScreen({ navigation }: any) {
           />
         )}
       >
+        <LinearGradient
+          colors={["#d8ebe5", "#e8f0eb", colors.surfaceWarm]}
+          locations={[0, 0.62, 1]}
+          style={styles.topFade}
+        >
         <View style={styles.header}>
           <View style={styles.brandRow}>
             <Image source={appLogo} style={styles.brandLogo} resizeMode="contain" />
@@ -388,17 +375,31 @@ export default function FuneralHomeScreen({ navigation }: any) {
             style={styles.heroCard}
             onPress={openHeroDestination}
           >
-            <ImageBackground source={{ uri: heroContent.imageUrl }} resizeMode='cover' style={styles.heroImage}>
-              <View style={styles.heroOverlay}>
-                <Text style={styles.heroTitle} numberOfLines={2}>{heroContent.title}</Text>
-                <Text style={styles.heroSubtitle} numberOfLines={3}>{heroContent.subtitle}</Text>
-                <View style={styles.heroButton}>
-                  <Text style={styles.heroButtonText}>{heroContent.buttonLabel}</Text>
+            <ImageBackground
+              source={{ uri: heroContent.imageUrl }}
+              resizeMode='cover'
+              style={styles.heroImage}
+              imageStyle={styles.heroBackgroundImage}
+            >
+              <LinearGradient
+                colors={['rgba(30, 65, 77, 0.94)', 'rgba(35, 73, 78, 0.68)', 'rgba(35, 73, 78, 0.08)']}
+                locations={[0, 0.48, 1]}
+                start={{ x: 0, y: 0.5 }}
+                end={{ x: 1, y: 0.5 }}
+                style={styles.heroOverlay}
+              >
+                <View style={styles.heroCopy}>
+                  <Text style={styles.heroTitle} numberOfLines={2}>{heroContent.title}</Text>
+                  <Text style={styles.heroSubtitle} numberOfLines={2}>{heroContent.subtitle}</Text>
+                  <View style={styles.heroButton}>
+                    <Text style={styles.heroButtonText}>{heroContent.buttonLabel}</Text>
+                  </View>
                 </View>
-              </View>
+              </LinearGradient>
             </ImageBackground>
           </TouchableOpacity>
         ) : null}
+        </LinearGradient>
 
         <View
           style={styles.sectionHeader}
@@ -463,11 +464,15 @@ export default function FuneralHomeScreen({ navigation }: any) {
           <View style={styles.productGrid}>
             {visibleProducts.map((item) => {
               const price = formatPhilippinePeso(item.price);
+              const hasDownpayment = Boolean(item.downpaymentEnabled && item.downpaymentAmount && item.downpaymentPercentage);
+              const downpaymentText = hasDownpayment
+                ? `Down payment ${formatPhilippinePeso(item.downpaymentAmount)} (${item.downpaymentPercentage}%)`
+                : "";
               const isFavorite = favoriteProductIds.has(item.id);
               return (
                 <TouchableOpacity
                   key={`${item.shopId}_${item.id}`}
-                  accessibilityLabel={`${item.name}, ${price}, from ${item.shopName}`}
+                  accessibilityLabel={`${item.name}, ${price}${downpaymentText ? `, ${downpaymentText}` : ""}, from ${item.shopName}`}
                   accessibilityRole="button"
                   activeOpacity={0.78}
                   style={styles.productCard}
@@ -500,6 +505,10 @@ export default function FuneralHomeScreen({ navigation }: any) {
                     <Text style={styles.shopName} numberOfLines={1}>{item.shopName}</Text>
                     <Text style={styles.productTitle} numberOfLines={2}>{item.name}</Text>
                     <Text style={styles.price}>{price}</Text>
+                    <ProductRating rating={item.rating} count={item.reviewCount} />
+                    {hasDownpayment ? (
+                      <Text style={styles.downpayment} numberOfLines={2}>{downpaymentText}</Text>
+                    ) : null}
                   </View>
                 </TouchableOpacity>
               );
@@ -723,11 +732,22 @@ export default function FuneralHomeScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
+    backgroundColor: "#d8ebe5",
+  },
+  scroll: {
+    flex: 1,
     backgroundColor: colors.surfaceWarm,
   },
   content: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
+  },
+  topFade: {
+    marginHorizontal: -spacing.lg,
+    marginTop: -spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xl,
   },
   header: {
     flexDirection: "row",
@@ -812,46 +832,59 @@ const styles = StyleSheet.create({
     backgroundColor: colors.borderWarm,
   },
   heroCard: {
-    height: 176,
+    height: 142,
     overflow: 'hidden',
-    borderRadius: radii.xl,
+    borderRadius: radii.lg,
     backgroundColor: colors.primaryDark,
-    marginBottom: spacing.xl,
+    marginBottom: 0,
+    shadowColor: colors.primaryDark,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 3,
   },
   heroImage: {
     flex: 1,
   },
+  heroBackgroundImage: {
+    borderRadius: radii.lg,
+  },
   heroOverlay: {
     flex: 1,
-    width: '74%',
     justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  heroCopy: {
+    width: '59%',
     alignItems: 'flex-start',
-    padding: spacing.lg,
-    backgroundColor: 'rgba(20, 28, 26, 0.72)',
   },
   heroTitle: {
     color: colors.surface,
-    fontSize: 20,
-    lineHeight: 24,
-    fontWeight: '800',
+    fontSize: 18,
+    lineHeight: 21,
+    fontWeight: '900',
+    letterSpacing: -0.25,
   },
   heroSubtitle: {
     color: '#eef1ec',
-    fontSize: 11,
-    lineHeight: 16,
-    marginTop: spacing.sm,
+    fontSize: 9,
+    lineHeight: 12,
+    marginTop: 4,
   },
   heroButton: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radii.sm,
+    minHeight: 27,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 7,
     backgroundColor: colors.surface,
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
   },
   heroButtonText: {
     color: colors.text,
-    fontSize: 11,
-    fontWeight: '800',
+    fontSize: 9,
+    fontWeight: '900',
   },
   sectionHeader: {
     flexDirection: "row",
@@ -1215,5 +1248,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "800",
     marginTop: 2,
+  },
+  downpayment: {
+    color: colors.primary,
+    fontSize: 10,
+    lineHeight: 14,
+    fontWeight: "800",
+    marginTop: 3,
   },
 });

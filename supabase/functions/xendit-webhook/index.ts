@@ -467,7 +467,7 @@ Deno.serve(async (request) => {
           if (payoutResponse?.ok && payoutJson?.id) {
             responsePayload.payoutInitiated = true;
             responsePayload.payoutId = payoutJson.id;
-            console.log('Shop payout initiated:', payoutJson.id, 'Amount:', payoutInfo.payoutAmount);
+            console.warn('Shop payout initiated:', payoutJson.id, 'Amount:', payoutInfo.payoutAmount);
           } else {
             const payoutErrorCode = String(payoutJson?.error_code || 'payout_failed').slice(0, 80);
             console.error('Xendit payout creation failed:', payoutErrorCode);

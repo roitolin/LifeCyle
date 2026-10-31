@@ -91,7 +91,7 @@ export default function FuneralShopPaymentReceiptScreen({ navigation, route }: a
 
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="light-content" backgroundColor="#101312" />
+      <StatusBar barStyle="light-content" />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} bounces={false}>
         <View style={[styles.hero, { paddingTop: Math.max(38, insets.top + 18) }]}>
           <TouchableOpacity

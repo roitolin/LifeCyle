@@ -18,6 +18,18 @@ export type ServicePaymentMethod = {
   type: 'wallet' | 'bank'
 }
 
+export type ServicePaymentOption = 'full' | 'downpayment'
+
+export type SelectedServicePaymentTerms = {
+  id: string
+  paymentOption: ServicePaymentOption
+  paymentAmount: number | string
+  productFullPrice?: number | string | null
+  downpaymentAmountSnapshot?: number | string | null
+  downpaymentPercentageSnapshot?: number | string | null
+  remainingBalance?: number | string | null
+}
+
 const getFunctionErrorMessage = async (error: unknown): Promise<string> => {
   const fallback = 'Unable to start Xendit checkout.'
   if (!(error instanceof Error)) return fallback
@@ -46,6 +58,23 @@ export async function getServicePaymentMethods(requestId: string): Promise<{ met
     methods: Array.isArray(data?.methods) ? data.methods as ServicePaymentMethod[] : [],
     selectedMethod: typeof data?.selectedMethod === 'string' ? data.selectedMethod : undefined,
   }
+}
+
+export async function chooseServicePaymentOption(
+  requestId: string,
+  paymentOption: ServicePaymentOption,
+): Promise<SelectedServicePaymentTerms> {
+  const { data, error } = await supabase.rpc('choose_funeral_request_payment_option', {
+    p_request_id: requestId,
+    p_payment_option: paymentOption,
+  })
+  if (error) throw error
+
+  const selected = Array.isArray(data) ? data[0] : data
+  if (!selected?.id || Number(selected.paymentAmount) <= 0) {
+    throw new Error('The selected payment amount could not be prepared.')
+  }
+  return selected as SelectedServicePaymentTerms
 }
 
 export async function createServiceXenditCheckout(requestId: string, paymentMethod: string): Promise<ServiceXenditCheckoutResult> {

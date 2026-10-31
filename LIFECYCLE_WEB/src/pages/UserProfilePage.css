@@ -375,6 +375,36 @@
 .settings-legal-links a {
   @apply text-[color:var(--sp-accent)] no-underline hover:underline;
 }
+.account-delete-modal {
+  @apply box-border w-[min(460px,calc(100vw_-_32px))] p-[24px];
+}
+.account-delete-icon {
+  @apply w-[46px] h-[46px] grid place-items-center [background:#fee2e2] text-[#b91c1c] text-[24px] font-bold rounded-[14px];
+}
+.account-delete-modal h3 {
+  @apply text-[#22312d] text-[20px] font-bold mt-[16px] mb-0;
+}
+.account-delete-modal > p {
+  @apply text-[#62706b] text-[13px] leading-[1.55] mt-[8px] mb-0;
+}
+.account-delete-modal label {
+  @apply block text-[#41514d] text-[13px] font-semibold mt-[20px] mb-[7px];
+}
+.account-delete-modal input {
+  @apply box-border w-full border border-[#cfd7d2] [background:#fbfaf7] text-[#22312d] text-[14px] font-semibold [outline:none] px-[13px] py-[11px] rounded-[8px] border-solid focus:border-[#a52b2b] focus:shadow-[0_0_0_3px_rgba(165,43,43,0.12)];
+}
+.account-delete-actions {
+  @apply grid grid-cols-[1fr_1fr] gap-[10px] mt-[20px];
+}
+.account-delete-actions button {
+  @apply min-h-[44px] border text-[13px] font-semibold cursor-pointer rounded-[8px] border-solid disabled:opacity-50 disabled:cursor-not-allowed;
+}
+.account-delete-cancel {
+  @apply [background:#fff] text-[#41514d] border-[#cfd7d2];
+}
+.account-delete-continue {
+  @apply [background:#a52b2b] text-white border-[#a52b2b];
+}
 
 /* UID Pill */
 .uid-pill {
@@ -443,6 +473,85 @@
 }
 .about-section h3 {
   @apply text-[#172033] text-[16px] font-bold mt-0 mb-[6px] mx-0;
+}
+.about-team-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  margin-top: 22px;
+  padding: 20px;
+  background: #fff;
+  border: 1px solid #d8e0e8;
+  border-radius: 14px;
+}
+.about-team-mark {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  color: #315f50;
+  background: #e6f2eb;
+  border-radius: 14px;
+}
+.about-team-mark svg {
+  width: 25px;
+  height: 25px;
+}
+.about-team-copy h2 {
+  margin: 0 0 4px;
+  color: #172033;
+  font-size: 17px;
+  font-weight: 850;
+}
+.about-team-copy p {
+  margin: 0;
+  color: #617087;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.about-team-link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 0 15px;
+  color: #fff;
+  background: #315f50;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+  transition: background-color 150ms ease, transform 150ms ease;
+}
+.about-team-link:hover {
+  color: #fff;
+  background: #264d40;
+  transform: translateY(-1px);
+}
+.about-team-link:focus-visible {
+  outline: 3px solid rgba(49, 95, 80, 0.3);
+  outline-offset: 3px;
+}
+.about-team-link svg {
+  width: 16px;
+  height: 16px;
+}
+@media (max-width: 620px) {
+  .about-team-card {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 12px;
+    padding: 16px;
+  }
+  .about-team-mark {
+    width: 42px;
+    height: 42px;
+  }
+  .about-team-link {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
 }
 
 /* ==========================================================
@@ -750,6 +859,15 @@
   }
   .settings-control-list button {
     @apply items-start p-[14px];
+  }
+  .account-delete-modal {
+    @apply max-h-[calc(100dvh_-_24px)] overflow-y-auto p-[20px] rounded-[16px];
+  }
+  .account-delete-actions {
+    @apply grid-cols-[1fr];
+  }
+  .account-delete-actions button {
+    @apply w-full;
   }
   .settings-legal-links,
   .fb-post-actions {

@@ -25,6 +25,12 @@ type ServiceRequest = {
   productName: string
   productImageUrl?: string | null
   productPrice?: number | string | null
+  productFullPrice?: number | string | null
+  paymentOption?: 'pending' | 'full' | 'downpayment' | null
+  downpaymentAmountSnapshot?: number | string | null
+  downpaymentPercentageSnapshot?: number | string | null
+  remainingBalance?: number | string | null
+  providerCheckoutId?: string | null
   variationName?: string | null
   packageItems?: string[] | null
   requestType?: string
@@ -584,7 +590,7 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
             </button>
             <div className="requests-user-dropdown">
               <Link to="/user/profile">My Account</Link>
-              <Link to="/user/purchase">My Payments</Link>
+              <Link to="/user/requests">My service request</Link>
               <Link to="/auth/switch-account">Switch Account</Link>
               <LogoutLink>Log out</LogoutLink>
             </div>
@@ -688,7 +694,7 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                     <div className="requests-payment-body">
                       <div className="requests-payment-info">
                         <div className="requests-amount">
-                          <span>Amount to send</span>
+                          <span>{canSubmit ? 'Full request price' : 'Amount paid'}</span>
                           <strong>{request.paymentAmount != null && Number(request.paymentAmount) > 0 ? formatPeso(request.paymentAmount) : '—'}</strong>
                         </div>
 
@@ -703,7 +709,7 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                               <span>Pay Online (GCash, Cards & Maya)</span>
                             </button>
                             <p className="requests-online-pay-hint">
-                              Fast, automated payment verification via Xendit. Instant order confirmation.
+                              Choose full payment or the shop&apos;s available down payment in secure checkout.
                             </p>
                           </div>
                         )}

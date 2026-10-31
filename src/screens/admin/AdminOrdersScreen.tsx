@@ -412,7 +412,7 @@ export default function AdminOrdersScreen() {
         contentContainerStyle={styles.listContent}
         refreshing={refreshing}
         onRefresh={refreshOrders}
-        ListEmptyComponent={loadError ? null : <Text style={styles.emptyText}>No service requests found.</Text>}
+        ListEmptyComponent={loadError ? undefined : <Text style={styles.emptyText}>No service requests found.</Text>}
       />
 
       <Modal

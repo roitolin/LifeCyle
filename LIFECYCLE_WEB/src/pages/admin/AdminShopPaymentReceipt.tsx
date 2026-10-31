@@ -44,7 +44,7 @@ function AdminShopPaymentReceipt({ payment, busy, onClose, onVerify, onReject }:
   const [proofOpen, setProofOpen] = useState(false)
   const normalizedStatus = String(payment.status || 'pending').toLowerCase()
   const isXendit = payment.paymentProvider === 'xendit'
-  const isHostedCheckout = isXendit || payment.paymentProvider === 'paymongo'
+  const isHostedCheckout = isXendit || payment.paymentProvider === 'legacy'
   const receiptMeta = normalizedStatus === 'verified'
     ? {
         title: 'Payment verified',
@@ -131,7 +131,7 @@ function AdminShopPaymentReceipt({ payment, busy, onClose, onVerify, onReject }:
               <section className="sr-receipt-section sr-receipt-info">
                 <h3>Receipt information</h3>
                 <dl className="sr-detail-list">
-                  <DetailRow label="Payment method" value={isXendit ? `Xendit${payment.providerPaymentMethod ? ` - ${payment.providerPaymentMethod.replace(/_/g, ' ')}` : ''}` : payment.paymentProvider === 'paymongo' ? `Legacy PayMongo${payment.providerPaymentMethod ? ` - ${payment.providerPaymentMethod.replace(/_/g, ' ')}` : ''}` : 'GCash / E-wallet'} />
+                  <DetailRow label="Payment method" value={isXendit ? `Xendit${payment.providerPaymentMethod ? ` - ${payment.providerPaymentMethod.replace(/_/g, ' ')}` : ''}` : payment.paymentProvider === 'legacy' ? `Legacy online payment${payment.providerPaymentMethod ? ` - ${payment.providerPaymentMethod.replace(/_/g, ' ')}` : ''}` : 'GCash / E-wallet'} />
                   <DetailRow label="Payer" value={payment.payerName || 'Not provided'} />
                   <DetailRow label="GCash account name" value={payment.gcashName || 'Not provided'} />
                   <DetailRow label="GCash number" value={payment.gcashNumber || 'Not provided'} />

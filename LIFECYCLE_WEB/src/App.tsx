@@ -26,6 +26,7 @@ const NotificationPreferencesPage = lazy(() => import('./pages/NotificationPrefe
 const ContactPage = lazy(() => import('./pages/ContactPage'))
 const HelpCentrePage = lazy(() => import('./pages/HelpCentrePage'))
 const AboutPage = lazy(() => import('./pages/AboutPage'))
+const DevelopersPage = lazy(() => import('./pages/DevelopersPage'))
 const FeedbackPage = lazy(() => import('./pages/FeedbackPage'))
 const PurchasePage = lazy(() => import('./pages/PurchasePage'))
 const NotificationPage = lazy(() => import('./pages/NotificationPage'))
@@ -130,6 +131,7 @@ function App() {
             <Route path="/user/contact" element={<ContactPage />} />
             <Route path="/user/help" element={<HelpCentrePage />} />
             <Route path="/user/about" element={<AboutPage />} />
+            <Route path="/user/developers" element={<DevelopersPage />} />
             <Route path="/user/feedback" element={<FeedbackPage />} />
           </Route>
 

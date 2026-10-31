@@ -37,7 +37,7 @@ type PaymentSubmission = {
   shopName: string;
   ownerName: string;
   ownerEmail: string;
-  paymentProvider: "manual" | "paymongo" | "xendit";
+  paymentProvider: "manual" | "legacy" | "xendit";
   providerPaymentId: string | null;
   providerPaymentMethod: string | null;
 };
@@ -123,9 +123,9 @@ export default function AdminPaymentsScreen() {
           ownerEmail: owner?.email || "",
           paymentProvider: row.paymentProvider === "xendit"
             ? "xendit"
-            : row.paymentProvider === "paymongo"
-              ? "paymongo"
-              : "manual",
+            : row.paymentProvider === "manual"
+              ? "manual"
+              : "legacy",
           providerPaymentId: row.providerPaymentId || null,
           providerPaymentMethod: row.providerPaymentMethod || null,
         };
@@ -386,7 +386,7 @@ export default function AdminPaymentsScreen() {
               {selected ? (
                 <>
                   <Text style={styles.detailLabel}>Shop</Text><Text style={styles.detailValue}>{selected.shopName}</Text>
-                  <Text style={styles.detailLabel}>Provider</Text><Text style={styles.detailValue}>{selected.paymentProvider === "xendit" ? `Xendit${selected.providerPaymentMethod ? ` - ${selected.providerPaymentMethod}` : ""}` : selected.paymentProvider === "paymongo" ? `Legacy PayMongo${selected.providerPaymentMethod ? ` - ${selected.providerPaymentMethod}` : ""}` : "Legacy manual payment"}</Text>
+                  <Text style={styles.detailLabel}>Provider</Text><Text style={styles.detailValue}>{selected.paymentProvider === "xendit" ? `Xendit${selected.providerPaymentMethod ? ` - ${selected.providerPaymentMethod}` : ""}` : selected.paymentProvider === "legacy" ? `Legacy online payment${selected.providerPaymentMethod ? ` - ${selected.providerPaymentMethod}` : ""}` : "Legacy manual payment"}</Text>
                   <Text style={styles.detailLabel}>Sender name</Text><Text style={styles.detailValue}>{selected.payerName || "—"}</Text>
                   <Text style={styles.detailLabel}>GCash account name</Text><Text style={styles.detailValue}>{selected.gcashName || "—"}</Text>
                   <Text style={styles.detailLabel}>GCash number</Text><Text style={styles.detailValue}>{selected.gcashNumber || "—"}</Text>

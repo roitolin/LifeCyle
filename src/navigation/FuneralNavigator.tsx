@@ -17,6 +17,7 @@ import FuneralServiceRequestDetailsScreen from "@/screens/funeral/FuneralService
 import FuneralEditServiceRequestScreen from "@/screens/funeral/FuneralEditServiceRequestScreen";
 import { ChatScreen, ConversationsList, DisputeReportScreen, NotificationsScreen } from "@/pages/shared";
 import FuneralProfileStackNavigator from "./FuneralProfileStackNavigator";
+import { smoothStackTransition, smoothTabTransition } from "./navigationTransitions";
 
 import AnnouncementsScreen from '@/screens/shared/AnnouncementsScreen';
 
@@ -74,6 +75,7 @@ function FuneralTabs() {
         const tab = tabs.find((item) => item.name === route.name);
 
         return {
+          ...smoothTabTransition,
           tabBarPosition: "bottom",
           tabBarShowLabel: true,
           tabBarStyle: {
@@ -185,6 +187,7 @@ function FuneralTabs() {
                 nestedRoute === "BusinessInformation" ||
                 nestedRoute === "Contact" ||
                 nestedRoute === "AboutUs" ||
+                nestedRoute === "Developers" ||
                 nestedRoute === "AppFeedback" ||
                 nestedRoute === "ManageProfile" ||
                 nestedRoute === 'Login' ||
@@ -218,6 +221,7 @@ export default function FuneralNavigator() {
   return (
     <Stack.Navigator
       screenOptions={({ navigation }) => ({
+        ...smoothStackTransition,
         headerShown: false,
         headerBackVisible: false,
         headerLeft: () => navigation.canGoBack() ? (

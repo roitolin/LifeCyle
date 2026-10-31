@@ -226,8 +226,10 @@ export default function FuneralShopCatalogScreen({ navigation, route }: any) {
             accessibilityLabel="Add product"
             style={styles.headerAddButton}
             onPress={() => navigation.navigate("ProductEditor")}
+            activeOpacity={0.84}
           >
-            <Ionicons name="add" size={24} color="#ffffff" />
+            <Ionicons name="add-circle-outline" size={19} color="#ffffff" />
+            <Text style={styles.headerAddButtonText}>Add product</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -352,16 +354,6 @@ export default function FuneralShopCatalogScreen({ navigation, route }: any) {
           )}
         </ScrollView>
 
-        <TouchableOpacity
-          style={styles.floatingAddButton}
-          onPress={() => navigation.navigate("ProductEditor")}
-          activeOpacity={0.88}
-          accessibilityRole="button"
-          accessibilityLabel="Add new product"
-        >
-          <Ionicons name="add" size={20} color="#ffffff" />
-          <Text style={styles.floatingAddButtonText}>Add Product</Text>
-        </TouchableOpacity>
       </SafeAreaView>
     </View>
   );
@@ -374,8 +366,9 @@ const styles = StyleSheet.create({
   headerBar: { minHeight: 68, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#d9d6cd" },
   headerCopy: { flex: 1 },
   headerTitle: { color: "#22312d", fontSize: 20, fontWeight: "900" },
-  headerAddButton: { width: 42, height: 42, borderRadius: 14, backgroundColor: "#22312d", alignItems: "center", justifyContent: "center" },
-  content: { padding: spacing.lg, paddingBottom: 96, gap: spacing.md },
+  headerAddButton: { minHeight: 42, borderRadius: 14, backgroundColor: colors.primaryDark, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 13, shadowColor: colors.primaryDark, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 7, elevation: 3 },
+  headerAddButtonText: { color: "#ffffff", fontSize: 12, fontWeight: "900" },
+  content: { padding: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.md },
   searchBox: { minHeight: 48, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.md },
   searchInput: { flex: 1, color: "#22312d", fontSize: 14, paddingVertical: 10 },
   filterRow: { gap: 8, paddingRight: 4 },
@@ -414,26 +407,4 @@ const styles = StyleSheet.create({
   pauseButton: { flex: 1, minHeight: 39, borderRadius: 13, borderWidth: 1, borderColor: "#dfd1c2", backgroundColor: "#f5eee6", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5 },
   pauseButtonText: { color: "#765f49", fontSize: 11, fontWeight: "900" },
   deleteButton: { width: 39, height: 39, borderRadius: 13, backgroundColor: "#feeceb", alignItems: "center", justifyContent: "center" },
-  floatingAddButton: {
-    position: "absolute",
-    bottom: 22,
-    right: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-    backgroundColor: "#22312d",
-    paddingHorizontal: 20,
-    paddingVertical: 13,
-    borderRadius: 26,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.22,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  floatingAddButtonText: {
-    color: "#ffffff",
-    fontSize: 14,
-    fontWeight: "900",
-  },
 });

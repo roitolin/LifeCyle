@@ -34,7 +34,7 @@ type Payment = {
   expiresAt: string | null;
   rejectionReason: string | null;
   payerName: string | null;
-  paymentProvider: 'manual' | 'paymongo' | 'xendit';
+  paymentProvider: 'manual' | 'legacy' | 'xendit';
   providerCheckoutId: string | null;
   providerCheckoutUrl: string | null;
   providerPaymentId: string | null;
@@ -63,9 +63,9 @@ function fromRow(row: any): Payment {
     payerName: row.payerName || null,
     paymentProvider: row.paymentProvider === 'xendit'
       ? 'xendit'
-      : row.paymentProvider === 'paymongo'
-        ? 'paymongo'
-        : 'manual',
+      : row.paymentProvider === 'manual'
+        ? 'manual'
+        : 'legacy',
     providerCheckoutId: row.providerCheckoutId || null,
     providerCheckoutUrl: row.providerCheckoutUrl || null,
     providerPaymentId: row.providerPaymentId || null,
@@ -176,7 +176,7 @@ export default function XenditShopPaymentModal({ visible, onClose, onChanged }: 
     }
   }, [visible, backdropOpacity, sheetProgress]);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     if (starting) return;
     Animated.parallel([
       Animated.timing(sheetProgress, {
@@ -194,7 +194,7 @@ export default function XenditShopPaymentModal({ visible, onClose, onChanged }: 
     ]).start(() => {
       onClose();
     });
-  };
+  }, [backdropOpacity, onClose, sheetProgress, starting]);
 
   const load = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -257,7 +257,7 @@ export default function XenditShopPaymentModal({ visible, onClose, onChanged }: 
       stateSubscription.remove();
       void supabase.removeChannel(channel);
     };
-  }, [load, onChanged, visible]);
+  }, [handleClose, load, onChanged, visible]);
 
   const isSubscriptionActive = useMemo(() => {
     if (!paidUntil) return false;
@@ -567,7 +567,7 @@ export default function XenditShopPaymentModal({ visible, onClose, onChanged }: 
       >
         {selectedReceipt ? (
           <View style={styles.receiptScreen}>
-            <StatusBar barStyle="light-content" backgroundColor="#101312" />
+            <StatusBar barStyle="light-content" />
             <ScrollView
               contentContainerStyle={styles.receiptScrollContent}
               showsVerticalScrollIndicator={false}

@@ -23,6 +23,8 @@ import {
   View,
   type GestureResponderEvent,
   type ImageSourcePropType,
+  type PressableInstance,
+  type TextInputInstance,
 } from "react-native";
 import { Avatar, IconButton, Text } from "react-native-paper";
 import { Ionicons } from "@expo/vector-icons";
@@ -129,16 +131,6 @@ function isMissingMessageActionsSchema(error: { code?: string; message?: string 
     && /(?:reactions|replyToId|editedAt)/i.test(error.message || "");
 }
 
-function reactionsMatch(
-  left?: Record<string, MessageReaction> | null,
-  right?: Record<string, MessageReaction> | null
-) {
-  const leftEntries = Object.entries(left || {});
-  const rightReactions = right || {};
-  return leftEntries.length === Object.keys(rightReactions).length
-    && leftEntries.every(([id, reaction]) => rightReactions[id] === reaction);
-}
-
 function getDateLabel(value?: string | null) {
   if (!value) return "";
   const date = new Date(value);
@@ -172,25 +164,6 @@ function prepareMessages(items: ChatMessage[]) {
   });
 }
 
-function messagesMatch(left: ChatMessage, right: ChatMessage) {
-  const leftReadBy = left.readBy || [];
-  const rightReadBy = right.readBy || [];
-  const leftDeliveredTo = left.deliveredTo || [];
-  const rightDeliveredTo = right.deliveredTo || [];
-  return left.id === right.id
-    && left.conversationId === right.conversationId
-    && left.senderId === right.senderId
-    && left.text === right.text
-    && left.timestamp === right.timestamp
-    && left.replyToId === right.replyToId
-    && left.editedAt === right.editedAt
-    && reactionsMatch(left.reactions, right.reactions)
-    && leftReadBy.length === rightReadBy.length
-    && leftReadBy.every((id) => rightReadBy.includes(id))
-    && leftDeliveredTo.length === rightDeliveredTo.length
-    && leftDeliveredTo.every((id) => rightDeliveredTo.includes(id));
-}
-
 function mergeReceiptIds(
   left?: string[] | null,
   right?: string[] | null
@@ -221,7 +194,7 @@ const ChatMessageRow = memo(function ChatMessageRow({
   avatarSource,
   onLongPress,
 }: ChatMessageRowProps) {
-  const bubbleRef = useRef<View>(null);
+  const bubbleRef = useRef<PressableInstance>(null);
   const reactionCounts = MESSAGE_REACTIONS.map((reaction) => ({
     ...reaction,
     count: Object.values(item.reactions || {}).filter((value) => value === reaction.key).length,
@@ -354,7 +327,7 @@ export default function ChatScreen({ route, navigation }: any) {
   const pinDuringKeyboardRef = useRef(false);
   const deliveryReceiptsAvailableRef = useRef<boolean | null>(null);
   const messageActionsAvailableRef = useRef<boolean | null>(null);
-  const composerInputRef = useRef<TextInput>(null);
+  const composerInputRef = useRef<TextInputInstance>(null);
   const messageBackdropUriRef = useRef<string | null>(null);
   const messageBackdropCaptureRef = useRef(0);
   const messageActionAnimationRef = useRef(new Animated.Value(0));
@@ -748,7 +721,7 @@ export default function ChatScreen({ route, navigation }: any) {
     if (showLoader) setLoading(true);
     setLoadError(null);
     const fetchMessages = (columns: string) => supabase
-      .from("messages")
+      .from("chat_messages")
       .select(columns)
       .eq("conversationId", conversationId)
       .order("timestamp", { ascending: false })
@@ -838,21 +811,9 @@ export default function ChatScreen({ route, navigation }: any) {
         if (eventType === "INSERT" && nextMessage.senderId !== userId) {
           void playReceiveSound();
         }
-        setMessages((current) => {
-          const optimisticEcho = eventType === "INSERT" && nextMessage.senderId === userId
-            ? current.find((message) =>
-                message.clientStatus === "sending"
-                && message.senderId === nextMessage.senderId
-                && message.text === nextMessage.text
-              )
-            : undefined;
-          const existing = current.find((message) => message.id === nextMessage.id);
-          if (existing && messagesMatch(existing, nextMessage) && !optimisticEcho) return current;
-          const withoutCurrent = current.filter((message) =>
-            message.id !== nextMessage.id && message.id !== optimisticEcho?.id
-          );
-          return prepareMessages([...withoutCurrent, nextMessage]);
-        });
+        // Realtime observes the protected base table, whose text is ciphertext.
+        // Refetch through the RLS-protected decrypted view before rendering it.
+        void loadMessages(false);
       })
       .subscribe((status) => {
         if (status === "SUBSCRIBED") void loadMessages(false);
@@ -1256,7 +1217,10 @@ export default function ChatScreen({ route, navigation }: any) {
         .single();
       if (error) throw error;
 
-      const sentMessage = insertedMessage as unknown as ChatMessage;
+      const sentMessage = {
+        ...(insertedMessage as unknown as ChatMessage),
+        text,
+      };
       const stillViewingConversation = conversationSession === conversationSessionRef.current;
       if (stillViewingConversation) {
         void playSentSound();
@@ -1583,7 +1547,7 @@ export default function ChatScreen({ route, navigation }: any) {
                   <Text style={styles.composerContextTitle}>
                     {editingMessage
                       ? "Editing message"
-                      : `Reply to ${replyingTo?.senderId === userId ? "your message" : profile.name}`}
+                      : `Replying to ${replyingTo?.senderId === userId ? "yourself" : profile.name}`}
                   </Text>
                   <Text numberOfLines={1} style={styles.composerContextText}>
                     {(editingMessage || replyingTo)?.text}
@@ -1804,7 +1768,7 @@ const styles = StyleSheet.create({
   headerName: { color: "#26332e", fontSize: 15, fontWeight: "900" },
   headerStatus: { color: "#78837e", fontSize: 10, marginTop: 1 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 2, marginRight: -5 },
-  headerActionButton: { width: 36, height: 36, margin: 0, borderRadius: 18, borderWidth: 1, borderColor: "#d9e1dd", backgroundColor: "#f8faf9" },
+  headerActionButton: { width: 36, height: 36, margin: 0, borderRadius: 18, backgroundColor: "transparent" },
   blockBanner: { paddingHorizontal: 14, paddingVertical: 10, backgroundColor: "#fff0f2", borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#efc4ca", flexDirection: "row", alignItems: "center", gap: 8 },
   blockBannerText: { flex: 1, color: "#8f3440", fontSize: 12, fontWeight: "700" },
   messageList: { flex: 1, minHeight: 0 },
@@ -1833,12 +1797,12 @@ const styles = StyleSheet.create({
   bubbleMine: { backgroundColor: "#315f50", borderBottomRightRadius: 6 },
   bubbleOther: { backgroundColor: "#f2f4f3", borderBottomLeftRadius: 6 },
   bubblePressed: { opacity: 0.76, transform: [{ scale: 0.985 }] },
-  replyContext: { maxWidth: "100%", marginBottom: 4 },
+  replyContext: { maxWidth: "100%", marginBottom: 6 },
   replyContextMine: { alignItems: "flex-end" },
   replyContextOther: { alignItems: "flex-start" },
-  replyContextHeader: { maxWidth: "100%", flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 7, marginBottom: 4 },
-  replyContextLabel: { flexShrink: 1, color: "#78827e", fontSize: 10, fontWeight: "600" },
-  replyQuote: { maxWidth: "100%", minWidth: 132, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: "#e7eae8" },
+  replyContextHeader: { maxWidth: "100%", flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 7, marginBottom: 5 },
+  replyContextLabel: { flexShrink: 1, color: "#6c7772", fontSize: 10, fontWeight: "700" },
+  replyQuote: { maxWidth: "100%", minWidth: 132, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 8, backgroundColor: "#e8ecea" },
   replyQuoteText: { color: "#5f6965", fontSize: 12, lineHeight: 17 },
   replyQuoteUnavailable: { color: "#89918e", fontStyle: "italic" },
   messageText: { color: "#283630", fontSize: 14, lineHeight: 20 },
@@ -1855,10 +1819,10 @@ const styles = StyleSheet.create({
   deliveryStatusText: { color: "#78847f", fontSize: 10, fontWeight: "600" },
   seenAvatar: { backgroundColor: "#ffffff", borderWidth: 1, borderColor: "#ffffff" },
   composerSafeArea: { flexShrink: 0, backgroundColor: "#ffffff", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#e5e8e6" },
-  composerContext: { minHeight: 54, flexDirection: "row", alignItems: "center", marginHorizontal: 12, marginTop: 9, paddingLeft: 9, paddingRight: 3, paddingVertical: 7, borderRadius: 12, backgroundColor: "#eef3f0" },
-  composerContextIcon: { width: 34, height: 34, borderRadius: 10, marginRight: 9, alignItems: "center", justifyContent: "center", backgroundColor: "#dce8e2" },
+  composerContext: { minHeight: 58, flexDirection: "row", alignItems: "center", paddingLeft: 16, paddingRight: 4, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#dce2de", backgroundColor: "#f2f5f3" },
+  composerContextIcon: { width: 28, height: 34, marginRight: 8, alignItems: "center", justifyContent: "center" },
   composerContextCopy: { flex: 1, minWidth: 0 },
-  composerContextTitle: { color: "#2f6b55", fontSize: 11, fontWeight: "800" },
+  composerContextTitle: { color: "#2f5f4e", fontSize: 11, fontWeight: "900" },
   composerContextText: { color: "#6f7b76", fontSize: 11, marginTop: 2 },
   composerContextClose: { margin: 0 },
   composer: { minHeight: 68, flexDirection: "row", alignItems: "flex-end", paddingHorizontal: 12, paddingVertical: 10, gap: 8 },

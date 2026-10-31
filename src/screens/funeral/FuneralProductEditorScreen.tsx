@@ -18,7 +18,7 @@ import { supabase } from "@/services/supabaseClient";
 import { generateId } from "@/utils/generateId";
 import * as ImagePicker from "@/utils/permissionImagePicker";
 import { auth, uploadCertificate } from "@/services";
-import { normalizePesoInput } from "@/utils/funeralCatalog";
+import { formatPhilippinePeso, normalizePesoInput } from "@/utils/funeralCatalog";
 
 const MAX_PRODUCT_PHOTO_COUNT = 5;
 const MAX_VARIATION_COUNT = 4;
@@ -39,6 +39,9 @@ type ShopProduct = {
   galleryImageUrls?: string[];
   hasVariations?: boolean;
   variations?: ProductVariation[];
+  downpaymentEnabled?: boolean;
+  downpaymentAmount?: number | null;
+  downpaymentPercentage?: number | null;
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -136,6 +139,8 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
   const [productName, setProductName] = useState("");
   const [productPrice, setProductPrice] = useState("");
   const [productStock, setProductStock] = useState("1");
+  const [downpaymentEnabled, setDownpaymentEnabled] = useState(false);
+  const [downpaymentAmountInput, setDownpaymentAmountInput] = useState("");
   const [hasVariations, setHasVariations] = useState(false);
   const [variationCount, setVariationCount] = useState(1);
   const [variationEntries, setVariationEntries] = useState<ProductVariation[]>([]);
@@ -143,6 +148,11 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
   const [productDescription, setProductDescription] = useState("");
   const [productImages, setProductImages] = useState<(string | null)[]>((Array<string | null>(MAX_PRODUCT_PHOTO_COUNT).fill(null)));
   const packageItems = getPackageItems(shopPackage);
+  const numericProductPrice = Number(productPrice.replace(/[^\d.]/g, "")) || 0;
+  const downpaymentAmount = Number(downpaymentAmountInput.replace(/[^\d.]/g, "")) || 0;
+  const downpaymentPercentage = downpaymentEnabled && numericProductPrice > 0 && downpaymentAmount > 0
+    ? Math.round((downpaymentAmount / numericProductPrice) * 10_000) / 100
+    : 0;
 
   useEffect(() => {
     const load = async () => {
@@ -187,6 +197,9 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
             .sort((a: any, b: any) => (a.displayOrder || 0) - (b.displayOrder || 0))
             .map((img: any) => img.imageUrl),
           hasVariations: row.hasVariations,
+          downpaymentEnabled: Boolean(row.downpaymentEnabled),
+          downpaymentAmount: row.downpaymentAmount == null ? null : Number(row.downpaymentAmount),
+          downpaymentPercentage: row.downpaymentPercentage == null ? null : Number(row.downpaymentPercentage),
           variations: (row.funeral_product_variations || []).map((v: any) => ({
             name: v.name,
             price: v.price == null ? "" : String(v.price),
@@ -207,6 +220,12 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
           setProductName(current.name || "");
           setProductPrice(current.price || "");
           setProductStock(String(current.stock ?? 1));
+          setDownpaymentEnabled(Boolean(current.downpaymentEnabled));
+          const existingDownpaymentAmount = current.downpaymentAmount
+            ?? (current.downpaymentPercentage == null
+              ? null
+              : (Number(current.price) * current.downpaymentPercentage) / 100);
+          setDownpaymentAmountInput(existingDownpaymentAmount == null ? "" : normalizePesoInput(String(existingDownpaymentAmount)));
           const nextVariations = normalizeVariations(current);
           setHasVariations(Boolean(current.hasVariations && nextVariations.length));
           setVariationCount(nextVariations.length || 1);
@@ -300,6 +319,14 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
       return;
     }
 
+    if (
+      downpaymentEnabled
+      && (numericProductPrice <= 0 || downpaymentAmount <= 0 || downpaymentAmount > numericProductPrice)
+    ) {
+      Alert.alert("Invalid down payment", "Enter an amount greater than ₱0 and not higher than the original product price.");
+      return;
+    }
+
     if (uploadedCount < photoCount) {
       Alert.alert("More photos needed", `Please upload all ${photoCount} selected product ${photoCount === 1 ? "photo" : "photos"}.`);
       return;
@@ -332,6 +359,9 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
         stock: stockValue,
         imageUrl: galleryImageUrls[0] || null,
         hasVariations,
+        downpaymentEnabled,
+        downpaymentAmount: downpaymentEnabled ? downpaymentAmount : null,
+        downpaymentPercentage: downpaymentEnabled ? downpaymentPercentage : null,
         active: stockValue > 0,
         updatedAt: new Date().toISOString(),
       });
@@ -483,6 +513,51 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
                 <Text style={styles.staticFieldText}>Casket</Text>
               </View>
             </View>
+          </View>
+
+          <View style={styles.downpaymentPanel}>
+            <Text style={styles.downpaymentTitle}>Offer a Down Payment?</Text>
+            <Text style={styles.downpaymentDescription}>
+              Enter the peso amount customers pay first. The percentage is calculated automatically from the original product price.
+            </Text>
+            <View style={styles.toggleRow}>
+              <TouchableOpacity
+                style={[styles.toggleButton, !downpaymentEnabled ? styles.toggleButtonActive : null]}
+                onPress={() => setDownpaymentEnabled(false)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: !downpaymentEnabled }}
+              >
+                <Text style={[styles.toggleButtonText, !downpaymentEnabled ? styles.toggleButtonTextActive : null]}>Off</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.toggleButton, downpaymentEnabled ? styles.toggleButtonActive : null]}
+                onPress={() => setDownpaymentEnabled(true)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: downpaymentEnabled }}
+              >
+                <Text style={[styles.toggleButtonText, downpaymentEnabled ? styles.toggleButtonTextActive : null]}>On</Text>
+              </TouchableOpacity>
+            </View>
+
+            {downpaymentEnabled ? (
+              <View style={styles.downpaymentFields}>
+                <Text style={styles.inputLabel}>Down Payment Amount</Text>
+                <TextInput
+                  style={styles.input}
+                  value={downpaymentAmountInput}
+                  onChangeText={(value) => setDownpaymentAmountInput(normalizePesoInput(value))}
+                  placeholder="₱50,000"
+                  keyboardType="number-pad"
+                  accessibilityLabel="Down payment amount in Philippine pesos"
+                />
+                <View style={styles.downpaymentPreview}>
+                  <Text style={styles.downpaymentPreviewLabel}>Automatically calculated</Text>
+                  <Text style={styles.downpaymentPreviewAmount}>
+                    {downpaymentPercentage > 0 ? `${downpaymentPercentage}% of ${formatPhilippinePeso(numericProductPrice)}` : "Enter an amount and price"}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
           </View>
 
           <Text style={styles.inputLabel}>Has Variations?</Text>
@@ -787,6 +862,47 @@ const styles = StyleSheet.create({
   },
   rowField: {
     flex: 1,
+  },
+  downpaymentPanel: {
+    marginTop: 18,
+    marginBottom: 4,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#d8e0dc",
+    borderRadius: 10,
+    backgroundColor: "#f8faf8",
+  },
+  downpaymentTitle: {
+    color: "#22312d",
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  downpaymentDescription: {
+    color: "#62706b",
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 4,
+    marginBottom: 10,
+  },
+  downpaymentFields: {
+    marginTop: 4,
+  },
+  downpaymentPreview: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: "#e8f0e5",
+  },
+  downpaymentPreviewLabel: {
+    color: "#62706b",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  downpaymentPreviewAmount: {
+    color: "#22312d",
+    fontSize: 18,
+    fontWeight: "900",
+    marginTop: 2,
   },
   toggleRow: {
     flexDirection: "row",

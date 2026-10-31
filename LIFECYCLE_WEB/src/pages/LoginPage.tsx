@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
+import type { Session, User } from '@supabase/supabase-js'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { ensureOwnUserProfile } from '@/lib/userProfile'
@@ -7,6 +8,7 @@ import { clearLoginAttempts, getLoginBlockState, recordFailedLoginAttempt } from
 import { normalizeEmail } from '@/utils/inputSecurity'
 import { APP_ICON_TRANSPARENT_URL } from '@/assets/appIconAssets'
 import PageBackButton from '@/components/PageBackButton'
+import SocialAuthButtons from '@/components/SocialAuthButtons'
 import { recordWebAdminLoginActivity } from '@/utils/adminActivity'
 import {
   recordWebAccountLoginActivity,
@@ -17,6 +19,14 @@ import { rememberWebAccount } from '@/utils/webDeviceAccounts'
 type BanDialog = {
   reason: string
   banEndsLabel: string
+}
+
+function getRememberedEmail(): string {
+  try {
+    return window.localStorage.getItem('lifecycle-remembered-email') || ''
+  } catch {
+    return ''
+  }
 }
 
 function toDate(value: unknown): Date | null {
@@ -67,13 +77,15 @@ function LoginPage() {
   const location = useLocation()
   const supportEmail = 'support@lifecycle.app'
   const [email, setEmail] = useState(() => (
-    new URLSearchParams(location.search).get('email') || ''
+    new URLSearchParams(location.search).get('email') || getRememberedEmail()
   ))
+  const [rememberMe, setRememberMe] = useState(() => Boolean(getRememberedEmail()))
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [banDialog, setBanDialog] = useState<BanDialog | null>(null)
+  const oauthHandledRef = useRef(false)
 
   useEffect(() => {
     const state = location.state as { banDialog?: BanDialog } | null
@@ -87,6 +99,7 @@ function LoginPage() {
     if (search.get('registered') === '1') return 'Registration successful. Check your email to verify your account.'
     if (search.get('verifyExpired') === '1') return 'Verification session expired after 30 minutes. Please log in again.'
     if (search.get('passwordReset') === '1') return 'Your password has been reset. You can now log in with your new password.'
+    if (search.get('accountDeleted') === '1') return 'Your account has been permanently deleted.'
     return ''
   }, [location.search])
   const redirectAfterLogin = useMemo(() => {
@@ -113,6 +126,87 @@ function LoginPage() {
     const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(supportEmail)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
     window.open(url, '_blank', 'noopener,noreferrer')
   }
+
+  const finishSignedInUser = useCallback(async (user: User, session: Session | null) => {
+    const normalizedUserEmail = normalizeEmail(user.email || '')
+    const userData = await ensureOwnUserProfile(user)
+
+    const userRole = String(userData.role || 'user').toLowerCase()
+    const defaultRedirect =
+      userRole === 'super_admin'
+        ? '/admin/dashboard'
+        : userRole === 'funeral_admin'
+          ? '/admin/funeral-shops'
+          : userRole === 'admin'
+            ? '/admin'
+            : '/app'
+    const targetAfterLogin = redirectAfterLogin || defaultRedirect
+    const disabled = Boolean(userData.disabled)
+    const banReason = userData.banReason?.trim() || 'No reason provided by admin.'
+    const bannedUntil = toDate(userData.bannedUntil)
+    const hasValidBanEnd = bannedUntil !== null
+
+    if (disabled && hasValidBanEnd && bannedUntil.getTime() <= Date.now()) {
+      await supabase.from('users').update({
+        disabled: false,
+        banReason: null,
+        bannedBy: null,
+        bannedAt: null,
+        bannedUntil: null,
+      }).eq('id', user.id)
+      navigate(targetAfterLogin)
+      return
+    }
+
+    if (disabled) {
+      await supabase.auth.signOut()
+      if (normalizedUserEmail) recordFailedLoginAttempt(normalizedUserEmail)
+      setBanDialog({
+        reason: banReason,
+        banEndsLabel: hasValidBanEnd ? bannedUntil.toLocaleString(undefined, { hour12: true }) : 'No end date (permanent)',
+      })
+      return
+    }
+
+    if (!user.email_confirmed_at) {
+      const verifyTarget = redirectAfterLogin ? `/verify-email?next=${encodeURIComponent(redirectAfterLogin)}` : '/verify-email'
+      navigate(verifyTarget)
+      return
+    }
+
+    if (normalizedUserEmail) clearLoginAttempts(normalizedUserEmail)
+    await registerWebAccountSession(session)
+    if (session) rememberWebAccount(session, userData)
+    await recordWebAccountLoginActivity('login_success')
+    await recordWebAdminLoginActivity('login_success', userRole)
+    navigate(targetAfterLogin)
+  }, [navigate, redirectAfterLogin])
+
+  useEffect(() => {
+    const search = new URLSearchParams(location.search)
+    if (search.get('oauth') !== '1' || oauthHandledRef.current) return
+
+    oauthHandledRef.current = true
+    const oauthError = search.get('error_description') || search.get('error')
+    if (oauthError) {
+      setError(oauthError)
+      return
+    }
+
+    setError('')
+    setLoading(true)
+    void supabase.auth.getSession()
+      .then(async ({ data, error: sessionError }) => {
+        if (sessionError) throw sessionError
+        if (!data.session) throw new Error('Social sign-in did not return a valid session. Please try again.')
+        await finishSignedInUser(data.session.user, data.session)
+      })
+      .catch((caughtError: unknown) => {
+        const message = caughtError instanceof Error ? caughtError.message : String(caughtError || '')
+        setError(message || 'Unable to complete social sign-in. Please try again.')
+      })
+      .finally(() => setLoading(false))
+  }, [finishSignedInUser, location.search])
 
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -142,58 +236,13 @@ function LoginPage() {
 
       const user = authData.user
       if (!user) throw new Error('No user returned from Supabase.')
-
-      const userData = await ensureOwnUserProfile(user)
-
-      const userRole = String(userData.role || 'user').toLowerCase()
-      const defaultRedirect =
-        userRole === 'super_admin'
-          ? '/admin/dashboard'
-          : userRole === 'funeral_admin'
-            ? '/admin/funeral-shops'
-            : userRole === 'admin'
-              ? '/admin'
-              : '/app'
-      const targetAfterLogin = redirectAfterLogin || defaultRedirect
-      const disabled = Boolean(userData.disabled)
-      const banReason = userData.banReason?.trim() || 'No reason provided by admin.'
-      const bannedUntil = toDate(userData.bannedUntil)
-      const hasValidBanEnd = bannedUntil !== null
-
-      if (disabled && hasValidBanEnd && bannedUntil.getTime() <= Date.now()) {
-        await supabase.from('users').update({
-          disabled: false,
-          banReason: null,
-          bannedBy: null,
-          bannedAt: null,
-          bannedUntil: null,
-        }).eq('id', user.id)
-        navigate(targetAfterLogin)
-        return
+      try {
+        if (rememberMe) window.localStorage.setItem('lifecycle-remembered-email', normalizedEmail)
+        else window.localStorage.removeItem('lifecycle-remembered-email')
+      } catch {
+        // Remembering an email is optional; continue sign-in if browser storage is unavailable.
       }
-
-      if (disabled) {
-        await supabase.auth.signOut()
-        recordFailedLoginAttempt(normalizedEmail)
-        setBanDialog({
-          reason: banReason,
-          banEndsLabel: hasValidBanEnd ? bannedUntil.toLocaleString(undefined, { hour12: true }) : 'No end date (permanent)',
-        })
-        return
-      }
-
-      if (!user.email_confirmed_at) {
-        const verifyTarget = redirectAfterLogin ? `/verify-email?next=${encodeURIComponent(redirectAfterLogin)}` : '/verify-email'
-        navigate(verifyTarget)
-        return
-      }
-
-      clearLoginAttempts(normalizedEmail)
-      await registerWebAccountSession(authData.session)
-      if (authData.session) rememberWebAccount(authData.session, userData)
-      await recordWebAccountLoginActivity('login_success')
-      await recordWebAdminLoginActivity('login_success', userRole)
-      navigate(targetAfterLogin)
+      await finishSignedInUser(user, authData.session)
     } catch (caughtError) {
       const errorCode =
         typeof caughtError === 'object' && caughtError !== null && 'code' in caughtError
@@ -306,6 +355,10 @@ function LoginPage() {
             </div>
 
             <div className='auth-forgot-row'>
+              <label className="auth-remember-option">
+                <input type="checkbox" checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} />
+                <span>Remember me</span>
+              </label>
               <Link to='/forgot-password'>Forgot password?</Link>
             </div>
 
@@ -313,6 +366,12 @@ function LoginPage() {
               {loading ? 'Logging in...' : 'Login'}
             </button>
           </form>
+
+          <SocialAuthButtons
+            next={redirectAfterLogin}
+            disabled={loading}
+            onError={setError}
+          />
 
           <p className="auth-switch">
             No account yet? <Link to={registerTarget}>Register</Link>

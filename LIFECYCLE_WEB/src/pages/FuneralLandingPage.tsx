@@ -8,8 +8,11 @@ import NotificationDropdown from '@/components/NotificationDropdown'
 import LogoutLink from '@/components/LogoutLink'
 import MarketplaceFooter from '@/components/MarketplaceFooter'
 import MarketplaceMobileDrawer from '@/components/MarketplaceMobileDrawer'
+import ProductRating from '@/components/ProductRating'
+import { useProductScrollReveal } from '@/hooks/useProductScrollReveal'
 import { loadFuneralCart } from '@/utils/funeralCart'
 import { getProfileAvatar } from '@/utils/profileAvatar'
+import { summarizeProductRatings } from '@/utils/productRatings'
 import './FuneralLandingPage.css'
 
 /* â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
@@ -25,6 +28,11 @@ type Product = {
   stock: number
   category: string
   imageUrl: string | null
+  downpaymentEnabled: boolean
+  downpaymentAmount: number | null
+  downpaymentPercentage: number | null
+  rating: number
+  ratingCount: number
 }
 
 type Shop = { id: string; shopName: string; generalLocation: string }
@@ -65,18 +73,6 @@ function resolveCategory(row: any): string {
 }
 
 /* â”€â”€ Star Rating â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-function Stars({ rating = 4.8 }: { rating?: number }) {
-  const full = Math.floor(rating)
-  const half = rating - full >= 0.5
-  return (
-    <span className="sp-stars">
-      {Array.from({ length: 5 }, (_, i) => (
-        <span key={i} className={i < full ? 'sp-star full' : half && i === full ? 'sp-star half' : 'sp-star'}>{'\u2605'}</span>
-      ))}
-      <span className="sp-rating-num">{rating.toFixed(1)}</span>
-    </span>
-  )
-}
 
 /* â”€â”€ Casket placeholder icon â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function CasketSVG() {
@@ -129,6 +125,7 @@ export default function FuneralLandingPage() {
   const [selectedShopId,   setSelectedShopId]   = useState('all')
   const [minPrice,         setMinPrice]          = useState('')
   const [maxPrice,         setMaxPrice]          = useState('')
+  const [minimumRating, setMinimumRating] = useState(0)
   const [sortBy,           setSortBy]            = useState('Relevance')
   const [page,             setPage]              = useState(1)
   const [filtersOpen,      setFiltersOpen]       = useState(false)
@@ -165,8 +162,9 @@ export default function FuneralLandingPage() {
         const { data, error: err } = await supabase
           .from('funeral_products')
           .select(`
-            id, name, description, price, stock, "imageUrl", "shopId",
+            id, name, description, price, stock, "imageUrl", "shopId", "downpaymentEnabled", "downpaymentAmount", "downpaymentPercentage",
             funeral_product_images ( "imageUrl", "displayOrder" ),
+            funeral_product_ratings ( rating ),
             funeral_shops!inner ( "shopName", "shopAddress", "shopPhoneNumber", "generalLocation", status, "paidUntil" )
           `)
           .eq('active', true)
@@ -178,6 +176,7 @@ export default function FuneralLandingPage() {
 
         const rows = (data ?? []) as any[]
         const mapped: Product[] = rows.map(row => {
+          const ratingSummary = summarizeProductRatings(row.funeral_product_ratings)
           return {
             id:              String(row.id),
             shopId:          String(row.shopId ?? ''),
@@ -190,6 +189,11 @@ export default function FuneralLandingPage() {
             stock:           Number(row.stock) || 0,
             category:        resolveCategory(row),
             imageUrl:        getPrimaryImage(row),
+            downpaymentEnabled: Boolean(row.downpaymentEnabled),
+            downpaymentAmount: row.downpaymentAmount == null ? null : Number(row.downpaymentAmount),
+            downpaymentPercentage: row.downpaymentPercentage == null ? null : Number(row.downpaymentPercentage),
+            rating: ratingSummary.average,
+            ratingCount: ratingSummary.count,
           }
         })
         mapped.sort((a, b) => a.name.localeCompare(b.name))
@@ -226,7 +230,7 @@ export default function FuneralLandingPage() {
       const shopOk = selectedShopId === 'all' || p.shopId === selectedShopId
       const priceOk = p.price >= min && p.price <= max
       const qOk    = !q || normalize(`${p.name} ${p.description} ${p.shopName}`).includes(q)
-      return shopOk && priceOk && qOk
+      return shopOk && priceOk && qOk && p.rating >= minimumRating
     })
 
     if (sortBy === 'Price')      list = [...list].sort((a, b) => a.price - b.price)
@@ -234,16 +238,18 @@ export default function FuneralLandingPage() {
     else if (sortBy === 'Top Sales') list = [...list].sort((a, b) => b.stock - a.stock)
 
     return list
-  }, [products, queryText, selectedShopId, minPrice, maxPrice, sortBy])
+  }, [products, queryText, selectedShopId, minPrice, maxPrice, sortBy, minimumRating])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-  const activeFilterCount = Number(selectedShopId !== 'all') + Number(Boolean(minPrice)) + Number(Boolean(maxPrice))
+  const productGridRef = useProductScrollReveal<HTMLDivElement>(paginated.map(product => product.id).join('|'))
+  const activeFilterCount = Number(selectedShopId !== 'all') + Number(Boolean(minPrice)) + Number(Boolean(maxPrice)) + Number(minimumRating > 0)
 
   function clearFilters() {
     setSelectedShopId('all')
     setMinPrice('')
     setMaxPrice('')
+    setMinimumRating(0)
     setQueryText('')
     setSortBy('Relevance')
     setPage(1)
@@ -326,7 +332,7 @@ export default function FuneralLandingPage() {
   }, [filtersOpen])
 
   const accountPath = isLoggedIn ? '/user/profile' : '/login?next=/user/profile'
-  const purchasesPath = isLoggedIn ? '/user/purchase' : '/login?next=/user/purchase'
+  const serviceRequestsPath = isLoggedIn ? '/user/requests' : '/login?next=/user/requests'
   const helpPath = isLoggedIn ? '/user/help' : '/login?next=/user/help'
 
   const openMessages = () => {
@@ -351,7 +357,7 @@ export default function FuneralLandingPage() {
         photoUrl={userProfile?.photoURL}
         gender={userProfile?.gender}
         accountPath={accountPath}
-        purchasesPath={purchasesPath}
+        serviceRequestsPath={serviceRequestsPath}
         helpPath={helpPath}
         onOpenMessages={openMessages}
       />
@@ -386,7 +392,7 @@ export default function FuneralLandingPage() {
                   </div>
                   <div className="sp-user-dropdown">
                     <Link to="/user/profile">My Account</Link>
-                    <Link to="/user/purchase">My Payments</Link>
+                    <Link to="/user/requests">My service request</Link>
                     <LogoutLink>Log out</LogoutLink>
                   </div>
                 </div>
@@ -529,12 +535,19 @@ export default function FuneralLandingPage() {
             <div className="sp-filter-block">
               <div className="sp-filter-title">Rating</div>
               {[5, 4, 3, 2, 1].map(r => (
-                <div key={r} className="sp-rating-row">
+                <button
+                  key={r}
+                  type="button"
+                  className={`sp-rating-row${minimumRating === r ? ' is-selected' : ''}`}
+                  aria-label={`${r} stars and up`}
+                  aria-pressed={minimumRating === r}
+                  onClick={() => { setMinimumRating(current => current === r ? 0 : r); setPage(1) }}
+                >
                   {Array.from({ length: 5 }, (_, i) => (
                     <span key={i} className={i < r ? 'sp-star full' : 'sp-star'}>{'\u2605'}</span>
                   ))}
                   <span className="sp-rating-up">&amp; Up</span>
-                </div>
+                </button>
               ))}
             </div>
             </div>
@@ -617,12 +630,21 @@ export default function FuneralLandingPage() {
 
             {/* Product Grid */}
             {!loading && !error && (
-              <div className="sp-grid">
-                {paginated.map(product => (
-                  <article
+              <div className="sp-grid" ref={productGridRef}>
+                {paginated.map(product => {
+                  const downpaymentAmount = Number(product.downpaymentAmount) || 0
+                  const downpaymentPercentage = Number(product.downpaymentPercentage) || 0
+                  const hasDownpayment = product.downpaymentEnabled
+                    && downpaymentAmount > 0
+                    && downpaymentAmount <= product.price
+                    && downpaymentPercentage > 0
+                    && downpaymentPercentage <= 100
+
+                  return <article
                     key={`${product.shopId}_${product.id}`}
-                    className="sp-card"
-                     onClick={() => navigate(`/funeral/product/${product.id}`)}
+                    className="sp-card product-scroll-reveal"
+                    data-product-scroll-reveal
+                    onClick={() => navigate(`/funeral/product/${product.id}`)}
                   >
                     <div className="sp-card-img-wrap">
                       {product.imageUrl
@@ -636,13 +658,22 @@ export default function FuneralLandingPage() {
                         <span className="sp-card-price">{formatPeso(product.price)}</span>
                       </div>
                       <div className="sp-card-meta">
-                        <Stars rating={4.8} />
+                        <ProductRating rating={product.rating} count={product.ratingCount} />
                         <span className="sp-card-stock">{product.stock} left</span>
                       </div>
                       <p className="sp-card-location">{product.shopName}</p>
+                      {hasDownpayment ? (
+                        <span className="sp-card-downpayment-badge" aria-label={`Down payment available: ${formatPeso(downpaymentAmount)}, ${downpaymentPercentage}%`}>
+                          <strong>Down payment</strong>
+                          <small>
+                            <span>{formatPeso(downpaymentAmount)}</span>
+                            <span className="sp-card-downpayment-percentage">({downpaymentPercentage}%)</span>
+                          </small>
+                        </span>
+                      ) : null}
                     </div>
                   </article>
-                ))}
+                })}
               </div>
             )}
 

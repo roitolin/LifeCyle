@@ -12,7 +12,7 @@ import { Avatar, Card, Title, Divider, Button } from "react-native-paper";
 import { supabase } from "@/services/supabaseClient";
 import { auth } from "../../services/supabaseAuth";
 import { useResponsive } from "../../utils/responsive";
-import { getDefaultProfileImage, getProfileImageSource } from "../../utils/defaultProfileImage";
+import { getProfileImageSource } from "../../utils/defaultProfileImage";
 import { ensureConversationForUsers } from "../../utils/chatHelpers";
 
 type User = {

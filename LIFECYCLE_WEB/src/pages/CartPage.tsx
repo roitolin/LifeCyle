@@ -222,9 +222,14 @@ export default function CartPage() {
                           {item.packageItems?.length ? (
                             <div className="item-variation">Packages: {item.packageItems.join(', ')}</div>
                           ) : null}
+                          {item.downpaymentAmount && item.downpaymentPercentage ? (
+                            <div className="item-payment-option">Down payment available after shop approval</div>
+                          ) : null}
                         </div>
                       </div>
-                      <div className="item-col-price">{formatPeso(item.price)}</div>
+                      <div className="item-col-price">
+                        <strong>{formatPeso(item.fullPrice || item.price)}</strong>
+                      </div>
                       <div className="item-col-actions">
                         <button
                           type="button"
@@ -297,7 +302,7 @@ function TopBar({ profile }: { profile: ViewerProfile | null }) {
             </div>
             <div className="cart-user-dropdown">
               <Link to="/user/profile">My Account</Link>
-              <Link to="/user/purchase">My Payments</Link>
+              <Link to="/user/requests">My service request</Link>
               <Link to="/auth/switch-account" className="cart-dropdown-switch">Switch Account</Link>
               <LogoutLink>Log out</LogoutLink>
             </div>

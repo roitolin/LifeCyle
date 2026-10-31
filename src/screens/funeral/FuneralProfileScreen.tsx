@@ -9,6 +9,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  type ScrollViewInstance,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Card, Button as PaperButton, Chip } from "react-native-paper";
@@ -41,7 +42,7 @@ export default function FuneralProfileScreen({ navigation }: any) {
   const [uploading, setUploading] = useState(false);
   const [previewVisible, setPreviewVisible] = useState(false);
   const [startRegistrationVisible, setStartRegistrationVisible] = useState(false);
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
 
   const getDefaultImage = () => {
     return getDefaultProfileImage(gender);

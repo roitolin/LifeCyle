@@ -4,6 +4,7 @@ import AppBackButton from "./AppBackButton";
 type AppHeaderBackButtonProps = {
   onPress: () => void;
   accessibilityLabel?: string;
+  color?: string;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -16,12 +17,14 @@ type AppHeaderBackButtonProps = {
 export default function AppHeaderBackButton({
   onPress,
   accessibilityLabel = "Go back",
+  color,
   style,
 }: AppHeaderBackButtonProps) {
   return (
     <AppBackButton
       onPress={onPress}
       accessibilityLabel={accessibilityLabel}
+      color={color}
       style={[styles.button, style]}
     />
   );

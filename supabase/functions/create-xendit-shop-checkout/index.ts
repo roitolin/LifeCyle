@@ -443,8 +443,8 @@ Deno.serve(async (request: Request) => {
       return jsonResponse(request, { error: 'Your Xendit checkout is still being prepared. Try again in a moment.' }, 409);
     }
     await rejectPending(admin, pending.id, 'The Xendit checkout expired. Start a new payment.', 'expired');
-  } else if (pending?.paymentProvider === 'paymongo') {
-    await rejectPending(admin, pending.id, 'PayMongo checkout was retired. Start a new Xendit payment.', 'provider_retired');
+  } else if (pending?.paymentProvider && pending.paymentProvider !== 'xendit') {
+    await rejectPending(admin, pending.id, 'The previous checkout provider was retired. Start a new Xendit payment.', 'provider_retired');
   }
 
   const paymentId = crypto.randomUUID();

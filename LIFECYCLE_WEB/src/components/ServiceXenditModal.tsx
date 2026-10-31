@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  chooseServicePaymentOption,
   createServiceXenditCheckout,
   getServicePaymentMethods,
   syncServiceXenditCheckout,
+  type ServicePaymentOption,
   type ServicePaymentMethod,
 } from '@/utils/serviceXendit'
 import { PAYOUT_CHANNEL_LOGOS } from '@/assets/paymentLogoAssets'
@@ -17,6 +19,12 @@ export type ServiceXenditRequest = {
   variationName?: string | null
   productPrice?: number | string | null
   paymentAmount?: number | string | null
+  paymentOption?: 'pending' | ServicePaymentOption | null
+  productFullPrice?: number | string | null
+  downpaymentAmountSnapshot?: number | string | null
+  downpaymentPercentageSnapshot?: number | string | null
+  remainingBalance?: number | string | null
+  providerCheckoutId?: string | null
   status?: string | null
 }
 
@@ -64,6 +72,7 @@ export default function ServiceXenditModal({ isOpen, request, onClose, onSuccess
   const [paymentMethods, setPaymentMethods] = useState<ServicePaymentMethod[]>([])
   const [selectedMethod, setSelectedMethod] = useState('')
   const [loadingMethods, setLoadingMethods] = useState(false)
+  const [selectedPaymentOption, setSelectedPaymentOption] = useState<ServicePaymentOption | ''>('')
 
   // Reset state on modal open/close
   useEffect(() => {
@@ -75,6 +84,15 @@ export default function ServiceXenditModal({ isOpen, request, onClose, onSuccess
       setPaymentMethods([])
       setSelectedMethod('')
       setPaidConfirmed(request?.status === 'payment_verified')
+      if (request) {
+        const fullPrice = Number(request.productFullPrice ?? request.productPrice) || 0
+        const downpaymentAmount = Number(request.downpaymentAmountSnapshot) || 0
+        const hasDownpayment = downpaymentAmount > 0 && downpaymentAmount <= fullPrice
+        const savedOption = request.paymentOption === 'full' || request.paymentOption === 'downpayment'
+          ? request.paymentOption
+          : ''
+        setSelectedPaymentOption(request.providerCheckoutId ? savedOption : hasDownpayment ? '' : 'full')
+      }
     }
   }, [isOpen, request?.id, request?.status])
 
@@ -103,10 +121,15 @@ export default function ServiceXenditModal({ isOpen, request, onClose, onSuccess
 
   // Total numeric amount
   const totalAmount = useMemo(() => {
-    const raw = request?.paymentAmount ?? request?.productPrice ?? 0
+    const raw = request?.productFullPrice ?? request?.productPrice ?? 0
     const num = typeof raw === 'number' ? raw : Number(String(raw).replace(/[^\d.]/g, ''))
     return Number.isFinite(num) && num > 0 ? num : 0
-  }, [request?.paymentAmount, request?.productPrice])
+  }, [request?.productFullPrice, request?.productPrice])
+
+  const downpaymentAmount = Number(request?.downpaymentAmountSnapshot) || 0
+  const downpaymentPercentage = Number(request?.downpaymentPercentageSnapshot) || 0
+  const hasDownpayment = downpaymentAmount > 0 && downpaymentAmount <= totalAmount && downpaymentPercentage > 0
+  const amountToCharge = selectedPaymentOption === 'downpayment' ? downpaymentAmount : totalAmount
 
   // Sync status with edge function & backend
   const checkStatus = useCallback(async (silent = false) => {
@@ -161,11 +184,12 @@ export default function ServiceXenditModal({ isOpen, request, onClose, onSuccess
 
   // Start 1-Click Pay flow
   const handleStartPay = async () => {
-    if (!request?.id || !selectedMethod || starting) return
+    if (!request?.id || !selectedMethod || !selectedPaymentOption || starting) return
     setStarting(true)
     setError(null)
 
     try {
+      await chooseServicePaymentOption(request.id, selectedPaymentOption)
       const result = await createServiceXenditCheckout(request.id, selectedMethod)
       if (result.paid || result.status === 'payment_verified') {
         setPaidConfirmed(true)
@@ -283,9 +307,44 @@ export default function ServiceXenditModal({ isOpen, request, onClose, onSuccess
                   <span>Total amount</span>
                   <small>Authorized and encrypted</small>
                 </div>
-                <strong className="sxm-total-amount">{formatPhilippinePeso(totalAmount)}</strong>
+                <strong className="sxm-total-amount">{selectedPaymentOption ? formatPhilippinePeso(amountToCharge) : 'Choose below'}</strong>
               </div>
             </div>
+
+            {hasDownpayment ? (
+              <section className="sxm-payment-option-section" aria-labelledby="sxm-payment-option-title">
+                <div className="sxm-payment-option-heading">
+                  <h3 id="sxm-payment-option-title">Choose payment amount</h3>
+                  <p>Choose how much to pay now for this approved request.</p>
+                </div>
+                <div className="sxm-payment-option-list" role="radiogroup" aria-label="Payment amount">
+                  <button
+                    type="button"
+                    className={`sxm-payment-option${selectedPaymentOption === 'full' ? ' is-selected' : ''}`}
+                    onClick={() => setSelectedPaymentOption('full')}
+                    role="radio"
+                    aria-checked={selectedPaymentOption === 'full'}
+                  >
+                    <span><strong>Pay in full</strong><small>{formatPhilippinePeso(totalAmount)}</small></span>
+                    <i aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    className={`sxm-payment-option${selectedPaymentOption === 'downpayment' ? ' is-selected' : ''}`}
+                    onClick={() => setSelectedPaymentOption('downpayment')}
+                    role="radio"
+                    aria-checked={selectedPaymentOption === 'downpayment'}
+                  >
+                    <span>
+                      <strong>Down payment · {downpaymentPercentage}%</strong>
+                      <small>{formatPhilippinePeso(downpaymentAmount)}</small>
+                      <small>Remaining balance: {formatPhilippinePeso(totalAmount - downpaymentAmount)}</small>
+                    </span>
+                    <i aria-hidden="true" />
+                  </button>
+                </div>
+              </section>
+            ) : null}
 
             <section className="sxm-method-section" aria-labelledby="sxm-method-title">
               <div className="sxm-gateway-row">
@@ -359,7 +418,7 @@ export default function ServiceXenditModal({ isOpen, request, onClose, onSuccess
                 <button
                   type="button"
                   className="sxm-pay-btn"
-                  disabled={starting || loadingMethods || !selectedMethod || totalAmount <= 0}
+                  disabled={starting || loadingMethods || !selectedMethod || !selectedPaymentOption || amountToCharge <= 0}
                   onClick={handleStartPay}
                 >
                   {starting ? (
@@ -374,9 +433,11 @@ export default function ServiceXenditModal({ isOpen, request, onClose, onSuccess
                         <path d="M8 11V7a4 4 0 0 1 8 0v4" />
                       </svg>
                       <span>
-                        {selectedMethod
-                          ? 'Pay ' + formatPhilippinePeso(totalAmount) + ' with ' + (paymentMethods.find(method => method.code === selectedMethod)?.label || 'selected method')
-                          : 'Select a payment method'}
+                        {!selectedPaymentOption
+                          ? 'Choose full or down payment'
+                          : selectedMethod
+                            ? 'Pay ' + formatPhilippinePeso(amountToCharge) + ' with ' + (paymentMethods.find(method => method.code === selectedMethod)?.label || 'selected method')
+                            : 'Select a payment method'}
                       </span>
                     </>
                   )}

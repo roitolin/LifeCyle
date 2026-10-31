@@ -9,6 +9,7 @@ import {
 import {
   AboutUsScreen,
   ContactScreen,
+  DevelopersScreen,
   ProfileScreen,
 } from "@/pages/user";
 import {
@@ -48,6 +49,8 @@ import NotificationPreferencesScreen from '@/screens/shared/NotificationPreferen
 import PrivacyPolicyScreen from '@/screens/shared/PrivacyPolicyScreen';
 import TermsOfUseScreen from '@/screens/shared/TermsOfUseScreen';
 import ManageDeviceAccountsScreen from '@/screens/shared/ManageDeviceAccountsScreen';
+import { smoothStackTransition } from './navigationTransitions';
+import { colors } from '@/theme';
 
 const Stack = createNativeStackNavigator();
 
@@ -77,6 +80,7 @@ export default function FuneralProfileStackNavigator() {
           : AppHeaderBackButton;
 
         return {
+          ...smoothStackTransition,
           headerBackVisible: false,
           headerLeft: () => navigation.canGoBack() ? (
             <BackButton onPress={() => navigation.goBack()} />
@@ -165,6 +169,24 @@ export default function FuneralProfileStackNavigator() {
       <Stack.Screen name="AppFeedback" component={AppFeedbackScreen} options={{ title: "Rate & Feedback" }} />
       <Stack.Screen name="ReportCenter" component={DisputeReportScreen} options={{ title: "Report Center" }} />
       <Stack.Screen name="AboutUs" component={AboutUsScreen} options={{ title: "About Us" }} />
+      <Stack.Screen
+        name="Developers"
+        component={DevelopersScreen}
+        options={({ navigation: nav }) => ({
+          title: "Our developers",
+          headerStyle: { backgroundColor: colors.surfaceWarm },
+          headerTintColor: colors.text,
+          headerTitleAlign: "center",
+          headerTitleStyle: { color: colors.text, fontWeight: "800" },
+          contentStyle: { backgroundColor: colors.surfaceMuted },
+          headerLeft: () => (
+            <AppHeaderBackButton
+              color={colors.text}
+              onPress={() => nav.canGoBack() ? nav.goBack() : nav.navigate("AboutUs")}
+            />
+          ),
+        })}
+      />
     </Stack.Navigator>
   );
 }

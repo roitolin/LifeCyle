@@ -53,7 +53,7 @@ type ShopPayment = {
   status?: string | null;
   expiresAt?: string | null;
   verifiedAt?: string | null;
-  paymentProvider?: "manual" | "paymongo" | "xendit";
+  paymentProvider?: string;
 };
 
 function getStatusMeta(status: ShopStatus) {
@@ -79,13 +79,13 @@ const styles = StyleSheet.create({
   identityCard: {
     overflow: "hidden", borderRadius: 22, borderWidth: 1, borderColor: "#cfd6d1", backgroundColor: "#ffffff",
   },
-  identityBackdrop: { height: 54, backgroundColor: "#dce7dd" },
-  identityCover: { width: "100%", height: "100%", opacity: 0.72 },
+  identityBackdrop: { height: 86, backgroundColor: "#dce7dd" },
+  identityCover: { width: "100%", height: "100%" },
   identityContent: {
-    minHeight: 92, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingBottom: 13,
+    minHeight: 96, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingBottom: 14,
   },
   identityAvatar: {
-    width: 66, height: 66, borderRadius: 22, marginTop: -24, borderWidth: 3, borderColor: "#ffffff",
+    width: 74, height: 74, borderRadius: 37, marginTop: -26, borderWidth: 3, borderColor: "#ffffff",
     backgroundColor: "#e9efea", overflow: "hidden", alignItems: "center", justifyContent: "center",
   },
   identityImage: { width: "100%", height: "100%" },

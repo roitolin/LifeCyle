@@ -20,8 +20,10 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
+  chooseServicePaymentOption,
   createServiceXenditCheckout,
   getServicePaymentMethods,
+  type ServicePaymentOption,
   type ServicePaymentMethod,
   syncServiceXenditCheckout,
 } from '@/services/serviceXendit';
@@ -33,6 +35,12 @@ export type XenditServiceRequest = {
   productName?: string | null;
   productPrice?: number | string | null;
   paymentAmount?: number | string | null;
+  paymentOption?: 'pending' | ServicePaymentOption | null;
+  productFullPrice?: number | string | null;
+  downpaymentAmountSnapshot?: number | string | null;
+  downpaymentPercentageSnapshot?: number | string | null;
+  remainingBalance?: number | string | null;
+  providerCheckoutId?: string | null;
   productImageUrl?: string | null;
   variationName?: string | null;
   status?: string | null;
@@ -81,6 +89,7 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
   const [paymentMethods, setPaymentMethods] = useState<ServicePaymentMethod[]>([]);
   const [selectedMethod, setSelectedMethod] = useState('');
   const [methodsError, setMethodsError] = useState<string | null>(null);
+  const [selectedPaymentOption, setSelectedPaymentOption] = useState<ServicePaymentOption | ''>('');
 
   const [backdropOpacity] = useState(() => new Animated.Value(0));
   const [sheetProgress] = useState(() => new Animated.Value(0));
@@ -110,6 +119,15 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
 
   useEffect(() => {
     if (!visible || !request) return;
+
+    const fullPrice = Number(request.productFullPrice ?? request.productPrice) || 0;
+    const downpaymentAmount = Number(request.downpaymentAmountSnapshot) || 0;
+    const hasDownpayment = downpaymentAmount > 0 && downpaymentAmount <= fullPrice;
+    const savedOption = request.paymentOption === 'full' || request.paymentOption === 'downpayment'
+      ? request.paymentOption
+      : '';
+    const checkoutStarted = Boolean(request.providerCheckoutId);
+    setSelectedPaymentOption(checkoutStarted ? savedOption : (hasDownpayment ? '' : 'full'));
 
     const targetRequestId = String(request.id || (request as any)?.requestId || (request as any)?._id || '').trim();
     if (!targetRequestId) return;
@@ -191,15 +209,23 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
     return () => subscription.remove();
   }, [handleClose, onChanged, visible, request]);
 
-  // Compute clean full price only
-  const totalAmount = useMemo(() => {
-    const raw = request?.paymentAmount ?? request?.productPrice ?? 0;
+  const fullPrice = useMemo(() => {
+    const raw = request?.productFullPrice ?? request?.productPrice ?? 0;
     const num = typeof raw === 'number' ? raw : Number(String(raw).replace(/[^\d.]/g, ''));
     return Number.isFinite(num) && num > 0 ? num : 0;
-  }, [request?.paymentAmount, request?.productPrice]);
+  }, [request?.productFullPrice, request?.productPrice]);
+
+  const downpaymentAmount = useMemo(() => {
+    const num = Number(request?.downpaymentAmountSnapshot);
+    return Number.isFinite(num) && num > 0 && num <= fullPrice ? num : 0;
+  }, [fullPrice, request?.downpaymentAmountSnapshot]);
+
+  const downpaymentPercentage = Number(request?.downpaymentPercentageSnapshot) || 0;
+  const hasDownpayment = downpaymentAmount > 0 && downpaymentPercentage > 0;
+  const totalAmount = selectedPaymentOption === 'downpayment' ? downpaymentAmount : fullPrice;
 
   const handleOneClickPay = async () => {
-    if (!request || !selectedMethod || starting) return;
+    if (!request || !selectedMethod || !selectedPaymentOption || starting) return;
     const targetRequestId = String(request.id || (request as any)?.requestId || (request as any)?._id || '').trim();
     if (!targetRequestId) {
       Alert.alert(
@@ -210,6 +236,7 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
     }
     setStarting(true);
     try {
+      await chooseServicePaymentOption(targetRequestId, selectedPaymentOption);
       const result = await createServiceXenditCheckout(targetRequestId, selectedMethod);
       if (result.paid) {
         await onChanged?.();
@@ -345,7 +372,7 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
           <View style={styles.summaryCard}>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Order Subtotal</Text>
-              <Text style={styles.summaryValue}>{formatPhilippinePeso(totalAmount)}</Text>
+              <Text style={styles.summaryValue}>{formatPhilippinePeso(fullPrice)}</Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Packages & Services</Text>
@@ -357,9 +384,59 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
                 <Text style={styles.totalMainLabel}>Total Amount</Text>
                 <Text style={styles.totalSubNotice}>Authorized & encrypted</Text>
               </View>
-              <Text style={styles.totalMainValue}>{formatPhilippinePeso(totalAmount)}</Text>
+              <Text style={styles.totalMainValue}>
+                {selectedPaymentOption ? formatPhilippinePeso(totalAmount) : 'Choose below'}
+              </Text>
             </View>
           </View>
+
+          {hasDownpayment ? (
+            <View style={styles.paymentOptionSection}>
+              <View style={styles.paymentOptionHeader}>
+                <Text style={styles.paymentOptionTitle}>Choose payment amount</Text>
+                <Text style={styles.paymentOptionHint}>Select this before continuing to Xendit.</Text>
+              </View>
+              <View style={styles.paymentOptionList}>
+                <TouchableOpacity
+                  style={[styles.paymentOptionCard, selectedPaymentOption === 'full' && styles.paymentOptionCardSelected]}
+                  onPress={() => setSelectedPaymentOption('full')}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: selectedPaymentOption === 'full' }}
+                >
+                  <View style={styles.paymentOptionCopy}>
+                    <Text style={styles.paymentOptionLabel}>Pay in full</Text>
+                    <Text style={styles.paymentOptionAmount}>{formatPhilippinePeso(fullPrice)}</Text>
+                  </View>
+                  <Ionicons
+                    name={selectedPaymentOption === 'full' ? 'radio-button-on' : 'radio-button-off'}
+                    size={22}
+                    color={selectedPaymentOption === 'full' ? '#315f50' : '#94a3b8'}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.paymentOptionCard, selectedPaymentOption === 'downpayment' && styles.paymentOptionCardSelected]}
+                  onPress={() => setSelectedPaymentOption('downpayment')}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: selectedPaymentOption === 'downpayment' }}
+                >
+                  <View style={styles.paymentOptionCopy}>
+                    <Text style={styles.paymentOptionLabel}>Down payment</Text>
+                    <Text style={styles.paymentOptionAmount}>
+                      {formatPhilippinePeso(downpaymentAmount)} · {downpaymentPercentage}%
+                    </Text>
+                    <Text style={styles.paymentOptionBalance}>
+                      Remaining balance: {formatPhilippinePeso(Math.max(0, fullPrice - downpaymentAmount))}
+                    </Text>
+                  </View>
+                  <Ionicons
+                    name={selectedPaymentOption === 'downpayment' ? 'radio-button-on' : 'radio-button-off'}
+                    size={22}
+                    color={selectedPaymentOption === 'downpayment' ? '#315f50' : '#94a3b8'}
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : null}
 
           {/* Payment Method Info Badge */}
           <View style={styles.methodRow}>
@@ -434,8 +511,8 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
 
           {/* High-visibility Action Button */}
           <TouchableOpacity
-            style={[styles.payButton, (starting || loadingMethods || !request || !selectedMethod || totalAmount <= 0) && styles.buttonDisabled]}
-            disabled={starting || loadingMethods || !request || !selectedMethod || totalAmount <= 0}
+            style={[styles.payButton, (starting || loadingMethods || !request || !selectedMethod || !selectedPaymentOption || totalAmount <= 0) && styles.buttonDisabled]}
+            disabled={starting || loadingMethods || !request || !selectedMethod || !selectedPaymentOption || totalAmount <= 0}
             onPress={() => void handleOneClickPay()}
             activeOpacity={0.88}
           >
@@ -448,7 +525,9 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
               <View style={styles.buttonInnerRow}>
                 <Ionicons name="lock-closed" size={17} color="#ffffff" />
                 <Text style={styles.payButtonText}>
-                  {selectedMethod
+                  {!selectedPaymentOption
+                    ? 'Choose full or down payment'
+                    : selectedMethod
                     ? `Pay ${formatPhilippinePeso(totalAmount)} with ${paymentMethods.find((method) => method.code === selectedMethod)?.label || 'selected method'}`
                     : 'Select a payment method'}
                 </Text>
@@ -606,6 +685,61 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e2e8f0',
     marginBottom: 14,
+  },
+  paymentOptionSection: {
+    marginBottom: 16,
+  },
+  paymentOptionHeader: {
+    marginBottom: 9,
+    paddingHorizontal: 2,
+  },
+  paymentOptionTitle: {
+    color: '#0f172a',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  paymentOptionHint: {
+    color: '#64748b',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  paymentOptionList: {
+    gap: 8,
+  },
+  paymentOptionCard: {
+    minHeight: 68,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#ffffff',
+  },
+  paymentOptionCardSelected: {
+    borderColor: '#315f50',
+    backgroundColor: '#eef4f0',
+  },
+  paymentOptionCopy: {
+    flex: 1,
+  },
+  paymentOptionLabel: {
+    color: '#334155',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  paymentOptionAmount: {
+    color: '#315f50',
+    fontSize: 16,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+  paymentOptionBalance: {
+    color: '#64748b',
+    fontSize: 10,
+    marginTop: 2,
   },
   summaryRow: {
     flexDirection: 'row',

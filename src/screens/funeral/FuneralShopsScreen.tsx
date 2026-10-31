@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Image, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Image, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, type ScrollViewInstance } from "react-native";
 import LoadingBird from '@/components/LoadingBird';
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -27,7 +27,7 @@ export default function FuneralShopsScreen({ navigation }: any) {
   const [query, setQuery] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [failedImageIds, setFailedImageIds] = useState<Set<string>>(() => new Set());
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
 
   const loadShops = useCallback(async () => {
     setLoadError(null);

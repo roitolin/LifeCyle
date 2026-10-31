@@ -50,6 +50,11 @@ type FuneralServiceRequest = {
   shopAddress?: string | null;
   productName: string;
   productPrice?: number | string | null;
+  paymentOption?: "pending" | "full" | "downpayment" | null;
+  productFullPrice?: number | string | null;
+  downpaymentAmountSnapshot?: number | string | null;
+  downpaymentPercentageSnapshot?: number | string | null;
+  remainingBalance?: number | string | null;
   productImageUrl?: string | null;
   variationName?: string | null;
   packageItems?: string[] | null;
@@ -80,7 +85,8 @@ type FuneralServiceRequest = {
   paymentSubmittedAt?: any;
   paymentVerifiedAt?: any;
   paymentRejectionReason?: string | null;
-  paymentProvider?: "manual" | "paymongo" | "xendit";
+  paymentProvider?: string;
+  providerCheckoutId?: string | null;
   providerPaymentMethod?: string | null;
   completionProofImageUrl?: string | null;
   shopMarkedCompletedAt?: any;
@@ -131,8 +137,7 @@ const hasPaymentSetup = (request: FuneralServiceRequest) =>
 
 const needsPayment = (request: FuneralServiceRequest) =>
   !request.sharedWithMe &&
-  String(request.status || "").toLowerCase() === "awaiting_payment" &&
-  hasPaymentSetup(request);
+  String(request.status || "").toLowerCase() === "awaiting_payment";
 
 const formatPeso = (value: number | string | null | undefined) => {
   const num = Number(value);
@@ -273,7 +278,7 @@ const getStatusMeta = (status: string) => {
       label: "Awaiting Payment",
       background: "#e0eefa",
       text: "#1c4f7e",
-      message: "Payment details are ready. Send the amount to the shop and submit your proof below.",
+      message: "The shop approved your request. Tap Pay Online, then choose full payment or down payment.",
     };
   }
   if (normalized === "payment_submitted") {
@@ -796,7 +801,10 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
 
   const canShowPaymentSection = (request: FuneralServiceRequest) => {
     const status = String(request.status || "").toLowerCase();
-    return !request.sharedWithMe && ["awaiting_payment", "payment_submitted", "payment_verified", "awaiting_customer_confirmation", "completed"].includes(status) && hasPaymentSetup(request);
+    if (request.sharedWithMe) return false;
+    if (status === "awaiting_payment") return true;
+    return ["payment_submitted", "payment_verified", "awaiting_customer_confirmation", "completed"].includes(status)
+      && hasPaymentSetup(request);
   };
 
   const confirmDoneRequest = useCallback(
@@ -1395,8 +1403,18 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
 
                     {Number(selectedRequest.paymentAmount) > 0 ? (
                       <View style={styles.paymentAmountRow}>
-                        <Text style={styles.paymentAmountLabel}>Amount to send</Text>
-                        <Text style={styles.paymentAmountValue}>₱{Number(selectedRequest.paymentAmount).toLocaleString("en-PH")}</Text>
+                        <Text style={styles.paymentAmountLabel}>
+                          {String(selectedRequest.status || "").toLowerCase() === "awaiting_payment" && Number(selectedRequest.downpaymentAmountSnapshot) > 0
+                            ? "Full product price"
+                            : "Amount to send"}
+                        </Text>
+                        <Text style={styles.paymentAmountValue}>
+                          ₱{Number(
+                            String(selectedRequest.status || "").toLowerCase() === "awaiting_payment"
+                              ? selectedRequest.productFullPrice || selectedRequest.productPrice || selectedRequest.paymentAmount
+                              : selectedRequest.paymentAmount
+                          ).toLocaleString("en-PH")}
+                        </Text>
                       </View>
                     ) : null}
 
@@ -1632,7 +1650,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
       >
         {paymentRequest ? (
           <View style={styles.paymentSuccessScreen}>
-            <StatusBar barStyle="light-content" backgroundColor="#101312" translucent />
+            <StatusBar barStyle="light-content" />
             <ScrollView
               style={styles.paymentSuccessScroll}
               contentContainerStyle={styles.paymentSuccessContent}
@@ -1739,7 +1757,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                   <View style={styles.paymentDetailsAccordionBody}>
                     <View style={styles.paymentSuccessDetailRow}>
                       <Text style={styles.paymentSuccessDetailLabel}>Payment Method</Text>
-                      <Text style={styles.paymentSuccessDetailValue}>{paymentRequest.paymentProvider === "xendit" ? "Xendit 1-Click Pay" : paymentRequest.paymentProvider === "paymongo" ? "Online Payment" : "GCash / E-wallet"}</Text>
+                      <Text style={styles.paymentSuccessDetailValue}>{paymentRequest.paymentProvider === "xendit" ? "Xendit 1-Click Pay" : paymentRequest.providerPaymentMethod ? "Legacy online payment" : "GCash / E-wallet"}</Text>
                     </View>
                     {paymentRequest.paymentPayerName ? (
                       <View style={styles.paymentSuccessDetailRow}>

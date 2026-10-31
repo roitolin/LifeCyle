@@ -8,6 +8,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   findNodeHandle,
+  type TextInputInstance,
 } from "react-native";
 import { Button as PaperButton } from "react-native-paper";
 import { AppBackButton, KeyboardAwareScrollView } from "@/components";
@@ -21,7 +22,7 @@ export default function ForgotPasswordScreen({ navigation, route }: any) {
   const [loading, setLoading] = useState(false);
   const { isDesktop } = useResponsive();
   const scrollRef = useRef<any>(null);
-  const emailRef = useRef<TextInput>(null);
+  const emailRef = useRef<TextInputInstance>(null);
   const [entrance] = useState(() => new Animated.Value(0));
   const { showDialog, dialog } = useAppDialog();
 

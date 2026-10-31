@@ -33,13 +33,6 @@ type AccountSwitcherProps = {
   onManageAccounts: () => void;
 };
 
-const avatarColors = ['#9b3a3a', '#315f78', '#8a5a44', '#3f6f58', '#765a2f'];
-
-function avatarColor(accountId: string) {
-  const total = accountId.split('').reduce((sum, character) => sum + character.charCodeAt(0), 0);
-  return avatarColors[total % avatarColors.length];
-}
-
 export function DeviceAccountAvatar({
   account,
   size = 38,

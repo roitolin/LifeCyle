@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, Linking, StyleSheet, TextInput, View } from "react-native";
+import { Alert, Linking, StyleSheet, TextInput, View, type TextInputInstance } from "react-native";
 import { Button, Text } from "react-native-paper";
 import { AppBackButton } from "@/components";
 import { colors, radii, spacing } from "@/theme";
@@ -18,7 +18,7 @@ export default function VerifyEmailScreen({ navigation, route }: any) {
   const [status, setStatus] = useState("");
   const [statusIsError, setStatusIsError] = useState(false);
   const [codeFocused, setCodeFocused] = useState(false);
-  const codeInputRef = useRef<TextInput>(null);
+  const codeInputRef = useRef<TextInputInstance>(null);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;

@@ -68,6 +68,9 @@ type ShopProduct = {
   active: boolean
   hasVariations: boolean
   variationCount: number
+  downpaymentEnabled: boolean
+  downpaymentAmount: number | null
+  downpaymentPercentage: number | null
   createdAt: string
   updatedAt: string
 }
@@ -421,7 +424,7 @@ function getFamilyPaymentReceipt(request: ServiceRequest): FamilyPaymentReceipt 
 
   const status = String(request.status || '').toLowerCase()
   const provider = String(request.paymentProvider || '').toLowerCase()
-  const isProviderPayment = ['xendit', 'paymongo'].includes(provider)
+  const isProviderPayment = provider === 'xendit'
     || Boolean(request.providerPaymentId || request.providerPaymentCompletedAt)
   const isSettled = Boolean(request.paymentVerifiedAt || request.providerPaymentCompletedAt)
     || ['payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(status)
@@ -871,6 +874,8 @@ export default function SellerCentrePage() {
   const [editorName, setEditorName] = useState("")
   const [editorPrice, setEditorPrice] = useState("")
   const [editorStock, setEditorStock] = useState("1")
+  const [editorDownpaymentEnabled, setEditorDownpaymentEnabled] = useState(false)
+  const [editorDownpaymentAmount, setEditorDownpaymentAmount] = useState("")
   const [editorHasVariations, setEditorHasVariations] = useState(false)
   const [editorVariationEntries, setEditorVariationEntries] = useState<ProductVariation[]>([])
   const [editorDescription, setEditorDescription] = useState("")
@@ -878,6 +883,11 @@ export default function SellerCentrePage() {
   const [editorUploadingIndex, setEditorUploadingIndex] = useState<number | null>(null)
   const [packageSaving, setPackageSaving] = useState(false)
   const [uploadingPackageItemId, setUploadingPackageItemId] = useState<string | null>(null)
+  const editorNumericPrice = Number(editorPrice.trim().replace(/[^\d.]/g, "")) || 0
+  const editorNumericDownpaymentAmount = Number(editorDownpaymentAmount.trim().replace(/[^\d.]/g, "")) || 0
+  const editorDownpaymentPercentage = editorDownpaymentEnabled && editorNumericPrice > 0 && editorNumericDownpaymentAmount > 0
+    ? Math.round((editorNumericDownpaymentAmount / editorNumericPrice) * 10_000) / 100
+    : 0
 
   const openProductEditor = async (productId: string | null) => {
     setEditingProductId(productId)
@@ -886,6 +896,8 @@ export default function SellerCentrePage() {
       setEditorName("")
       setEditorPrice("")
       setEditorStock("1")
+      setEditorDownpaymentEnabled(false)
+      setEditorDownpaymentAmount("")
       setEditorHasVariations(false)
       setEditorVariationEntries([{ name: "", price: "", imageUrl: null }])
       setEditorDescription("")
@@ -910,6 +922,12 @@ export default function SellerCentrePage() {
         setEditorName(data.name || "")
         setEditorPrice(String(data.price || ""))
         setEditorStock(String(data.stock ?? 1))
+        setEditorDownpaymentEnabled(Boolean(data.downpaymentEnabled))
+        const existingDownpaymentAmount = data.downpaymentAmount
+          ?? (data.downpaymentPercentage == null
+            ? null
+            : (Number(data.price) * Number(data.downpaymentPercentage)) / 100)
+        setEditorDownpaymentAmount(existingDownpaymentAmount == null ? "" : String(existingDownpaymentAmount))
         
         const galleryImageUrls = (data.funeral_product_images || [])
           .sort((a: any, b: any) => (a.displayOrder || 0) - (b.displayOrder || 0))
@@ -1341,6 +1359,14 @@ export default function SellerCentrePage() {
       return
     }
 
+    if (
+      editorDownpaymentEnabled
+      && (editorNumericDownpaymentAmount <= 0 || editorNumericDownpaymentAmount > priceValue)
+    ) {
+      openAlert({ title: 'Invalid Down Payment', message: "Enter an amount greater than PHP 0 and not higher than the original product price.", tone: 'warning', okLabel: 'Got It' })
+      return
+    }
+
     const uploadedCount = editorImages.filter(Boolean).length
     if (uploadedCount < 1) {
       openAlert({ title: 'Photo Required', message: "Please upload at least 1 product photo.", tone: 'warning', okLabel: 'Got It' })
@@ -1372,6 +1398,9 @@ export default function SellerCentrePage() {
         stock: stockValue,
         imageUrl: editorImages[0] || null,
         hasVariations: editorHasVariations,
+        downpaymentEnabled: editorDownpaymentEnabled,
+        downpaymentAmount: editorDownpaymentEnabled ? editorNumericDownpaymentAmount : null,
+        downpaymentPercentage: editorDownpaymentEnabled ? editorDownpaymentPercentage : null,
         active: stockValue > 0,
         updatedAt: new Date().toISOString(),
       })
@@ -1597,7 +1626,8 @@ export default function SellerCentrePage() {
   }
 
   const loadData = useCallback(async () => {
-    if (!user) return
+    const userId = user?.id
+    if (!userId) return
     if (!shop) {
       setLoading(true)
     }
@@ -1606,7 +1636,7 @@ export default function SellerCentrePage() {
       const { data: shopData, error: shopErr } = await supabase
         .from('funeral_shops')
         .select('*')
-        .eq('id', user.id)
+        .eq('id', userId)
         .maybeSingle()
       if (shopErr) throw shopErr
 
@@ -1626,7 +1656,7 @@ export default function SellerCentrePage() {
       const { data: payoutAccountData, error: payoutAccountError } = await supabase
         .from('funeral_shop_payout_accounts')
         .select('id, "shopId", "channelCode", "accountName", "accountNumber", active, "verifiedByAdmin", "verifiedAt", "createdAt", "updatedAt"')
-        .eq('shopId', user.id)
+        .eq('shopId', userId)
         .order('createdAt', { ascending: true })
       if (payoutAccountError) throw payoutAccountError
       setPayoutAccounts(((payoutAccountData || []) as ShopPayoutAccount[]).filter(account =>
@@ -1636,7 +1666,7 @@ export default function SellerCentrePage() {
       const { data: paymentData } = await supabase
         .from('shop_payments')
         .select('id, status, amount, "createdAt", "verifiedAt", "expiresAt"')
-        .eq('shopId', user.id)
+        .eq('shopId', userId)
         .order('createdAt', { ascending: false })
         .limit(1)
         .maybeSingle()
@@ -1645,10 +1675,10 @@ export default function SellerCentrePage() {
       const { data: productsData, error: productsErr } = await supabase
         .from('funeral_products')
         .select(`
-          id, name, description, price, stock, "imageUrl", active, "hasVariations", "createdAt", "updatedAt",
+          id, name, description, price, stock, "imageUrl", active, "hasVariations", "downpaymentEnabled", "downpaymentAmount", "downpaymentPercentage", "createdAt", "updatedAt",
           funeral_product_variations ( id )
         `)
-        .eq('shopId', user.id)
+        .eq('shopId', userId)
         .order('createdAt', { ascending: false })
       if (productsErr) throw productsErr
 
@@ -1663,6 +1693,9 @@ export default function SellerCentrePage() {
         hasVariations:
           Boolean(row.hasVariations) || (row.funeral_product_variations ?? []).length > 0,
         variationCount: (row.funeral_product_variations ?? []).length,
+        downpaymentEnabled: Boolean(row.downpaymentEnabled),
+        downpaymentAmount: row.downpaymentAmount == null ? null : Number(row.downpaymentAmount),
+        downpaymentPercentage: row.downpaymentPercentage == null ? null : Number(row.downpaymentPercentage),
         createdAt: row.createdAt ?? '',
         updatedAt: row.updatedAt ?? '',
       }))
@@ -1671,12 +1704,12 @@ export default function SellerCentrePage() {
       const { data: packagesData, error: packagesErr } = await supabase
         .from('funeral_shop_packages')
         .select('id, "shopId", items, "flowersImageUrl", "candlesImageUrl", "curtainsImageUrl", "vehicleImageUrl", active, "createdAt", "updatedAt"')
-        .eq('shopId', user.id)
+        .eq('shopId', userId)
         .maybeSingle()
       if (packagesErr) throw packagesErr
       setPackages(packagesData ? [{
         id: String((packagesData as any).id),
-        shopId: String((packagesData as any).shopId || user.id),
+        shopId: String((packagesData as any).shopId || userId),
         items: normalizePackageItems(packagesData as ShopPackage),
         flowersImageUrl: (packagesData as any).flowersImageUrl ?? null,
         candlesImageUrl: (packagesData as any).candlesImageUrl ?? null,
@@ -1691,7 +1724,7 @@ export default function SellerCentrePage() {
         supabase
           .from('funeral_service_requests')
           .select('*')
-          .eq('shopId', user.id)
+          .eq('shopId', userId)
           .order('createdAt', { ascending: false })
           .limit(250),
       ])
@@ -1721,7 +1754,7 @@ export default function SellerCentrePage() {
     } finally {
       setLoading(false)
     }
-  }, [user?.id])
+  }, [shop, user?.id])
 
   useEffect(() => { if (user?.id) void loadData() }, [user?.id, loadData])
 
@@ -4893,6 +4926,50 @@ export default function SellerCentrePage() {
                         </div>
                       </div>
 
+                      {/* Down Payment */}
+                      <div className="sc-editor-section">
+                        <div className="sc-downpayment-panel">
+                          <div className="sc-downpayment-heading">
+                            <div>
+                              <h3>Offer a Down Payment</h3>
+                              <p>Enter the peso amount customers pay first. The percentage is calculated automatically from the original product price.</p>
+                            </div>
+                            <label className="sc-checkbox-label">
+                              <input
+                                type="checkbox"
+                                checked={editorDownpaymentEnabled}
+                                onChange={(event) => setEditorDownpaymentEnabled(event.target.checked)}
+                              />
+                              <span className="sc-checkbox-text">Enabled</span>
+                            </label>
+                          </div>
+
+                          {editorDownpaymentEnabled && (
+                            <div className="sc-downpayment-fields">
+                              <div className="sc-form-group">
+                                <label htmlFor="prodDownpaymentAmount">Down Payment Amount</label>
+                                <div className="sc-amount-input-wrap">
+                                  <span>PHP</span>
+                                  <input
+                                    id="prodDownpaymentAmount"
+                                    type="text"
+                                    inputMode="decimal"
+                                    className="sc-form-input"
+                                    placeholder="50,000"
+                                    value={editorDownpaymentAmount}
+                                    onChange={(event) => setEditorDownpaymentAmount(event.target.value)}
+                                  />
+                                </div>
+                              </div>
+                              <div className="sc-downpayment-preview" aria-live="polite">
+                                <span>Automatically calculated</span>
+                                <strong>{editorDownpaymentPercentage > 0 ? `${editorDownpaymentPercentage}% of ${formatPeso(editorNumericPrice)}` : 'Enter an amount and price'}</strong>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
                       {/* Variations Section */}
                       <div className="sc-editor-section">
                         <div className="sc-variation-toggle-row">
@@ -5202,6 +5279,7 @@ export default function SellerCentrePage() {
                   <dl className="sc-product-modal-facts">
                     <div><dt>Available stock</dt><dd>{selectedProduct.stock}</dd></div>
                     <div><dt>Variations</dt><dd>{selectedProduct.hasVariations ? selectedProduct.variationCount : 'None'}</dd></div>
+                    <div><dt>Down payment</dt><dd>{selectedProduct.downpaymentEnabled ? `${formatPeso(selectedProduct.downpaymentAmount)} (${selectedProduct.downpaymentPercentage}%)` : 'Not offered'}</dd></div>
                     <div><dt>Photos</dt><dd>{galleryImages.length}</dd></div>
                     <div><dt>Added</dt><dd>{selectedProduct.createdAt ? new Date(selectedProduct.createdAt).toLocaleDateString() : '—'}</dd></div>
                   </dl>
@@ -5333,7 +5411,7 @@ export default function SellerCentrePage() {
         const status = String(r.status || '').toLowerCase()
         const paymentReceipt = getFamilyPaymentReceipt(r)
         const isProviderReceipt = paymentReceipt.source === 'provider'
-        const providerLabel = String(r.paymentProvider || '').toLowerCase() === 'paymongo' ? 'PayMongo' : 'Xendit'
+        const providerLabel = String(r.paymentProvider || '').toLowerCase() === 'xendit' ? 'Xendit' : 'Legacy online payment'
         const rawProviderMethod = r.providerPaymentMethod || r.payoutChannelCode || ''
         const providerMethodLabel = r.payoutChannelCode
           ? getPayoutChannelLabel(r.payoutChannelCode)

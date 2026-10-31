@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { APP_ICON_TRANSPARENT_URL } from '@/assets/appIconAssets'
+import { getDefaultProfileAvatar } from '@/utils/profileAvatar'
 import {
   addDoc,
   arrayRemove,
@@ -51,8 +52,7 @@ type UserInfo = {
 }
 
 function getDefaultAvatar(gender?: string) {
-  if (String(gender || '').toLowerCase() === 'female') return '/Female.png'
-  return '/Male.png'
+  return getDefaultProfileAvatar(gender)
 }
 
 function formatTime(value: unknown) {

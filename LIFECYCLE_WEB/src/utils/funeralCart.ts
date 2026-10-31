@@ -1,12 +1,20 @@
 const FUNERAL_CART_KEY = 'funeral_cart_v1'
 
+export type FuneralPaymentOption = 'full' | 'downpayment'
+
 export type WebFuneralCartItem = {
   cartId: string
   productId: string
   shopId: string
   shopName: string
   name: string
+  /** Full product price. Payment is selected after shop approval. */
   price: number
+  fullPrice: number
+  paymentOption: FuneralPaymentOption
+  downpaymentAmount?: number | null
+  downpaymentPercentage?: number | null
+  remainingBalance?: number
   imageUrl?: string | null
   variationId?: string | null
   variationName?: string | null
@@ -20,7 +28,18 @@ function readCart(): WebFuneralCartItem[] {
     if (!raw) return []
     const parsed = JSON.parse(raw)
     return Array.isArray(parsed)
-      ? parsed.map((item) => ({ ...item, quantity: 1 }))
+      ? parsed.map((item) => {
+          const price = Number(item.price) || 0
+          const fullPrice = Number(item.fullPrice) || price
+          return {
+            ...item,
+            price: fullPrice,
+            fullPrice,
+            paymentOption: 'full',
+            remainingBalance: 0,
+            quantity: 1,
+          }
+        })
       : []
   } catch {
     return []
@@ -50,6 +69,11 @@ export function addFuneralCartItem(item: Omit<WebFuneralCartItem, 'cartId' | 'qu
     shopName: item.shopName,
     name: item.name,
     price: item.price,
+    fullPrice: item.fullPrice,
+    paymentOption: item.paymentOption,
+    downpaymentAmount: item.downpaymentAmount,
+    downpaymentPercentage: item.downpaymentPercentage,
+    remainingBalance: item.remainingBalance,
     imageUrl: item.imageUrl,
     variationId: item.variationId,
     variationName: item.variationName,

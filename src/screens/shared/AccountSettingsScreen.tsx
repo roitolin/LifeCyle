@@ -163,7 +163,7 @@ export default function AccountSettingsScreen({ navigation }: any) {
         <Card style={styles.headerCard}>
           <Card.Content>
             <Text style={styles.title}>Personal details</Text>
-            <Text style={styles.subtitle}>Update your registration information and profile photo.</Text>
+            <Text style={styles.subtitle}>Complete your personal details and choose an optional profile photo.</Text>
           </Card.Content>
         </Card>
 

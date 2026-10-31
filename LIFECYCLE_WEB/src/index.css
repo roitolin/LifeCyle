@@ -872,6 +872,41 @@ main {
   @apply [background:#22312d] border-t-[rgba(255,255,255,0.12)];
 }
 
+/* Keep the compact login preference row from inheriting full-size form input styles. */
+.auth-form .auth-remember-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  margin: 0;
+  color: #58677b;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.auth-form .auth-remember-option input[type="checkbox"] {
+  appearance: auto;
+  -webkit-appearance: checkbox;
+  width: 16px;
+  min-width: 16px;
+  max-width: 16px;
+  height: 16px;
+  min-height: 16px;
+  flex: 0 0 16px;
+  margin: 0;
+  padding: 0;
+  accent-color: #315f50;
+}
+
+.auth-form .auth-forgot-row a {
+  flex: none;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 /* Final responsive layout guardrails. Keep wide layouts spacious while preventing
    long labels, media, and nested panels from creating a horizontal page scroll. */
 html,
@@ -1832,10 +1867,23 @@ select:focus-visible {
   @apply text-emerald-700 font-semibold;
 }
 .auth-forgot-row {
-  @apply flex justify-end mt-[-2px];
+  @apply flex items-center justify-between gap-[12px] mt-[-2px];
+}
+.auth-remember-option {
+  @apply inline-flex items-center gap-[7px] text-slate-600 text-[0.82rem] font-semibold cursor-pointer;
+}
+.auth-remember-option input {
+  @apply accent-[#315f50] w-[15px] h-[15px] m-0;
 }
 .auth-forgot-row a {
   @apply text-slate-600 text-[0.84rem] font-bold no-underline hover:text-[#22312d] hover:underline;
+}
+.profile-setup-status {
+  @apply flex items-center gap-[7px] mt-[7px] mb-0 text-amber-800 text-[0.8rem] font-semibold;
+}
+.profile-setup-status span {
+  @apply inline-block w-[8px] h-[8px] flex-none [background:#e7a62a] rounded-full;
+  box-shadow: 0 0 0 3px rgba(231, 166, 42, 0.16);
 }
 .auth-helper-text {
   @apply text-slate-500 text-[0.82rem] leading-normal m-0;
@@ -1854,6 +1902,30 @@ select:focus-visible {
 }
 .auth-submit-loading {
   @apply animate-[login-pulse_900ms_ease-in-out_infinite];
+}
+.social-auth {
+  @apply grid gap-[10px] mt-[18px];
+}
+.social-auth-divider {
+  @apply flex items-center gap-[12px] text-slate-400 text-[0.7rem] font-extrabold tracking-[0.12em] uppercase;
+}
+.social-auth-divider::before,
+.social-auth-divider::after {
+  content: "";
+  @apply flex-1 h-px [background:#e2e8f0];
+}
+.social-auth-buttons {
+  @apply grid gap-[9px];
+}
+.social-auth-button {
+  @apply min-h-[46px] inline-flex items-center justify-center gap-[10px] border border-slate-200 [background:#fff] text-[#22312d] text-[0.9rem] font-bold cursor-pointer [transition:border-color_150ms_ease,background_150ms_ease,box-shadow_150ms_ease,transform_150ms_ease] px-[16px] py-0 rounded-[12px] border-solid hover:[background:#f8fafc] hover:border-[#9fb5ac] hover:shadow-[0_8px_18px_rgba(34,49,45,0.08)] hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-60 disabled:transform-none disabled:shadow-none;
+}
+.social-auth-icon,
+.social-auth-spinner {
+  @apply flex-none w-[20px] h-[20px];
+}
+.social-auth-spinner {
+  @apply border-2 border-slate-200 border-t-[#315f50] rounded-full animate-spin;
 }
 .verification-actions {
   @apply grid gap-[10px] mt-[12px];

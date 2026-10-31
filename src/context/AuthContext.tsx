@@ -98,7 +98,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       emailVerified: Boolean(supabaseUser.email_confirmed_at),
     });
 
-  const handleSupabaseAuthUrl = useCallback(async (url: string | null) => {
+  const handleSupabaseAuthUrl = useCallback(async (url: string | null | undefined) => {
     if (!url) return;
 
     try {
@@ -394,7 +394,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [user?.id]);
 
   useEffect(() => {
-    const updateAuthRefresh = (state: string) => {
+    const updateAuthRefresh = (state: string | null | undefined) => {
       if (state === 'active') {
         supabase.auth.startAutoRefresh();
       } else {

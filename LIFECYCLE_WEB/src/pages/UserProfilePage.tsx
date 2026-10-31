@@ -18,6 +18,7 @@ export default function UserProfilePage() {
   const [gender, setGender] = useState('')
   const [dateOfBirth, setDateOfBirth] = useState('')
   const [photoURL, setPhotoURL] = useState<string | null>(null)
+  const profileSetupIncomplete = !gender || !dateOfBirth
 
   useEffect(() => {
     const load = async () => {
@@ -141,6 +142,9 @@ export default function UserProfilePage() {
         <div className="profile-identity-info">
           <h2 className="profile-identity-name">{fullName || viewer?.email || 'LifeCycle User'}</h2>
           <p className="profile-identity-email">{viewer?.email}</p>
+          {profileSetupIncomplete ? (
+            <p className="profile-setup-status"><span aria-hidden="true" /> Profile setup incomplete — add your gender and date of birth below.</p>
+          ) : null}
         </div>
         <div className="profile-identity-actions">
           <label className="btn-outline profile-photo-button">

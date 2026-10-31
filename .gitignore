@@ -38,8 +38,6 @@ yarn-error.*
 .env*.local
 # The Vite web app's production file contains browser-visible public config.
 !/LIFECYCLE_WEB/.env.production
-/paymongo
-
 # typescript
 *.tsbuildinfo
 
@@ -49,6 +47,7 @@ yarn-error.*
 
 # local project artifacts
 .gradle/
+/tmp/
 serviceAccountKey.json
 firebase-service-account*.json
 fcm-service-account*.json

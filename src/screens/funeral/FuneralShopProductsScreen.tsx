@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import LoadingBird from '@/components/LoadingBird';
+import ProductRating from '@/components/ProductRating';
 import {
   ActivityIndicator,
   Alert,
@@ -22,6 +23,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { AppBackButton } from "@/components";
 import { supabase } from "@/services/supabaseClient";
 import { formatPhilippinePeso } from "@/utils/funeralCatalog";
+import { summarizeProductRatings } from "@/utils/productRatings";
 import { colors, radii, spacing } from "@/theme";
 
 type ProductVariation = {
@@ -46,6 +48,7 @@ type ShopProduct = {
 type ShopInfo = {
   id: string;
   shopName?: string | null;
+  bio?: string | null;
   shopAddress?: string | null;
   shopPhoneNumber?: string | null;
   shopImageUrl?: string | null;
@@ -118,9 +121,13 @@ function getNumericProductPrice(value: string) {
 function ProductCard({
   item,
   onPress,
+  rating = 0,
+  ratingCount = 0,
 }: {
   item: ShopProduct;
   onPress: () => void;
+  rating?: number;
+  ratingCount?: number;
 }) {
   const imageUrl = getPrimaryProductImage(item);
   const [imageFailed, setImageFailed] = useState(false);
@@ -159,6 +166,7 @@ function ProductCard({
       <View style={styles.productDetails}>
         <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
         <Text style={styles.productPrice}>{formatPhilippinePeso(item.price)}</Text>
+        <ProductRating rating={rating} count={ratingCount} />
       </View>
     </TouchableOpacity>
   );
@@ -200,7 +208,7 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
 
       const { data: shopData, error: shopError } = await supabase
         .from("funeral_shops")
-        .select("id, shopName, shopAddress, shopPhoneNumber, shopImageUrl, coverImageUrl, generalLocation, status, paidUntil")
+        .select("id, shopName, bio, shopAddress, shopPhoneNumber, shopImageUrl, coverImageUrl, generalLocation, status, paidUntil")
         .eq("id", shopId)
         .maybeSingle();
 
@@ -274,8 +282,9 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
 
       if (!followCountResult.error) setFollowerCount(followCountResult.count || 0);
       if (!viewerFollowResult.error) setFollowing(Boolean(viewerFollowResult.data?.length));
-      if (!ratingResult.error) setRatings((ratingResult.data || []) as RatingRow[]);
-      if (!reviewResult.error) setReviews((reviewResult.data || []) as ReviewRow[]);
+      if (ratingResult.error) console.warn("Unable to load shop ratings:", ratingResult.error.message);
+      setRatings((ratingResult.data || []) as RatingRow[]);
+      setReviews((reviewResult.data || []) as ReviewRow[]);
     } catch (error: any) {
       setLoadError(error?.message || "Failed to load this shop.");
     } finally {
@@ -295,7 +304,7 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
     ratings.forEach((row) => {
       if (!row.productId) return;
       const rating = Number(row.rating) || 0;
-      if (rating <= 0) return;
+      if (!Number.isInteger(rating) || rating < 1 || rating > 5) return;
       const current = byProduct.get(row.productId) || { total: 0, count: 0, average: 0 };
       current.total += rating;
       current.count += 1;
@@ -305,13 +314,8 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
     return byProduct;
   }, [ratings]);
 
-  const overallRating = useMemo(() => {
-    const validRatings = ratings
-      .map((row) => Number(row.rating))
-      .filter((rating) => Number.isFinite(rating) && rating >= 1 && rating <= 5);
-    if (!validRatings.length) return 0;
-    return validRatings.reduce((sum, rating) => sum + rating, 0) / validRatings.length;
-  }, [ratings]);
+  const shopRatingSummary = useMemo(() => summarizeProductRatings(ratings), [ratings]);
+  const overallRating = shopRatingSummary.average;
 
   const filteredProducts = useMemo(() => {
     const query = searchText.trim().toLowerCase();
@@ -494,6 +498,8 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
             <ProductCard
               key={`${title}_${item.id}`}
               item={item}
+              rating={ratingStats.get(item.id)?.average ?? 0}
+              ratingCount={ratingStats.get(item.id)?.count ?? 0}
               onPress={() => openProduct(item)}
             />
           ))}
@@ -566,6 +572,8 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
             <ProductCard
               key={item.id}
               item={item}
+              rating={ratingStats.get(item.id)?.average ?? 0}
+              ratingCount={ratingStats.get(item.id)?.count ?? 0}
               onPress={() => openProduct(item)}
             />
           ))}
@@ -617,7 +625,7 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
   const renderReviewsTab = () => (
     <View style={styles.tabContent}>
       <View style={styles.ratingSummary}>
-        <Text style={styles.ratingValue}>{overallRating > 0 ? overallRating.toFixed(1) : "New"}</Text>
+        <Text style={styles.ratingValue}>{overallRating > 0 ? overallRating.toFixed(1) : "0"}</Text>
         <View style={styles.ratingSummaryCopy}>
           <View style={styles.starsRow}>
             {[1, 2, 3, 4, 5].map((star) => (
@@ -629,7 +637,7 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
               />
             ))}
           </View>
-          <Text style={styles.ratingCaption}>{ratings.length} {ratings.length === 1 ? "rating" : "ratings"} across this shop</Text>
+          <Text style={styles.ratingCaption}>{shopRatingSummary.count} {shopRatingSummary.count === 1 ? "rating" : "ratings"} across this shop</Text>
         </View>
       </View>
 
@@ -740,13 +748,14 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
           <View style={styles.profileMetaRow}>
             <View style={styles.profileMetaItem}>
               <Ionicons name="star" size={14} color="#d89a1b" />
-              <Text style={styles.profileMetaText}>{overallRating > 0 ? overallRating.toFixed(1) : "New"}</Text>
+              <Text style={styles.profileMetaText}>{overallRating > 0 ? overallRating.toFixed(1) : "0"}</Text>
             </View>
             <View style={styles.profileMetaDivider} />
             <Text style={styles.profileMetaText}>{formatFollowerCount(followerCount)} followers</Text>
             <View style={styles.profileMetaDivider} />
             <Text style={styles.profileMetaText} numberOfLines={1}>{shopAddress}</Text>
           </View>
+          {shop?.bio ? <Text style={styles.profileBio} numberOfLines={3}>{shop.bio}</Text> : null}
           <View style={styles.profileActionsRow}>
             <TouchableOpacity
               accessibilityRole="button"
@@ -925,6 +934,7 @@ const styles = StyleSheet.create({
   profileMetaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   profileMetaText: { color: "#68756f", fontSize: 11, fontWeight: "700", maxWidth: 150 },
   profileMetaDivider: { width: 3, height: 3, borderRadius: 2, backgroundColor: "#b0b9b4", marginHorizontal: 1 },
+  profileBio: { width: "92%", maxWidth: 340, marginTop: 10, color: "#3d4945", fontSize: 13, lineHeight: 19, fontWeight: "600", textAlign: "center" },
   profileActionsRow: { width: "100%", maxWidth: 320, flexDirection: "row", gap: 9, marginTop: 16 },
   profileActionButton: { height: 40, flex: 1, borderRadius: 11, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1 },
   profileFollowButton: { borderColor: colors.primaryDark, backgroundColor: colors.primaryDark },

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, type TextInputInstance } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import KeyboardAwareScrollView from "@/components/KeyboardAwareScrollView";
@@ -58,7 +58,7 @@ export default function PayoutAccountsModal({ visible, shopId, shopApproved, onC
   const [verificationCode, setVerificationCode] = useState("");
   const [resendCooldown, setResendCooldown] = useState(0);
   const [codeFocused, setCodeFocused] = useState(false);
-  const codeInputRef = useRef<TextInput>(null);
+  const codeInputRef = useRef<TextInputInstance>(null);
   const channel = useMemo(() => CHANNELS.find((item) => item.code === channelCode) || CHANNELS[0], [channelCode]);
   const existingAccount = accounts.find((item) => item.channelCode === channel.code);
 

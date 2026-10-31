@@ -5,14 +5,14 @@ import LogoutLink from '@/components/LogoutLink'
 import { getProfileAvatar } from '@/utils/profileAvatar'
 import './MarketplaceMobileDrawer.css'
 
-type DrawerIconName = 'home' | 'account' | 'shop' | 'messages' | 'payments' | 'help'
+type DrawerIconName = 'home' | 'account' | 'shop' | 'messages' | 'requests' | 'help'
 
 const DRAWER_ICON_PATHS: Record<DrawerIconName, ReactNode> = {
   home: <><path d='m3 11 9-8 9 8' /><path d='M5 10v10h14V10' /><path d='M9 20v-6h6v6' /></>,
   account: <><circle cx='12' cy='8' r='4' /><path d='M4.5 21a7.5 7.5 0 0 1 15 0' /></>,
   shop: <><path d='M4 10v10h16V10' /><path d='M3 10 5 4h14l2 6' /><path d='M3 10a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0' /><path d='M9 20v-6h6v6' /></>,
   messages: <><path d='M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z' /><path d='M8 9h8M8 13h5' /></>,
-  payments: <><rect x='3' y='5' width='18' height='14' rx='2' /><path d='M3 10h18M7 15h3' /></>,
+  requests: <><rect x='5' y='4' width='14' height='17' rx='2' /><rect x='9' y='2' width='6' height='4' rx='1' /><path d='M9 11h6M9 15h6' /></>,
   help: <><circle cx='12' cy='12' r='9' /><path d='M9.7 9a2.5 2.5 0 1 1 3.7 2.2c-.9.5-1.4 1.1-1.4 2.3' /><path d='M12 17h.01' /></>,
 }
 
@@ -34,7 +34,7 @@ type MarketplaceMobileDrawerProps = {
   photoUrl?: string | null
   gender?: string | null
   accountPath: string
-  purchasesPath: string
+  serviceRequestsPath: string
   helpPath: string
   onOpenMessages: () => void
 }
@@ -49,7 +49,7 @@ export default function MarketplaceMobileDrawer({
   photoUrl,
   gender,
   accountPath,
-  purchasesPath,
+  serviceRequestsPath,
   helpPath,
   onOpenMessages,
 }: MarketplaceMobileDrawerProps) {
@@ -90,7 +90,7 @@ export default function MarketplaceMobileDrawer({
           <Link to='/seller' onClick={onClose}><DrawerIcon name='shop' />Shop Center</Link>
           <button type='button' onClick={onOpenMessages}><DrawerIcon name='messages' />Messages</button>
           <div className='sp-mobile-menu-announcement'><AnnouncementDropdown menuItem /></div>
-          <Link to={purchasesPath} onClick={onClose}><DrawerIcon name='payments' />My Payments</Link>
+          <Link to={serviceRequestsPath} onClick={onClose}><DrawerIcon name='requests' />My service request</Link>
           <Link to={helpPath} onClick={onClose}><DrawerIcon name='help' />Help Centre</Link>
         </nav>
       </aside>

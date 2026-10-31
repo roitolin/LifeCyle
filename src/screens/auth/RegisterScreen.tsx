@@ -2,28 +2,27 @@ import { useRef, useState } from "react";
 import {
   View,
   Text,
-  Image,
   TextInput,
   Alert,
   StyleSheet,
   TouchableOpacity,
-  Platform,
   findNodeHandle,
+  type TextInputInstance,
+  type ViewInstance,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NavigationBar } from "expo-navigation-bar";
 import { StatusBar } from "expo-status-bar";
-import { Picker } from "@react-native-picker/picker";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import { Button as PaperButton } from "react-native-paper";
 import { Ionicons } from "@expo/vector-icons";
 import { AppBackButton, KeyboardAwareScrollView } from "@/components";
+import SocialAuthButtons from "@/components/SocialAuthButtons";
 import { colors, radii, spacing } from "@/theme";
 import { supabase } from "../../services/supabaseClient";
 import { getSupabaseEmailRedirectTo } from "../../services/supabaseAuthRedirect";
 import { normalizeEmail } from "../../utils/inputSecurity";
 
-const PAGE_COLOR = colors.surfaceWarm;
+const PAGE_COLOR = "#edf0f2";
 const PASSWORD_SYMBOLS = "!@#$%^&*()_+-=[]{};'\\:\"|<>?,./`~";
 const PASSWORD_REQUIREMENTS = [
   { id: "length", label: "At least 8 characters", test: (value: string) => value.length >= 8 },
@@ -105,18 +104,15 @@ export default function RegisterScreen({ navigation }: any) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [gender, setGender] = useState<"male" | "female" | "other" | "">("");
-  const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
-  const [showDatePicker, setShowDatePicker] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [focusedField, setFocusedField] = useState<"fullName" | "email" | "password" | "confirmPassword" | null>(null);
   const scrollRef = useRef<any>(null);
-  const fullNameRef = useRef<TextInput>(null);
-  const emailRef = useRef<TextInput>(null);
-  const passwordRef = useRef<TextInput>(null);
-  const confirmPasswordRef = useRef<TextInput>(null);
-  const passwordStrengthRef = useRef<View>(null);
+  const fullNameRef = useRef<TextInputInstance>(null);
+  const emailRef = useRef<TextInputInstance>(null);
+  const passwordRef = useRef<TextInputInstance>(null);
+  const confirmPasswordRef = useRef<TextInputInstance>(null);
+  const passwordStrengthRef = useRef<ViewInstance>(null);
   const passwordIsStrong = isStrongPassword(password);
   const passwordsMatch = confirmPassword.length > 0 && password === confirmPassword;
 
@@ -131,7 +127,7 @@ export default function RegisterScreen({ navigation }: any) {
   };
 
   const handleRegister = async () => {
-    if (!fullName.trim() || !gender || !dateOfBirth || !email.trim() || !password.trim() || !confirmPassword.trim()) {
+    if (!fullName.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
       Alert.alert("Missing information", "Please complete every field before continuing.");
       return;
     }
@@ -154,8 +150,6 @@ export default function RegisterScreen({ navigation }: any) {
           emailRedirectTo: getSupabaseEmailRedirectTo(),
           data: {
             fullName: fullName.trim(),
-            gender,
-            dateOfBirth: dateOfBirth.toISOString(),
           },
         },
       });
@@ -191,17 +185,6 @@ export default function RegisterScreen({ navigation }: any) {
     }
   };
 
-  const onDateChange = (_event: any, selectedDate?: Date) => {
-    setShowDatePicker(Platform.OS === "ios");
-    if (selectedDate) {
-      setDateOfBirth(selectedDate);
-    }
-  };
-
-  const dateOfBirthLabel = dateOfBirth
-    ? dateOfBirth.toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })
-    : "Select your date of birth";
-
   return (
     <View style={styles.page}>
       <NavigationBar hidden={false} style="dark" />
@@ -218,68 +201,70 @@ export default function RegisterScreen({ navigation }: any) {
           {navigation.canGoBack?.() ? (
             <AppBackButton style={styles.backButton} onPress={() => navigation.goBack()} />
           ) : null}
-
-          <View style={styles.brandRow}>
-            <Image source={require("../../../assets/Icon/IconTraparent.png")} style={styles.brandMark} resizeMode="contain" />
-            <Text style={styles.brandName}>LifeCycle</Text>
-          </View>
-
           <View style={styles.headingBlock}>
-            <Text style={styles.title}>Create your account</Text>
-            <Text style={styles.subtitle}>Enter your details to get started.</Text>
+            <Text style={styles.title}>Create Account</Text>
+            <Text style={styles.subtitle}>Create a new account to get started and manage your services.</Text>
           </View>
 
           <View style={styles.fieldGroup}>
             <Text style={styles.fieldLabel}>Full name</Text>
-            <TextInput
-              ref={fullNameRef}
-              accessibilityLabel="Full name"
-              placeholder="Enter your full name"
-              placeholderTextColor={colors.textMuted}
-              value={fullName}
-              onChangeText={setFullName}
-              onFocus={() => {
-                setFocusedField("fullName");
-                scrollToInput(fullNameRef);
-              }}
-              onBlur={() => setFocusedField(null)}
-              autoCapitalize="words"
-              autoComplete="name"
-              textContentType="name"
-              returnKeyType="next"
-              onSubmitEditing={() => emailRef.current?.focus()}
-              style={[styles.input, focusedField === "fullName" && styles.inputFocused]}
-            />
+            <View style={[styles.inputShell, focusedField === "fullName" && styles.inputFocused]}>
+              <Ionicons name="person-outline" size={19} color={focusedField === "fullName" ? colors.primary : colors.textMuted} />
+              <TextInput
+                ref={fullNameRef}
+                accessibilityLabel="Full name"
+                placeholder="Full name"
+                placeholderTextColor={colors.textMuted}
+                value={fullName}
+                onChangeText={setFullName}
+                onFocus={() => {
+                  setFocusedField("fullName");
+                  scrollToInput(fullNameRef);
+                }}
+                onBlur={() => setFocusedField(null)}
+                autoCapitalize="words"
+                autoComplete="off"
+                textContentType="none"
+                importantForAutofill="no"
+                returnKeyType="next"
+                onSubmitEditing={() => emailRef.current?.focus()}
+                style={styles.input}
+              />
+            </View>
           </View>
 
           <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Email address</Text>
-            <TextInput
-              ref={emailRef}
-              accessibilityLabel="Email address"
-              placeholder="name@example.com"
-              placeholderTextColor={colors.textMuted}
-              value={email}
-              onChangeText={setEmail}
-              onFocus={() => {
-                setFocusedField("email");
-                scrollToInput(emailRef);
-              }}
-              onBlur={() => setFocusedField(null)}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              autoComplete="email"
-              textContentType="emailAddress"
-              importantForAutofill="yes"
-              returnKeyType="next"
-              onSubmitEditing={() => passwordRef.current?.focus()}
-              style={[styles.input, focusedField === "email" && styles.inputFocused]}
-            />
+            <Text style={styles.fieldLabel}>Email</Text>
+            <View style={[styles.inputShell, focusedField === "email" && styles.inputFocused]}>
+              <Ionicons name="mail-outline" size={19} color={focusedField === "email" ? colors.primary : colors.textMuted} />
+              <TextInput
+                ref={emailRef}
+                accessibilityLabel="Email address"
+                placeholder="Email address"
+                placeholderTextColor={colors.textMuted}
+                value={email}
+                onChangeText={setEmail}
+                onFocus={() => {
+                  setFocusedField("email");
+                  scrollToInput(emailRef);
+                }}
+                onBlur={() => setFocusedField(null)}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                autoComplete="off"
+                textContentType="none"
+                importantForAutofill="no"
+                returnKeyType="next"
+                onSubmitEditing={() => passwordRef.current?.focus()}
+                style={styles.input}
+              />
+            </View>
           </View>
 
           <View style={styles.fieldGroup}>
             <Text style={styles.fieldLabel}>Password</Text>
-            <View style={styles.passwordFieldWrap}>
+            <View style={[styles.inputShell, focusedField === "password" && styles.inputFocused]}>
+              <Ionicons name="lock-closed-outline" size={19} color={focusedField === "password" ? colors.primary : colors.textMuted} />
               <TextInput
                 ref={passwordRef}
                 accessibilityLabel="Password"
@@ -293,12 +278,12 @@ export default function RegisterScreen({ navigation }: any) {
                 }}
                 onBlur={() => setFocusedField(null)}
                 secureTextEntry={!showPassword}
-                autoComplete="new-password"
-                textContentType="newPassword"
-                importantForAutofill="yes"
+                autoComplete="off"
+                textContentType="none"
+                importantForAutofill="no"
                 returnKeyType="next"
                 onSubmitEditing={() => confirmPasswordRef.current?.focus()}
-                style={[styles.input, styles.passwordInput, focusedField === "password" && styles.inputFocused]}
+                style={[styles.input, styles.passwordInput]}
               />
               <TouchableOpacity
                 accessibilityRole="button"
@@ -323,7 +308,12 @@ export default function RegisterScreen({ navigation }: any) {
 
           <View style={styles.fieldGroup}>
             <Text style={styles.fieldLabel}>Confirm password</Text>
-            <View style={styles.passwordFieldWrap}>
+            <View style={[
+              styles.inputShell,
+              focusedField === "confirmPassword" && styles.inputFocused,
+              confirmPassword.length > 0 && !passwordsMatch && styles.inputError,
+            ]}>
+              <Ionicons name="shield-checkmark-outline" size={19} color={focusedField === "confirmPassword" ? colors.primary : colors.textMuted} />
               <TextInput
                 ref={confirmPasswordRef}
                 accessibilityLabel="Confirm password"
@@ -337,15 +327,13 @@ export default function RegisterScreen({ navigation }: any) {
                 }}
                 onBlur={() => setFocusedField(null)}
                 secureTextEntry={!showPassword}
-                autoComplete="new-password"
-                textContentType="newPassword"
-                importantForAutofill="yes"
+                autoComplete="off"
+                textContentType="none"
+                importantForAutofill="no"
                 returnKeyType="done"
                 style={[
                   styles.input,
                   styles.passwordInput,
-                  focusedField === "confirmPassword" && styles.inputFocused,
-                  confirmPassword.length > 0 && !passwordsMatch && styles.inputError,
                 ]}
               />
               <TouchableOpacity
@@ -375,54 +363,6 @@ export default function RegisterScreen({ navigation }: any) {
             </View>
           </View>
 
-          <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Gender</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                accessibilityLabel="Gender"
-                selectedValue={gender}
-                onValueChange={(value) => setGender(value)}
-                dropdownIconColor={colors.text}
-                style={styles.picker}
-              >
-                <Picker.Item label="Select gender" value="" color={colors.textMuted} />
-                <Picker.Item label="Male" value="male" />
-                <Picker.Item label="Female" value="female" />
-                <Picker.Item label="Other" value="other" />
-              </Picker>
-            </View>
-          </View>
-
-          <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Date of birth</Text>
-            <TouchableOpacity
-              accessibilityRole="button"
-              accessibilityLabel={`Date of birth, ${dateOfBirthLabel}`}
-              onPress={() => setShowDatePicker(true)}
-              style={[styles.dateButton, showDatePicker && styles.inputFocused]}
-            >
-              <Text style={[styles.dateButtonText, !dateOfBirth && styles.placeholderText]}>{dateOfBirthLabel}</Text>
-              <Ionicons name="calendar-outline" size={20} color={colors.textMuted} />
-            </TouchableOpacity>
-            {showDatePicker && (
-              <View style={styles.datePickerArea}>
-                <DateTimePicker
-                  value={dateOfBirth || new Date(2000, 0, 1)}
-                  mode="date"
-                  display={Platform.OS === "ios" ? "spinner" : "default"}
-                  onValueChange={onDateChange}
-                  onDismiss={() => setShowDatePicker(false)}
-                  maximumDate={new Date()}
-                />
-                {Platform.OS === "ios" ? (
-                  <TouchableOpacity accessibilityRole="button" style={styles.dateDoneButton} onPress={() => setShowDatePicker(false)}>
-                    <Text style={styles.dateDoneButtonText}>Done</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            )}
-          </View>
-
           <PaperButton
             mode="contained"
             loading={loading}
@@ -435,6 +375,11 @@ export default function RegisterScreen({ navigation }: any) {
           >
             {loading ? "Creating account..." : "Create account"}
           </PaperButton>
+
+          <SocialAuthButtons
+            disabled={loading}
+            onError={(title, message) => Alert.alert(title, message)}
+          />
 
           <View style={styles.accountPrompt}>
             <Text style={styles.accountPromptText}>Already have an account?</Text>
@@ -452,38 +397,29 @@ export default function RegisterScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: PAGE_COLOR },
   screen: { flex: 1, backgroundColor: PAGE_COLOR },
-  scrollContent: { flexGrow: 1, paddingHorizontal: spacing.xl, paddingVertical: spacing.xxl },
-  formShell: { width: "100%", maxWidth: 520, alignSelf: "center" },
-  backButton: { alignSelf: "flex-start", marginBottom: spacing.xl, backgroundColor: "transparent", borderWidth: 0 },
-  brandRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.xxl },
-  brandMark: { width: 44, height: 44 },
-  brandName: { color: colors.text, fontSize: 20, fontWeight: "800" },
-  headingBlock: { marginBottom: spacing.xl },
-  title: { color: colors.text, fontSize: 32, lineHeight: 40, fontWeight: "800" },
-  subtitle: { color: colors.textMuted, fontSize: 15, lineHeight: 24, marginTop: spacing.sm },
-  fieldGroup: { marginBottom: spacing.lg },
-  fieldLabel: { color: colors.text, fontSize: 13, fontWeight: "700", marginBottom: spacing.sm },
+  scrollContent: { flexGrow: 1, backgroundColor: colors.surface },
+  formShell: { flexGrow: 1, width: "100%", maxWidth: 560, alignSelf: "center", backgroundColor: colors.surface, paddingHorizontal: 22, paddingTop: spacing.md, paddingBottom: spacing.lg },
+  backButton: { width: 42, height: 42, borderRadius: 21, alignSelf: "flex-start", marginBottom: spacing.sm, backgroundColor: "#f1f4f2", borderWidth: 0 },
+  headingBlock: { alignItems: "center", marginBottom: spacing.lg, paddingHorizontal: spacing.sm },
+  title: { color: colors.text, fontSize: 27, lineHeight: 34, fontWeight: "900", textAlign: "center" },
+  subtitle: { maxWidth: 340, color: colors.textMuted, fontSize: 12, lineHeight: 18, marginTop: 6, textAlign: "center" },
+  fieldGroup: { marginBottom: spacing.md },
+  fieldLabel: { color: colors.text, fontSize: 11, fontWeight: "800", marginBottom: 7, marginLeft: 2 },
+  inputShell: { minHeight: 50, flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderColor: "#e1e6e3", borderRadius: 15, paddingHorizontal: 14, backgroundColor: "#f7f9f8" },
   input: {
-    minHeight: 52,
-    borderWidth: 1,
-    borderColor: colors.borderWarm,
-    borderRadius: radii.md,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    backgroundColor: colors.surface,
+    flex: 1,
+    minHeight: 48,
+    paddingVertical: 10,
+    paddingHorizontal: 0,
     color: colors.text,
-    fontSize: 15,
+    fontSize: 14,
   },
-  inputFocused: { borderColor: colors.primaryDark },
+  inputFocused: { borderColor: colors.primary, backgroundColor: colors.surface },
   inputError: { borderColor: colors.danger },
-  passwordFieldWrap: { position: "relative" },
-  passwordInput: { paddingRight: 52 },
+  passwordInput: { paddingRight: 0 },
   eyeButton: {
-    position: "absolute",
-    right: 2,
-    top: 2,
-    width: 48,
-    height: 48,
+    width: 36,
+    height: 46,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -517,32 +453,6 @@ const styles = StyleSheet.create({
   passwordMatchRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: spacing.xs },
   passwordMatchText: { color: colors.textMuted, fontSize: 11, lineHeight: 16 },
   passwordMatchTextSuccess: { color: "#16885a", fontWeight: "700" },
-  pickerContainer: {
-    minHeight: 52,
-    borderWidth: 1,
-    borderColor: colors.borderWarm,
-    borderRadius: radii.md,
-    overflow: "hidden",
-    justifyContent: "center",
-    backgroundColor: colors.surface,
-  },
-  picker: { minHeight: 52, color: colors.text },
-  dateButton: {
-    minHeight: 52,
-    borderWidth: 1,
-    borderColor: colors.borderWarm,
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.lg,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: colors.surface,
-  },
-  dateButtonText: { color: colors.text, fontSize: 15 },
-  placeholderText: { color: colors.textMuted },
-  datePickerArea: { paddingTop: spacing.sm },
-  dateDoneButton: { alignSelf: "flex-end", minHeight: 40, justifyContent: "center", paddingHorizontal: spacing.sm },
-  dateDoneButtonText: { color: colors.primary, fontSize: 13, fontWeight: "800" },
   primaryButton: {
     borderRadius: radii.md,
     marginTop: spacing.sm,

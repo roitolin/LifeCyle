@@ -7,6 +7,7 @@ import {
   VerifyEmailScreen,
 } from "@/pages/auth";
 import { colors } from "@/theme";
+import { smoothAuthTransition } from "./navigationTransitions";
 
 const Stack = createNativeStackNavigator();
 
@@ -14,7 +15,7 @@ export default function AuthNavigator({ showOnboarding }: { showOnboarding: bool
   return (
     <Stack.Navigator
       initialRouteName={showOnboarding ? "Onboarding" : "Login"}
-      screenOptions={{ animation: "fade_from_bottom", headerShown: false }}
+      screenOptions={{ ...smoothAuthTransition, headerShown: false }}
     >
       <Stack.Screen name="Onboarding" component={MobileLandingScreen} />
       <Stack.Screen

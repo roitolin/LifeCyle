@@ -285,7 +285,7 @@ export default function CheckoutPage() {
         cartId: cartItem.cartId,
         productId: cartItem.productId,
         productName: cartItem.name,
-        productPrice: cartItem.price,
+        productPrice: cartItem.fullPrice || cartItem.price,
         productImageUrl: cartItem.imageUrl || null,
         variationId: cartItem.variationId || null,
         variationName: cartItem.variationName || null,
@@ -462,9 +462,14 @@ export default function CheckoutPage() {
           </div>
           <div className="checkout-summary-divider" />
           <div className="checkout-summary-row">
-            <span>Service price</span>
-            <strong>{formatPeso(cartItem.price)}</strong>
+            <span>Full product price</span>
+            <strong>{formatPeso(cartItem.fullPrice || cartItem.price)}</strong>
           </div>
+          {cartItem.downpaymentAmount && cartItem.downpaymentPercentage ? (
+            <p className="checkout-summary-help">
+              After the shop approves your request, you can choose full payment or a {cartItem.downpaymentPercentage}% down payment ({formatPeso(cartItem.downpaymentAmount)}).
+            </p>
+          ) : null}
         </aside>
 
         <main className="checkout-form-column">
@@ -749,7 +754,7 @@ function TopBar({ profile }: { profile: ViewerProfile | null }) {
             </div>
             <div className="checkout-user-dropdown">
               <Link to="/user/profile">My Account</Link>
-              <Link to="/user/purchase">My Payments</Link>
+              <Link to="/user/requests">My service request</Link>
               <Link to="/auth/switch-account" className="checkout-dropdown-switch">Switch Account</Link>
               <LogoutLink>Log out</LogoutLink>
             </div>

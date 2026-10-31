@@ -21,6 +21,7 @@ const supportLinks = [
   { to: '/user/help', label: 'Help Centre' },
   { to: '/user/contact', label: 'Contact support' },
   { to: '/user/about', label: 'About LifeCycle' },
+  { to: '/user/developers', label: 'Our developers' },
   { to: '/user/feedback', label: 'Feedback' },
 ]
 
@@ -135,7 +136,7 @@ export default function ProfileLayout({ children, title, subtitle }: { children:
                 <svg className="sp-user-dropdown-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
               </button>
               <div className="sp-user-dropdown">
-                <Link to="/user/requests">Service requests</Link>
+                <Link to="/user/requests">My service request</Link>
                 <Link to="/auth/switch-account" className="sp-dropdown-switch">Switch account</Link>
                 <LogoutLink>Log out</LogoutLink>
               </div>

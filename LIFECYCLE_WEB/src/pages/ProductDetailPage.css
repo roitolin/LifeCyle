@@ -604,6 +604,9 @@
   }
 }
 @media (max-width: 640px) {
+  .pd-payment-choice {
+    @apply grid-cols-1;
+  }
   .pd-related-grid {
     @apply grid-cols-2;
   }
@@ -824,6 +827,27 @@
 }
 .pd-variation-btn.selected {
   @apply [background:#eef2f5] border-[color:var(--pd-brand)] text-[color:var(--pd-brand)] shadow-[inset_0_0_0_1px_var(--pd-brand)] after:hidden;
+}
+.pd-payment-choice {
+  @apply grid grid-cols-2 gap-[10px] mb-[24px] p-0 border-0;
+}
+.pd-payment-choice legend {
+  @apply col-span-full text-[#43515c] text-[12px] font-bold mb-[2px];
+}
+.pd-payment-choice-btn {
+  @apply min-h-[68px] flex flex-col items-start justify-center gap-[4px] bg-white text-left cursor-pointer px-[14px] py-[10px] rounded-[7px] border border-solid border-[#dce2e4];
+}
+.pd-payment-choice-btn span {
+  @apply text-[12px] font-bold text-[#43515c];
+}
+.pd-payment-choice-btn strong {
+  @apply text-[14px] text-[color:var(--pd-brand)];
+}
+.pd-payment-choice-btn.selected {
+  @apply [background:#eef1ec] border-[#315f50] shadow-[inset_0_0_0_1px_#315f50];
+}
+.pd-payment-choice > p {
+  @apply col-span-full text-[11px] leading-[1.45] text-[#75818a] m-0;
 }
 .pd-package-section {
   @apply min-w-0 mt-0 mb-[24px] mx-0 pt-[18px] border-t-[#e5e1d9] border-t border-solid;

@@ -435,7 +435,7 @@
 .shop-product-copy strong {
   @apply text-[#172033] text-[15px];
 }
-.shop-product-copy span {
+.shop-product-copy > span:not(.product-rating) {
   @apply text-[#748095] text-[12px];
 }
 .shop-detail-empty {
@@ -751,7 +751,7 @@
 .shop-detail-page .shop-product-copy strong {
   @apply text-[#315f50] text-[17px];
 }
-.shop-detail-page .shop-product-copy span {
+.shop-detail-page .shop-product-copy > span:not(.product-rating) {
   @apply text-[#69788b];
 }
 .shop-detail-page .shop-detail-empty {
@@ -829,6 +829,9 @@
 }
 .shop-detail-page .shop-detail-identity > p {
   @apply text-[13px] opacity-[0.88];
+}
+.shop-detail-page .shop-detail-identity .shop-detail-bio {
+  @apply max-w-[260px] text-[13px] leading-[18px] opacity-100 mt-[7px];
 }
 .shop-detail-page .shop-detail-actions {
   @apply grid flex-none grid-cols-[repeat(2,minmax(104px,1fr))] gap-[8px];

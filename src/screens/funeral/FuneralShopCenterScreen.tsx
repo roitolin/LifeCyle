@@ -44,6 +44,7 @@ type IoniconName = ComponentProps<typeof Ionicons>["name"];
 
 type ShopInfo = {
   shopName?: string;
+  bio?: string | null;
   shopAddress?: string;
   shopPhoneNumber?: string;
   shopImageUrl?: string | null;
@@ -59,7 +60,7 @@ type ShopPayment = {
   createdAt: string;
   verifiedAt?: string | null;
   expiresAt?: string | null;
-  paymentProvider?: "manual" | "paymongo" | "xendit";
+  paymentProvider?: string;
 };
 
 type ServiceRequest = {
@@ -565,6 +566,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
   const [analytics, setAnalytics] = useState<SalesOverview | null>(null);
 
   const [shopNameInput, setShopNameInput] = useState("");
+  const [shopBioInput, setShopBioInput] = useState("");
   const [shopAddressInput, setShopAddressInput] = useState("");
   const [shopPhoneInput, setShopPhoneInput] = useState("");
   const [shopImageUrl, setShopImageUrl] = useState<string | null>(null);
@@ -653,6 +655,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
       const nextShopInfo: ShopInfo | null = shopData
         ? {
             shopName: shopData.shopName,
+            bio: shopData.bio,
             shopAddress: shopData.shopAddress,
             shopPhoneNumber: shopData.shopPhoneNumber,
             shopImageUrl: shopData.shopImageUrl,
@@ -740,6 +743,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
       setPayment((paymentData as ShopPayment | null) || null);
 
       setShopNameInput(String(nextShopInfo?.shopName || ""));
+      setShopBioInput(String(nextShopInfo?.bio || ""));
       setShopAddressInput(String(nextShopInfo?.shopAddress || ""));
       setShopPhoneInput(String(nextShopInfo?.shopPhoneNumber || ""));
       setShopImageUrl((nextShopInfo?.shopImageUrl as string | null) || null);
@@ -1029,6 +1033,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
 
   const resetShopDetailsDraft = () => {
     setShopNameInput(String(shopInfo?.shopName || ""));
+    setShopBioInput(String(shopInfo?.bio || ""));
     setShopAddressInput(String(shopInfo?.shopAddress || ""));
     setShopPhoneInput(String(shopInfo?.shopPhoneNumber || ""));
     setShopImageUrl(shopInfo?.shopImageUrl || null);
@@ -1354,6 +1359,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
         .from("funeral_shops")
         .update({
           shopName: shopNameInput.trim(),
+          bio: shopBioInput.trim() || null,
           shopAddress: shopAddressInput.trim(),
           shopPhoneNumber: shopPhoneInput.trim(),
           shopImageUrl: shopImageUrl || null,
@@ -1366,6 +1372,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
       setShopInfo((prev) => ({
         ...(prev || {}),
         shopName: shopNameInput.trim(),
+        bio: shopBioInput.trim() || null,
         shopAddress: shopAddressInput.trim(),
         shopPhoneNumber: shopPhoneInput.trim(),
         shopImageUrl: shopImageUrl || null,
@@ -1441,12 +1448,6 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
         ? String(Number(shopInfo.serviceFeeAmount))
         : "100"
     );
-  };
-
-  const openPaymentSettingsFromSettings = () => {
-    setSidebarVisible(false);
-    resetPaymentSettingsDraft();
-    setTimeout(() => setPaymentSettingsVisible(true), 180);
   };
 
   const closePaymentSettings = () => {
@@ -1600,7 +1601,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
   ];
 
   const sidebarTool = (key: string) => shopTools.find((entry) => entry.key === key)!;
-  const shopSidebarGroups: Array<{ label: string; items: ShopTool[] }> = [
+  const shopSidebarGroups: { label: string; items: ShopTool[] }[] = [
     {
       label: "OPERATIONS",
       items: [sidebarTool("requests"), sidebarTool("customers"), sidebarTool("schedule")],
@@ -1735,6 +1736,24 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
                   <Text style={styles.centerProfileMetaText} numberOfLines={1}>{shopContact}</Text>
                 </View>
               </View>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={shopInfo?.bio ? "Edit shop bio" : "Add a shop bio"}
+                activeOpacity={0.72}
+                style={styles.centerProfileBioButton}
+                onPress={() => {
+                  resetShopDetailsDraft();
+                  setShopDetailsEditable(true);
+                  setShopDetailsVisible(true);
+                }}
+              >
+                <Text
+                  style={[styles.centerProfileBio, !shopInfo?.bio && styles.centerProfileBioEmpty]}
+                  numberOfLines={2}
+                >
+                  {shopInfo?.bio || "+ Add a bio"}
+                </Text>
+              </TouchableOpacity>
             </View>
 
           </View>
@@ -2535,20 +2554,28 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
                     <Text style={styles.sidebarShopName} numberOfLines={1}>{shopDisplayName}</Text>
                   </View>
                 </View>
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  accessibilityLabel="Close shop menu"
-                  style={styles.sidebarCloseButton}
-                  onPress={() => closeShopSidebar()}
-                >
-                  <Ionicons name="close" size={22} color="#52615c" />
-                </TouchableOpacity>
               </View>
 
               <ScrollView contentContainerStyle={styles.sidebarContent} showsVerticalScrollIndicator={false}>
+                <View style={styles.sidebarMenuButtonRow}>
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel="Close shop menu"
+                    activeOpacity={0.72}
+                    style={styles.sidebarMenuButton}
+                    onPress={() => closeShopSidebar()}
+                  >
+                    <Ionicons name="menu-outline" size={23} color="#42524c" />
+                    <Text style={styles.sidebarMenuButtonText}>Menu</Text>
+                  </TouchableOpacity>
+                </View>
                 {shopSidebarGroups.map((group, groupIndex) => (
                   <View key={`${group.label || "primary"}-${groupIndex}`}>
-                    {group.label ? <Text style={styles.sidebarSectionLabel}>{group.label}</Text> : null}
+                    {group.label ? (
+                      <Text style={[styles.sidebarSectionLabel, groupIndex === 0 && styles.sidebarFirstSectionLabel]}>
+                        {group.label}
+                      </Text>
+                    ) : null}
                     {group.items.map((entry) => (
                       <TouchableOpacity
                         key={entry.key}
@@ -2570,7 +2597,6 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
                             <Text style={styles.sidebarBadgeText}>{entry.badge > 99 ? "99+" : entry.badge}</Text>
                           </View>
                         ) : null}
-                        <Ionicons name="chevron-forward" size={18} color="#929c97" />
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -2624,8 +2650,11 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
                                 : "A verified registration payment is required to go live."}
                       </Text>
                       </View>
-                    <View style={[styles.statusChip, { backgroundColor: statusMeta.chipBackground }]}>
-                      <Text style={[styles.statusChipText, { color: statusMeta.chipText }]}>{statusMeta.label}</Text>
+                    <View style={styles.profileStatusBadge}>
+                      <View style={[styles.profileStatusDot, shopStatus !== "live" && styles.profileStatusDotOffline]} />
+                      <Text style={[styles.profileStatusText, shopStatus !== "live" && styles.profileStatusTextOffline]}>
+                        {shopStatus === "live" ? "Live" : statusMeta.label}
+                      </Text>
                       </View>
                     </View>
 
@@ -2716,6 +2745,25 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
                   <Text style={styles.inputLabel}>Shop Name</Text>
                   <TextInput style={styles.input} value={shopNameInput} onChangeText={setShopNameInput} />
 
+                  <Text style={styles.inputLabel}>Shop Bio</Text>
+                  <TextInput
+                    style={[styles.input, styles.multilineInput]}
+                    value={shopBioInput}
+                    onChangeText={setShopBioInput}
+                    placeholder="Introduce your shop"
+                    placeholderTextColor="#9aa39f"
+                    multiline
+                    maxLength={101}
+                    textAlignVertical="top"
+                  />
+                  <View style={styles.bioMetaRow}>
+                    <View style={styles.bioPublicLabel}>
+                      <Ionicons name="globe-outline" size={13} color="#6d7873" />
+                      <Text style={styles.bioMetaText}>Public</Text>
+                    </View>
+                    <Text style={styles.bioMetaText}>{shopBioInput.length}/101</Text>
+                  </View>
+
                   <Text style={styles.inputLabel}>Shop Address</Text>
                   <TextInput style={styles.input} value={shopAddressInput} onChangeText={setShopAddressInput} />
 
@@ -2742,6 +2790,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
                   <View style={styles.readOnlyDetailsSection}>
                     <Text style={styles.readOnlySectionTitle}>Storefront Information</Text>
                     <DetailRow icon="storefront-outline" label="Shop Name" value={shopInfo?.shopName || "Not provided"} />
+                    <DetailRow icon="document-text-outline" label="Shop Bio" value={shopInfo?.bio || "Not provided"} />
                     <DetailRow icon="location-outline" label="Shop Address" value={shopInfo?.shopAddress || "Not provided"} />
                     <DetailRow icon="call-outline" label="Phone Number" value={shopInfo?.shopPhoneNumber || "Not provided"} />
                     </View>
@@ -3051,7 +3100,7 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   heroSection: {
-    height: 338,
+    height: 438,
     paddingHorizontal: 12,
     paddingTop: 0,
     backgroundColor: "#24342e",
@@ -3112,6 +3161,29 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "900",
     letterSpacing: 0.6,
+  },
+  profileStatusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 4,
+  },
+  profileStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#20a545",
+  },
+  profileStatusDotOffline: {
+    backgroundColor: "#8e9a94",
+  },
+  profileStatusText: {
+    color: "#16843a",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  profileStatusTextOffline: {
+    color: "#6f7b76",
   },
   heroContent: {
     zIndex: 2,
@@ -3176,7 +3248,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    minHeight: 196,
+    minHeight: 214,
     paddingTop: 76,
     paddingHorizontal: 18,
     paddingBottom: 17,
@@ -3218,20 +3290,20 @@ const styles = StyleSheet.create({
   centerProfileMetaItem: { maxWidth: "46%", flexDirection: "row", alignItems: "center", gap: 5 },
   centerProfileMetaText: { flexShrink: 1, color: "#68756f", fontSize: 11, fontWeight: "700" },
   centerProfileDivider: { width: 3, height: 3, borderRadius: 2, backgroundColor: "#b0b9b4", marginHorizontal: 1 },
+  centerProfileBioButton: { maxWidth: "88%", minHeight: 28, alignItems: "center", justifyContent: "center", marginTop: 8, paddingHorizontal: 8 },
+  centerProfileBio: { color: "#3c4944", fontSize: 13, lineHeight: 18, fontWeight: "600", textAlign: "center" },
+  centerProfileBioEmpty: { color: "#315f50", fontWeight: "800" },
   shopStatusCard: {
-    borderWidth: 1,
-    borderColor: "#d9d6cd",
-    borderRadius: 18,
-    backgroundColor: "#ffffff",
-    padding: 14,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   shopStatusCardTitle: {
+    display: "none",
     color: "#22312d",
     fontSize: 18,
     fontWeight: "900",
   },
   shopStatusCardDesc: {
+    display: "none",
     color: "#62706b",
     fontSize: 13,
     lineHeight: 19,
@@ -3855,8 +3927,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   statusControlExpired: {
-    borderColor: "#efb8b8",
-    backgroundColor: "#fff8f8",
   },
   statusControlHeader: {
     flexDirection: "row",
@@ -3865,6 +3935,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   subscriptionPill: {
+    display: "none",
     marginTop: 14,
     borderRadius: 14,
     backgroundColor: "#e7f5ec",
@@ -3887,6 +3958,7 @@ const styles = StyleSheet.create({
     color: "#8f2525",
   },
   statusControlButton: {
+    display: "none",
     minHeight: 48,
     borderRadius: 16,
     backgroundColor: "#1e5b3a",
@@ -4420,16 +4492,28 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     marginTop: 3,
   },
-  sidebarCloseButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  sidebarMenuButton: {
+    minHeight: 36,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#f0f3f1",
+    gap: 7,
+    paddingVertical: 6,
+  },
+  sidebarMenuButtonText: {
+    color: "#42524c",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  sidebarMenuButtonRow: {
+    alignItems: "flex-start",
+    paddingHorizontal: 18,
+    paddingTop: 12,
   },
   sidebarContent: {
     paddingBottom: 28,
+  },
+  sidebarFirstSectionLabel: {
+    paddingTop: 8,
   },
   sidebarSectionLabel: {
     color: "#7e8984",
@@ -4524,6 +4608,16 @@ const styles = StyleSheet.create({
     minHeight: 104,
     textAlignVertical: "top",
   },
+  bioMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 7,
+    marginBottom: 5,
+    paddingHorizontal: 2,
+  },
+  bioPublicLabel: { flexDirection: "row", alignItems: "center", gap: 4 },
+  bioMetaText: { color: "#6d7873", fontSize: 11, fontWeight: "600" },
   editPhotoCard: {
     borderRadius: 18,
     overflow: "hidden",
@@ -4533,11 +4627,11 @@ const styles = StyleSheet.create({
   },
   editCoverPreview: {
     width: "100%",
-    height: 140,
+    height: 184,
   },
   editCoverFallback: {
     width: "100%",
-    height: 140,
+    height: 184,
     backgroundColor: "#eef1ec",
     alignItems: "center",
     justifyContent: "center",
@@ -4550,10 +4644,10 @@ const styles = StyleSheet.create({
   },
   editAvatarWrap: {
     alignSelf: "center",
-    marginTop: -40,
-    width: 86,
-    height: 86,
-    borderRadius: 43,
+    marginTop: -56,
+    width: 116,
+    height: 116,
+    borderRadius: 58,
     backgroundColor: "#f8f6f2",
     borderWidth: 3,
     borderColor: "#ffffff",
@@ -4565,14 +4659,14 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   editAvatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
   },
   editAvatarFallback: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#ebf1e8",

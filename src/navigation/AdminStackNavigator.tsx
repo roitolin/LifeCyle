@@ -3,6 +3,7 @@ import { AppHeaderBackButton } from "@/components";
 import AdminTabsNavigator from "./AdminTabsNavigator";
 import { AdminUserDetailScreen } from "@/pages/admin";
 import { ChatScreen, NotificationsScreen } from "@/pages/shared";
+import { smoothStackTransition } from "./navigationTransitions";
 
 const Stack = createNativeStackNavigator();
 
@@ -10,6 +11,7 @@ export default function AdminStackNavigator() {
   return (
     <Stack.Navigator
       screenOptions={({ navigation }) => ({
+        ...smoothStackTransition,
         headerBackVisible: false,
         headerLeft: () => navigation.canGoBack() ? (
           <AppHeaderBackButton onPress={() => navigation.goBack()} />

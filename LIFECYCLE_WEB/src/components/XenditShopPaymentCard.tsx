@@ -22,7 +22,7 @@ type Payment = {
   expiresAt: string | null
   rejectionReason: string | null
   payerName: string | null
-  paymentProvider: 'manual' | 'paymongo' | 'xendit'
+  paymentProvider: 'manual' | 'legacy' | 'xendit'
   providerCheckoutUrl: string | null
   providerPaymentId: string | null
   providerPaymentMethod: string | null
@@ -72,7 +72,7 @@ function statusText(payment: Payment) {
   if (payment.status === 'verified') return 'Paid'
   if (payment.status === 'rejected') return 'Not completed'
   if (payment.paymentProvider === 'xendit') return 'Awaiting checkout'
-  if (payment.paymentProvider === 'paymongo') return 'Legacy checkout'
+  if (payment.paymentProvider === 'legacy') return 'Legacy checkout'
   return 'Admin review'
 }
 
@@ -165,9 +165,9 @@ export default function XenditShopPaymentCard({
       payerName: row.payerName || null,
       paymentProvider: row.paymentProvider === 'xendit'
         ? 'xendit'
-        : row.paymentProvider === 'paymongo'
-          ? 'paymongo'
-          : 'manual',
+        : row.paymentProvider === 'manual'
+          ? 'manual'
+          : 'legacy',
       providerCheckoutUrl: row.providerCheckoutUrl || null,
       providerPaymentId: row.providerPaymentId || null,
       providerPaymentMethod: row.providerPaymentMethod || null,
@@ -478,7 +478,7 @@ export default function XenditShopPaymentCard({
                 >
                   <div>
                     <strong>{peso(payment.amount)}</strong>
-                    <small>{payment.paymentProvider === 'xendit' ? 'Online payment' : payment.paymentProvider === 'paymongo' ? 'Legacy online payment' : 'Legacy manual'}{payment.providerPaymentMethod ? ` - ${payment.providerPaymentMethod.replace(/_/g, ' ')}` : ''} - {dateTime(payment.createdAt)}</small>
+                    <small>{payment.paymentProvider === 'xendit' ? 'Online payment' : payment.paymentProvider === 'legacy' ? 'Legacy online payment' : 'Legacy manual'}{payment.providerPaymentMethod ? ` - ${payment.providerPaymentMethod.replace(/_/g, ' ')}` : ''} - {dateTime(payment.createdAt)}</small>
                     {payment.rejectionReason && <small className='pm-reason'>{payment.rejectionReason}</small>}
                   </div>
                   <span className='pm-row-end'>
@@ -617,7 +617,7 @@ export default function XenditShopPaymentCard({
 
               <h4>Receipt Information</h4>
               <div className='pm-receipt-info'>
-                <ReceiptLine label='Payment Method' value={selectedPayment.paymentProvider === 'xendit' ? `Online payment${selectedPayment.providerPaymentMethod ? ` - ${selectedPayment.providerPaymentMethod.replace(/_/g, ' ')}` : ''}` : selectedPayment.paymentProvider === 'paymongo' ? 'Legacy online payment' : 'Legacy manual'} />
+                <ReceiptLine label='Payment Method' value={selectedPayment.paymentProvider === 'xendit' ? `Online payment${selectedPayment.providerPaymentMethod ? ` - ${selectedPayment.providerPaymentMethod.replace(/_/g, ' ')}` : ''}` : selectedPayment.paymentProvider === 'legacy' ? 'Legacy online payment' : 'Legacy manual'} />
                 <ReceiptLine label='Paid By' value={selectedPayment.payerName || shopName} />
                 <ReceiptLine label='Reference Number' value={selectedPayment.referenceNumber || 'Not provided'} />
                 <ReceiptLine label='Provider Payment ID' value={selectedPayment.providerPaymentId || 'Pending'} />

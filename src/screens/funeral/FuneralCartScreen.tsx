@@ -1,5 +1,5 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Alert, Image, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, Image, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, type ScrollViewInstance } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -28,7 +28,7 @@ export default function FuneralCartScreen({ navigation }: any) {
   const [selectedCartId, setSelectedCartId] = useState<string | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
 
   const loadCart = useCallback(async () => {
     try {
@@ -65,7 +65,7 @@ export default function FuneralCartScreen({ navigation }: any) {
   const total = useMemo(
     () =>
       items.reduce((sum, item) => {
-        const numeric = Number(String(item.price || "").replace(/[^\d.]/g, "")) || 0;
+        const numeric = Number(String(item.fullPrice || item.price || "").replace(/[^\d.]/g, "")) || 0;
         return sum + numeric * item.quantity;
       }, 0),
     [items]
@@ -233,7 +233,10 @@ export default function FuneralCartScreen({ navigation }: any) {
                     {item.packageItems?.length ? (
                       <Text style={styles.itemVariation}>Packages: {item.packageItems.join(", ")}</Text>
                     ) : null}
-                    <Text style={styles.itemPrice}>{formatPhilippinePeso(item.price)}</Text>
+                    <Text style={styles.itemPrice}>{formatPhilippinePeso(item.fullPrice || item.price)}</Text>
+                    {item.downpaymentEnabled ? (
+                      <Text style={styles.itemPaymentHint}>Choose full or down payment after shop approval</Text>
+                    ) : null}
 
                     {!selectionMode ? (
                       <View style={styles.itemActions}>
@@ -447,6 +450,13 @@ const styles = StyleSheet.create({
   itemVariation: {
     color: "#62706b",
     fontSize: 12,
+    marginTop: 4,
+  },
+  itemPaymentHint: {
+    color: "#315f50",
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: "700",
     marginTop: 4,
   },
   itemPrice: {

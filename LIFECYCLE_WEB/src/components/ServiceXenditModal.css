@@ -212,6 +212,96 @@
   border-radius: 16px;
 }
 
+.sxm-payment-option-section {
+  margin-top: 14px;
+}
+
+.sxm-payment-option-heading h3 {
+  margin: 0;
+  color: #1e293b;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.sxm-payment-option-heading p {
+  margin: 4px 0 9px;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.sxm-payment-option-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.sxm-payment-option {
+  min-width: 0;
+  min-height: 66px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 12px;
+  color: #1e293b;
+  text-align: left;
+  background: #fff;
+  border: 1px solid #dbe3ec;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
+}
+
+.sxm-payment-option:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.sxm-payment-option.is-selected {
+  background: #f0fdf4;
+  border-color: #059669;
+  box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.09);
+}
+
+.sxm-payment-option > span,
+.sxm-payment-option strong,
+.sxm-payment-option small {
+  display: block;
+}
+
+.sxm-payment-option strong {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.sxm-payment-option small {
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 10px;
+}
+
+.sxm-payment-option i {
+  position: relative;
+  width: 17px;
+  height: 17px;
+  flex: none;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 50%;
+}
+
+.sxm-payment-option.is-selected i {
+  border-color: #059669;
+}
+
+.sxm-payment-option.is-selected i::after {
+  position: absolute;
+  inset: 3px;
+  content: '';
+  background: #059669;
+  border-radius: 50%;
+}
+
 .sxm-summary-row,
 .sxm-total-row {
   display: flex;
@@ -716,6 +806,10 @@
   }
 
   .sxm-method-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sxm-payment-option-list {
     grid-template-columns: minmax(0, 1fr);
   }
 

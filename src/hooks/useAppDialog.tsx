@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { View } from 'react-native';
 import { Dialog, Portal, Text, Button } from "react-native-paper";
 import { colors } from '@/theme';
@@ -27,21 +27,16 @@ const toneColors: Record<DialogTone, string> = {
   session: colors.primary,
 };
 
-const sessionSurface = {
-  backgroundColor: colors.surface,
-  borderColor: colors.border,
-};
-
 export function useAppDialog() {
   const [config, setConfig] = useState<DialogConfig | null>(null);
   const [submittingAction, setSubmittingAction] = useState<string | null>(null);
   const [actionError, setActionError] = useState('');
 
-  const closeDialog = () => {
+  const closeDialog = useCallback(() => {
     if (submittingAction) return;
     setConfig(null);
     setActionError('');
-  };
+  }, [submittingAction]);
 
   const showDialog = (nextConfig: DialogConfig) => {
     setSubmittingAction(null);
@@ -167,7 +162,7 @@ export function useAppDialog() {
         </Dialog>
       </Portal>;
     },
-    [actionError, config, submittingAction]
+    [actionError, closeDialog, config, submittingAction]
   );
 
   return { showDialog, closeDialog, dialog };

@@ -156,7 +156,7 @@ async function syncAndReconcileSession(
     const referenceId = String(claim?.referenceId || serviceRequest.providerReferenceId || session?.reference_id || '').trim();
     const grossAmount = sessionAmount || Number(claim?.amount || serviceRequest.paymentAmount);
 
-    const { data: syncData, error: syncError } = await admin.rpc('reconcile_xendit_service_event', {
+    const { error: syncError } = await admin.rpc('reconcile_xendit_service_event', {
       p_event_id: `xendit:sync:${checkoutId}:${paymentId || 'completed'}`,
       p_event_type: 'payment_session.status_sync',
       p_event_kind: 'payment_completed',
@@ -331,7 +331,7 @@ Deno.serve(async (request) => {
 
   const { data: serviceRequest, error: requestError } = await admin
     .from('funeral_service_requests')
-    .select('id, requesterId, shopId, productName, status, providerStatus, providerCheckoutId, providerCheckoutUrl, providerReferenceId, paymentAmount, shopNetAmount, commissionAmount, payoutChannelCode')
+    .select('id, requesterId, shopId, productName, status, paymentOption, providerStatus, providerCheckoutId, providerCheckoutUrl, providerReferenceId, paymentAmount, shopNetAmount, commissionAmount, payoutChannelCode')
     .eq('id', requestId)
     .maybeSingle();
   if (requestError) return jsonResponse(request, { error: 'Unable to load the service request.' }, 500);
@@ -420,6 +420,9 @@ Deno.serve(async (request) => {
 
   if (serviceRequest.status !== 'awaiting_payment') {
     return jsonResponse(request, { error: 'This service request is not awaiting payment.' }, 409);
+  }
+  if (serviceRequest.paymentOption !== 'full' && serviceRequest.paymentOption !== 'downpayment') {
+    return jsonResponse(request, { error: 'Choose full payment or down payment before continuing.' }, 409);
   }
 
   const selectedMethod = availableMethods.find(method => method.accountChannel === requestedPaymentMethod);

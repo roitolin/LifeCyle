@@ -1,14 +1,15 @@
 import { useState } from "react";
 import {
+  ActivityIndicator,
   View,
   Text,
   TextInput,
-  Button,
   Alert,
   StyleSheet,
   Linking,
   TouchableOpacity,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Dialog, Portal, Button as PaperButton } from "react-native-paper";
 import { supabase } from "@/services/supabaseClient";
 import { KeyboardAwareScrollView } from "@/components";
@@ -18,6 +19,7 @@ import { ensureConversationForUsers } from "../../utils/chatHelpers";
 import { consumeRateLimit, isRateLimitError } from "../../utils/rateLimiter";
 import { hasSuspiciousPayload, sanitizePlainText } from "../../utils/inputSecurity";
 import { getAdminId } from "../../utils/adminConfig";
+import { colors, radii, spacing } from "@/theme";
 
 const SUPPORT_PHONE = "+639123456789";
 const isPermissionDeniedError = (error: any) =>
@@ -200,42 +202,80 @@ export default function ContactScreen({ navigation }: any) {
 
   return (
     <KeyboardAwareScrollView style={styles.screen} contentContainerStyle={[styles.container, isDesktop && styles.containerDesktop]}>
-      <Text style={styles.title}>Contact Support</Text>
-      <Text style={styles.subtitle}>
-        Have a question, suggestion, or issue? Let us know and we&apos;ll get back to you.
-      </Text>
+      <View style={styles.introCard}>
+        <View style={styles.introIcon}>
+          <Ionicons name="headset-outline" size={24} color={colors.primary} />
+        </View>
+        <View style={styles.introCopy}>
+          <Text style={styles.introTitle}>How can we help?</Text>
+          <Text style={styles.subtitle}>Choose a quick option or send the support team a detailed message.</Text>
+        </View>
+      </View>
 
       <View style={styles.quickActions}>
-        <TouchableOpacity style={styles.quickButton} onPress={handleCall} activeOpacity={0.85}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Call support" style={styles.quickButton} onPress={handleCall} activeOpacity={0.8}>
+          <View style={styles.quickButtonIcon}>
+            <Ionicons name="call-outline" size={20} color={colors.primary} />
+          </View>
           <Text style={styles.quickButtonText}>Call</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.quickButton} onPress={handleSms} activeOpacity={0.85}>
-          <Text style={styles.quickButtonText}>SMS</Text>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Text support" style={styles.quickButton} onPress={handleSms} activeOpacity={0.8}>
+          <View style={styles.quickButtonIcon}>
+            <Ionicons name="chatbox-outline" size={20} color={colors.primary} />
+          </View>
+          <Text style={styles.quickButtonText}>Text</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.quickButton} onPress={handleOpenChat} activeOpacity={0.85}>
-          <Text style={styles.quickButtonText}>Chat</Text>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Open support chat" style={[styles.quickButton, styles.quickButtonPrimary]} onPress={handleOpenChat} activeOpacity={0.8}>
+          <View style={[styles.quickButtonIcon, styles.quickButtonIconPrimary]}>
+            <Ionicons name="chatbubbles-outline" size={20} color="#ffffff" />
+          </View>
+          <Text style={[styles.quickButtonText, styles.quickButtonTextPrimary]}>Chat</Text>
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.label}>Subject</Text>
-      <TextInput
-        style={styles.input}
-        value={subject}
-        onChangeText={setSubject}
-        placeholder="e.g. Payment question"
-      />
+      <View style={styles.formCard}>
+        <Text style={styles.formTitle}>Send a message</Text>
+        <Text style={styles.formDescription}>Include any order or service-request reference that can help us investigate.</Text>
 
-      <Text style={styles.label}>Message</Text>
-      <TextInput
-        style={[styles.input, styles.textArea]}
-        value={message}
-        onChangeText={setMessage}
-        multiline
-        numberOfLines={6}
-        textAlignVertical="top"
-      />
+        <Text style={styles.label}>Subject</Text>
+        <TextInput
+          style={styles.input}
+          value={subject}
+          onChangeText={setSubject}
+          placeholder="e.g. Payment question"
+          placeholderTextColor="#89958f"
+          maxLength={120}
+          returnKeyType="next"
+        />
 
-      <Button title={loading ? "Sending..." : "Send Message"} onPress={handleSubmit} disabled={loading} />
+        <View style={styles.messageLabelRow}>
+          <Text style={styles.label}>Message</Text>
+          <Text style={styles.characterCount}>{message.length}/1200</Text>
+        </View>
+        <TextInput
+          style={[styles.input, styles.textArea]}
+          value={message}
+          onChangeText={setMessage}
+          placeholder="Describe what happened and what you need help with"
+          placeholderTextColor="#89958f"
+          multiline
+          numberOfLines={6}
+          maxLength={1200}
+          textAlignVertical="top"
+        />
+
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={loading ? "Sending message" : "Send message"}
+          style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+          onPress={handleSubmit}
+          disabled={loading}
+          activeOpacity={0.85}
+        >
+          {loading ? <ActivityIndicator color="#ffffff" size="small" /> : <Ionicons name="send-outline" size={18} color="#ffffff" />}
+          <Text style={styles.submitButtonText}>{loading ? "Sending..." : "Send message"}</Text>
+        </TouchableOpacity>
+      </View>
 
       <Portal>
         <Dialog visible={successDialogVisible} onDismiss={() => setSuccessDialogVisible(false)}>
@@ -263,37 +303,58 @@ export default function ContactScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#f5f5f5" },
-  container: { flexGrow: 1, padding: 20, paddingBottom: 120, backgroundColor: "#f5f5f5" },
-  title: { fontSize: 28, fontWeight: "bold", marginBottom: 10, color: "#d32f2f" },
-  subtitle: { fontSize: 16, color: "#666", marginBottom: 14 },
+  screen: { flex: 1, backgroundColor: colors.surfaceMuted },
+  container: { flexGrow: 1, padding: spacing.lg, paddingBottom: 64, backgroundColor: colors.surfaceMuted },
+  introCard: { flexDirection: "row", alignItems: "center", gap: spacing.md, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.borderWarm, backgroundColor: colors.surfaceWarm, padding: spacing.lg, marginBottom: spacing.md },
+  introIcon: { width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#e4eee9" },
+  introCopy: { flex: 1 },
+  introTitle: { color: colors.text, fontSize: 18, fontWeight: "900", marginBottom: 3 },
+  subtitle: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
   quickActions: {
     flexDirection: "row",
-    gap: 10,
-    marginBottom: 14,
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
   },
   quickButton: {
     flex: 1,
-    backgroundColor: "#d32f2f",
-    borderRadius: 10,
-    paddingVertical: 10,
+    minHeight: 82,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderWarm,
+    borderRadius: radii.lg,
+    paddingVertical: spacing.md,
     alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
   },
+  quickButtonPrimary: { backgroundColor: colors.primary, borderColor: colors.primary },
+  quickButtonIcon: { width: 34, height: 34, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#edf3f0" },
+  quickButtonIconPrimary: { backgroundColor: "rgba(255,255,255,0.16)" },
   quickButtonText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 15,
+    color: colors.text,
+    fontWeight: "800",
+    fontSize: 13,
   },
-  label: { fontSize: 16, fontWeight: "600", marginTop: 15, marginBottom: 5 },
+  quickButtonTextPrimary: { color: "#ffffff" },
+  formCard: { borderRadius: radii.xl, borderWidth: 1, borderColor: colors.borderWarm, backgroundColor: colors.surface, padding: spacing.lg },
+  formTitle: { color: colors.text, fontSize: 18, fontWeight: "900" },
+  formDescription: { color: colors.textMuted, fontSize: 12, lineHeight: 18, marginTop: 4, marginBottom: spacing.lg },
+  label: { color: colors.text, fontSize: 13, fontWeight: "800", marginBottom: spacing.sm },
+  messageLabelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.lg },
+  characterCount: { color: colors.textMuted, fontSize: 11, marginBottom: spacing.sm },
   input: {
     borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: "#fff",
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    fontSize: 14,
+    color: colors.text,
+    backgroundColor: "#fbfcfb",
   },
-  textArea: { minHeight: 120, textAlignVertical: "top" },
+  textArea: { minHeight: 150, textAlignVertical: "top" },
+  submitButton: { minHeight: 50, borderRadius: radii.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, backgroundColor: colors.primaryDark, marginTop: spacing.lg },
+  submitButtonDisabled: { opacity: 0.62 },
+  submitButtonText: { color: "#ffffff", fontSize: 14, fontWeight: "900" },
   containerDesktop: { maxWidth: 600, alignSelf: "center", width: "100%" },
 });
 

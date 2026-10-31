@@ -88,8 +88,8 @@ export default function RootNavigator() {
   }, [onboardingCompleted, user]);
 
   useEffect(() => {
-    const captureRecoveryUrl = (url: string | null) => {
-      if (isPasswordRecoveryUrl(url)) setPasswordRecoveryUrl(url);
+    const captureRecoveryUrl = (url: string | null | undefined) => {
+      if (url && isPasswordRecoveryUrl(url)) setPasswordRecoveryUrl(url);
     };
 
     void Linking.getInitialURL().then(captureRecoveryUrl);

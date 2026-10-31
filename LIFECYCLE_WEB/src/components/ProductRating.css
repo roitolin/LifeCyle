@@ -1,0 +1,30 @@
+.product-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  color: #315f50;
+  font-size: 12px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+.product-rating-stars {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+  color: #cbd2d8;
+  font-size: 13px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+.product-rating-stars .product-rating-filled {
+  position: absolute;
+  inset: 0 auto 0 0;
+  overflow: hidden;
+  color: #d4a52e;
+}
+
+.product-rating-value { font-weight: 700; }
+.product-rating-count { color: #687688; font-size: 11px; }

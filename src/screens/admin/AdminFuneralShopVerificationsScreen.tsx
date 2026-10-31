@@ -99,8 +99,6 @@ export default function AdminFuneralShopVerificationsScreen() {
   const [payoutName, setPayoutName] = useState("");
   const [payoutNumber, setPayoutNumber] = useState("");
   const [channelPickerVisible, setChannelPickerVisible] = useState(false);
-  const [payoutSectionExpanded, setPayoutSectionExpanded] = useState(false);
-
   const applyFilters = useCallback((allItems: ShopApplicant[], search: string, filter: FilterType) => {
     let result = [...allItems];
 
@@ -182,7 +180,6 @@ export default function AdminFuneralShopVerificationsScreen() {
 
   useEffect(() => {
     // Async screen loading intentionally begins when the filter-backed loader changes.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadApplicants();
   }, [loadApplicants]);
 

@@ -135,9 +135,32 @@ create table if not exists public.funeral_products (
   stock integer not null default 0,
   "imageUrl" text,
   "hasVariations" boolean not null default false,
+  "downpaymentEnabled" boolean not null default false,
+  "downpaymentAmount" numeric(12, 2),
+  "downpaymentPercentage" numeric(5, 2),
   active boolean not null default true,
   "createdAt" timestamptz not null default now(),
-  "updatedAt" timestamptz not null default now()
+  "updatedAt" timestamptz not null default now(),
+  constraint funeral_products_downpayment_terms_valid check (
+    (
+      "downpaymentEnabled" = false
+      and "downpaymentAmount" is null
+      and "downpaymentPercentage" is null
+    )
+    or
+    (
+      "downpaymentEnabled" = true
+      and price > 0
+      and "downpaymentAmount" > 0
+      and "downpaymentAmount" <= price
+      and "downpaymentPercentage" > 0
+      and "downpaymentPercentage" <= 100
+      and abs(
+        "downpaymentPercentage"
+        - round(("downpaymentAmount" * 100) / price, 2)
+      ) < 0.01
+    )
+  )
 );
 
 create index if not exists fp_shop_idx on public.funeral_products ("shopId");

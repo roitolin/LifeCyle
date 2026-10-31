@@ -32,6 +32,7 @@ module.exports = {
         }
       ],
       'expo-secure-store',
+      'expo-web-browser',
       [
         'expo-image-picker',
         {

@@ -18,6 +18,7 @@ import { KeyboardAwareScrollView } from "@/components";
 import ServiceRequestScheduleFields from "@/components/ServiceRequestScheduleFields";
 import { supabase } from "@/services/supabaseClient";
 import { generateId } from "@/utils/generateId";
+import { formatPhilippinePeso } from "@/utils/funeralCatalog";
 import { auth, uploadCertificate } from "@/services";
 import { FuneralCartItem, removeFuneralCartItem } from "@/utils/funeralCart";
 import { hapticMedium } from "@/utils/haptics";
@@ -76,6 +77,8 @@ export default function FuneralCheckoutScreen({ navigation, route }: any) {
   const [ageInputMode, setAgeInputMode] = useState<"auto" | "manual">("auto");
   const [submitting, setSubmitting] = useState(false);
   const [successState, setSuccessState] = useState<CheckoutSuccessState | null>(null);
+
+  const fullPrice = Math.max(0, Number(cartItem?.fullPrice || cartItem?.price) || 0);
 
   useEffect(() => {
     navigation.setOptions({
@@ -269,7 +272,7 @@ export default function FuneralCheckoutScreen({ navigation, route }: any) {
         cartId: cartItem.cartId,
         productId: cartItem.productId,
         productName: cartItem.name,
-        productPrice: cartItem.price,
+        productPrice: String(fullPrice),
         productImageUrl: cartItem.imageUrl || null,
         variationId: cartItem.variationId || null,
         variationName: cartItem.variationName || null,
@@ -342,6 +345,7 @@ export default function FuneralCheckoutScreen({ navigation, route }: any) {
     familyCoordinatorName,
     memorialPhotoUrl,
     navigation,
+    fullPrice,
     pickupAddress,
     shopAddress,
     shopContactNumber,
@@ -455,6 +459,7 @@ export default function FuneralCheckoutScreen({ navigation, route }: any) {
             {cartItem.packageItems?.length ? (
               <Text style={styles.summaryVariation}>Packages: {cartItem.packageItems.join(", ")}</Text>
             ) : null}
+            <Text style={styles.summaryPaymentOption}>Product price: {formatPhilippinePeso(fullPrice)}</Text>
           </View>
         </View>
 
@@ -697,6 +702,12 @@ const styles = StyleSheet.create({
     color: "#62706b",
     fontSize: 12,
     marginTop: 4,
+  },
+  summaryPaymentOption: {
+    color: "#315f50",
+    fontSize: 12,
+    fontWeight: "900",
+    marginTop: 7,
   },
   formSection: {
     borderBottomWidth: 1,

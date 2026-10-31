@@ -133,7 +133,7 @@ export default function FuneralShopsPage() {
   })
 
   const accountPath = isLoggedIn ? '/user/profile' : '/login?next=/user/profile'
-  const purchasesPath = isLoggedIn ? '/user/purchase' : '/login?next=/user/purchase'
+  const serviceRequestsPath = isLoggedIn ? '/user/requests' : '/login?next=/user/requests'
   const helpPath = isLoggedIn ? '/user/help' : '/login?next=/user/help'
 
   const openMessages = () => {
@@ -157,7 +157,7 @@ export default function FuneralShopsPage() {
         photoUrl={userProfile?.photoURL}
         gender={userProfile?.gender}
         accountPath={accountPath}
-        purchasesPath={purchasesPath}
+        serviceRequestsPath={serviceRequestsPath}
         helpPath={helpPath}
         onOpenMessages={openMessages}
       />
@@ -183,7 +183,7 @@ export default function FuneralShopsPage() {
                   </div>
                   <div className="sp-user-dropdown">
                     <Link to="/user/profile">My Account</Link>
-                    <Link to="/user/purchase">My Payments</Link>
+                    <Link to="/user/requests">My service request</Link>
                     <Link to="/auth/switch-account" className="sp-dropdown-switch">Switch Account</Link>
                     <LogoutLink>Log out</LogoutLink>
                   </div>

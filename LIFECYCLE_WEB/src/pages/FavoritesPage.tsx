@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import ProfileLayout from './ProfileLayout'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
+import { useProductScrollReveal } from '@/hooks/useProductScrollReveal'
 import './FavoritesPage.css'
 
 type FavProduct = {
@@ -44,6 +45,7 @@ export default function FavoritesPage() {
   const [products, setProducts] = useState<FavProduct[]>([])
   const [loading, setLoading] = useState(true)
   const { openConfirm, confirmDialog } = useConfirmDialog()
+  const favoritesGridRef = useProductScrollReveal<HTMLDivElement>(products.map(product => product.id).join('|'))
 
   useEffect(() => {
     const refresh = () => setFavIds(loadFavIds())
@@ -130,9 +132,13 @@ export default function FavoritesPage() {
             <Link to="/funeral" className="favorites-browse-button">Browse Products</Link>
           </div>
         ) : (
-          <div className="favorites-grid">
+          <div className="favorites-grid" ref={favoritesGridRef}>
             {products.map(product => (
-              <article key={product.id} className="favorite-card">
+              <article
+                key={product.id}
+                className="favorite-card product-scroll-reveal"
+                data-product-scroll-reveal
+              >
                 <Link to={`/funeral/product/${product.id}`} className="favorite-card-link">
                   {product.imageUrl ? (
                     <img src={product.imageUrl} alt={product.name} className="favorite-card-image" />

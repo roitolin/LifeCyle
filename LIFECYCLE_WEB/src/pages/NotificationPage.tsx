@@ -383,7 +383,7 @@ export default function NotificationPage() {
               </div>
               <div className="notification-user-dropdown">
                 <Link to="/user/profile">My Account</Link>
-                <Link to="/user/purchase">My Payments</Link>
+                <Link to="/user/requests">My service request</Link>
                 <Link to="/auth/switch-account">Switch Account</Link>
                 <LogoutLink>Log out</LogoutLink>
               </div>

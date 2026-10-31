@@ -150,8 +150,14 @@
 .item-variation {
   @apply text-[13px] text-[color:var(--text-muted)];
 }
+.item-payment-option {
+  @apply text-[12px] font-bold text-[#315f50] mt-[4px];
+}
 .item-col-price {
-  @apply text-center text-[14px] text-[color:var(--text-main)] font-extrabold;
+  @apply flex flex-col text-center text-[14px] text-[color:var(--text-main)] font-extrabold;
+}
+.item-col-price small {
+  @apply text-[10px] font-medium text-[color:var(--text-muted)] mt-[3px];
 }
 .item-col-actions {
   @apply text-center;

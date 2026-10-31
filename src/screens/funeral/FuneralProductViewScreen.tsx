@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import LoadingBird from '@/components/LoadingBird';
+import ProductRating from '@/components/ProductRating';
 import {
   Alert,
   ActivityIndicator,
@@ -22,6 +23,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { Ionicons } from "@expo/vector-icons";
 import { AppBackButton, KeyboardAwareScrollView } from "@/components";
 import { formatPhilippinePeso } from "@/utils/funeralCatalog";
+import { summarizeProductRatings } from "@/utils/productRatings";
 import { auth } from "@/services";
 import { supabase } from "@/services/supabaseClient";
 import { createAdminNotification } from "@/utils/createAdminNotification";
@@ -99,6 +101,9 @@ type ProductViewItem = {
   shopId?: string;
   hasVariations?: boolean;
   variations?: ProductVariation[];
+  downpaymentEnabled?: boolean;
+  downpaymentAmount?: number | null;
+  downpaymentPercentage?: number | null;
   reviewCount?: number;
   reviews?: ProductReview[];
 };
@@ -120,12 +125,15 @@ function getGallery(item: ProductViewItem) {
 }
 
 function mapCatalogProduct(row: any, fallbackShopName = "Funeral shop"): ProductViewItem {
+  const summary = summarizeProductRatings(row.funeral_product_ratings);
   return {
     id: String(row.id),
     name: String(row.name || "Untitled Product"),
     description: String(row.description || ""),
     price: String(row.price || 0),
     stock: Number(row.stock) || 0,
+    rating: summary.average,
+    reviewCount: summary.count,
     imageUrl: row.imageUrl || null,
     galleryImageUrls: (row.funeral_product_images || [])
       .sort((a: any, b: any) => (a.displayOrder || 0) - (b.displayOrder || 0))
@@ -134,6 +142,9 @@ function mapCatalogProduct(row: any, fallbackShopName = "Funeral shop"): Product
     shopId: String(row.shopId || ""),
     shopName: String(row.funeral_shops?.shopName || fallbackShopName),
     hasVariations: Boolean(row.hasVariations) || (row.funeral_product_variations || []).length > 0,
+    downpaymentEnabled: Boolean(row.downpaymentEnabled),
+    downpaymentAmount: row.downpaymentAmount == null ? null : Number(row.downpaymentAmount),
+    downpaymentPercentage: row.downpaymentPercentage == null ? null : Number(row.downpaymentPercentage),
     variations: (row.funeral_product_variations || []).map((variation: any) => ({
       id: variation.id ? String(variation.id) : undefined,
       name: String(variation.name || "Standard"),
@@ -221,6 +232,11 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
   const [recommendedProducts, setRecommendedProducts] = useState<ProductViewItem[]>([]);
   const [shopPackage, setShopPackage] = useState<ShopPackage | null>(null);
   const [liveVariations, setLiveVariations] = useState<ProductVariation[] | null>(null);
+  const [livePaymentTerms, setLivePaymentTerms] = useState<{
+    enabled: boolean;
+    amount: number | null;
+    percentage: number | null;
+  } | null>(null);
   const [shopProductCount, setShopProductCount] = useState(1);
   const variationBackdropOpacity = useRef(new Animated.Value(0)).current;
   const variationSheetProgress = useRef(new Animated.Value(0)).current;
@@ -236,7 +252,6 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
   const stockCount = product?.stock ?? 0;
   const isSoldOut = stockCount <= 0;
   const priceLabel = product?.name || "Funeral product";
-  const defaultRatingValue = Math.max(0, Math.min(5, Number(product?.rating) || 0));
   const soldCount = Math.max(0, Number(product?.soldCount) || 0);
   const routeVariations = Array.isArray(product?.variations) ? product.variations : [];
   const variations = liveVariations ?? routeVariations;
@@ -251,6 +266,9 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
   const includedPackageItems = availablePackages.map((item) => item.name);
   const selectedVariationPrice = selectedVariation?.price == null ? priceValue : getNumericPrice(selectedVariation.price);
   const calculatedTotal = selectedVariationPrice;
+  const downpaymentEnabled = livePaymentTerms?.enabled ?? Boolean(product?.downpaymentEnabled);
+  const downpaymentAmount = livePaymentTerms?.amount ?? product?.downpaymentAmount ?? null;
+  const downpaymentPercentage = livePaymentTerms?.percentage ?? product?.downpaymentPercentage ?? null;
 
   const getIdentity = useCallback(async () => {
     const currentUser = auth.currentUser;
@@ -294,11 +312,16 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
     }
 
     setLoadingReviews(true);
+    setRatings([]);
+    setFeedbacks([]);
+    setRating(0);
     try {
       const [ratingsSnap, feedbacksSnap] = await Promise.all([
         supabase.from("funeral_product_ratings").select("*").eq("productKey", productKey),
         supabase.from("funeral_product_feedback").select("*").eq("productKey", productKey),
       ]);
+      if (ratingsSnap.error) throw ratingsSnap.error;
+      if (feedbacksSnap.error) throw feedbacksSnap.error;
 
       const nextRatings = (ratingsSnap.data || []) as ProductRatingDoc[];
       const nextFeedbacks = (feedbacksSnap.data || [])
@@ -344,10 +367,11 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
         setRecommendedProducts([]);
         setShopPackage(null);
         setLiveVariations(null);
+        setLivePaymentTerms(null);
         return;
       }
 
-      const [shopResult, relatedResult, recommendationsResult, packagesResult, variationsResult] = await Promise.all([
+      const [shopResult, relatedResult, recommendationsResult, packagesResult, variationsResult, paymentTermsResult] = await Promise.all([
         supabase
           .from("funeral_shops")
           .select("shopName, shopAddress, generalLocation, shopImageUrl, status")
@@ -358,7 +382,8 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
           .select(`
             *,
             funeral_product_variations ( id, name, price, imageUrl ),
-            funeral_product_images ( imageUrl, displayOrder )
+            funeral_product_images ( imageUrl, displayOrder ),
+            funeral_product_ratings ( rating )
           `, { count: "exact" })
           .eq("shopId", product.shopId)
           .eq("active", true)
@@ -371,6 +396,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
             *,
             funeral_product_variations ( id, name, price, imageUrl ),
             funeral_product_images ( imageUrl, displayOrder ),
+            funeral_product_ratings ( rating ),
             funeral_shops!inner ( shopName, status )
           `)
           .eq("active", true)
@@ -390,6 +416,12 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
           .from("funeral_product_variations")
           .select("id, name, price, imageUrl")
           .eq("productId", product.id),
+        supabase
+          .from("funeral_products")
+          .select("downpaymentEnabled, downpaymentAmount, downpaymentPercentage")
+          .eq("id", product.id)
+          .eq("shopId", product.shopId)
+          .maybeSingle(),
       ]);
 
       if (cancelled) return;
@@ -419,6 +451,15 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
       } else {
         setLiveVariations(null);
       }
+      if (!paymentTermsResult.error && paymentTermsResult.data) {
+        setLivePaymentTerms({
+          enabled: Boolean(paymentTermsResult.data.downpaymentEnabled),
+          amount: paymentTermsResult.data.downpaymentAmount == null ? null : Number(paymentTermsResult.data.downpaymentAmount),
+          percentage: paymentTermsResult.data.downpaymentPercentage == null ? null : Number(paymentTermsResult.data.downpaymentPercentage),
+        });
+      } else {
+        setLivePaymentTerms(null);
+      }
     };
 
     void loadShopContext();
@@ -427,27 +468,22 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
     };
   }, [product?.id, product?.shopId, product?.shopName]);
 
-  const averageRating = useMemo(() => {
-    if (!ratings.length) return defaultRatingValue;
-    const total = ratings.reduce((sum, item) => sum + (Number(item.rating) || 0), 0);
-    return total / ratings.length;
-  }, [defaultRatingValue, ratings]);
+  const ratingSummary = useMemo(() => summarizeProductRatings(ratings), [ratings]);
+  const averageRating = ratingSummary.average;
 
   const reviews = useMemo(() => {
-    const mappedReviews = feedbacks.map((item: any) => ({
+    return feedbacks.map((item: any) => ({
       id: item.id,
       reviewerName: item.displayName || item.userEmail || "User",
-      rating: item.ratingSnapshot || averageRating || defaultRatingValue,
+      rating: item.ratingSnapshot || 0,
       itemLabel: fallbackItemLabel,
       comment: item.feedback,
       createdLabel: formatTimestamp(item.updatedAt || item.createdAt),
     })) as ProductReview[];
 
-    if (mappedReviews.length) return mappedReviews;
-    return Array.isArray(product?.reviews) ? product.reviews : [];
-  }, [averageRating, defaultRatingValue, fallbackItemLabel, feedbacks, product?.reviews]);
+  }, [fallbackItemLabel, feedbacks]);
 
-  const reviewCount = Math.max(reviews.length, ratings.length, Number(product?.reviewCount) || 0);
+  const reviewCount = reviews.length;
   const visibleReviews = reviews.slice(0, 2);
 
   const handleGalleryScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -490,7 +526,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
 
     setSavingRating(true);
     try {
-      await supabase.from("funeral_product_ratings").upsert(
+      const { error } = await supabase.from("funeral_product_ratings").upsert(
         {
           id: `${productKey}_${identity.userId}`,
           productKey,
@@ -503,6 +539,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
           updatedAt: new Date().toISOString(),
         }
       );
+      if (error) throw error;
 
       await createAdminNotification(
         "rating_update",
@@ -540,7 +577,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
 
     setPostingFeedback(true);
     try {
-      await supabase.from("funeral_product_feedback").insert({
+      const { error } = await supabase.from("funeral_product_feedback").insert({
         productKey,
         productId: product.id,
         shopId: product.shopId || null,
@@ -548,8 +585,9 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
         userEmail: identity.userEmail,
         displayName: identity.displayName,
         feedback: feedbackText.trim(),
-        ratingSnapshot: rating > 0 ? rating : averageRating,
+        ratingSnapshot: rating > 0 ? rating : null,
       });
+      if (error) throw error;
 
       await createAdminNotification(
         "feedback_new",
@@ -633,6 +671,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
         </View>
         <Text style={styles.productRailName} numberOfLines={2}>{item.name}</Text>
         <Text style={styles.productRailPrice}>{formatPhilippinePeso(item.price)}</Text>
+        <ProductRating rating={item.rating ?? 0} count={item.reviewCount ?? 0} />
         {showShopName ? (
           <View style={styles.productRailShopRow}>
             <Ionicons name="storefront-outline" size={14} color={colors.warning} />
@@ -689,6 +728,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
           <Text style={styles.homeProductShopName} numberOfLines={1}>{item.shopName}</Text>
           <Text style={styles.homeProductName} numberOfLines={2}>{item.name}</Text>
           <Text style={styles.homeProductPrice}>{formatPhilippinePeso(item.price)}</Text>
+          <ProductRating rating={item.rating ?? 0} count={item.reviewCount ?? 0} />
         </View>
       </TouchableOpacity>
     );
@@ -817,6 +857,12 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
         shopName: product.shopName || "Funeral shop",
         name: product.name,
         price: String(calculatedTotal),
+        fullPrice: String(calculatedTotal),
+        paymentOption: "full",
+        downpaymentEnabled,
+        downpaymentAmount: downpaymentAmount == null ? null : String(downpaymentAmount),
+        downpaymentPercentage,
+        remainingBalance: "0",
         imageUrl: selectedVariation?.imageUrl || gallery[0] || product.imageUrl || null,
         variationId: selectedVariation?.id || null,
         variationName: selectedVariationName,
@@ -849,6 +895,12 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
         shopName: product.shopName || "Funeral shop",
         name: product.name,
         price: String(calculatedTotal),
+        fullPrice: String(calculatedTotal),
+        paymentOption: "full",
+        downpaymentEnabled,
+        downpaymentAmount: downpaymentAmount == null ? null : String(downpaymentAmount),
+        downpaymentPercentage,
+        remainingBalance: "0",
         imageUrl: selectedVariation?.imageUrl || gallery[0] || product.imageUrl || null,
         variationId: selectedVariation?.id || null,
         variationName: selectedVariationName,
@@ -958,10 +1010,10 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
           <View style={styles.ratingStockRow}>
             <View style={styles.ratingRow}>
               <View style={styles.ratingBadge}>
-                <Ionicons name="star" size={11} color="#ffffff" />
-                <Text style={styles.ratingBadgeText}>{averageRating > 0 ? averageRating.toFixed(1) : "New"}</Text>
+                <Ionicons name={averageRating > 0 ? "star" : "star-outline"} size={11} color="#ffffff" />
+                <Text style={styles.ratingBadgeText}>{averageRating > 0 ? averageRating.toFixed(1) : "0"}</Text>
               </View>
-              <Text style={styles.soldText}>{soldCount > 0 ? `${soldCount} sold` : `${reviewCount} reviews`}</Text>
+              <Text style={styles.soldText}>{soldCount > 0 ? `${soldCount} sold` : `${ratingSummary.count} ratings`}</Text>
             </View>
           </View>
 
@@ -1054,9 +1106,9 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
         <View style={styles.reviewsSection}>
           <TouchableOpacity style={styles.productRatingHeader} onPress={() => setReviewsVisible(true)}>
             <View style={styles.productRatingTitleRow}>
-              <Text style={styles.productRatingScore}>{averageRating > 0 ? averageRating.toFixed(1) : "New"}</Text>
-              <Ionicons name="star" size={18} color={colors.warning} />
-              <Text style={styles.marketPanelTitle}>Product ratings ({reviewCount})</Text>
+              <Text style={styles.productRatingScore}>{averageRating > 0 ? averageRating.toFixed(1) : "0"}</Text>
+              <Ionicons name={averageRating > 0 ? "star" : "star-outline"} size={18} color={averageRating > 0 ? colors.warning : colors.textMuted} />
+              <Text style={styles.marketPanelTitle}>Product ratings ({ratingSummary.count})</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </TouchableOpacity>
@@ -1456,8 +1508,8 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
             </View>
 
             <View style={styles.reviewSummaryRow}>
-              <Text style={styles.reviewSummaryScore}>{averageRating > 0 ? `${averageRating.toFixed(1)}/5` : "No ratings yet"}</Text>
-              {averageRating > 0 ? <Text style={styles.reviewSummaryStars}>{renderStars(averageRating)}</Text> : null}
+              <Text style={styles.reviewSummaryScore}>{averageRating > 0 ? `${averageRating.toFixed(1)}/5` : "0/5"}</Text>
+              <Text style={styles.reviewSummaryStars}>{renderStars(averageRating)}</Text>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>

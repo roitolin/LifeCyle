@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { APP_ICON_TRANSPARENT_URL } from '@/assets/appIconAssets'
+import { getDefaultProfileAvatar } from '@/utils/profileAvatar'
 import { logWebAdminActivity, recordWebAdminLoginActivity } from '@/utils/adminActivity'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import NotificationDropdown, { type WebNotification } from '@/components/NotificationDropdown'
@@ -17,8 +18,7 @@ type ProfileData = {
 type AdminRole = 'super_admin' | 'admin' | 'funeral_admin' | 'user'
 
 function getDefaultAvatar(gender: string) {
-  if (gender === 'female') return '/Female.png'
-  return '/Male.png'
+  return getDefaultProfileAvatar(gender)
 }
 
 function resolveAdminNotificationRoute(item: WebNotification) {

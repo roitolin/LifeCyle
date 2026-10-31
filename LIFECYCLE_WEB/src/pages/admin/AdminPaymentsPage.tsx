@@ -48,7 +48,7 @@ export type PaymentSubmission = {
   shopName: string
   ownerEmail: string
   ownerFullName: string
-  paymentProvider: 'manual' | 'paymongo' | 'xendit'
+  paymentProvider: 'manual' | 'legacy' | 'xendit'
   providerPaymentId: string | null
   providerPaymentMethod: string | null
 }
@@ -141,9 +141,9 @@ export default function AdminPaymentsPage() {
         ownerFullName: row.users?.fullName || '',
         paymentProvider: row.paymentProvider === 'xendit'
           ? 'xendit'
-          : row.paymentProvider === 'paymongo'
-            ? 'paymongo'
-            : 'manual',
+          : row.paymentProvider === 'manual'
+            ? 'manual'
+            : 'legacy',
         providerPaymentId: row.providerPaymentId || null,
         providerPaymentMethod: row.providerPaymentMethod || null,
       }))

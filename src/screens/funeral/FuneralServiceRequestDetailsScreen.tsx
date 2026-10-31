@@ -20,6 +20,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  type ScrollViewInstance,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -54,6 +55,11 @@ type FuneralServiceRequest = {
   productId: string;
   productName: string;
   productPrice?: string;
+  paymentOption?: "pending" | "full" | "downpayment" | null;
+  productFullPrice?: number | string | null;
+  downpaymentAmountSnapshot?: number | string | null;
+  downpaymentPercentageSnapshot?: number | string | null;
+  remainingBalance?: number | string | null;
   productImageUrl?: string | null;
   variationName?: string | null;
   packageItems?: string[] | null;
@@ -79,7 +85,8 @@ type FuneralServiceRequest = {
   shopAddress?: string | null;
   status: string;
   paymentAmount?: number | string | null;
-  paymentProvider?: "manual" | "paymongo" | "xendit";
+  paymentProvider?: string;
+  providerCheckoutId?: string | null;
   providerPaymentMethod?: string | null;
   paymentPayerName?: string | null;
   paymentGcashName?: string | null;
@@ -161,7 +168,7 @@ const getStatusMeta = (status: string) => {
       background: "#e0eefa",
       text: "#1c4f7e",
       icon: "wallet-outline" as IoniconName,
-      message: "Open the secure Xendit checkout to pay for the selected casket.",
+      message: "Tap Pay Online, then choose full payment or down payment in the secure checkout.",
       shopMessage: "The Xendit checkout is ready. Waiting for the family to complete payment.",
     };
   }
@@ -557,7 +564,7 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
   const [checklistLoading, setChecklistLoading] = useState(!requesterView);
   const [checklistSavingKey, setChecklistSavingKey] = useState<PreparationChecklistKey | null>(null);
   const [checklistError, setChecklistError] = useState<string | null>(null);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
   const paymentSectionY = useRef(0);
   const paymentFocusHandledRef = useRef(false);
   const actionSectionY = useRef(0);
@@ -568,7 +575,7 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
       void (async () => {
         if (
           String(request.status || "").toLowerCase() === "awaiting_payment" &&
-          (request.paymentProvider === "xendit" || Boolean((request as any)?.providerCheckoutId))
+          (request.paymentProvider === "xendit" || Boolean(request.providerCheckoutId))
         ) {
           try {
             await syncServiceXenditCheckout(request.id);
@@ -590,7 +597,7 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
       return () => {
         active = false;
       };
-    }, [request.id, request.status, request.paymentProvider])
+    }, [request.id, request.paymentProvider, request.providerCheckoutId, request.status])
   );
 
   useEffect(() => {
@@ -1213,7 +1220,7 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
   const paymentSectionVisible =
     ["awaiting_payment", "payment_submitted", "payment_verified", "awaiting_customer_confirmation", "completed"].includes(
       normalizedRequestStatus
-    ) && hasPaymentSetup(request);
+    ) && (normalizedRequestStatus === "awaiting_payment" || hasPaymentSetup(request));
   const currentStatusMessage = requesterView ? statusMeta.message : statusMeta.shopMessage;
   const timelineEvents: { label: string; value: string }[] = [
     { label: "Request submitted", value: formatTimestamp(request.createdAt) },
@@ -1852,7 +1859,9 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
                 <Text style={styles.paymentTitle}>{requesterView ? "Payment details" : "Family payment"}</Text>
                 <Text style={styles.paymentSubtitle} numberOfLines={2}>
                   {requesterView
-                    ? "Send the exact amount and keep your receipt."
+                    ? normalizedRequestStatus === "awaiting_payment" && Number(request.downpaymentAmountSnapshot) > 0
+                      ? "Choose full payment or down payment after tapping Pay Online."
+                      : "Send the exact amount and keep your receipt."
                     : shopHasFamilyPayment
                       ? `${request.paymentPayerName || request.familyCoordinatorName || "Family sender"}${request.paymentSubmittedAt ? ` · ${formatTimestamp(request.paymentSubmittedAt)}` : ""}`
                       : "Waiting for the family to send a receipt."}
@@ -1860,7 +1869,15 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
               </View>
               {Number(request.paymentAmount) > 0 ? (
                 <View style={styles.paymentAmountBadge}>
-                  <Text style={styles.paymentAmountCaption}>{requesterView ? "SEND" : shopHasFamilyPayment ? "RECEIVED" : "RECEIVE"}</Text>
+                  <Text style={styles.paymentAmountCaption}>
+                    {requesterView && normalizedRequestStatus === "awaiting_payment" && Number(request.downpaymentAmountSnapshot) > 0
+                      ? "FULL PRICE"
+                      : requesterView
+                        ? "SEND"
+                        : shopHasFamilyPayment
+                          ? "RECEIVED"
+                          : "RECEIVE"}
+                  </Text>
                   <Text style={styles.paymentAmountStrong}>{formatCurrency(request.paymentAmount)}</Text>
                 </View>
               ) : null}
@@ -2280,7 +2297,7 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
       >
         {paymentSuccessRequest ? (
           <View style={styles.paymentSuccessScreen}>
-            <StatusBar barStyle="light-content" backgroundColor="#101312" translucent />
+            <StatusBar barStyle="light-content" />
             <ScrollView
               style={styles.paymentSuccessScroll}
               contentContainerStyle={styles.paymentSuccessContent}

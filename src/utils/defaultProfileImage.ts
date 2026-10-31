@@ -4,12 +4,14 @@ export type UserGender = "male" | "female" | "other" | string | null | undefined
 
 export const maleDefault = require("../../assets/Default Characters/Male.png");
 export const femaleDefault = require("../../assets/Default Characters/Female.png");
-export const otherDefault = maleDefault;
+export const neutralDefault = require("../../assets/Default Characters/Default.png");
+export const otherDefault = neutralDefault;
 
 export const getDefaultProfileImage = (gender?: UserGender): ImageSourcePropType => {
-  return String(gender || "").trim().toLowerCase() === "female"
-    ? femaleDefault
-    : maleDefault;
+  const normalizedGender = String(gender || "").trim().toLowerCase();
+  if (normalizedGender === "female") return femaleDefault;
+  if (normalizedGender === "male") return maleDefault;
+  return neutralDefault;
 };
 
 export const getProfileImageSource = (

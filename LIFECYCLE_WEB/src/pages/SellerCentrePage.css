@@ -1147,6 +1147,71 @@ select.sc-form-input {
   @apply cursor-pointer [appearance:auto];
 }
 
+/* Down payment settings */
+.sc-downpayment-panel {
+  display: grid;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid var(--sc-border);
+  border-radius: 10px;
+  background: #f8faf8;
+}
+.sc-downpayment-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+.sc-downpayment-heading h3 {
+  margin: 0;
+  color: var(--sc-text);
+  font-size: 15px;
+  font-weight: 700;
+}
+.sc-downpayment-heading p {
+  max-width: 680px;
+  margin: 5px 0 0;
+  color: var(--sc-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.sc-downpayment-fields {
+  display: grid;
+  grid-template-columns: minmax(180px, 280px) minmax(220px, 1fr);
+  gap: 16px;
+  align-items: end;
+}
+.sc-amount-input-wrap {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+.sc-amount-input-wrap > span {
+  color: var(--sc-text);
+  font-size: 13px;
+  font-weight: 800;
+}
+.sc-downpayment-preview {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #e8f0e5;
+}
+.sc-downpayment-preview span {
+  color: var(--sc-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.sc-downpayment-preview strong {
+  color: var(--sc-text);
+  font-size: 17px;
+}
+
 /* Variations */
 .sc-variation-toggle-row {
   @apply mb-[16px];
@@ -1244,6 +1309,17 @@ select.sc-form-input {
   }
   .sc-editor-form-grid {
     @apply grid-cols-[1fr];
+  }
+  .sc-downpayment-heading {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .sc-downpayment-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sc-downpayment-preview {
+    align-items: flex-start;
+    flex-direction: column;
   }
   .sc-variation-grid {
     @apply grid-cols-[1fr];

@@ -7,3 +7,6 @@ export const getSupabaseEmailRedirectTo = (purpose: EmailRedirectPurpose = 'veri
 
   return process.env.EXPO_PUBLIC_SUPABASE_EMAIL_REDIRECT_TO || 'lifecycle://verify-email';
 };
+
+export const getSupabaseOAuthRedirectTo = () =>
+  process.env.EXPO_PUBLIC_SUPABASE_OAUTH_REDIRECT_TO || 'lifecycle://oauth-callback';
