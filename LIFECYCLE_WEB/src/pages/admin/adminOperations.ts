@@ -45,7 +45,7 @@ export function operationAge(value: string) {
 }
 
 export async function loadCommandCenterOperations() {
-  const [shopsResult, paymentsResult, deletionsResult, servicesResult] = await Promise.all([
+  const [shopsResult, paymentsResult, servicesResult] = await Promise.all([
     supabase
       .from('funeral_shops')
       .select('id, shopName, status, createdAt')
@@ -57,18 +57,13 @@ export async function loadCommandCenterOperations() {
       .eq('status', 'pending')
       .order('createdAt', { ascending: true }),
     supabase
-      .from('account_deletion_requests')
-      .select('id, email_snapshot, status, reason, requested_at')
-      .in('status', ['pending', 'in_review', 'approved'])
-      .order('requested_at', { ascending: true }),
-    supabase
       .from('funeral_service_requests')
       .select('id, shopName, deceasedFullName, status, createdAt')
       .in('status', ['pending_shop_acceptance', 'payment_submitted'])
       .order('createdAt', { ascending: true }),
   ])
 
-  const firstError = [shopsResult.error, paymentsResult.error, deletionsResult.error, servicesResult.error]
+  const firstError = [shopsResult.error, paymentsResult.error, servicesResult.error]
     .find(Boolean)
   if (firstError) throw firstError
 
@@ -100,20 +95,6 @@ export async function loadCommandCenterOperations() {
       createdAt,
       priority: getPriority('payment', row.status || 'pending', createdAt),
       href: '/admin/payments',
-    })
-  }
-
-  for (const row of deletionsResult.data || []) {
-    const createdAt = String(row.requested_at || '')
-    items.push({
-      id: row.id,
-      kind: 'deletion',
-      title: row.email_snapshot || 'Account deletion request',
-      description: row.reason || 'This privacy request requires review.',
-      status: row.status || 'pending',
-      createdAt,
-      priority: getPriority('deletion', row.status || 'pending', createdAt),
-      href: '/admin/account-deletions',
     })
   }
 

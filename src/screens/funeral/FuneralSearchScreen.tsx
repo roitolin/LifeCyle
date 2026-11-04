@@ -1,14 +1,16 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, FlatList, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LoadingBird from '@/components/LoadingBird';
-import ProductRating from '@/components/ProductRating';
+import ProductCardMeta from '@/components/ProductCardMeta';
+import ProductDownpaymentBadge from '@/components/ProductDownpaymentBadge';
 import { supabase } from '@/services/supabaseClient';
 import { colors, radii, spacing } from '@/theme';
 import { formatPhilippinePeso } from '@/utils/funeralCatalog';
 import { summarizeProductRatings } from '@/utils/productRatings';
+import { loadFavoriteProductIds, subscribeFavoriteProducts, toggleFavoriteProduct } from '@/utils/favoriteProducts';
 
 type ProductVariation = { name: string; imageUrl?: string | null };
 type SearchProduct = {
@@ -26,6 +28,9 @@ type SearchProduct = {
   shopName: string;
   rating: number;
   reviewCount: number;
+  downpaymentEnabled?: boolean;
+  downpaymentAmount?: number | null;
+  downpaymentPercentage?: number | null;
 };
 type ProductSort = 'name' | 'price_low' | 'price_high';
 
@@ -56,6 +61,9 @@ function mapProductRows(rows: any[]): SearchProduct[] {
       shopName: String(row.funeral_shops?.shopName || 'Funeral shop'),
       rating: summary.average,
       reviewCount: summary.count,
+      downpaymentEnabled: Boolean(row.downpaymentEnabled),
+      downpaymentAmount: row.downpaymentAmount == null ? null : Number(row.downpaymentAmount),
+      downpaymentPercentage: row.downpaymentPercentage == null ? null : Number(row.downpaymentPercentage),
     };
   }).filter((product: SearchProduct) => getPrimaryProductImage(product));
 }
@@ -75,6 +83,13 @@ export default function FuneralSearchScreen({ navigation, route }: any) {
   const filterBackdropOpacity = useRef(new Animated.Value(0)).current;
   const filterSheetProgress = useRef(new Animated.Value(0)).current;
   const showAllProducts = Boolean(route?.params?.showAll);
+
+  useEffect(() => {
+    let active = true;
+    void loadFavoriteProductIds().then((ids) => { if (active) setFavoriteProductIds(ids); });
+    const unsubscribe = subscribeFavoriteProducts((ids) => setFavoriteProductIds(ids));
+    return () => { active = false; unsubscribe(); };
+  }, []);
 
   const loadProducts = useCallback(async () => {
     try {
@@ -182,11 +197,9 @@ export default function FuneralSearchScreen({ navigation, route }: any) {
       if (finished) setFiltersVisible(false);
     });
   };
-  const toggleFavorite = (id: string) => setFavoriteProductIds((current) => {
-    const next = new Set(current);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
-  });
+  const toggleFavorite = (id: string) => {
+    void toggleFavoriteProduct(id).catch((error) => console.warn('Unable to save favorite product:', error));
+  };
 
   return (
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.screen}>
@@ -280,6 +293,7 @@ export default function FuneralSearchScreen({ navigation, route }: any) {
               >
                 <View style={styles.productImageFrame}>
                   <Image source={{ uri: getPrimaryProductImage(item) || '' }} resizeMode='cover' style={styles.productImage} />
+                  <ProductDownpaymentBadge product={item} />
                   <TouchableOpacity
                     accessibilityLabel={(isFavorite ? 'Remove ' : 'Add ') + item.name + (isFavorite ? ' from favorites' : ' to favorites')}
                     accessibilityRole='button'
@@ -291,10 +305,9 @@ export default function FuneralSearchScreen({ navigation, route }: any) {
                   </TouchableOpacity>
                 </View>
                 <View style={styles.productDetails}>
-                  <Text style={styles.shopName} numberOfLines={1}>{item.shopName}</Text>
                   <Text style={styles.productTitle} numberOfLines={2}>{item.name}</Text>
                   <Text style={styles.price}>{price}</Text>
-                  <ProductRating rating={item.rating} count={item.reviewCount} />
+                  <ProductCardMeta rating={item.rating} ratingCount={item.reviewCount} stock={item.stock} shopName={item.shopName} />
                 </View>
               </TouchableOpacity>
             );

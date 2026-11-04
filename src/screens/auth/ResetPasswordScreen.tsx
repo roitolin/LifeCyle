@@ -98,7 +98,7 @@ export default function ResetPasswordScreen({ recoveryUrl, onCancel, onComplete 
 
   return (
     <View style={styles.page}>
-      <NavigationBar hidden={false} style='dark' />
+      <NavigationBar hidden={false} style='light' />
       <StatusBar hidden={false} style='dark' />
       <SafeAreaView edges={['top', 'bottom']} style={styles.page}>
         <KeyboardAwareScrollView

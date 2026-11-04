@@ -24,16 +24,37 @@ export type ShopPayoutRecord = {
   ownerFullName: string
 }
 
-type FilterTab = 'attention' | 'ready' | 'missing' | 'all'
+type PayoutReceiver = {
+  id: string
+  shopId: string
+  channelCode: string
+  accountName: string
+  accountNumber: string
+  active: boolean
+  verifiedByAdmin: boolean
+  verifiedAt: string | null
+}
+
+type FilterTab = 'attention' | 'ready' | 'disabled' | 'missing' | 'all'
+type PayoutRow = { shop: ShopPayoutRecord; receiver: PayoutReceiver | null }
+
+function receiverStatus(receiver: PayoutReceiver | null): Exclude<FilterTab, 'all'> {
+  if (!receiver) return 'missing'
+  if (!receiver.verifiedByAdmin) return 'attention'
+  return receiver.active ? 'ready' : 'disabled'
+}
 
 export default function AdminPayoutAccountsPage() {
   const { openAlert, alertDialog } = useAlertDialog()
   const { openConfirm, confirmDialog } = useConfirmDialog()
 
   const [shops, setShops] = useState<ShopPayoutRecord[]>([])
+  const [receivers, setReceivers] = useState<PayoutReceiver[]>([])
   const [loading, setLoading] = useState(true)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all')
+  const [channelFilter, setChannelFilter] = useState('all')
+  const [shopFilter, setShopFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
 
   // Modal State
@@ -41,6 +62,7 @@ export default function AdminPayoutAccountsPage() {
   const [formChannel, setFormChannel] = useState('')
   const [formName, setFormName] = useState('')
   const [formNumber, setFormNumber] = useState('')
+  const [selectedReceiverId, setSelectedReceiverId] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
   const loadShops = useCallback(async () => {
@@ -60,10 +82,15 @@ export default function AdminPayoutAccountsPage() {
           payoutVerifiedAt,
           users!funeral_shops_id_fkey ( id, email, "fullName" )
         `)
-        .in('status', ['pending', 'verified', 'rejected', 'live', 'offline'])
         .order('shopName', { ascending: true })
 
       if (error) throw error
+
+      const { data: receiverData, error: receiverError } = await supabase.functions.invoke('provision-xendit-shop', {
+        body: { action: 'list-all' },
+      })
+      if (receiverError) throw receiverError
+      setReceivers((receiverData?.accounts || []) as PayoutReceiver[])
 
       const parsed: ShopPayoutRecord[] = (data || []).map((row: any) => ({
         id: row.id,
@@ -96,52 +123,50 @@ export default function AdminPayoutAccountsPage() {
     void loadShops()
   }, [loadShops])
 
-  // Count summaries
-  const attentionCount = useMemo(
-    () => shops.filter((s) => !s.payoutVerifiedByAdmin && Boolean(s.payoutChannelCode)).length,
-    [shops],
-  )
-  const readyCount = useMemo(
-    () => shops.filter((s) => s.payoutVerifiedByAdmin).length,
-    [shops],
-  )
-  const missingCount = useMemo(
-    () => shops.filter((s) => !s.payoutChannelCode).length,
-    [shops],
-  )
-  const totalCount = shops.length
+  const rows = useMemo<PayoutRow[]>(() => {
+    const byShop = new Map<string, PayoutReceiver[]>()
+    receivers.forEach((receiver) => {
+      const accounts = byShop.get(receiver.shopId) || []
+      accounts.push(receiver)
+      byShop.set(receiver.shopId, accounts)
+    })
+    return shops.flatMap<PayoutRow>((shop) => {
+      const accounts = byShop.get(shop.id) || []
+      return accounts.length ? accounts.map((receiver) => ({ shop, receiver })) : [{ shop, receiver: null }]
+    })
+  }, [shops, receivers])
+  const attentionCount = rows.filter((row) => receiverStatus(row.receiver) === 'attention').length
+  const readyCount = rows.filter((row) => receiverStatus(row.receiver) === 'ready').length
+  const disabledCount = rows.filter((row) => receiverStatus(row.receiver) === 'disabled').length
+  const missingCount = rows.filter((row) => receiverStatus(row.receiver) === 'missing').length
+  const totalCount = rows.length
+  const selectedReceiver = receivers.find((account) => account.id === selectedReceiverId)
 
-  // Filtered shops
-  const filteredShops = useMemo(() => {
+  const filteredRows = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
-    return shops.filter((s) => {
-      if (activeFilter === 'attention') {
-        if (s.payoutVerifiedByAdmin || !s.payoutChannelCode) return false
-      } else if (activeFilter === 'ready') {
-        if (!s.payoutVerifiedByAdmin) return false
-      } else if (activeFilter === 'missing') {
-        if (s.payoutChannelCode) return false
-      }
-
+    return rows.filter(({ shop, receiver }) => {
+      if (activeFilter !== 'all' && receiverStatus(receiver) !== activeFilter) return false
+      if (shopFilter !== 'all' && shop.id !== shopFilter) return false
+      if (channelFilter !== 'all' && receiver?.channelCode !== channelFilter) return false
       if (!q) return true
-      const channelObj = getChannelInfo(s.payoutChannelCode)
+      const channelObj = getChannelInfo(receiver?.channelCode)
       return (
-        s.shopName.toLowerCase().includes(q) ||
-        s.ownerEmail.toLowerCase().includes(q) ||
-        s.ownerFullName.toLowerCase().includes(q) ||
-        (s.payoutAccountName && s.payoutAccountName.toLowerCase().includes(q)) ||
-        (s.payoutAccountNumber && s.payoutAccountNumber.toLowerCase().includes(q)) ||
+        shop.shopName.toLowerCase().includes(q) ||
+        shop.ownerEmail.toLowerCase().includes(q) ||
+        shop.ownerFullName.toLowerCase().includes(q) ||
+        receiver?.accountName.toLowerCase().includes(q) ||
+        receiver?.accountNumber.toLowerCase().includes(q) ||
         (channelObj && channelObj.label.toLowerCase().includes(q))
       )
     })
-  }, [shops, activeFilter, searchQuery])
+  }, [rows, activeFilter, shopFilter, channelFilter, searchQuery])
 
-  // Open modal
-  const handleOpenManage = (shop: ShopPayoutRecord) => {
+  const handleOpenManage = (shop: ShopPayoutRecord, account: PayoutReceiver | null) => {
     setModalShop(shop)
-    setFormChannel(shop.payoutChannelCode || 'PH_GCASH')
-    setFormName(shop.payoutAccountName || '')
-    setFormNumber(shop.payoutAccountNumber || '')
+    setSelectedReceiverId(account?.id || null)
+    setFormChannel(account?.channelCode || '')
+    setFormName(account?.accountName || '')
+    setFormNumber(account?.accountNumber || '')
   }
 
   const handleCloseModal = () => {
@@ -151,23 +176,7 @@ export default function AdminPayoutAccountsPage() {
 
 
   const handleSave = async () => {
-    if (!modalShop) return
-    const channel = formChannel.trim()
-    const name = formName.trim()
-    const number = formNumber.trim()
-
-    if (!channel) {
-      openAlert({ title: 'Validation Error', message: 'Please select a payout channel.', tone: 'warning' })
-      return
-    }
-    if (!name) {
-      openAlert({ title: 'Validation Error', message: 'Please enter the registered account name.', tone: 'warning' })
-      return
-    }
-    if (!number || number.length < 5) {
-      openAlert({ title: 'Validation Error', message: 'Please enter a valid account or mobile number.', tone: 'warning' })
-      return
-    }
+    if (!modalShop || !selectedReceiver || selectedReceiver.verifiedByAdmin) return
 
     setIsSaving(true)
     try {
@@ -177,9 +186,7 @@ export default function AdminPayoutAccountsPage() {
         body: {
           shopId: modalShop.id,
           action: 'save',
-          payoutChannelCode: channel,
-          payoutAccountName: name,
-          payoutAccountNumber: number,
+          payoutAccountId: selectedReceiver.id,
         },
       })
       if (fnErr) {
@@ -200,16 +207,15 @@ export default function AdminPayoutAccountsPage() {
       }
 
       // Log admin activity
-      const channelObj = getChannelInfo(channel)
+      const channelObj = getChannelInfo(selectedReceiver.channelCode)
       void logWebAdminActivity({
-        action: 'payout_account_updated',
+        action: 'payout_receiver_approved',
         targetType: 'funeral_shop',
         targetId: modalShop.id,
-        summary: `Updated payout account for ${modalShop.shopName} (${channelObj?.label || channel}: ${number}).`,
+        summary: `Approved payout receiver for ${modalShop.shopName} (${channelObj?.label || selectedReceiver.channelCode}).`,
         metadata: {
           shopId: modalShop.id,
-          payoutChannelCode: channel,
-          payoutAccountName: name,
+          payoutChannelCode: selectedReceiver.channelCode,
         },
       })
 
@@ -218,7 +224,7 @@ export default function AdminPayoutAccountsPage() {
 
       openAlert({
         title: 'Payout Account Saved',
-        message: `${modalShop.shopName} can now receive direct payouts through this active account.`,
+        message: `${modalShop.shopName}'s ${channelObj?.shortName || selectedReceiver.channelCode} receiver is approved for checkout.`,
         tone: 'info',
       })
     } catch (err: any) {
@@ -232,33 +238,34 @@ export default function AdminPayoutAccountsPage() {
     }
   }
 
-  const handleDisable = (shop: ShopPayoutRecord) => {
+  const handleDisable = (shop: ShopPayoutRecord, receiver: PayoutReceiver) => {
+    const channelName = getChannelInfo(receiver.channelCode)?.shortName || receiver.channelCode
     openConfirm({
-      title: 'Disable All Payout Methods?',
-      message: `Are you sure you want to disable every customer payment method for ${shop.shopName}?`,
+      title: 'Disable Payout Account?',
+      message: `Disable ${shop.shopName}'s ${channelName} receiver?`,
       details: [
-        'Customers will not see these methods until the shop enables one again.',
+        'Customers will not see this method until the shop enables it again.',
         'Existing orders will not be affected.',
       ],
       tone: 'danger',
-      confirmLabel: 'Disable Methods',
+      confirmLabel: 'Disable Account',
       onConfirm: async () => {
-        setSavingId(shop.id)
+        setSavingId(receiver.id)
         try {
           const { data, error } = await supabase.functions.invoke('provision-xendit-shop', {
-            body: { shopId: shop.id, action: 'disable-all' },
+            body: { shopId: shop.id, action: 'set-active', payoutChannelCode: receiver.channelCode, active: false },
           })
           if (error) throw error
-          if (!data || data.shopId !== shop.id || data.disabled !== true) {
-            throw new Error('The payout methods could not be disabled.')
+          if (!data || data.shopId !== shop.id || data.channelCode !== receiver.channelCode || data.active !== false) {
+            throw new Error('The payout account could not be disabled.')
           }
 
           void logWebAdminActivity({
-            action: 'payout_accounts_disabled',
+            action: 'payout_account_disabled',
             targetType: 'funeral_shop',
             targetId: shop.id,
-            summary: `Disabled all payout methods for ${shop.shopName}.`,
-            metadata: { shopId: shop.id },
+            summary: `Disabled ${channelName} payout receiver for ${shop.shopName}.`,
+            metadata: { shopId: shop.id, payoutChannelCode: receiver.channelCode },
           })
 
           if (modalShop) handleCloseModal()
@@ -266,7 +273,7 @@ export default function AdminPayoutAccountsPage() {
         } catch (err: any) {
           openAlert({
             title: 'Action Failed',
-            message: err?.message || 'Unable to disable the payout methods.',
+            message: err?.message || 'Unable to disable the payout account.',
             tone: 'danger',
           })
         } finally {
@@ -278,20 +285,20 @@ export default function AdminPayoutAccountsPage() {
 
   // Export CSV
   const handleExportCsv = () => {
-    const csv = buildCsv(filteredShops, [
-      { header: 'Shop ID', value: (row) => row.id },
-      { header: 'Shop Name', value: (row) => row.shopName },
-      { header: 'Owner Email', value: (row) => row.ownerEmail },
-      { header: 'Owner Name', value: (row) => row.ownerFullName },
-      { header: 'Shop Status', value: (row) => row.status },
+    const csv = buildCsv(filteredRows, [
+      { header: 'Shop ID', value: (row) => row.shop.id },
+      { header: 'Shop Name', value: (row) => row.shop.shopName },
+      { header: 'Owner Email', value: (row) => row.shop.ownerEmail },
+      { header: 'Owner Name', value: (row) => row.shop.ownerFullName },
+      { header: 'Shop Status', value: (row) => row.shop.status },
       {
         header: 'Payout Channel',
-        value: (row) => getChannelInfo(row.payoutChannelCode)?.label || row.payoutChannelCode || 'Not Set',
+        value: (row) => getChannelInfo(row.receiver?.channelCode)?.label || row.receiver?.channelCode || 'Not submitted',
       },
-      { header: 'Account Name', value: (row) => row.payoutAccountName || 'Not Set' },
-      { header: 'Account Number', value: (row) => row.payoutAccountNumber || 'Not Set' },
-      { header: 'Checkout Ready', value: (row) => (row.payoutVerifiedByAdmin ? 'YES' : 'NO') },
-      { header: 'Ready At', value: (row) => csvTimestamp(row.payoutVerifiedAt) },
+      { header: 'Account Name', value: (row) => row.receiver?.accountName || 'Not submitted' },
+      { header: 'Account Number', value: (row) => row.receiver?.accountNumber || 'Not submitted' },
+      { header: 'Status', value: (row) => receiverStatus(row.receiver) },
+      { header: 'Approved At', value: (row) => csvTimestamp(row.receiver?.verifiedAt) },
     ])
     downloadCsv(`shop-payout-accounts-${dateStamp()}.csv`, csv)
   }
@@ -301,52 +308,57 @@ export default function AdminPayoutAccountsPage() {
       <header className="payments-header">
         <div className="payments-header-text">
           <h2>Shop Payout Accounts</h2>
-          <p className="panel-sub">View and manage the accounts partner shops use for their 70% order payout.</p>
+          <p className="panel-sub">Review each bank and wallet account submitted by partner shops.</p>
         </div>
         <div className="payout-header-actions">
           <button type="button" className="ghost-btn" onClick={loadShops} disabled={loading}>
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v6h-6" /></svg>
             {loading ? 'Refreshing...' : 'Refresh'}
           </button>
-          <button type="button" className="ghost-btn admin-export-btn" onClick={handleExportCsv} disabled={filteredShops.length === 0}>Export CSV</button>
+          <button type="button" className="ghost-btn admin-export-btn" onClick={handleExportCsv} disabled={filteredRows.length === 0}>Export CSV</button>
         </div>
       </header>
 
       <div className="payments-submission-summary four-up" aria-label="Payout account summary">
-        <article><span>Needs Attention</span><strong>{attentionCount}</strong></article>
+        <article><span>Needs Review</span><strong>{attentionCount}</strong></article>
         <article><span>Ready</span><strong>{readyCount}</strong></article>
+        <article><span>Disabled</span><strong>{disabledCount}</strong></article>
         <article><span>Not Submitted</span><strong>{missingCount}</strong></article>
-        <article><span>Partner Shops</span><strong>{totalCount}</strong></article>
       </div>
 
       <div className="operations-toolbar payout-toolbar">
-        <div className="operations-filter-tabs" role="tablist" aria-label="Payout account status">
-          <button type="button" className={activeFilter === 'all' ? 'is-active' : ''} onClick={() => setActiveFilter('all')}>All <span>{totalCount}</span></button>
-          <button type="button" className={activeFilter === 'attention' ? 'is-active' : ''} onClick={() => setActiveFilter('attention')}>Needs Attention <span>{attentionCount}</span></button>
-          <button type="button" className={activeFilter === 'ready' ? 'is-active' : ''} onClick={() => setActiveFilter('ready')}>Ready <span>{readyCount}</span></button>
-          <button type="button" className={activeFilter === 'missing' ? 'is-active' : ''} onClick={() => setActiveFilter('missing')}>Not Submitted <span>{missingCount}</span></button>
+        <div className="operations-filter-tabs" role="group" aria-label="Payout account status">
+          <button type="button" aria-pressed={activeFilter === 'all'} className={activeFilter === 'all' ? 'is-active' : ''} onClick={() => setActiveFilter('all')}>All <span>{totalCount}</span></button>
+          <button type="button" aria-pressed={activeFilter === 'attention'} className={activeFilter === 'attention' ? 'is-active' : ''} onClick={() => setActiveFilter('attention')}>Needs Review <span>{attentionCount}</span></button>
+          <button type="button" aria-pressed={activeFilter === 'ready'} className={activeFilter === 'ready' ? 'is-active' : ''} onClick={() => setActiveFilter('ready')}>Ready <span>{readyCount}</span></button>
+          <button type="button" aria-pressed={activeFilter === 'disabled'} className={activeFilter === 'disabled' ? 'is-active' : ''} onClick={() => setActiveFilter('disabled')}>Disabled <span>{disabledCount}</span></button>
+          <button type="button" aria-pressed={activeFilter === 'missing'} className={activeFilter === 'missing' ? 'is-active' : ''} onClick={() => setActiveFilter('missing')}>Not Submitted <span>{missingCount}</span></button>
         </div>
-        <label className="operations-search"><span className="sr-only">Search payout accounts</span><input type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search shop or account" /></label>
+        <div className="payout-filter-fields">
+          <label><span className="sr-only">Filter by shop</span><select value={shopFilter} onChange={(event) => setShopFilter(event.target.value)}><option value="all">All shops</option>{shops.map((shop) => <option key={shop.id} value={shop.id}>{shop.shopName}</option>)}</select></label>
+          <label><span className="sr-only">Filter by payout channel</span><select value={channelFilter} onChange={(event) => setChannelFilter(event.target.value)}><option value="all">All channels</option>{PAYOUT_CHANNELS.map((channel) => <option key={channel.code} value={channel.code}>{channel.shortName}</option>)}</select></label>
+          <label className="operations-search"><span className="sr-only">Search payout accounts</span><input type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search shop or account" /></label>
+        </div>
       </div>
 
       {loading ? <p className="panel-sub payments-loading">Loading payout accounts...</p> : null}
-      {!loading && filteredShops.length === 0 ? <div className="payout-empty"><h3>No payout accounts found</h3><p>{activeFilter === 'attention' ? 'Every submitted payout account is ready.' : 'No shops match this view.'}</p></div> : null}
+      {!loading && filteredRows.length === 0 ? <div className="payout-empty"><h3>No payout accounts found</h3><p>No accounts match these filters.</p></div> : null}
 
-      {!loading && filteredShops.length > 0 ? (
-        <div className="table-wrap">
+      {!loading && filteredRows.length > 0 ? (
+        <div className="table-wrap payout-table-wrap">
           <table className="request-table admin-responsive-table">
             <thead><tr><th>Funeral Shop</th><th>Payout Account</th><th>Account Number</th><th>Status</th><th style={{ textAlign: 'right' }}>Actions</th></tr></thead>
             <tbody>
-              {filteredShops.map((shop) => {
-                const channel = getChannelInfo(shop.payoutChannelCode)
-                const hasAccount = Boolean(shop.payoutChannelCode)
+              {filteredRows.map(({ shop, receiver }) => {
+                const channel = getChannelInfo(receiver?.channelCode)
+                const status = receiverStatus(receiver)
                 return (
-                  <tr key={shop.id}>
+                  <tr key={receiver?.id || `missing-${shop.id}`}>
                     <td data-label="Funeral Shop"><div className="payout-shop-cell"><div className="payout-shop-avatar">{shop.shopImageUrl ? <img src={shop.shopImageUrl} alt="" /> : <span>{shop.shopName.slice(0, 2).toUpperCase()}</span>}</div><div><span className="payout-primary">{shop.shopName}</span><span className="payout-secondary">{shop.ownerEmail || shop.ownerFullName || 'Owner details unavailable'}</span></div></div></td>
-                    <td data-label="Payout Account">{channel ? <div className="payout-account-cell"><span className={`payout-channel-mark ${channel.type}`}><img className={channel.code === 'PH_MAYA' ? 'is-maya' : undefined} src={channel.logoUrl} alt={`${channel.shortName} logo`} /></span><div><span className="payout-primary">{channel.shortName}</span><span className="payout-secondary">{shop.payoutAccountName || 'Account name not provided'}</span></div></div> : <span className="row-muted">Not submitted</span>}</td>
-                    <td data-label="Account Number"><span className="payout-account-number">{shop.payoutAccountNumber || 'Not provided'}</span></td>
-                    <td data-label="Status">{shop.payoutVerifiedByAdmin ? <div><span className="payout-status verified">Ready</span>{shop.payoutVerifiedAt ? <div className="payout-verified-date">{new Date(shop.payoutVerifiedAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}</div> : null}</div> : hasAccount ? <span className="payout-status pending">Needs attention</span> : <span className="payout-status">Not submitted</span>}</td>
-                    <td data-label="Actions"><div className="payout-row-actions"><button type="button" className="ghost-btn table-action" onClick={() => handleOpenManage(shop)} disabled={savingId === shop.id}>{shop.payoutVerifiedByAdmin ? 'Edit' : 'Configure'}</button>{shop.payoutVerifiedByAdmin ? <button type="button" className="ghost-btn table-action payout-danger-action" onClick={() => handleDisable(shop)} disabled={savingId === shop.id}>Disable</button> : null}</div></td>
+                    <td data-label="Payout Account">{receiver ? <div className="payout-account-cell">{channel ? <span className={`payout-channel-mark ${channel.type}`}><img className={channel.code === 'PH_MAYA' ? 'is-maya' : undefined} src={channel.logoUrl} alt="" /></span> : null}<div><span className="payout-primary">{channel?.shortName || receiver.channelCode}</span><span className="payout-secondary">{receiver.accountName}</span></div></div> : <span className="row-muted">Not submitted</span>}</td>
+                    <td data-label="Account Number"><span className="payout-account-number">{receiver?.accountNumber || 'Not provided'}</span></td>
+                    <td data-label="Status"><span className={`payout-status ${status === 'ready' ? 'verified' : status === 'attention' ? 'pending' : ''}`}>{status === 'attention' ? 'Needs review' : status === 'ready' ? 'Ready' : status === 'disabled' ? 'Disabled' : 'Not submitted'}</span>{receiver?.verifiedAt ? <div className="payout-verified-date">Approved {new Date(receiver.verifiedAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}</div> : null}</td>
+                    <td data-label="Actions"><div className="payout-row-actions"><button type="button" className="ghost-btn table-action" onClick={() => handleOpenManage(shop, receiver)} disabled={savingId === receiver?.id}>{status === 'attention' ? 'Review' : 'View'}</button>{receiver && status === 'ready' ? <button type="button" className="ghost-btn table-action payout-danger-action" onClick={() => handleDisable(shop, receiver)} disabled={savingId === receiver.id}>Disable</button> : null}</div></td>
                   </tr>
                 )
               })}
@@ -357,15 +369,19 @@ export default function AdminPayoutAccountsPage() {
 
       {modalShop ? (
         <div className="payments-modal-overlay" role="presentation" onClick={handleCloseModal}>
-          <div className="payments-modal" role="dialog" aria-modal="true" aria-labelledby="payout-modal-title" onClick={(event) => event.stopPropagation()}>
-            <div className="payments-modal-header"><div className="payments-modal-heading"><h3 id="payout-modal-title">{modalShop.payoutVerifiedByAdmin ? 'Edit Payout Account' : 'Configure Payout Account'}</h3><p>Saving valid details makes the account available immediately for an approved shop.</p></div><button type="button" className="payments-modal-close" aria-label="Close" onClick={handleCloseModal}>X</button></div>
+          <div className="payments-modal payout-review-modal" role="dialog" aria-modal="true" aria-labelledby="payout-modal-title" onClick={(event) => event.stopPropagation()}>
+            <div className="payments-modal-header"><div className="payments-modal-heading"><h3 id="payout-modal-title">Payout Account Review</h3><p>Check the account submitted by this shop before approval.</p></div><button type="button" className="payments-modal-close" aria-label="Close" onClick={handleCloseModal}>X</button></div>
             <div className="payments-modal-body payout-modal-form">
               <div className="payout-modal-summary"><strong>{modalShop.shopName}</strong><span>{modalShop.ownerEmail || modalShop.ownerFullName || 'Owner details unavailable'}</span></div>
-              <div className="payout-modal-field"><label htmlFor="payout-channel-select">Payout channel</label><select id="payout-channel-select" value={formChannel} onChange={(event) => setFormChannel(event.target.value)}><optgroup label="E-wallets">{PAYOUT_CHANNELS.filter((channel) => channel.type === 'wallet').map((channel) => <option key={channel.code} value={channel.code}>{channel.label}</option>)}</optgroup><optgroup label="Banks">{PAYOUT_CHANNELS.filter((channel) => channel.type === 'bank').map((channel) => <option key={channel.code} value={channel.code}>{channel.label}</option>)}</optgroup></select></div>
-              <div className="payout-modal-field"><label htmlFor="payout-name-input">Account holder name</label><input id="payout-name-input" type="text" value={formName} onChange={(event) => setFormName(event.target.value)} placeholder="Name registered on the account" /></div>
-              <div className="payout-modal-field"><label htmlFor="payout-number-input">Account or mobile number</label><input id="payout-number-input" type="text" value={formNumber} onChange={(event) => setFormNumber(event.target.value)} placeholder="Account number or 11-digit mobile number" /><small>Use the mobile number registered with GCash or Maya.</small></div>
+              {!selectedReceiver && <p className="panel-sub">This shop has not submitted a payout account.</p>}
+              {selectedReceiver && <>
+                <span className={`payout-status ${receiverStatus(selectedReceiver) === 'ready' ? 'verified' : receiverStatus(selectedReceiver) === 'attention' ? 'pending' : ''}`}>{receiverStatus(selectedReceiver) === 'attention' ? 'Needs review' : receiverStatus(selectedReceiver) === 'ready' ? 'Ready' : 'Disabled'}</span>
+                <div className="payout-modal-field"><label htmlFor="payout-channel-input">Payout destination</label><input id="payout-channel-input" type="text" value={getChannelInfo(formChannel)?.label || formChannel} readOnly /></div>
+                <div className="payout-modal-field"><label htmlFor="payout-name-input">Account holder name</label><input id="payout-name-input" type="text" value={formName} readOnly /></div>
+                <div className="payout-modal-field"><label htmlFor="payout-number-input">Account or mobile number</label><input id="payout-number-input" type="text" value={formNumber} readOnly /><small>Ask the owner to correct any details that do not match their registered account.</small></div>
+              </>}
             </div>
-            <div className="payments-modal-footer"><button type="button" className="ghost-btn" onClick={handleCloseModal} disabled={isSaving}>Cancel</button><button type="button" className="solid-btn" onClick={handleSave} disabled={isSaving}>{isSaving ? 'Saving...' : 'Save Account'}</button></div>
+            <div className="payments-modal-footer"><button type="button" className="ghost-btn" onClick={handleCloseModal} disabled={isSaving}>Close</button>{selectedReceiver && !selectedReceiver.verifiedByAdmin ? <button type="button" className="solid-btn" onClick={handleSave} disabled={isSaving}>{isSaving ? 'Approving...' : 'Approve Account'}</button> : null}</div>
           </div>
         </div>
       ) : null}

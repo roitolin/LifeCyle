@@ -28,3 +28,25 @@
 
 .product-rating-value { font-weight: 700; }
 .product-rating-count { color: #687688; font-size: 11px; }
+
+.product-rating-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 4px;
+  color: #63501e;
+  background: #fffaf0;
+  border: 1px solid #f0dfb2;
+  border-radius: 3px;
+  line-height: 1.35;
+}
+
+.product-rating-icon { color: #d4a52e; font-size: 13px; }
+
+.product-rating--compact.is-unrated .product-rating-summary {
+  color: #64736b;
+  background: #f5f7f6;
+  border-color: #dfe6e2;
+}
+
+.product-rating--compact.is-unrated .product-rating-icon { color: #8b9690; }

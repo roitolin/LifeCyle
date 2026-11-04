@@ -47,6 +47,8 @@ type FuneralServiceRequest = {
   shopContactNumber?: string | null;
   shopAddress?: string | null;
   status: string;
+  paymentOption?: "pending" | "full" | "downpayment" | null;
+  remainingBalance?: number | string | null;
   paymentAmount?: number | string | null;
   paymentPayerName?: string | null;
   paymentGcashNumber?: string | null;
@@ -61,8 +63,9 @@ type FuneralServiceRequest = {
   declinedAt?: any;
 };
 
-const getStatusMeta = (status: string) => {
+const getStatusMeta = (status: string, paymentOption?: string | null) => {
   const normalized = String(status || "").toLowerCase();
+  const isDownpayment = String(paymentOption || "").toLowerCase() === "downpayment";
   if (normalized === "accepted_by_shop") {
     return { label: "Accepted", background: "#e7f5ec", text: "#166534" };
   }
@@ -70,7 +73,11 @@ const getStatusMeta = (status: string) => {
     return { label: "Awaiting Payment", background: "#e0eefa", text: "#1c4f7e" };
   }
   if (normalized === "payment_submitted") {
-    return { label: "Payment Submitted", background: "#e0eefa", text: "#1c4f7e" };
+    return {
+      label: isDownpayment ? "Downpayment Submitted" : "Payment Submitted",
+      background: "#e0eefa",
+      text: "#1c4f7e",
+    };
   }
   if (normalized === "paid_waiting_for_split") {
     return { label: "Processing Payout", background: "#fef3c7", text: "#86654a" };
@@ -79,7 +86,11 @@ const getStatusMeta = (status: string) => {
     return { label: "Payout Review", background: "#fde8e8", text: "#991b1b" };
   }
   if (normalized === "payment_verified") {
-    return { label: "Payment Confirmed", background: "#e7f5ec", text: "#166534" };
+    return {
+      label: isDownpayment ? "Downpayment Confirmed" : "Payment Confirmed",
+      background: "#e7f5ec",
+      text: "#166534",
+    };
   }
   if (normalized === "awaiting_customer_confirmation") {
     return { label: "Awaiting Customer Confirmation", background: "#fef3c7", text: "#86654a" };
@@ -209,7 +220,11 @@ export default function FuneralServiceRequestsInboxScreen() {
           </View>
         ) : (
           requests.map((item: any) => {
-            const statusMeta = getStatusMeta(item.status);
+            const statusMeta = getStatusMeta(item.status, item.paymentOption);
+            const showDownpaymentBadge =
+              String(item.paymentOption || "").toLowerCase() === "downpayment" &&
+              Boolean(item.paymentVerifiedAt) &&
+              String(item.status || "").toLowerCase() !== "payment_verified";
 
             return (
               <TouchableOpacity key={item.id} style={styles.requestCard} activeOpacity={0.92} onPress={() => openDetails(item)}>
@@ -218,8 +233,15 @@ export default function FuneralServiceRequestsInboxScreen() {
                     <Text style={styles.requestName}>{item.deceasedFullName}</Text>
                     <Text style={styles.requestProduct}>{item.productName}</Text>
                   </View>
-                  <View style={[styles.statusBadge, { backgroundColor: statusMeta.background }]}>
-                    <Text style={[styles.statusBadgeText, { color: statusMeta.text }]}>{statusMeta.label}</Text>
+                  <View style={{ alignItems: "flex-end", gap: 6 }}>
+                    <View style={[styles.statusBadge, { backgroundColor: statusMeta.background }]}>
+                      <Text style={[styles.statusBadgeText, { color: statusMeta.text }]}>{statusMeta.label}</Text>
+                    </View>
+                    {showDownpaymentBadge ? (
+                      <View style={[styles.statusBadge, { backgroundColor: "#e7f5ec" }]}>
+                        <Text style={[styles.statusBadgeText, { color: "#166534" }]}>Downpayment Confirmed</Text>
+                      </View>
+                    ) : null}
                   </View>
                 </View>
 

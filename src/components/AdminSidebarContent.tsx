@@ -115,7 +115,6 @@ export default function AdminSidebarContent(props: DrawerContentComponentProps) 
       ? [
           { label: 'Mobile Home', route: 'HomeContent', icon: 'phone-portrait-outline' as const },
           { label: 'Announcements', route: 'Announcements', icon: 'megaphone-outline' as const },
-          { label: 'Account Deletions', route: 'Deletions', icon: 'person-remove-outline' as const },
         ]
       : []),
   ];

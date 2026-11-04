@@ -3,12 +3,11 @@ import {
   chooseServicePaymentOption,
   createServiceXenditCheckout,
   getServicePaymentMethods,
+  prepareServicePaymentOption,
   syncServiceXenditCheckout,
   type ServicePaymentOption,
   type ServicePaymentMethod,
 } from '@/utils/serviceXendit'
-import { PAYOUT_CHANNEL_LOGOS } from '@/assets/paymentLogoAssets'
-import { APP_ICON_TRANSPARENT_URL } from '@/assets/appIconAssets'
 import './ServiceXenditModal.css'
 
 export type ServiceXenditRequest = {
@@ -43,38 +42,17 @@ function formatPhilippinePeso(value: number): string {
   }).format(value || 0)
 }
 
-function PaymentMethodMark({ method }: { method: ServicePaymentMethod }) {
-  const logoUrl = PAYOUT_CHANNEL_LOGOS[method.code]
-
-  if (logoUrl) {
-    return <img src={logoUrl} alt="" className="sxm-method-logo" />
-  }
-
-  return method.type === 'wallet' ? (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-      <path d="M4 7.5h14.5A1.5 1.5 0 0 1 20 9v9a2 2 0 0 1-2 2H5a3 3 0 0 1-3-3V6a2 2 0 0 1 2-2h13" />
-      <path d="M16 12h4v4h-4a2 2 0 0 1 0-4Z" />
-    </svg>
-  ) : (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-      <path d="m3 9 9-5 9 5" />
-      <path d="M5 10v7m4-7v7m6-7v7m4-7v7M3 20h18" />
-    </svg>
-  )
-}
-
 export default function ServiceXenditModal({ isOpen, request, onClose, onSuccess }: Props) {
   const [starting, setStarting] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [paidConfirmed, setPaidConfirmed] = useState(false)
+  // Only used to confirm the shop has an active receiver before checkout.
   const [paymentMethods, setPaymentMethods] = useState<ServicePaymentMethod[]>([])
-  const [selectedMethod, setSelectedMethod] = useState('')
   const [loadingMethods, setLoadingMethods] = useState(false)
   const [selectedPaymentOption, setSelectedPaymentOption] = useState<ServicePaymentOption | ''>('')
 
-  // Reset state on modal open/close
   useEffect(() => {
     if (isOpen) {
       setStarting(false)
@@ -82,7 +60,6 @@ export default function ServiceXenditModal({ isOpen, request, onClose, onSuccess
       setCheckoutUrl(null)
       setError(null)
       setPaymentMethods([])
-      setSelectedMethod('')
       setPaidConfirmed(request?.status === 'payment_verified')
       if (request) {
         const fullPrice = Number(request.productFullPrice ?? request.productPrice) || 0
@@ -94,7 +71,7 @@ export default function ServiceXenditModal({ isOpen, request, onClose, onSuccess
         setSelectedPaymentOption(request.providerCheckoutId ? savedOption : hasDownpayment ? '' : 'full')
       }
     }
-  }, [isOpen, request?.id, request?.status])
+  }, [isOpen, request])
 
   useEffect(() => {
     if (!isOpen || !request?.id || request.status === 'payment_verified') return
@@ -104,14 +81,10 @@ export default function ServiceXenditModal({ isOpen, request, onClose, onSuccess
       .then(result => {
         if (!active) return
         setPaymentMethods(result.methods)
-        const savedMethod = result.methods.some(method => method.code === result.selectedMethod)
-          ? result.selectedMethod || ''
-          : ''
-        setSelectedMethod(savedMethod || (result.methods.length === 1 ? result.methods[0].code : ''))
       })
       .catch(err => {
         if (!active) return
-        setError(err instanceof Error ? err.message : 'Unable to load the shop payment methods.')
+        setError(err instanceof Error ? err.message : 'Unable to load payment channels.')
       })
       .finally(() => {
         if (active) setLoadingMethods(false)
@@ -119,7 +92,6 @@ export default function ServiceXenditModal({ isOpen, request, onClose, onSuccess
     return () => { active = false }
   }, [isOpen, request?.id, request?.status])
 
-  // Total numeric amount
   const totalAmount = useMemo(() => {
     const raw = request?.productFullPrice ?? request?.productPrice ?? 0
     const num = typeof raw === 'number' ? raw : Number(String(raw).replace(/[^\d.]/g, ''))
@@ -129,9 +101,10 @@ export default function ServiceXenditModal({ isOpen, request, onClose, onSuccess
   const downpaymentAmount = Number(request?.downpaymentAmountSnapshot) || 0
   const downpaymentPercentage = Number(request?.downpaymentPercentageSnapshot) || 0
   const hasDownpayment = downpaymentAmount > 0 && downpaymentAmount <= totalAmount && downpaymentPercentage > 0
+  const remainingAfterDownpayment = Math.max(0, totalAmount - downpaymentAmount)
   const amountToCharge = selectedPaymentOption === 'downpayment' ? downpaymentAmount : totalAmount
+  const hasReceiver = paymentMethods.length > 0
 
-  // Sync status with edge function & backend
   const checkStatus = useCallback(async (silent = false) => {
     if (!request?.id || syncing) return
     if (!silent) setSyncing(true)
@@ -144,10 +117,10 @@ export default function ServiceXenditModal({ isOpen, request, onClose, onSuccess
       } else if (['expired', 'canceled'].includes(String(result.status || '').toLowerCase())) {
         setCheckoutUrl(null)
         if (!silent) {
-          setError('That checkout session expired. Start a new secure checkout below to continue.')
+          setError('That checkout session expired. Start a new payment below to continue.')
         }
       } else if (!silent) {
-        setError('Payment has not been confirmed yet. If you just completed checkout, please wait a few seconds and try again.')
+        setError('Payment has not been confirmed yet. If you just completed checkout, wait a few seconds and try again.')
       }
     } catch (err) {
       if (!silent) {
@@ -158,7 +131,6 @@ export default function ServiceXenditModal({ isOpen, request, onClose, onSuccess
     }
   }, [request?.id, syncing, onSuccess])
 
-  // Auto-sync when window gains focus (user returns from Xendit tab)
   useEffect(() => {
     if (!isOpen || !request || paidConfirmed) return
 
@@ -182,15 +154,22 @@ export default function ServiceXenditModal({ isOpen, request, onClose, onSuccess
     }
   }, [isOpen, request, checkoutUrl, paidConfirmed, checkStatus])
 
-  // Start 1-Click Pay flow
   const handleStartPay = async () => {
-    if (!request?.id || !selectedMethod || !selectedPaymentOption || starting) return
+    if (!request?.id || !hasReceiver || !selectedPaymentOption || starting) return
     setStarting(true)
     setError(null)
 
     try {
-      await chooseServicePaymentOption(request.id, selectedPaymentOption)
-      const result = await createServiceXenditCheckout(request.id, selectedMethod)
+      const prepared = await prepareServicePaymentOption(request.id, selectedPaymentOption)
+      if (prepared.paid) {
+        setPaidConfirmed(true)
+        onSuccess?.()
+        return
+      }
+      if (!prepared.checkoutActive || prepared.paymentOption !== selectedPaymentOption) {
+        await chooseServicePaymentOption(request.id, selectedPaymentOption)
+      }
+      const result = await createServiceXenditCheckout(request.id)
       if (result.paid || result.status === 'payment_verified') {
         setPaidConfirmed(true)
         onSuccess?.()
@@ -198,14 +177,13 @@ export default function ServiceXenditModal({ isOpen, request, onClose, onSuccess
       }
 
       if (!result.checkoutUrl) {
-        throw new Error('Xendit checkout URL was not returned.')
+        throw new Error('Checkout link is unavailable.')
       }
 
       setCheckoutUrl(result.checkoutUrl)
-      // Open Xendit hosted checkout in a new browser tab
       window.open(result.checkoutUrl, '_blank', 'noopener,noreferrer')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to launch Xendit checkout.')
+      setError(err instanceof Error ? err.message : 'Unable to start online payment.')
     } finally {
       setStarting(false)
     }
@@ -214,30 +192,23 @@ export default function ServiceXenditModal({ isOpen, request, onClose, onSuccess
   if (!isOpen || !request) return null
 
   return (
-    <div className="sxm-overlay" onClick={onClose} role="dialog" aria-modal="true">
+    <div className="sxm-overlay" onClick={() => !starting && onClose()} role="dialog" aria-modal="true" aria-labelledby="sxm-dialog-title">
       <div className="sxm-modal" onClick={e => e.stopPropagation()}>
         <div className="sxm-sheet-handle" aria-hidden="true" />
-        {/* Header */}
+
         <div className="sxm-header">
-          <div className="sxm-brand-row">
-            <div className="sxm-brand-lockup">
-              <img className="sxm-brand-mark" src={APP_ICON_TRANSPARENT_URL} alt="" />
-              <span className="sxm-brand-title">LifeCycle</span>
-              <span className="sxm-header-title">Secure payment</span>
-            </div>
-            <span className="sxm-secure-badge">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <path d="M12 3 5 6v5c0 4.7 2.8 8.1 7 10 4.2-1.9 7-5.3 7-10V6l-7-3Z" />
-                <path d="m9 12 2 2 4-4" />
-              </svg>
-              Secure checkout
-            </span>
+          <div className="sxm-header-copy">
+            <h2 id="sxm-dialog-title" className="sxm-header-title">Online Payment</h2>
+            <p className="sxm-header-subtitle">
+              {hasDownpayment ? 'Choose your payment option to continue' : 'Review the amount and continue to checkout'}
+            </p>
           </div>
           <button
             type="button"
             className="sxm-close-btn"
             onClick={onClose}
-            aria-label="Close checkout modal"
+            disabled={starting}
+            aria-label="Close payment"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
               <path d="M18 6 6 18M6 6l12 12" />
@@ -246,12 +217,13 @@ export default function ServiceXenditModal({ isOpen, request, onClose, onSuccess
         </div>
 
         {paidConfirmed ? (
-          /* Payment confirmed state */
           <div className="sxm-success-box">
-            <div className="sxm-success-badge">✓</div>
-            <h3 className="sxm-success-title">Payment Confirmed!</h3>
+            <div className="sxm-success-badge" aria-hidden="true">✓</div>
+            <h3 className="sxm-success-title">
+              {selectedPaymentOption === 'downpayment' ? 'Downpayment Confirmed' : 'Payment Confirmed'}
+            </h3>
             <p className="sxm-success-desc">
-              Your payment for <strong>{request.productName || 'this service request'}</strong> was verified directly with Xendit. The funeral shop has been notified to proceed.
+              Your payment for <strong>{request.productName || 'this service request'}</strong> has been confirmed. The funeral shop has been notified.
             </p>
             <button
               type="button"
@@ -263,183 +235,144 @@ export default function ServiceXenditModal({ isOpen, request, onClose, onSuccess
             </button>
           </div>
         ) : (
-          /* Checkout view */
           <>
-            {/* Product card */}
-            <div className="sxm-product-card">
-              {request.productImageUrl ? (
-                <img
-                  src={request.productImageUrl}
-                  alt={request.productName || 'Casket'}
-                  className="sxm-product-img"
-                />
-              ) : (
-                <div className="sxm-product-fallback">LC</div>
-              )}
-              <div className="sxm-product-info">
-                <h4 className="sxm-product-name">{request.productName || 'Funeral Service / Casket'}</h4>
-                <p className="sxm-product-shop">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-                    <path d="M4 10v10h16V10M3 10l2-6h14l2 6" />
-                    <path d="M8 20v-6h4v6M3 10c0 1.1.9 2 2 2s2-.9 2-2c0 1.1.9 2 2 2s2-.9 2-2c0 1.1.9 2 2 2s2-.9 2-2c0 1.1.9 2 2 2s2-.9 2-2c0 1.1.9 2 2 2s2-.9 2-2" />
-                  </svg>
-                  <span>{request.shopName || 'Funeral Shop'}</span>
-                </p>
-                {request.variationName && (
-                  <span className="sxm-variation-pill">Variation: {request.variationName}</span>
+            <div className="sxm-summary-banner">
+              <div className="sxm-product-row">
+                {request.productImageUrl ? (
+                  <img
+                    src={request.productImageUrl}
+                    alt={request.productName || 'Service'}
+                    className="sxm-product-img"
+                  />
+                ) : (
+                  <div className="sxm-product-fallback" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" />
+                      <path d="m12 12 8-4.5M12 12v9M12 12 4 7.5" />
+                    </svg>
+                  </div>
                 )}
-              </div>
-            </div>
-
-            {/* Order total */}
-            <div className="sxm-summary-card">
-              <div className="sxm-summary-row">
-                <span>Order subtotal</span>
-                <strong>{formatPhilippinePeso(totalAmount)}</strong>
-              </div>
-              <div className="sxm-summary-row">
-                <span>Packages and services</span>
-                <strong className="sxm-included">Included</strong>
-              </div>
-              <div className="sxm-summary-divider" />
-              <div className="sxm-total-row">
-                <div className="sxm-total-label-wrap">
-                  <span>Total amount</span>
-                  <small>Authorized and encrypted</small>
+                <div className="sxm-product-info">
+                  <h3 className="sxm-product-name">{request.productName || 'Funeral Service'}</h3>
+                  <p className="sxm-product-shop">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                      <path d="M4 10v10h16V10M3 10l2-6h14l2 6" />
+                      <path d="M9 20v-6h6v6" />
+                    </svg>
+                    <span>{request.shopName || 'Funeral Shop'}</span>
+                  </p>
+                  {request.variationName ? (
+                    <span className="sxm-variation-pill">{request.variationName}</span>
+                  ) : null}
                 </div>
-                <strong className="sxm-total-amount">{selectedPaymentOption ? formatPhilippinePeso(amountToCharge) : 'Choose below'}</strong>
+              </div>
+
+              <div className="sxm-banner-divider" />
+
+              <div className="sxm-breakdown">
+                <div className="sxm-breakdown-row">
+                  <span>Total service price</span>
+                  <strong>{formatPhilippinePeso(totalAmount)}</strong>
+                </div>
+                {selectedPaymentOption === 'downpayment' ? (
+                  <>
+                    <div className="sxm-breakdown-row">
+                      <span>Downpayment ({downpaymentPercentage}%)</span>
+                      <strong>{formatPhilippinePeso(downpaymentAmount)}</strong>
+                    </div>
+                    <div className="sxm-breakdown-row">
+                      <span>Remaining balance</span>
+                      <strong>{formatPhilippinePeso(remainingAfterDownpayment)}</strong>
+                    </div>
+                  </>
+                ) : null}
+                <div className="sxm-due-row">
+                  <span>{selectedPaymentOption === 'downpayment' ? 'Downpayment due now' : 'Amount due now'}</span>
+                  <strong>{selectedPaymentOption ? formatPhilippinePeso(amountToCharge) : formatPhilippinePeso(totalAmount)}</strong>
+                </div>
               </div>
             </div>
 
             {hasDownpayment ? (
-              <section className="sxm-payment-option-section" aria-labelledby="sxm-payment-option-title">
-                <div className="sxm-payment-option-heading">
-                  <h3 id="sxm-payment-option-title">Choose payment amount</h3>
-                  <p>Choose how much to pay now for this approved request.</p>
+              <section className="sxm-section-block" aria-labelledby="sxm-payment-option-title">
+                <div className="sxm-section-header">
+                  <h3 id="sxm-payment-option-title" className="sxm-section-label">PAYMENT OPTION</h3>
                 </div>
-                <div className="sxm-payment-option-list" role="radiogroup" aria-label="Payment amount">
+                <div className="sxm-option-group" role="radiogroup" aria-label="Payment option">
                   <button
                     type="button"
-                    className={`sxm-payment-option${selectedPaymentOption === 'full' ? ' is-selected' : ''}`}
+                    className={`sxm-option-item${selectedPaymentOption === 'full' ? ' is-selected' : ''}`}
                     onClick={() => setSelectedPaymentOption('full')}
                     role="radio"
                     aria-checked={selectedPaymentOption === 'full'}
                   >
-                    <span><strong>Pay in full</strong><small>{formatPhilippinePeso(totalAmount)}</small></span>
-                    <i aria-hidden="true" />
+                    <span className="sxm-option-copy">
+                      <span className="sxm-option-title-row">
+                        <strong>Full payment</strong>
+                        <b>{formatPhilippinePeso(totalAmount)}</b>
+                      </span>
+                      <small>Settle the entire service price now</small>
+                    </span>
+                    <i className="sxm-radio-indicator" aria-hidden="true" />
                   </button>
+
                   <button
                     type="button"
-                    className={`sxm-payment-option${selectedPaymentOption === 'downpayment' ? ' is-selected' : ''}`}
+                    className={`sxm-option-item${selectedPaymentOption === 'downpayment' ? ' is-selected' : ''}`}
                     onClick={() => setSelectedPaymentOption('downpayment')}
                     role="radio"
                     aria-checked={selectedPaymentOption === 'downpayment'}
                   >
-                    <span>
-                      <strong>Down payment · {downpaymentPercentage}%</strong>
-                      <small>{formatPhilippinePeso(downpaymentAmount)}</small>
-                      <small>Remaining balance: {formatPhilippinePeso(totalAmount - downpaymentAmount)}</small>
+                    <span className="sxm-option-copy">
+                      <span className="sxm-option-title-row">
+                        <strong>Downpayment ({downpaymentPercentage}%)</strong>
+                        <b>{formatPhilippinePeso(downpaymentAmount)}</b>
+                      </span>
+                      <small>Remaining balance: {formatPhilippinePeso(remainingAfterDownpayment)}</small>
                     </span>
-                    <i aria-hidden="true" />
+                    <i className="sxm-radio-indicator" aria-hidden="true" />
                   </button>
                 </div>
               </section>
             ) : null}
 
-            <section className="sxm-method-section" aria-labelledby="sxm-method-title">
-              <div className="sxm-gateway-row">
-                <span className="sxm-gateway-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-                    <rect x="3" y="5" width="18" height="14" rx="3" />
-                    <path d="M3 10h18M7 15h3" />
-                  </svg>
-                </span>
-                <div className="sxm-gateway-copy">
-                  <p id="sxm-method-title">Xendit payment gateway</p>
-                  <span>Encrypted checkout with the shop's approved methods</span>
-                </div>
-                <svg className="sxm-gateway-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                  <circle cx="12" cy="12" r="9" />
-                  <path d="m8.5 12 2.2 2.2 4.8-4.8" />
-                </svg>
+            {!loadingMethods && paymentMethods.length === 0 && !error ? (
+              <div className="sxm-banner-notice warning" role="status">
+                Online checkout is unavailable for this shop right now.
               </div>
+            ) : null}
 
-              {loadingMethods ? (
-                <div className="sxm-method-loading"><div className="sxm-spinner dark" /> Loading payment methods…</div>
-              ) : paymentMethods.length > 0 ? (
-                <div className="sxm-method-picker">
-                  <div className="sxm-method-picker-heading">
-                    <span>Choose how to pay</span>
-                    <small>{paymentMethods.length} {paymentMethods.length === 1 ? 'method' : 'methods'} available</small>
-                  </div>
-                  <div className="sxm-method-options">
-                    {paymentMethods.map(method => (
-                      <button
-                        type="button"
-                        key={method.code}
-                        className={`sxm-method-option${selectedMethod === method.code ? ' is-selected' : ''}`}
-                        onClick={() => setSelectedMethod(method.code)}
-                        aria-pressed={selectedMethod === method.code}
-                      >
-                        <span className="sxm-method-option-icon"><PaymentMethodMark method={method} /></span>
-                        <span className="sxm-method-option-copy"><strong>{method.label}</strong><small>{method.type === 'wallet' ? 'E-wallet' : 'Online bank transfer'}</small></span>
-                        <i aria-hidden="true" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="sxm-no-methods">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                    <path d="M12 9v4m0 4h.01" />
-                    <path d="M10.3 4.6 2.8 17.5A2 2 0 0 0 4.5 20h15a2 2 0 0 0 1.7-2.5L13.7 4.6a2 2 0 0 0-3.4 0Z" />
-                  </svg>
-                  <span>This shop has no active payment receiver account yet. Please contact the shop before paying.</span>
-                </div>
-              )}
-            </section>
-
-            {/* Error or notice banner */}
-            {error && (
-              <div className="sxm-banner-notice warning">
+            {error ? (
+              <div className="sxm-banner-notice warning" role="alert">
                 {error}
               </div>
-            )}
+            ) : null}
 
-            {checkoutUrl && !error && (
+            {checkoutUrl && !error ? (
               <div className="sxm-banner-notice info">
-                A secure Xendit checkout tab was opened. Complete your payment there, then return here to confirm.
+                Checkout is open. Complete your payment there, then return here to confirm.
               </div>
-            )}
+            ) : null}
 
-            {/* Action buttons */}
             <div className="sxm-actions">
               {!checkoutUrl ? (
                 <button
                   type="button"
                   className="sxm-pay-btn"
-                  disabled={starting || loadingMethods || !selectedMethod || !selectedPaymentOption || amountToCharge <= 0}
-                  onClick={handleStartPay}
+                  disabled={starting || loadingMethods || !hasReceiver || !selectedPaymentOption || amountToCharge <= 0}
+                  onClick={() => void handleStartPay()}
                 >
                   {starting ? (
                     <>
                       <div className="sxm-spinner" />
-                      <span>Connecting to Xendit...</span>
+                      <span>Opening checkout…</span>
                     </>
                   ) : (
-                    <>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <rect x="5" y="11" width="14" height="10" rx="2" />
-                        <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-                      </svg>
-                      <span>
-                        {!selectedPaymentOption
-                          ? 'Choose full or down payment'
-                          : selectedMethod
-                            ? 'Pay ' + formatPhilippinePeso(amountToCharge) + ' with ' + (paymentMethods.find(method => method.code === selectedMethod)?.label || 'selected method')
-                            : 'Select a payment method'}
-                      </span>
-                    </>
+                    <span>
+                      {!selectedPaymentOption
+                        ? 'Select payment option'
+                        : `Pay ${formatPhilippinePeso(amountToCharge)} online`}
+                    </span>
                   )}
                 </button>
               ) : (
@@ -453,7 +386,7 @@ export default function ServiceXenditModal({ isOpen, request, onClose, onSuccess
                     {syncing ? (
                       <>
                         <div className="sxm-spinner" />
-                        <span>Verifying with Xendit...</span>
+                        <span>Checking payment status…</span>
                       </>
                     ) : (
                       <span>Confirm payment status</span>
@@ -465,7 +398,7 @@ export default function ServiceXenditModal({ isOpen, request, onClose, onSuccess
                     disabled={starting}
                     onClick={() => void handleStartPay()}
                   >
-                    {starting ? 'Creating a fresh checkout...' : 'Open secure checkout again'}
+                    {starting ? 'Opening checkout…' : 'Open checkout tab again'}
                   </button>
                 </>
               )}

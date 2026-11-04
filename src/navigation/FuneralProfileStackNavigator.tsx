@@ -71,9 +71,10 @@ const SHOP_CENTER_ROUTES = new Set([
   "ShopMessages",
 ]);
 
-export default function FuneralProfileStackNavigator() {
+export default function FuneralProfileStackNavigator({ initialRouteName = "ProfileMain" }: { initialRouteName?: string }) {
   return (
     <Stack.Navigator
+      initialRouteName={initialRouteName}
       screenOptions={({ navigation, route }) => {
         const BackButton = SHOP_CENTER_ROUTES.has(route.name)
           ? AppBackButton

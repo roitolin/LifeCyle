@@ -23,6 +23,7 @@ import * as Sharing from "expo-sharing";
 import { KeyboardAwareScrollView } from "@/components";
 import ServiceRequestScheduleFields from "@/components/ServiceRequestScheduleFields";
 import ServiceXenditSheet from "@/components/ServiceXenditSheet";
+import RemainingBalancePaymentCard from "@/components/RemainingBalancePaymentCard";
 import { syncServiceXenditCheckout } from "@/services/serviceXendit";
 import { supabase } from "@/services/supabaseClient";
 import { auth, uploadCertificate } from "@/services";
@@ -157,7 +158,7 @@ const buildReceiptNumber = (requestId: string) =>
   `RCPT-${String(requestId || "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase()}`;
 
 const buildReceiptHtml = (request: FuneralServiceRequest) => {
-  const meta = getStatusMeta(request.status);
+  const meta = getStatusMeta(request.status, request.paymentOption);
   const amount = Number(request.paymentAmount) || 0;
   const issuedAt = request.paymentVerifiedAt || request.paymentSubmittedAt || request.createdAt;
   const issuedText = issuedAt ? formatTimestamp(issuedAt) : "—";
@@ -263,8 +264,9 @@ function DetailRow({ icon, label, value }: { icon: IoniconName; label: string; v
   );
 }
 
-const getStatusMeta = (status: string) => {
+const getStatusMeta = (status: string, paymentOption?: string | null) => {
   const normalized = String(status || "").toLowerCase();
+  const isDownpayment = String(paymentOption || "").toLowerCase() === "downpayment";
   if (normalized === "accepted_by_shop") {
     return {
       label: "Accepted by Shop",
@@ -283,7 +285,7 @@ const getStatusMeta = (status: string) => {
   }
   if (normalized === "payment_submitted") {
     return {
-      label: "Payment Under Review",
+      label: isDownpayment ? "Downpayment Under Review" : "Payment Under Review",
       background: "#e0eefa",
       text: "#1c4f7e",
       message: "Your payment details are under review by the shop.",
@@ -291,7 +293,7 @@ const getStatusMeta = (status: string) => {
   }
   if (normalized === "paid_waiting_for_split") {
     return {
-      label: "Payment Confirmed",
+      label: isDownpayment ? "Downpayment Confirmed" : "Payment Confirmed",
       background: "#fef3c7",
       text: "#86654a",
       message: "Payment received. The shop payout is being processed and the shop is preparing your order.",
@@ -307,10 +309,12 @@ const getStatusMeta = (status: string) => {
   }
   if (normalized === "payment_verified") {
     return {
-      label: "Payment Confirmed",
+      label: isDownpayment ? "Downpayment Confirmed" : "Payment Confirmed",
       background: "#e7f5ec",
       text: "#166534",
-      message: "Your payment is confirmed. The shop is preparing your casket.",
+      message: isDownpayment
+        ? "Your downpayment is confirmed. The shop is preparing your service."
+        : "Your payment is confirmed. The shop is preparing your casket.",
     };
   }
   if (normalized === "awaiting_customer_confirmation") {
@@ -1011,8 +1015,12 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
           </View>
         ) : (
           visibleRequests.map((item: any) => {
-            const statusMeta = getStatusMeta(item.status);
+            const statusMeta = getStatusMeta(item.status, item.paymentOption);
             const paymentRequired = needsPayment(item);
+            const showDownpaymentBadge =
+              String(item.paymentOption || "").toLowerCase() === "downpayment" &&
+              Boolean(item.paymentVerifiedAt) &&
+              String(item.status || "").toLowerCase() !== "payment_verified";
             return (
               <TouchableOpacity
                 key={item.id}
@@ -1047,8 +1055,15 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                       <Text style={styles.requestShop}>{item.shopName}</Text>
                       {item.sharedWithMe ? <Text style={styles.sharedRequestLabel}>Shared family arrangement</Text> : null}
                     </View>
-                    <View style={[styles.statusBadge, { backgroundColor: statusMeta.background }]}>
-                      <Text style={[styles.statusBadgeText, { color: statusMeta.text }]}>{statusMeta.label}</Text>
+                    <View style={{ alignItems: "flex-end", gap: 6 }}>
+                      <View style={[styles.statusBadge, { backgroundColor: statusMeta.background }]}>
+                        <Text style={[styles.statusBadgeText, { color: statusMeta.text }]}>{statusMeta.label}</Text>
+                      </View>
+                      {showDownpaymentBadge ? (
+                        <View style={[styles.statusBadge, { backgroundColor: "#e7f5ec" }]}>
+                          <Text style={[styles.statusBadgeText, { color: "#166534" }]}>Downpayment Confirmed</Text>
+                        </View>
+                      ) : null}
                     </View>
                   </View>
                   <Text style={styles.requestMeta}>Service: {item.productName}</Text>
@@ -1166,7 +1181,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                 <View style={styles.paymentSuccessDivider} />
 
                 <View style={styles.paymentSuccessTotalRow}>
-                  <Text style={styles.paymentSuccessTotalLabel}>Order Total</Text>
+                  <Text style={styles.paymentSuccessTotalLabel}>{paymentSuccessRequest.paymentOption === 'downpayment' ? 'Downpayment amount' : 'Order Total'}</Text>
                   <Text style={styles.paymentSuccessTotalValue}>{formatPeso(paymentSuccessRequest.paymentAmount)}</Text>
                 </View>
 
@@ -1242,7 +1257,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                 ) : null}
 
                 <View style={styles.detailCard}>
-                  <DetailRow icon="shield-checkmark-outline" label="Status" value={getStatusMeta(selectedRequest.status).label} />
+                  <DetailRow icon="shield-checkmark-outline" label="Status" value={getStatusMeta(selectedRequest.status, selectedRequest.paymentOption).label} />
                   <DetailRow
                     icon="cube-outline"
                     label="Service"
@@ -1372,7 +1387,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
 
                 <View style={styles.statusInfoCard}>
                   <Text style={styles.statusInfoTitle}>Current Update</Text>
-                  <Text style={styles.statusInfoText}>{getStatusMeta(selectedRequest.status).message}</Text>
+                  <Text style={styles.statusInfoText}>{getStatusMeta(selectedRequest.status, selectedRequest.paymentOption).message}</Text>
                 </View>
 
                 {!selectedRequest.sharedWithMe && String(selectedRequest.status || "").toLowerCase() === "awaiting_customer_confirmation" ? (
@@ -1418,9 +1433,9 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                       </View>
                     ) : null}
 
-                    <View style={[styles.paymentStatusPill, { backgroundColor: getStatusMeta(selectedRequest.status).background }]}>
-                      <Text style={[styles.paymentStatusText, { color: getStatusMeta(selectedRequest.status).text }]}>
-                        {getStatusMeta(selectedRequest.status).label}
+                    <View style={[styles.paymentStatusPill, { backgroundColor: getStatusMeta(selectedRequest.status, selectedRequest.paymentOption).background }]}>
+                      <Text style={[styles.paymentStatusText, { color: getStatusMeta(selectedRequest.status, selectedRequest.paymentOption).text }]}>
+                        {getStatusMeta(selectedRequest.status, selectedRequest.paymentOption).label}
                       </Text>
                     </View>
 
@@ -1696,8 +1711,8 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                     style={styles.paymentSuccessCheck}
                   />
                 </View>
-                <Text style={styles.paymentSuccessTitle}>{getStatusMeta(paymentRequest.status).label}</Text>
-                <Text style={styles.paymentSuccessMessage}>{getStatusMeta(paymentRequest.status).message}</Text>
+                <Text style={styles.paymentSuccessTitle}>{getStatusMeta(paymentRequest.status, paymentRequest.paymentOption).label}</Text>
+                <Text style={styles.paymentSuccessMessage}>{getStatusMeta(paymentRequest.status, paymentRequest.paymentOption).message}</Text>
               </View>
 
               <View style={[styles.paymentSuccessBody, { paddingBottom: Math.max(24, insets.bottom + 16) }]}>
@@ -1757,7 +1772,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                   <View style={styles.paymentDetailsAccordionBody}>
                     <View style={styles.paymentSuccessDetailRow}>
                       <Text style={styles.paymentSuccessDetailLabel}>Payment Method</Text>
-                      <Text style={styles.paymentSuccessDetailValue}>{paymentRequest.paymentProvider === "xendit" ? "Xendit 1-Click Pay" : paymentRequest.providerPaymentMethod ? "Legacy online payment" : "GCash / E-wallet"}</Text>
+                      <Text style={styles.paymentSuccessDetailValue}>{paymentRequest.paymentProvider === "xendit" ? "Online" : paymentRequest.providerPaymentMethod ? "Online" : "GCash / E-wallet"}</Text>
                     </View>
                     {paymentRequest.paymentPayerName ? (
                       <View style={styles.paymentSuccessDetailRow}>
@@ -1822,9 +1837,12 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                 <View style={styles.paymentSuccessDivider} />
 
                 <View style={styles.paymentSuccessTotalRow}>
-                  <Text style={styles.paymentSuccessTotalLabel}>Order Total</Text>
+                  <Text style={styles.paymentSuccessTotalLabel}>{paymentRequest.paymentOption === 'downpayment' ? 'Downpayment amount' : 'Order Total'}</Text>
                   <Text style={styles.paymentSuccessTotalValue}>{formatPeso(paymentRequest.paymentAmount)}</Text>
                 </View>
+                {paymentRequest.requesterId === auth.currentUser?.uid ? (
+                  <RemainingBalancePaymentCard request={paymentRequest} />
+                ) : null}
 
                 {String(paymentRequest.status || "").toLowerCase() === "awaiting_payment" ? (
                   <TouchableOpacity
@@ -1866,9 +1884,9 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                   </View>
 
                   <Text style={styles.receiptTitle}>Payment Receipt</Text>
-                  <View style={[styles.paymentStatusPill, { backgroundColor: getStatusMeta(receiptRequest.status).background }]}>
-                    <Text style={[styles.paymentStatusText, { color: getStatusMeta(receiptRequest.status).text }]}>
-                      {getStatusMeta(receiptRequest.status).label}
+                  <View style={[styles.paymentStatusPill, { backgroundColor: getStatusMeta(receiptRequest.status, receiptRequest.paymentOption).background }]}>
+                    <Text style={[styles.paymentStatusText, { color: getStatusMeta(receiptRequest.status, receiptRequest.paymentOption).text }]}>
+                      {getStatusMeta(receiptRequest.status, receiptRequest.paymentOption).label}
                     </Text>
                   </View>
 

@@ -80,11 +80,6 @@ export default function AdminMoreScreen({ navigation }: any) {
               Mobile Home Feature
             </Button>
           ) : null}
-          {isRootAdmin ? (
-            <Button mode="outlined" icon="trash-can-outline" onPress={() => navigation.navigate("Deletions")}>
-              Account Deletions
-            </Button>
-          ) : null}
           <Button mode="text" onPress={() => navigation.navigate("Notifications")}>
             Notifications
           </Button>

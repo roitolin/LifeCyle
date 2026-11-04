@@ -65,6 +65,62 @@ export const uploadShopImage = (uri: string) =>
 export const uploadCertificate = (uri: string) =>
   uploadImageToSupabase(uri, 'service-media');
 
+export async function uploadBalancePaymentReceipt(requestId: string, uri: string): Promise<string> {
+  const { data, error } = await supabase.auth.getUser();
+  if (error) throw error;
+  if (!data.user) throw new Error('Sign in before uploading a receipt.');
+  const image = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: 1600 } }], {
+    compress: 0.8, format: ImageManipulator.SaveFormat.JPEG,
+  });
+  const base64 = await FileSystem.readAsStringAsync(image.uri, { encoding: FileSystem.EncodingType.Base64 });
+  const bytes = decodeBase64(base64);
+  if (bytes.byteLength > MAX_IMAGE_BYTES) throw new Error('Choose a receipt image smaller than 10 MB.');
+  const storagePath = `${requestId}/${data.user.id}/${Date.now()}-${Math.random().toString(16).slice(2)}.jpg`;
+  const { error: uploadError } = await supabase.storage.from('funeral-balance-receipts').upload(storagePath, bytes, {
+    contentType: 'image/jpeg', upsert: false,
+  });
+  if (uploadError) throw uploadError;
+  return storagePath;
+}
+
+const DIGITAL_RECEIPT_FALLBACK_BASE64 =
+  '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0d' +
+  'Hx8fExciJCIeJBweHx7/2wBDAQUFBQcGBw4ICA4eFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4e' +
+  'Hh4eHh4eHh4eHh7/wAARCAEAAHgDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAf/xAAUEAEAAAAAAAAAAAAAAAAAAAAA' +
+  '/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCSAAAAAAAAAAAAAAAAAAAA' +
+  'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+  'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB//9k=';
+
+export async function uploadDigitalBalanceReceipt(
+  requestId: string,
+  _details?: {
+    amount?: number | string;
+    channelLabel?: string;
+    reference?: string;
+    payerName?: string;
+    shopName?: string;
+    productName?: string;
+  }
+): Promise<string> {
+  const { data, error } = await supabase.auth.getUser();
+  if (error) throw error;
+  if (!data.user) throw new Error('Sign in before uploading a receipt.');
+
+  const tempUri = `${FileSystem.cacheDirectory || ''}receipt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.jpg`;
+  try {
+    await FileSystem.writeAsStringAsync(tempUri, DIGITAL_RECEIPT_FALLBACK_BASE64, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    return await uploadBalancePaymentReceipt(requestId, tempUri);
+  } finally {
+    try {
+      await FileSystem.deleteAsync(tempUri, { idempotent: true });
+    } catch {
+      // ignore temporary cache cleanup failure
+    }
+  }
+}
+
 export type SecureVaultUpload = {
   storagePath: string;
   originalFileName: string;

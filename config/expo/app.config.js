@@ -10,7 +10,7 @@ module.exports = {
     orientation: "portrait",
     icon: "./assets/Icon/Icon.png",
     scheme: "lifecycle",
-    userInterfaceStyle: "automatic",
+    userInterfaceStyle: "light",
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.Roi.lifecycle",
@@ -26,7 +26,7 @@ module.exports = {
       [
         'expo-navigation-bar',
         {
-          style: 'dark',
+          style: 'light',
           hidden: false,
           enforceContrast: false,
         }
@@ -67,7 +67,7 @@ module.exports = {
         {
           icon: "./assets/Icon/IconTraparent.png",
           color: "#17382f",
-          defaultChannel: "lifecycle-alerts",
+          defaultChannel: "lifecycle-alerts-v2",
           mode: notificationMode,
         },
       ],

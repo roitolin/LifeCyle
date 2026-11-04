@@ -554,3 +554,26 @@
 .commission-detail-item .code-font {
   @apply [font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace] text-[12px];
 }
+
+/* ── Admin Shop Receipt Modal ───────────────────────── */
+.admin-shop-receipt-overlay {
+  z-index: 1200;
+}
+.admin-shop-receipt-modal {
+  width: min(540px, 100%);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.admin-shop-receipt-lightbox {
+  z-index: 1300;
+}
+@media (max-width: 640px) {
+  .admin-shop-receipt-overlay {
+    padding: 12px;
+    align-items: flex-end;
+  }
+  .admin-shop-receipt-modal {
+    max-height: calc(100vh - 24px);
+    border-radius: 16px 16px 0 0;
+  }
+}

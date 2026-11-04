@@ -40,13 +40,13 @@ const ROI_IMAGE_MODULES = [
 const ONBOARDING_STEPS: OnboardingStep[] = [
   {
     label: 'WELCOME TO LIFECYCLE',
-    title: 'Hi, I’m Roi.',
-    body: '',
+    title: 'Here to guide you through every step.',
+    body: 'A compassionate space designed to help you navigate funeral arrangements with clarity and care.',
     image: ROI_IMAGE_MODULES[0],
   },
   {
     label: 'CLEAR GUIDANCE',
-    title: 'I’ll make each next step easier to follow.',
+    title: 'Making each next step easier to follow.',
     body: 'Find funeral support and understand your options without unnecessary pressure or clutter.',
     image: ROI_IMAGE_MODULES[1],
   },
@@ -267,7 +267,7 @@ export default function MobileLandingScreen({ navigation }: any) {
   if (!assetsReady) {
     return (
       <SafeAreaView edges={['left', 'right']} style={styles.screen}>
-        <NavigationBar hidden={false} style='dark' />
+        <NavigationBar hidden={false} style='light' />
         <StatusBar hidden={false} style='dark' />
         {androidSystemBarSurfaces}
         <View style={styles.loadingState}>
@@ -280,7 +280,7 @@ export default function MobileLandingScreen({ navigation }: any) {
 
   return (
     <SafeAreaView edges={['left', 'right']} style={styles.screen}>
-      <NavigationBar hidden={false} style='dark' />
+      <NavigationBar hidden={false} style='light' />
       <StatusBar hidden={false} style='dark' />
       {androidSystemBarSurfaces}
 
@@ -328,7 +328,7 @@ export default function MobileLandingScreen({ navigation }: any) {
           ]}
         >
           <Image
-            key={'roi-onboarding-' + currentIndex}
+            key={'onboarding-step-' + currentIndex}
             accessibilityIgnoresInvertColors
             fadeDuration={0}
             resizeMode='contain'

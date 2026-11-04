@@ -1,6 +1,10 @@
--- Defer the buyer's full/down-payment choice until an accepted request is
+-- Enable the buyer's full/down-payment choice only when an accepted request is
 -- actually being paid. The product price stays the full catalog price while
 -- paymentAmount stores the amount that Xendit must charge.
+
+begin;
+set local lock_timeout = '5s';
+set local statement_timeout = '30s';
 
 drop trigger if exists set_funeral_request_payment_terms
   on public.funeral_service_requests;
@@ -22,9 +26,13 @@ where request."requestType" = 'catalog_product'
   and request.status in ('pending_shop_acceptance', 'awaiting_payment')
   and request."providerCheckoutId" is null
   and request."providerCheckoutClaimId" is null
+  and request."paymentOption" = 'full'
+  and request."downpaymentAmountSnapshot" is null
+  and request."downpaymentPercentageSnapshot" is null
   and product."downpaymentEnabled" = true
   and product."downpaymentAmount" > 0
   and product."downpaymentPercentage" > 0
+  and product."downpaymentPercentage" <= 100
   and product."downpaymentAmount" <= coalesce(request."productFullPrice", request."productPrice");
 
 alter table public.funeral_service_requests
@@ -169,7 +177,8 @@ begin
   if product_row."downpaymentEnabled"
      and product_row."downpaymentAmount" > 0
      and product_row."downpaymentAmount" <= full_price
-     and product_row."downpaymentPercentage" > 0 then
+     and product_row."downpaymentPercentage" > 0
+     and product_row."downpaymentPercentage" <= 100 then
     new."downpaymentAmountSnapshot" := round(product_row."downpaymentAmount", 2);
     new."downpaymentPercentageSnapshot" := product_row."downpaymentPercentage";
   else
@@ -194,13 +203,16 @@ before insert or update of
 on public.funeral_service_requests
 for each row execute function public.set_funeral_request_payment_terms();
 
+revoke all on function public.set_funeral_request_payment_terms()
+  from public, anon, authenticated;
+
 create or replace function public.choose_funeral_request_payment_option(
   p_request_id uuid,
   p_payment_option text
 )
 returns setof public.funeral_service_requests
 language plpgsql
-security definer
+security invoker
 set search_path = pg_catalog, public
 as $$
 declare
@@ -225,7 +237,7 @@ begin
      or request_row."providerCheckoutClaimId" is not null then
     raise exception 'The payment option is locked because checkout has already started.';
   end if;
-  if p_payment_option not in ('full', 'downpayment') then
+  if p_payment_option is null or p_payment_option not in ('full', 'downpayment') then
     raise exception 'Choose either full payment or down payment.';
   end if;
   if request_row."requestType" is distinct from 'catalog_product'
@@ -266,7 +278,9 @@ security definer
 set search_path = pg_catalog, public
 as $$
 declare
-  actor_is_service_role boolean := coalesce(auth.role(), '') = 'service_role' or current_user in ('postgres', 'supabase_admin');
+  actor_is_service_role boolean :=
+    coalesce(auth.role(), '') = 'service_role'
+    or (coalesce(auth.role(), '') = '' and session_user in ('postgres', 'supabase_admin'));
   authorized_payment_selection boolean := false;
 begin
   if actor_is_service_role then
@@ -384,4 +398,35 @@ $$;
 
 revoke all on function public.protect_xendit_service_payment_fields() from public, anon, authenticated;
 
+-- An accepted full-price quote must not override the buyer's chosen initial
+-- down payment when the payment service claims a new checkout.
+do $migration$
+declare
+  definition text := pg_get_functiondef(
+    'public.claim_xendit_service_checkout(uuid,text,text,boolean)'::regprocedure
+  );
+  original text := $original$authoritative_amount := coalesce(
+      authoritative_amount,
+      nullif(round(request_row."paymentAmount", 2), 0),
+      nullif(round(request_row."productPrice", 2), 0)
+    );$original$;
+  replacement text := $replacement$authoritative_amount := coalesce(
+      case when request_row."requestType" = 'catalog_product'
+             and request_row."paymentOption" = 'downpayment'
+        then nullif(round(request_row."downpaymentAmountSnapshot", 2), 0)
+      end,
+      authoritative_amount,
+      nullif(round(request_row."paymentAmount", 2), 0),
+      nullif(round(request_row."productPrice", 2), 0)
+    );$replacement$;
+begin
+  if position(original in definition) = 0 then
+    raise exception 'The Xendit claim function differs from the reviewed version; migration cancelled.';
+  end if;
+  execute replace(definition, original, replacement);
+end;
+$migration$;
+
 notify pgrst, 'reload schema';
+
+commit;

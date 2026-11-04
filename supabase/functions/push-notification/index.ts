@@ -41,6 +41,26 @@ type ExpoPushTicket = {
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 const MAX_EXPO_BATCH_SIZE = 100;
+const EXPO_SEND_ATTEMPTS = 3;
+
+function apiKeyOnlyFetch(secretKey: string) {
+  return (input: RequestInfo | URL, init?: RequestInit) => {
+    const request = new Request(input, init);
+
+    // New Supabase secret keys are API keys, not JWTs. supabase-js adds the
+    // project key to both headers by default, so remove only the invalid
+    // bearer copy while retaining `apikey: sb_secret_...`.
+    if (secretKey.startsWith('sb_secret_')) {
+      const headers = new Headers(request.headers);
+      if (headers.get('authorization') === `Bearer ${secretKey}`) {
+        headers.delete('authorization');
+        return fetch(new Request(request, { headers }));
+      }
+    }
+
+    return fetch(request);
+  };
+}
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -95,6 +115,40 @@ function chunks<T>(items: T[], size: number) {
   return batches;
 }
 
+const wait = (milliseconds: number) =>
+  new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+async function postExpoBatch(
+  headers: Record<string, string>,
+  messages: Record<string, unknown>[],
+) {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < EXPO_SEND_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await fetch(EXPO_PUSH_URL, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(messages),
+      });
+      if (response.ok || (response.status !== 429 && response.status < 500)) {
+        return response;
+      }
+      lastError = new Error(`Expo push service returned ${response.status}.`);
+    } catch (error) {
+      lastError = error;
+    }
+
+    if (attempt < EXPO_SEND_ATTEMPTS - 1) {
+      await wait(250 * 2 ** attempt);
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error('Expo push service is temporarily unavailable.');
+}
+
 Deno.serve(async (request) => {
   if (request.method !== 'POST') {
     return jsonResponse({ error: 'Method not allowed.' }, 405);
@@ -114,6 +168,7 @@ Deno.serve(async (request) => {
 
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
+    global: { fetch: apiKeyOnlyFetch(serviceRoleKey) },
   });
   const { data: secretMatches, error: secretError } = await admin.rpc(
     'verify_push_notification_webhook_secret',
@@ -196,7 +251,7 @@ Deno.serve(async (request) => {
         body: notification.body.slice(0, 1000),
         priority: 'high',
         channelId: soundEnabled
-          ? 'lifecycle-alerts'
+          ? 'lifecycle-alerts-v2'
           : 'lifecycle-silent',
         ...(soundEnabled ? { sound: 'default' } : {}),
         data: {
@@ -208,11 +263,13 @@ Deno.serve(async (request) => {
       };
     });
 
-    const expoResponse = await fetch(EXPO_PUSH_URL, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(messages),
-    });
+    let expoResponse: Response;
+    try {
+      expoResponse = await postExpoBatch(headers, messages);
+    } catch (error) {
+      console.error('Unable to deliver Expo push batch after retries:', error);
+      return jsonResponse({ error: 'Push delivery is temporarily unavailable.' }, 502);
+    }
     const responseBody = await expoResponse.json();
     if (!expoResponse.ok) {
       return jsonResponse(

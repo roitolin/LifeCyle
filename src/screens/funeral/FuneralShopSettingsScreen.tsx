@@ -18,7 +18,6 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "@/utils/permissionImagePicker";
 import { AdminPaymentModal, AppBackButton, KeyboardAwareScrollView } from "@/components";
 import LoadingBird from "@/components/LoadingBird";
-import PayoutAccountsModal from "@/components/PayoutAccountsModal";
 import { auth, uploadShopImage } from "@/services";
 import { supabase } from "@/services/supabaseClient";
 import { sanitizePlainText } from "@/utils/inputSecurity";
@@ -205,9 +204,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#f3ede5", padding: 11, marginTop: 14,
   },
   infoNoteText: { flex: 1, color: "#765f49", fontSize: 11, lineHeight: 16 },
-  pageHeading: { gap: 5, paddingHorizontal: 2 },
-  pageTitle: { color: "#22312d", fontSize: 22, fontWeight: "900", letterSpacing: -0.4 },
-  pageDescription: { color: "#697670", fontSize: 12, lineHeight: 18 },
+  pageDescription: { color: "#697670", fontSize: 12, lineHeight: 18, paddingHorizontal: 2 },
   settingsPanel: { overflow: "hidden", borderWidth: 1, borderColor: "#dfe5eb", borderRadius: 15, backgroundColor: "#ffffff" },
   panelHeader: { flexDirection: "row", alignItems: "flex-start", gap: 12, padding: 15, borderBottomWidth: 1, borderBottomColor: "#e8edf1" },
   panelHeaderCopy: { flex: 1, minWidth: 0 },
@@ -254,7 +251,7 @@ function ProfileDetail({ label, value, wide }: { label: string; value?: string |
   );
 }
 
-export default function FuneralShopSettingsScreen({ navigation, route }: any) {
+export default function FuneralShopSettingsScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [shop, setShop] = useState<ShopRecord | null>(null);
   const [payment, setPayment] = useState<ShopPayment | null>(null);
@@ -265,7 +262,6 @@ export default function FuneralShopSettingsScreen({ navigation, route }: any) {
   const [savingProfile, setSavingProfile] = useState(false);
   const [uploadingImage, setUploadingImage] = useState<"logo" | "cover" | null>(null);
   const [profileDraft, setProfileDraft] = useState({ name: "", address: "", phone: "", logo: null as string | null, cover: null as string | null });
-  const [payoutVisible, setPayoutVisible] = useState(false);
   const [screenOpenedAt] = useState(Date.now);
 
   const loadSettings = useCallback(async () => {
@@ -288,16 +284,12 @@ export default function FuneralShopSettingsScreen({ navigation, route }: any) {
       const loadedShop = (shopData as ShopRecord | null) || null;
       setShop(loadedShop);
       setPayment((paymentData as ShopPayment | null) || null);
-      if (route?.params?.openSection === "payout" && loadedShop) {
-        setPayoutVisible(true);
-        navigation.setParams({ openSection: undefined });
-      }
     } catch (error: any) {
       Alert.alert("Settings unavailable", error?.message || "Unable to load shop settings.");
     } finally {
       setLoading(false);
     }
-  }, [navigation, route]);
+  }, []);
 
   useFocusEffect(useCallback(() => { void loadSettings(); }, [loadSettings]));
 
@@ -370,11 +362,11 @@ export default function FuneralShopSettingsScreen({ navigation, route }: any) {
       Alert.alert(
         "Payment Required",
         payment?.status === "pending" && payment.paymentProvider === "xendit"
-          ? "Complete your Xendit checkout before making the shop live."
-          : "Pay the LifeCycle registration fee securely through Xendit before making the shop live.",
+          ? "Complete your online payment before making the shop live."
+          : "Pay the LifeCycle registration fee online before making the shop live.",
         [
           { text: "Cancel", style: "cancel" },
-          { text: "Open Xendit", onPress: () => setAdminPaymentsVisible(true) },
+          { text: "Open Payment", onPress: () => setAdminPaymentsVisible(true) },
         ],
       );
       return;
@@ -382,7 +374,7 @@ export default function FuneralShopSettingsScreen({ navigation, route }: any) {
     if (nextLive && subscriptionExpired) {
       Alert.alert(
         "Subscription Expired",
-        "Renew your LifeCycle registration securely through Xendit before making the shop live.",
+        "Renew your LifeCycle registration online before making the shop live.",
         [
           { text: "Cancel", style: "cancel" },
           { text: "Renew Online", onPress: () => setAdminPaymentsVisible(true) },
@@ -428,10 +420,7 @@ export default function FuneralShopSettingsScreen({ navigation, route }: any) {
 
       <SafeAreaView edges={["bottom"]} style={styles.body}>
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.pageHeading}>
-            <Text style={styles.pageTitle}>Funeral Shop Settings</Text>
-            <Text style={styles.pageDescription}>Manage your public shop profile, availability, and registered business details.</Text>
-          </View>
+          <Text style={styles.pageDescription}>Manage your public shop profile, availability, and registered business details.</Text>
 
           {status === "rejected" && shop?.rejectionReason ? (
             <View style={styles.warningCard}>
@@ -563,13 +552,6 @@ export default function FuneralShopSettingsScreen({ navigation, route }: any) {
           </View>
         </View>
       </Modal>
-
-      <PayoutAccountsModal
-        visible={payoutVisible}
-        shopId={shop?.id}
-        shopApproved={isVerified}
-        onClose={() => setPayoutVisible(false)}
-      />
 
       <Modal visible={businessVisible} transparent animationType="fade" onRequestClose={() => setBusinessVisible(false)}>
         <View style={styles.modalOverlay}>

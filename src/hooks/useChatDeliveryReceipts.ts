@@ -49,8 +49,6 @@ export function useChatDeliveryReceipts() {
       flushTimer = setTimeout(flush, 80);
     };
 
-    if (AppState.currentState === "active") void acknowledge(null);
-
     const channel = supabase
       .channel(`chat-delivery-receipts-${userId}-${Date.now()}`)
       .on(

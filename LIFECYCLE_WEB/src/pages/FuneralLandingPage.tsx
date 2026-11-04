@@ -48,7 +48,7 @@ function normalize(v: string | null | undefined) {
 function formatPeso(v: number | string | null | undefined): string {
   const num = Number(String(v ?? '').replace(/[^\d.]/g, ''))
   if (!Number.isFinite(num) || num <= 0) return v ? String(v) : '-'
-  return `PHP ${new Intl.NumberFormat('en-PH', { maximumFractionDigits: 0 }).format(num)}`
+  return `\u20b1${new Intl.NumberFormat('en-PH', { maximumFractionDigits: 0 }).format(num)}`
 }
 
 function getPrimaryImage(row: any): string | null {
@@ -640,39 +640,39 @@ export default function FuneralLandingPage() {
                     && downpaymentPercentage > 0
                     && downpaymentPercentage <= 100
 
-                  return <article
+                  return <Link
                     key={`${product.shopId}_${product.id}`}
                     className="sp-card product-scroll-reveal"
                     data-product-scroll-reveal
-                    onClick={() => navigate(`/funeral/product/${product.id}`)}
+                    to={`/funeral/product/${product.id}`}
                   >
                     <div className="sp-card-img-wrap">
                       {product.imageUrl
                         ? <img src={product.imageUrl} alt={product.name} loading="lazy" decoding="async" />
                         : <div className="sp-card-img-ph"><CasketSVG /></div>}
+                      {hasDownpayment ? (
+                        <span className="sp-card-downpayment-badge" aria-label={`${downpaymentPercentage}% down payment available`}>
+                          <strong>{downpaymentPercentage}%</strong>
+                          <span>down payment</span>
+                        </span>
+                      ) : null}
                     </div>
 
                     <div className="sp-card-body">
-                      <p className="sp-card-name">{product.name}</p>
+                      <h3 className="sp-card-name" title={product.name}>{product.name}</h3>
                       <div className="sp-card-price-row">
                         <span className="sp-card-price">{formatPeso(product.price)}</span>
                       </div>
                       <div className="sp-card-meta">
-                        <ProductRating rating={product.rating} count={product.ratingCount} />
+                        <ProductRating rating={product.rating} count={product.ratingCount} compact />
                         <span className="sp-card-stock">{product.stock} left</span>
                       </div>
-                      <p className="sp-card-location">{product.shopName}</p>
-                      {hasDownpayment ? (
-                        <span className="sp-card-downpayment-badge" aria-label={`Down payment available: ${formatPeso(downpaymentAmount)}, ${downpaymentPercentage}%`}>
-                          <strong>Down payment</strong>
-                          <small>
-                            <span>{formatPeso(downpaymentAmount)}</span>
-                            <span className="sp-card-downpayment-percentage">({downpaymentPercentage}%)</span>
-                          </small>
-                        </span>
-                      ) : null}
+                      <p className="sp-card-shop" title={product.shopName}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 10v10h16V10M3 10l2-6h14l2 6M3 10a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0M9 20v-6h6v6" /></svg>
+                        <span>{product.shopName}</span>
+                      </p>
                     </div>
-                  </article>
+                  </Link>
                 })}
               </div>
             )}

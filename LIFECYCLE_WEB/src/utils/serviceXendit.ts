@@ -15,7 +15,7 @@ export type ServiceXenditCheckoutResult = {
 export type ServicePaymentMethod = {
   code: string
   label: string
-  type: 'wallet' | 'bank'
+  type: 'wallet' | 'bank' | 'card'
 }
 
 export type ServicePaymentOption = 'full' | 'downpayment'
@@ -30,22 +30,33 @@ export type SelectedServicePaymentTerms = {
   remainingBalance?: number | string | null
 }
 
+export type PreparedServicePaymentOption = {
+  ready?: boolean
+  paid?: boolean
+  paymentOption?: ServicePaymentOption
+  checkoutActive?: boolean
+  requestId: string
+}
+
+const sanitizePaymentMessage = (msg: string): string =>
+  msg.replace(/xendit/gi, 'online payment').replace(/\s{2,}/g, ' ').trim()
+
 const getFunctionErrorMessage = async (error: unknown): Promise<string> => {
-  const fallback = 'Unable to start Xendit checkout.'
+  const fallback = 'Unable to start online payment.'
   if (!(error instanceof Error)) return fallback
 
   const context = (error as Error & { context?: Response }).context
   if (context && typeof context.json === 'function') {
     try {
       const body = await context.json()
-      if (typeof body?.error === 'string' && body.error.trim()) return body.error
-      if (typeof body?.message === 'string' && body.message.trim()) return body.message
+      if (typeof body?.error === 'string' && body.error.trim()) return sanitizePaymentMessage(body.error)
+      if (typeof body?.message === 'string' && body.message.trim()) return sanitizePaymentMessage(body.message)
     } catch {
       // Safe fallback when response body is not readable
     }
   }
 
-  return error.message || fallback
+  return error.message ? sanitizePaymentMessage(error.message) : fallback
 }
 
 export async function getServicePaymentMethods(requestId: string): Promise<{ methods: ServicePaymentMethod[]; selectedMethod?: string }> {
@@ -68,7 +79,7 @@ export async function chooseServicePaymentOption(
     p_request_id: requestId,
     p_payment_option: paymentOption,
   })
-  if (error) throw error
+  if (error) throw new Error(error.message || 'Unable to choose the payment option.')
 
   const selected = Array.isArray(data) ? data[0] : data
   if (!selected?.id || Number(selected.paymentAmount) <= 0) {
@@ -77,16 +88,30 @@ export async function chooseServicePaymentOption(
   return selected as SelectedServicePaymentTerms
 }
 
-export async function createServiceXenditCheckout(requestId: string, paymentMethod: string): Promise<ServiceXenditCheckoutResult> {
+export async function prepareServicePaymentOption(
+  requestId: string,
+  paymentOption: ServicePaymentOption,
+): Promise<PreparedServicePaymentOption> {
   const { data, error } = await supabase.functions.invoke('create-service-xendit-checkout', {
-    body: { requestId, paymentMethod, platform: 'web' },
+    body: { requestId, action: 'prepare', paymentOption, platform: 'web' },
+  })
+  if (error) throw new Error(await getFunctionErrorMessage(error))
+  if (data?.paid !== true && data?.ready !== true) {
+    throw new Error('Unable to prepare the payment option. Please try again.')
+  }
+  return data as PreparedServicePaymentOption
+}
+
+export async function createServiceXenditCheckout(requestId: string, paymentMethod?: string): Promise<ServiceXenditCheckoutResult> {
+  const { data, error } = await supabase.functions.invoke('create-service-xendit-checkout', {
+    body: { requestId, paymentMethod: paymentMethod || undefined, platform: 'web' },
   })
 
   if (error) throw new Error(await getFunctionErrorMessage(error))
 
   const isSettled = data?.paid === true
   if (!isSettled && typeof data?.checkoutUrl !== 'string') {
-    throw new Error('Xendit did not return a checkout link.')
+    throw new Error('Checkout link is unavailable.')
   }
 
   const isTestMode = data?.testMode === true || data?.livemode === false

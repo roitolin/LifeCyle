@@ -21,6 +21,9 @@ export type XenditShopSyncResult = {
 
 export type XenditShopPaymentMethod = 'all' | 'gcash' | 'ewallets' | 'cards' | 'bank_transfer'
 
+const sanitizeShopPaymentMessage = (msg: string): string =>
+  msg.replace(/xendit/gi, 'online payment').replace(/\s{2,}/g, ' ').trim()
+
 export async function createXenditShopCheckout(
   paymentMethod: XenditShopPaymentMethod = 'all',
   reauthAccessToken?: string,
@@ -35,7 +38,7 @@ export async function createXenditShopCheckout(
   })
 
   if (error) {
-    let message = error.message || 'Unable to start Xendit checkout.'
+    let message = error.message || 'Unable to start online payment.'
     const context = (error as { context?: Response }).context
     if (context && typeof context.json === 'function') {
       try {
@@ -45,11 +48,11 @@ export async function createXenditShopCheckout(
         // Keep the safe fallback message when the response body is unavailable.
       }
     }
-    throw new Error(message)
+    throw new Error(sanitizeShopPaymentMessage(message))
   }
 
   if (!data?.paid && typeof data?.checkoutUrl !== 'string') {
-    throw new Error('Xendit did not return a checkout link.')
+    throw new Error('Checkout link is unavailable.')
   }
   if (!data?.paid && data?.testMode !== true && data?.livemode !== false) {
     throw new Error('Checkout could not be verified. Please try again or contact support.')
@@ -62,7 +65,7 @@ export async function syncXenditShopPayment(): Promise<XenditShopSyncResult> {
     body: { platform: 'web', action: 'sync' },
   })
   if (error) {
-    let message = error.message || 'Unable to refresh Xendit payment status.'
+    let message = error.message || 'Unable to refresh payment status.'
     const context = (error as { context?: Response }).context
     if (context && typeof context.json === 'function') {
       try {
@@ -72,7 +75,7 @@ export async function syncXenditShopPayment(): Promise<XenditShopSyncResult> {
         // Keep the safe fallback message when the response body is unavailable.
       }
     }
-    throw new Error(message)
+    throw new Error(sanitizeShopPaymentMessage(message))
   }
   return data as XenditShopSyncResult
 }

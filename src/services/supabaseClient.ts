@@ -13,15 +13,19 @@ const TRANSIENT_NETWORK_ERROR_PATTERN = /network|fetch failed|network request fa
 
 const fetchWithRetry: typeof fetch = async (input, init) => {
   let lastError: unknown;
+  const method = String(
+    init?.method || (typeof Request !== 'undefined' && input instanceof Request ? input.method : 'GET'),
+  ).toUpperCase();
+  const maxAttempts = method === 'GET' || method === 'HEAD' ? 2 : 1;
 
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
       return await fetch(input, init);
     } catch (error) {
       lastError = error;
       const message = error instanceof Error ? error.message : String(error || '');
-      if (!TRANSIENT_NETWORK_ERROR_PATTERN.test(message) || attempt === 2) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 450 * (attempt + 1)));
+      if (!TRANSIENT_NETWORK_ERROR_PATTERN.test(message) || attempt === maxAttempts - 1) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 350));
     }
   }
 

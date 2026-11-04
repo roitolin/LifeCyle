@@ -34,7 +34,6 @@ function resolveAdminNotificationRoute(item: WebNotification) {
   if (type.includes('payment')) return '/admin/payments'
   if (shopId) return '/admin/funeral-shops/' + encodeURIComponent(String(shopId)) + '/details'
   if (type.includes('shop')) return '/admin/funeral-shops'
-  if (type.includes('account_deletion')) return '/admin/account-deletions'
   if (type.includes('feedback') || type.includes('review')) return '/admin/feedback'
   if (type.includes('support') || type.includes('message') || type.includes('chat')) return '/admin/support'
   if (userId) return '/admin/users/' + encodeURIComponent(String(userId))
@@ -333,15 +332,6 @@ function AdminLayout() {
               </svg>
             </span>
             <span className="sidebar-label">Announcements</span>
-          </NavLink> : null}
-          {isRootAdmin ? <NavLink to="/admin/account-deletions" className={({ isActive }) => isActive ? 'user-nav-link active' : 'user-nav-link'}>
-            <span className="nav-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M5 7H19M9 7V4H15V7M7 7L8 20H16L17 7" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M10 11V16M14 11V16" strokeWidth="1.8" strokeLinecap="round" />
-              </svg>
-            </span>
-            <span className="sidebar-label">Account Deletions</span>
           </NavLink> : null}
           <span className="admin-nav-section sidebar-label">Administration</span>
           <NavLink to="/admin/users" className={({ isActive }) => `user-nav-link${isActive ? ' active' : ''}`}>

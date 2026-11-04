@@ -314,6 +314,8 @@ export default function NotificationsScreen({ navigation, route }: any) {
               { name: "Home" },
               { name: "Shops" },
               { name: "Carts" },
+              { name: "Favorites" },
+              { name: "Settings", state: { routes: [{ name: "AccountSettings" }] } },
               {
                 name: "Profile",
                 state: {
@@ -322,7 +324,7 @@ export default function NotificationsScreen({ navigation, route }: any) {
                 },
               },
             ],
-            index: 3,
+            index: 5,
           },
         }],
       })

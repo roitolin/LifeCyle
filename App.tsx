@@ -31,7 +31,7 @@ export default function App() {
   return (
     <GestureHandlerRootView style={styles.app}>
       <StatusBar hidden={false} style="dark" />
-      <NavigationBar hidden={false} style="dark" />
+      <NavigationBar hidden={false} style="light" />
       <AppProviders>
         <RootNavigator />
       </AppProviders>
@@ -42,6 +42,6 @@ export default function App() {
 const styles = StyleSheet.create({
   app: {
     flex: 1,
-    backgroundColor: colors.surfaceWarm,
+    backgroundColor: colors.surface,
   },
 });

@@ -23,7 +23,7 @@ export type XenditShopSyncResult = {
 export type XenditShopPaymentMethod = 'all' | 'gcash' | 'ewallets' | 'cards' | 'bank_transfer';
 
 const readFunctionError = async (error: unknown) => {
-  const fallback = 'Unable to start Xendit checkout.';
+  const fallback = 'Unable to start online payment.';
   if (!(error instanceof Error)) return fallback;
   const context = (error as Error & { context?: Response }).context;
   if (context && typeof context.json === 'function') {
@@ -44,7 +44,7 @@ export async function createXenditShopCheckout(paymentMethod: XenditShopPaymentM
 
   if (error) throw new Error(await readFunctionError(error));
   if (!data?.paid && typeof data?.checkoutUrl !== 'string') {
-    throw new Error('Xendit did not return a checkout link.');
+    throw new Error('Checkout link is unavailable.');
   }
   if (!data?.paid && data?.testMode !== true && data?.livemode !== false) {
     throw new Error('Checkout could not be verified. Please try again or contact support.');

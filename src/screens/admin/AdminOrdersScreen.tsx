@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import LoadingBird from '@/components/LoadingBird';
+import LoadingBird from "@/components/LoadingBird";
 import {
   FlatList,
   Image,
@@ -11,13 +11,12 @@ import {
   View,
 } from "react-native";
 import { Searchbar } from "react-native-paper";
-import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { supabase } from "@/services/supabaseClient";
 import { useResponsive } from "@/utils/responsive";
 import { formatPhilippinePeso } from "@/utils/funeralCatalog";
 import { formatServiceDate, formatServiceTime } from "@/utils/serviceRequestSchedule";
-import { colors, radii, spacing } from "@/theme";
 
 type FilterType = "all" | "waiting" | "accepted" | "completed" | "declined" | "cancelled";
 
@@ -31,6 +30,14 @@ type ServiceRequest = {
   productId?: string;
   productName?: string | null;
   productPrice?: string | null;
+  productFullPrice?: number | string | null;
+  downpaymentAmountSnapshot?: number | string | null;
+  downpaymentPercentageSnapshot?: number | string | null;
+  paymentOption?: "full" | "downpayment" | null;
+  paymentProvider?: string | null;
+  providerPaymentMethod?: string | null;
+  providerPaymentId?: string | null;
+  providerPaymentCompletedAt?: string | null;
   productImageUrl?: string | null;
   variationName?: string | null;
   packageItems?: string[] | null;
@@ -78,6 +85,16 @@ type ServiceRequest = {
   requesterEmail?: string;
 };
 
+const PAYMENT_LOGOS: Record<string, any> = {
+  PH_GCASH: require("../../../assets/Payment Logos/Gcash_Logo.png"),
+  PH_MAYA: require("../../../assets/Payment Logos/PayMaya_Logo.png"),
+  PH_BDO: require("../../../assets/Payment Logos/BDO_Logo.png"),
+  PH_BPI: require("../../../assets/Payment Logos/BPI_Logo.png"),
+  PH_METROBANK: require("../../../assets/Payment Logos/MetroBank_Logo.png"),
+  PH_LANDBANK: require("../../../assets/Payment Logos/Landbank_logo.png"),
+  PH_CHINABANK: require("../../../assets/Payment Logos/Chinabank_Logo.png"),
+};
+
 const FILTER_OPTIONS = [
   { value: "all", label: "All" },
   { value: "waiting", label: "Waiting" },
@@ -105,7 +122,7 @@ const getStatusMeta = (status: string) => {
     return { label: "Payout Review", background: "#fde8e8", text: "#991b1b" };
   }
   if (normalized === "payment_verified") {
-    return { label: "Payment Confirmed", background: "#e7f5ec", text: "#166534" };
+    return { label: "In Service", background: "#e7f5ec", text: "#166534" };
   }
   if (normalized === "completed") {
     return { label: "Completed", background: "#14532d", text: "#ffffff" };
@@ -121,6 +138,49 @@ const getStatusMeta = (status: string) => {
   }
   return { label: "Waiting", background: "#fef3c7", text: "#86654a" };
 };
+
+function getDownpaymentBadge(item: ServiceRequest) {
+  const status = String(item.status || "").toLowerCase();
+  const isDownpayment = String(item.paymentOption || "").toLowerCase() === "downpayment";
+  if (item.paymentVerifiedAt || ["payment_verified", "awaiting_customer_confirmation", "completed"].includes(status)) {
+    return {
+      label: isDownpayment ? "Downpayment Confirmed" : "Payment Confirmed",
+      background: "#e8f5ec",
+      color: "#166534",
+      border: "#bbf7d0",
+    };
+  }
+  if (status === "payment_submitted") {
+    return {
+      label: isDownpayment ? "Downpayment Submitted" : "Payment Submitted",
+      background: "#fef3c7",
+      color: "#92400e",
+      border: "#fde68a",
+    };
+  }
+  return null;
+}
+
+function getPaymentChannelInfo(item: ServiceRequest) {
+  const isDownpayment = item.paymentOption === "downpayment";
+  const base = isDownpayment ? "Downpayment" : "Full payment";
+  const raw = String(item.providerPaymentMethod || "").trim().toUpperCase();
+  const logo = (raw && PAYMENT_LOGOS[raw]) || (item.paymentGcashNumber ? PAYMENT_LOGOS.PH_GCASH : null);
+
+  let label = base;
+  if (raw === "PH_GCASH") label = `${base} • GCash`;
+  else if (raw === "PH_MAYA") label = `${base} • Maya`;
+  else if (raw === "PH_BDO") label = `${base} • BDO`;
+  else if (raw === "PH_BPI") label = `${base} • BPI`;
+  else if (raw === "PH_METROBANK") label = `${base} • Metrobank`;
+  else if (raw === "PH_LANDBANK") label = `${base} • LandBank`;
+  else if (raw === "PH_CHINABANK") label = `${base} • Chinabank`;
+  else if (raw) label = `${base} • ${raw.replace(/^PH_/i, "").replace(/_/g, " ")}`;
+  else if (item.paymentGcashNumber) label = `${base} • GCash`;
+  else if (item.paymentProvider === "xendit" || item.providerPaymentId) label = `${base} • Online payment`;
+
+  return { label, logo };
+}
 
 const matchesFilter = (status: string, filter: FilterType) => {
   if (filter === "all") return true;
@@ -260,6 +320,10 @@ export default function AdminOrdersScreen() {
 
   const renderItem = ({ item }: { item: ServiceRequest }) => {
     const statusMeta = getStatusMeta(item.status);
+    const downpaymentBadge = getDownpaymentBadge(item);
+    const totalPrice = item.productFullPrice ?? item.productPrice ?? item.paymentAmount;
+    const initialAmount = item.downpaymentAmountSnapshot ?? item.paymentAmount;
+
     return (
       <TouchableOpacity
         accessibilityLabel={`View service request for ${item.deceasedFullName || "unnamed person"}`}
@@ -269,72 +333,51 @@ export default function AdminOrdersScreen() {
         onPress={() => setSelectedItem(item)}
       >
         <View style={styles.itemTopRow}>
-          <View style={styles.requestIcon}>
-            <Ionicons name="mail-open-outline" size={19} color={colors.primary} />
-          </View>
           <View style={styles.itemTextBlock}>
             <Text style={styles.itemTitle}>{item.deceasedFullName || "Unnamed deceased"}</Text>
             <Text style={styles.itemProduct}>{item.productName || "Custom request"}</Text>
           </View>
-          <View style={[styles.statusBadge, { backgroundColor: statusMeta.background }]}>
-            <Text style={[styles.statusBadgeText, { color: statusMeta.text }]}>{statusMeta.label}</Text>
+          <View style={styles.badgeColumn}>
+            <View style={[styles.statusBadge, { backgroundColor: statusMeta.background }]}>
+              <Text style={[styles.statusBadgeText, { color: statusMeta.text }]}>{statusMeta.label}</Text>
+            </View>
+            {downpaymentBadge ? (
+              <View style={[styles.statusBadge, { backgroundColor: downpaymentBadge.background, borderColor: downpaymentBadge.border, borderWidth: 1 }]}>
+                <Text style={[styles.statusBadgeText, { color: downpaymentBadge.color, fontSize: 10 }]}>{downpaymentBadge.label}</Text>
+              </View>
+            ) : null}
           </View>
         </View>
 
         <View style={styles.requestInfoList}>
           <View style={styles.requestInfoRow}>
-            <Ionicons name="storefront-outline" size={15} color={colors.textMuted} />
+            <Ionicons name="storefront-outline" size={14} color="#64748b" />
             <Text style={styles.itemMeta} numberOfLines={1}>Shop: {item.shopName || "Unknown"}</Text>
           </View>
           <View style={styles.requestInfoRow}>
-            <Ionicons name="person-outline" size={15} color={colors.textMuted} />
+            <Ionicons name="person-outline" size={14} color="#64748b" />
             <Text style={styles.itemMeta} numberOfLines={1}>
               Requester: {item.requesterName || item.requesterEmail || item.requesterId}
             </Text>
           </View>
           <View style={styles.requestInfoRow}>
-            <Ionicons name="call-outline" size={15} color={colors.textMuted} />
-            <Text style={styles.itemMeta} numberOfLines={1}>
-              Contact: {item.contactNumber || "Not provided"}
+            <Ionicons name="calendar-outline" size={14} color="#64748b" />
+            <Text style={styles.itemMeta} numberOfLines={1}>{getScheduleLabel(item)}</Text>
+          </View>
+          <View style={styles.requestInfoRow}>
+            <Ionicons name="cash-outline" size={14} color="#64748b" />
+            <Text style={styles.itemMetaPrice}>
+              Price: {totalPrice ? formatPhilippinePeso(String(totalPrice)) : "Custom pricing"}
+              {item.paymentOption === "downpayment" && initialAmount
+                ? ` (${formatPhilippinePeso(String(initialAmount))} downpayment)`
+                : ""}
             </Text>
-          </View>
-          {item.churchName ? (
-            <View style={styles.requestInfoRow}>
-              <Ionicons name="location-outline" size={15} color={colors.textMuted} />
-              <Text style={styles.itemMeta} numberOfLines={1}>Church / Chapel: {item.churchName}</Text>
-            </View>
-          ) : null}
-          {item.cemeteryName ? (
-            <View style={styles.requestInfoRow}>
-              <Ionicons name="navigate-outline" size={15} color={colors.textMuted} />
-              <Text style={styles.itemMeta} numberOfLines={1}>Cemetery: {item.cemeteryName}</Text>
-            </View>
-          ) : null}
-          {item.packageItems?.length ? (
-            <View style={styles.requestInfoRow}>
-              <Ionicons name="list-outline" size={15} color={colors.textMuted} />
-              <Text style={styles.itemMeta} numberOfLines={1}>Packages: {item.packageItems.join(", ")}</Text>
-            </View>
-          ) : null}
-          <View style={styles.requestInfoRow}>
-            <Ionicons name="calendar-outline" size={15} color={colors.textMuted} />
-            <Text style={styles.itemMeta}>{getScheduleLabel(item)}</Text>
-          </View>
-          {item.wakeEndDate && item.burialTime ? (
-            <View style={styles.requestInfoRow}>
-              <Ionicons name="time-outline" size={15} color={colors.textMuted} />
-              <Text style={styles.itemMeta}>Burial: {formatServiceDate(item.wakeEndDate)} at {formatServiceTime(item.burialTime)}</Text>
-            </View>
-          ) : null}
-          <View style={styles.requestInfoRow}>
-            <Ionicons name="time-outline" size={15} color={colors.textMuted} />
-            <Text style={styles.itemMeta}>Sent: {formatTimestamp(item.createdAt)}</Text>
           </View>
         </View>
 
         <View style={styles.viewDetailsRow}>
-          <Text style={styles.viewDetailsText}>View request details</Text>
-          <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+          <Text style={styles.viewDetailsText}>View case record</Text>
+          <Ionicons name="chevron-forward" size={14} color="#22312d" />
         </View>
       </TouchableOpacity>
     );
@@ -348,8 +391,9 @@ export default function AdminOrdersScreen() {
     <View style={[styles.container, isDesktop && styles.containerDesktop]}>
       <View style={styles.headerCard}>
         <View style={styles.headerCopy}>
-          <Text style={styles.title}>Service requests</Text>
-          <Text style={styles.subtitle}>Review family requests across every shop.</Text>
+          <Text style={styles.kicker}>LifeCycle Funeral Services</Text>
+          <Text style={styles.title}>All Service Requests</Text>
+          <Text style={styles.subtitle}>Review arrangement cases and family payment records.</Text>
         </View>
         <View style={styles.pendingPill}>
           <Text style={styles.pendingPillLabel}>Waiting</Text>
@@ -357,22 +401,14 @@ export default function AdminOrdersScreen() {
         </View>
       </View>
 
-      <TouchableOpacity style={styles.refreshButton} onPress={() => void refreshOrders()}>
-        <Ionicons name="refresh-outline" size={16} color={colors.primaryDark} />
-        <Text style={styles.refreshButtonText}>Refresh requests</Text>
-      </TouchableOpacity>
-
       <Searchbar
-        placeholder="Search by deceased, item, shop, or coordinator"
+        placeholder="Search deceased, item, shop, church..."
         value={searchQuery}
         onChangeText={setSearchQuery}
         style={styles.searchbar}
+        inputStyle={styles.searchInput}
       />
 
-      <View style={styles.filterHeading}>
-        <Text style={styles.filterHeadingTitle}>Filter requests</Text>
-        <Text style={styles.filterHeadingCount}>{filteredItems.length} showing</Text>
-      </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
         {FILTER_OPTIONS.map((option) => {
           const count = statusCounts[option.value as keyof typeof statusCounts];
@@ -386,7 +422,9 @@ export default function AdminOrdersScreen() {
               style={[styles.filterChip, active && styles.filterChipActive]}
             >
               <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{option.label}</Text>
-              <Text style={[styles.filterCount, active && styles.filterCountActive]}>{count}</Text>
+              <View style={[styles.filterCountWrap, active && styles.filterCountWrapActive]}>
+                <Text style={[styles.filterCount, active && styles.filterCountActive]}>{count}</Text>
+              </View>
             </TouchableOpacity>
           );
         })}
@@ -394,7 +432,7 @@ export default function AdminOrdersScreen() {
 
       {loadError ? (
         <View style={styles.errorCard}>
-          <Ionicons name="cloud-offline-outline" size={22} color={colors.danger} />
+          <Ionicons name="cloud-offline-outline" size={20} color="#b91c1c" />
           <View style={styles.errorCopy}>
             <Text style={styles.errorTitle}>Service requests are unavailable</Text>
             <Text style={styles.errorText}>{loadError}</Text>
@@ -415,6 +453,7 @@ export default function AdminOrdersScreen() {
         ListEmptyComponent={loadError ? undefined : <Text style={styles.emptyText}>No service requests found.</Text>}
       />
 
+      {/* Request Details Modal */}
       <Modal
         visible={Boolean(selectedItem)}
         transparent
@@ -423,215 +462,174 @@ export default function AdminOrdersScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {selectedItem ? (
-                <>
-                  <View style={styles.modalHeader}>
-                    <View style={styles.modalHeaderCopy}>
-                      <Text style={styles.modalTitle}>{selectedItem.deceasedFullName || "Unnamed deceased"}</Text>
-                      <Text style={styles.modalSubtitle}>
-                        {selectedItem.requestType === "custom_casket" ? "Custom casket request" : "Catalog product request"}
-                      </Text>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
+              {selectedItem ? (() => {
+                const statusMeta = getStatusMeta(selectedItem.status);
+                const downBadge = getDownpaymentBadge(selectedItem);
+                const channelInfo = getPaymentChannelInfo(selectedItem);
+                const totalServicePrice = selectedItem.productFullPrice ?? selectedItem.productPrice ?? selectedItem.paymentAmount;
+                const initialReceivedAmount = selectedItem.downpaymentAmountSnapshot ?? selectedItem.paymentAmount;
+                const isDownpayment = selectedItem.paymentOption === "downpayment";
+                const hasPayment = Boolean(
+                  selectedItem.paymentAmount
+                    || selectedItem.downpaymentAmountSnapshot
+                    || selectedItem.paymentPayerName
+                    || selectedItem.paymentReferenceNumber
+                    || selectedItem.paymentProofImageUrl
+                    || selectedItem.paymentSubmittedAt
+                );
+
+                return (
+                  <>
+                    <View style={styles.modalHeader}>
+                      <View style={styles.modalHeaderCopy}>
+                        <Text style={styles.modalKicker}>Arrangement Case #{selectedItem.id.slice(0, 8).toUpperCase()}</Text>
+                        <Text style={styles.modalTitle}>{selectedItem.deceasedFullName || "Unnamed deceased"}</Text>
+                        <Text style={styles.modalSubtitle}>Filed {formatTimestamp(selectedItem.createdAt)}</Text>
+                      </View>
+                      <TouchableOpacity
+                        accessibilityLabel="Close request details"
+                        accessibilityRole="button"
+                        onPress={() => setSelectedItem(null)}
+                        style={styles.modalCloseButton}
+                      >
+                        <Ionicons name="close" size={20} color="#374151" />
+                      </TouchableOpacity>
                     </View>
-                    <TouchableOpacity
-                      accessibilityLabel="Close request details"
-                      accessibilityRole="button"
-                      onPress={() => setSelectedItem(null)}
-                      style={styles.modalCloseButton}
-                    >
-                      <Ionicons name="close" size={21} color={colors.text} />
+
+                    {/* Status Banner */}
+                    <View style={styles.statusBannerRow}>
+                      <View style={[styles.statusBadge, { backgroundColor: statusMeta.background }]}>
+                        <Text style={[styles.statusBadgeText, { color: statusMeta.text }]}>{statusMeta.label}</Text>
+                      </View>
+                      {downBadge ? (
+                        <View style={[styles.statusBadge, { backgroundColor: downBadge.background, borderColor: downBadge.border, borderWidth: 1 }]}>
+                          <Text style={[styles.statusBadgeText, { color: downBadge.color }]}>{downBadge.label}</Text>
+                        </View>
+                      ) : null}
+                    </View>
+
+                    {selectedItem.productImageUrl || selectedItem.memorialPhotoUrl ? (
+                      <View style={styles.imageGallery}>
+                        {selectedItem.memorialPhotoUrl ? (
+                          <View style={styles.imageCard}>
+                            <Image source={{ uri: selectedItem.memorialPhotoUrl }} style={styles.galleryImage} resizeMode="cover" />
+                            <Text style={styles.imageCaption}>Deceased memorial photo</Text>
+                          </View>
+                        ) : null}
+                        {selectedItem.productImageUrl ? (
+                          <View style={styles.imageCard}>
+                            <Image source={{ uri: selectedItem.productImageUrl }} style={styles.galleryImage} resizeMode="cover" />
+                            <Text style={styles.imageCaption}>Requested casket / service</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                    ) : null}
+
+                    {/* Service Info Section */}
+                    <View style={styles.modalSection}>
+                      <Text style={styles.sectionHeading}>Requested Service</Text>
+                      <View style={styles.infoRow}><Text style={styles.infoLabel}>Item</Text><Text style={styles.infoValue}>{selectedItem.productName || "Custom casket design"}</Text></View>
+                      {selectedItem.variationName ? <View style={styles.infoRow}><Text style={styles.infoLabel}>Variation</Text><Text style={styles.infoValue}>{selectedItem.variationName}</Text></View> : null}
+                      {selectedItem.packageItems?.length ? <View style={styles.infoRow}><Text style={styles.infoLabel}>Package</Text><Text style={styles.infoValue}>{selectedItem.packageItems.join(", ")}</Text></View> : null}
+                      <View style={styles.infoRow}><Text style={styles.infoLabel}>Total Price</Text><Text style={styles.infoValueBold}>{totalServicePrice ? formatPhilippinePeso(String(totalServicePrice)) : "Custom pricing"}</Text></View>
+                      {selectedItem.customDesignNotes ? (
+                        <View style={styles.notesBlock}>
+                          <Text style={styles.notesLabel}>Custom Design Notes</Text>
+                          <Text style={styles.notesText}>{selectedItem.customDesignNotes}</Text>
+                        </View>
+                      ) : null}
+                    </View>
+
+                    {/* Family Payment Section */}
+                    {hasPayment ? (
+                      <View style={styles.modalSection}>
+                        <View style={styles.paymentSectionHeader}>
+                          <Text style={styles.sectionHeading}>Family Payment</Text>
+                          {downBadge ? (
+                            <View style={[styles.statusBadge, { backgroundColor: downBadge.background, borderColor: downBadge.border, borderWidth: 1 }]}>
+                              <Text style={[styles.statusBadgeText, { color: downBadge.color, fontSize: 10 }]}>{downBadge.label}</Text>
+                            </View>
+                          ) : null}
+                        </View>
+
+                        <View style={styles.infoRow}><Text style={styles.infoLabel}>Total Service Price</Text><Text style={styles.infoValueBold}>{formatPhilippinePeso(String(totalServicePrice))}</Text></View>
+                        <View style={styles.infoRow}>
+                          <Text style={styles.infoLabel}>Payment Type</Text>
+                          <View style={styles.channelRow}>
+                            {channelInfo.logo ? (
+                              <Image source={channelInfo.logo} style={styles.unboxedChannelLogo} resizeMode="contain" />
+                            ) : null}
+                            <Text style={styles.infoValue}>{channelInfo.label}</Text>
+                          </View>
+                        </View>
+                        <View style={styles.infoRow}><Text style={styles.infoLabel}>{isDownpayment ? "Downpayment Received" : "Amount Received"}</Text><Text style={styles.infoValueBold}>{formatPhilippinePeso(String(initialReceivedAmount))}</Text></View>
+                        <View style={styles.infoRow}><Text style={styles.infoLabel}>Payer / Sender</Text><Text style={styles.infoValue}>{selectedItem.paymentPayerName || selectedItem.familyCoordinatorName || "—"}</Text></View>
+                        {selectedItem.paymentGcashNumber ? <View style={styles.infoRow}><Text style={styles.infoLabel}>Account Number</Text><Text style={styles.infoValue}>{selectedItem.paymentGcashNumber}</Text></View> : null}
+                        <View style={styles.infoRow}><Text style={styles.infoLabel}>Reference Number</Text><Text style={styles.infoValue}>{selectedItem.paymentReferenceNumber || selectedItem.providerPaymentId || `#PAY-${selectedItem.id.slice(0, 8).toUpperCase()}`}</Text></View>
+                        <View style={styles.infoRow}><Text style={styles.infoLabel}>{selectedItem.paymentVerifiedAt ? "Confirmed" : "Submitted"}</Text><Text style={styles.infoValue}>{formatTimestamp(selectedItem.paymentVerifiedAt || selectedItem.paymentSubmittedAt)}</Text></View>
+
+                        {/* Payment activity timeline */}
+                        {(selectedItem.paymentSubmittedAt || selectedItem.paymentVerifiedAt) ? (
+                          <View style={styles.paymentActivityBox}>
+                            <Text style={styles.activityHeader}>Payment Activity</Text>
+                            {selectedItem.paymentSubmittedAt ? (
+                              <View style={styles.activityItem}>
+                                <Text style={styles.activityTitle}>{isDownpayment ? "Downpayment submitted" : "Payment submitted"} • {channelInfo.label}</Text>
+                                <Text style={styles.activitySub}>Amount: {formatPhilippinePeso(String(initialReceivedAmount))} • {formatTimestamp(selectedItem.paymentSubmittedAt)}</Text>
+                              </View>
+                            ) : null}
+                            {selectedItem.paymentVerifiedAt ? (
+                              <View style={styles.activityItem}>
+                                <Text style={styles.activityTitle}>{isDownpayment ? "Downpayment confirmed" : "Payment confirmed"} • {channelInfo.label}</Text>
+                                <Text style={styles.activitySub}>Shop received {formatPhilippinePeso(String(initialReceivedAmount))} • Total received: {formatPhilippinePeso(String(initialReceivedAmount))} of {formatPhilippinePeso(String(totalServicePrice))} • {formatTimestamp(selectedItem.paymentVerifiedAt)}</Text>
+                              </View>
+                            ) : null}
+                          </View>
+                        ) : null}
+
+                        {selectedItem.paymentProofImageUrl ? (
+                          <View style={styles.proofBox}>
+                            <Text style={styles.proofTitle}>Submitted Receipt Proof</Text>
+                            <Image source={{ uri: selectedItem.paymentProofImageUrl }} style={styles.proofImage} resizeMode="contain" />
+                          </View>
+                        ) : null}
+                      </View>
+                    ) : null}
+
+                    {/* Family Contact */}
+                    <View style={styles.modalSection}>
+                      <Text style={styles.sectionHeading}>Family Contact</Text>
+                      <View style={styles.infoRow}><Text style={styles.infoLabel}>Requester</Text><Text style={styles.infoValue}>{selectedItem.familyCoordinatorName || selectedItem.requesterName || "Not provided"}</Text></View>
+                      <View style={styles.infoRow}><Text style={styles.infoLabel}>Email</Text><Text style={styles.infoValue}>{selectedItem.requesterEmail || "Not provided"}</Text></View>
+                      <View style={styles.infoRow}><Text style={styles.infoLabel}>Contact Number</Text><Text style={styles.infoValue}>{selectedItem.contactNumber || "Not provided"}</Text></View>
+                    </View>
+
+                    {/* Schedule & Logistics */}
+                    <View style={styles.modalSection}>
+                      <Text style={styles.sectionHeading}>Schedule and Logistics</Text>
+                      <View style={styles.infoRow}><Text style={styles.infoLabel}>Wake Venue</Text><Text style={styles.infoValue}>{selectedItem.wakeAddress || "Not provided"}</Text></View>
+                      <View style={styles.infoRow}><Text style={styles.infoLabel}>Church / Chapel</Text><Text style={styles.infoValue}>{selectedItem.churchName || "Not provided"}</Text></View>
+                      <View style={styles.infoRow}><Text style={styles.infoLabel}>Cemetery</Text><Text style={styles.infoValue}>{selectedItem.cemeteryName || "Not provided"}</Text></View>
+                      <View style={styles.infoRow}><Text style={styles.infoLabel}>Wake Schedule</Text><Text style={styles.infoValue}>{selectedItem.wakeStartDate ? `${formatServiceDate(selectedItem.wakeStartDate)} to ${formatServiceDate(selectedItem.wakeEndDate)}` : "Not provided"}</Text></View>
+                      <View style={styles.infoRow}><Text style={styles.infoLabel}>Burial Time</Text><Text style={styles.infoValue}>{formatServiceTime(selectedItem.burialTime)}</Text></View>
+                      <View style={styles.infoRow}><Text style={styles.infoLabel}>Pickup Address</Text><Text style={styles.infoValue}>{selectedItem.pickupAddress || "Not provided"}</Text></View>
+                    </View>
+
+                    {/* Assigned Shop */}
+                    <View style={styles.modalSection}>
+                      <Text style={styles.sectionHeading}>Funeral Shop</Text>
+                      <View style={styles.infoRow}><Text style={styles.infoLabel}>Shop Name</Text><Text style={styles.infoValue}>{selectedItem.shopName || selectedItem.shopId || "Not provided"}</Text></View>
+                      <View style={styles.infoRow}><Text style={styles.infoLabel}>Phone</Text><Text style={styles.infoValue}>{selectedItem.shopContactNumber || "Not provided"}</Text></View>
+                      <View style={styles.infoRow}><Text style={styles.infoLabel}>Address</Text><Text style={styles.infoValue}>{selectedItem.shopAddress || "Not provided"}</Text></View>
+                    </View>
+
+                    <TouchableOpacity style={styles.modalCloseActionButton} onPress={() => setSelectedItem(null)}>
+                      <Text style={styles.modalCloseActionText}>Close</Text>
                     </TouchableOpacity>
-                  </View>
-                  {selectedItem.productImageUrl ? (
-                    <Image source={{ uri: selectedItem.productImageUrl }} style={styles.modalMainImage} resizeMode="cover" />
-                  ) : null}
-                  {selectedItem.memorialPhotoUrl ? (
-                    <Image source={{ uri: selectedItem.memorialPhotoUrl }} style={styles.modalMainImage} resizeMode="cover" />
-                  ) : null}
-                  {selectedItem.referencePhotoUrl ? (
-                    <Image source={{ uri: selectedItem.referencePhotoUrl }} style={styles.modalMainImage} resizeMode="cover" />
-                  ) : null}
-
-                  <Text style={styles.detailLabel}>Status</Text>
-                  <View style={[styles.modalStatusBadge, { backgroundColor: getStatusMeta(selectedItem.status).background }]}>
-                    <Text style={[styles.statusBadgeText, { color: getStatusMeta(selectedItem.status).text }]}>
-                      {getStatusMeta(selectedItem.status).label}
-                    </Text>
-                  </View>
-
-                  <Text style={styles.detailLabel}>Requested Item</Text>
-                  <Text style={styles.detailValue}>
-                    {selectedItem.productName || "Custom casket design"}
-                    {selectedItem.variationName ? ` (${selectedItem.variationName})` : ""}
-                  </Text>
-
-                  <Text style={styles.detailLabel}>Package Inclusions</Text>
-                  <Text style={styles.detailValue}>
-                    {selectedItem.packageItems?.length ? selectedItem.packageItems.join(", ") : "None included"}
-                  </Text>
-
-                  <Text style={styles.detailLabel}>Price</Text>
-                  <Text style={styles.detailValue}>
-                    {selectedItem.productPrice != null ? formatPhilippinePeso(selectedItem.productPrice) : "Custom pricing"}
-                  </Text>
-
-                  {["awaiting_payment", "payment_submitted", "paid_waiting_for_split", "commission_failed", "payment_verified", "completed"].includes(
-                    String(selectedItem.status || "").toLowerCase()
-                  ) ? (
-                    <>
-                      <Text style={styles.detailLabel}>Shop Payment Amount</Text>
-                      <Text style={styles.detailValue}>
-                        {Number(selectedItem.paymentAmount) > 0
-                          ? formatPhilippinePeso(String(selectedItem.paymentAmount))
-                          : "Not configured"}
-                      </Text>
-
-                      {selectedItem.paymentPayerName || selectedItem.paymentGcashName ? (
-                        <>
-                          <Text style={styles.detailLabel}>Payer</Text>
-                          <Text style={styles.detailValue}>{selectedItem.paymentPayerName || selectedItem.paymentGcashName}</Text>
-                          <Text style={styles.detailLabel}>GCash Number</Text>
-                          <Text style={styles.detailValue}>{selectedItem.paymentGcashNumber || "-"}</Text>
-                          <Text style={styles.detailLabel}>Reference Number</Text>
-                          <Text style={styles.detailValue}>{selectedItem.paymentReferenceNumber || "-"}</Text>
-                        </>
-                      ) : null}
-
-                      {selectedItem.paymentProofImageUrl ? (
-                        <>
-                          <Text style={styles.detailLabel}>Payment Proof</Text>
-                          <Image source={{ uri: selectedItem.paymentProofImageUrl }} style={styles.modalMainImage} resizeMode="contain" />
-                        </>
-                      ) : null}
-
-                      {selectedItem.paymentRejectionReason ? (
-                        <>
-                          <Text style={styles.detailLabel}>Payment Rejection Reason</Text>
-                          <Text style={styles.detailValue}>{selectedItem.paymentRejectionReason}</Text>
-                        </>
-                      ) : null}
-
-                      {selectedItem.payoutStatus || selectedItem.payoutAmount ? (
-                        <>
-                          <Text style={styles.detailLabel}>Shop Payout (70%)</Text>
-                          <Text style={styles.detailValue}>
-                            {selectedItem.payoutAmount ? formatPhilippinePeso(String(selectedItem.payoutAmount)) : "-"}
-                            {` (${selectedItem.payoutStatus || "pending"}${selectedItem.payoutFailureCode ? `: ${selectedItem.payoutFailureCode}` : ""})`}
-                          </Text>
-                          <Text style={styles.detailLabel}>Admin Commission (30%)</Text>
-                          <Text style={styles.detailValue}>
-                            {formatPhilippinePeso(String(Math.round(Number(selectedItem.paymentAmount || selectedItem.productPrice || 0) * 0.3)))}
-                          </Text>
-                        </>
-                      ) : null}
-                    </>
-                  ) : null}
-
-                  <Text style={styles.detailLabel}>Shop</Text>
-                  <Text style={styles.detailValue}>{selectedItem.shopName || selectedItem.shopId || "-"}</Text>
-
-                  <Text style={styles.detailLabel}>Shop Contact</Text>
-                  <Text style={styles.detailValue}>{selectedItem.shopContactNumber || "Not provided"}</Text>
-
-                  <Text style={styles.detailLabel}>Shop Address</Text>
-                  <Text style={styles.detailValue}>{selectedItem.shopAddress || "Not provided"}</Text>
-
-                  <Text style={styles.detailLabel}>Requester</Text>
-                  <Text style={styles.detailValue}>
-                    {selectedItem.requesterName || selectedItem.requesterEmail || selectedItem.requesterId}
-                  </Text>
-
-                  {selectedItem.customDesignNotes ? (
-                    <>
-                      <Text style={styles.detailLabel}>Custom Design Notes</Text>
-                      <Text style={styles.detailValue}>{selectedItem.customDesignNotes}</Text>
-                    </>
-                  ) : null}
-
-                  <Text style={styles.detailLabel}>Family Coordinator</Text>
-                  <Text style={styles.detailValue}>{selectedItem.familyCoordinatorName || "-"}</Text>
-
-                  <Text style={styles.detailLabel}>Contact Number</Text>
-                  <Text style={styles.detailValue}>{selectedItem.contactNumber || "-"}</Text>
-
-                  <Text style={styles.detailLabel}>Deceased Date of Birth</Text>
-                  <Text style={styles.detailValue}>{selectedItem.deceasedDateOfBirth || "Not provided"}</Text>
-
-                  <Text style={styles.detailLabel}>Date of Passing</Text>
-                  <Text style={styles.detailValue}>{selectedItem.deceasedDateOfPassing || "Not provided"}</Text>
-
-                  <Text style={styles.detailLabel}>Deceased Age</Text>
-                  <Text style={styles.detailValue}>{selectedItem.deceasedAge != null ? selectedItem.deceasedAge : "Not provided"}</Text>
-
-                  <Text style={styles.detailLabel}>Wake Venue</Text>
-                  <Text style={styles.detailValue}>{selectedItem.wakeAddress || "-"}</Text>
-
-                  <Text style={styles.detailLabel}>Church / Chapel</Text>
-                  <Text style={styles.detailValue}>{selectedItem.churchName || "Not provided"}</Text>
-
-                  <Text style={styles.detailLabel}>Cemetery</Text>
-                  <Text style={styles.detailValue}>{selectedItem.cemeteryName || "Not provided"}</Text>
-
-                  <Text style={styles.detailLabel}>Wake From</Text>
-                  <Text style={styles.detailValue}>{formatServiceDate(selectedItem.wakeStartDate)}</Text>
-
-                  <Text style={styles.detailLabel}>Wake To</Text>
-                  <Text style={styles.detailValue}>{formatServiceDate(selectedItem.wakeEndDate)}</Text>
-
-                  <Text style={styles.detailLabel}>Burial</Text>
-                  <Text style={styles.detailValue}>
-                    {selectedItem.wakeEndDate && selectedItem.burialTime
-                      ? `${formatServiceDate(selectedItem.wakeEndDate)} at ${formatServiceTime(selectedItem.burialTime)}`
-                      : "Not provided"}
-                  </Text>
-
-                  <Text style={styles.detailLabel}>Pickup Address</Text>
-                  <Text style={styles.detailValue}>{selectedItem.pickupAddress || "-"}</Text>
-
-                  {selectedItem.tributeMessage ? (
-                    <>
-                      <Text style={styles.detailLabel}>Tribute Message</Text>
-                      <Text style={styles.detailValue}>{selectedItem.tributeMessage}</Text>
-                    </>
-                  ) : null}
-
-                  <Text style={styles.detailLabel}>Request ID</Text>
-                  <Text style={styles.detailValue}>{selectedItem.id}</Text>
-
-                  <Text style={styles.detailLabel}>Created</Text>
-                  <Text style={styles.detailValue}>{formatTimestamp(selectedItem.createdAt)}</Text>
-
-                  {selectedItem.acceptedAt ? (
-                    <>
-                      <Text style={styles.detailLabel}>Accepted At</Text>
-                      <Text style={styles.detailValue}>{formatTimestamp(selectedItem.acceptedAt)}</Text>
-                    </>
-                  ) : null}
-                  {selectedItem.declinedAt ? (
-                    <>
-                      <Text style={styles.detailLabel}>Declined At</Text>
-                      <Text style={styles.detailValue}>{formatTimestamp(selectedItem.declinedAt)}</Text>
-                    </>
-                  ) : null}
-                  {selectedItem.cancelledAt ? (
-                    <>
-                      <Text style={styles.detailLabel}>Cancelled At</Text>
-                      <Text style={styles.detailValue}>{formatTimestamp(selectedItem.cancelledAt)}</Text>
-                    </>
-                  ) : null}
-
-                  {selectedItem.completionProofImageUrl ? (
-                    <>
-                      <Text style={styles.detailLabel}>Completion Proof</Text>
-                      <Image source={{ uri: selectedItem.completionProofImageUrl }} style={styles.modalMainImage} resizeMode="contain" />
-                    </>
-                  ) : null}
-
-                  <TouchableOpacity style={styles.closeButton} onPress={() => setSelectedItem(null)}>
-                    <Text style={styles.closeButtonText}>Close</Text>
-                  </TouchableOpacity>
-                </>
-              ) : null}
+                  </>
+                );
+              })() : null}
             </ScrollView>
           </View>
         </View>
@@ -643,340 +641,353 @@ export default function AdminOrdersScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: spacing.md,
-    backgroundColor: colors.surfaceMuted,
-    gap: spacing.sm,
+    padding: 16,
+    backgroundColor: "#fcfbf9",
+    gap: 12,
   },
   containerDesktop: {
-    maxWidth: 920,
+    maxWidth: 880,
     width: "100%",
     alignSelf: "center",
   },
-  center: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "900",
-    color: colors.primaryDark,
-  },
-  subtitle: {
-    marginTop: 4,
-    color: colors.textMuted,
-    lineHeight: 20,
-  },
   headerCard: {
-    borderRadius: radii.xl,
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: colors.borderWarm,
-    backgroundColor: colors.surfaceWarm,
-    padding: spacing.lg,
+    borderColor: "#e5e7eb",
+    padding: 16,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: spacing.sm,
+    gap: 8,
   },
   headerCopy: {
     flex: 1,
   },
-  pendingPill: {
-    minWidth: 78,
-    borderRadius: 20,
-    backgroundColor: colors.primaryDark,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing.md,
-    paddingVertical: 9,
-  },
-  pendingPillLabel: {
-    color: "#d2d7d1",
+  kicker: {
     fontSize: 11,
     fontWeight: "700",
+    color: "#94a3b8",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
   },
-  pendingPillValue: {
-    color: colors.surface,
-    fontSize: 25,
-    fontWeight: "900",
+  title: {
+    fontSize: 21,
+    fontWeight: "800",
+    color: "#1f2937",
+    marginTop: 2,
   },
-  refreshButton: {
-    minHeight: 42,
+  subtitle: {
+    fontSize: 13,
+    color: "#64748b",
+    lineHeight: 18,
+    marginTop: 2,
+  },
+  pendingPill: {
+    minWidth: 70,
     borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.borderWarm,
-    backgroundColor: colors.surface,
-    flexDirection: "row",
+    backgroundColor: "#22312d",
     alignItems: "center",
     justifyContent: "center",
-    gap: spacing.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
-  refreshButtonText: {
-    color: colors.primaryDark,
-    fontSize: 13,
-    fontWeight: "900",
+  pendingPillLabel: {
+    color: "#cbd5e1",
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  pendingPillValue: {
+    color: "#ffffff",
+    fontSize: 20,
+    fontWeight: "800",
   },
   searchbar: {
-    backgroundColor: colors.surface,
-    borderRadius: 14,
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: "#e5e7eb",
+    height: 44,
   },
-  filterHeading: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 2,
-  },
-  filterHeadingTitle: {
-    color: colors.primaryDark,
-    fontSize: 14,
-    fontWeight: "900",
-  },
-  filterHeadingCount: {
-    color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: "700",
+  searchInput: {
+    minHeight: 44,
+    fontSize: 13,
   },
   filterRow: {
-    gap: spacing.sm,
+    gap: 8,
     paddingVertical: 2,
   },
   filterChip: {
-    minHeight: 38,
-    borderRadius: 19,
+    height: 34,
+    borderRadius: 17,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.md,
+    borderColor: "#e2e8f0",
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 12,
     flexDirection: "row",
     alignItems: "center",
-    gap: 7,
+    gap: 6,
   },
   filterChipActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primary,
+    borderColor: "#22312d",
+    backgroundColor: "#22312d",
   },
   filterChipText: {
-    color: colors.textMuted,
+    color: "#64748b",
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: "700",
   },
   filterChipTextActive: {
-    color: colors.surface,
+    color: "#ffffff",
+  },
+  filterCountWrap: {
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#f1f5f9",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  filterCountWrapActive: {
+    backgroundColor: "rgba(255,255,255,0.25)",
   },
   filterCount: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: colors.surfaceMuted,
-    color: colors.textMuted,
-    fontSize: 11,
-    fontWeight: "900",
-    textAlign: "center",
-    paddingTop: 2,
+    color: "#64748b",
+    fontSize: 10,
+    fontWeight: "800",
   },
   filterCountActive: {
-    backgroundColor: "rgba(255,255,255,0.2)",
-    color: colors.surface,
+    color: "#ffffff",
   },
   errorCard: {
-    borderRadius: radii.lg,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#e8c8c5",
-    backgroundColor: "#fff8f7",
-    padding: spacing.md,
+    borderColor: "#fecaca",
+    backgroundColor: "#fef2f2",
+    padding: 12,
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
+    gap: 10,
   },
-  errorCopy: {
-    flex: 1,
-  },
-  errorTitle: {
-    color: colors.danger,
-    fontSize: 13,
-    fontWeight: "900",
-  },
-  errorText: {
-    color: colors.textMuted,
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 2,
-  },
+  errorCopy: { flex: 1 },
+  errorTitle: { color: "#b91c1c", fontSize: 13, fontWeight: "800" },
+  errorText: { color: "#64748b", fontSize: 12, marginTop: 1 },
   retryButton: {
-    minHeight: 34,
-    borderRadius: 9,
-    backgroundColor: colors.primary,
-    justifyContent: "center",
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "#b91c1c",
   },
-  retryButtonText: {
-    color: colors.surface,
-    fontSize: 12,
-    fontWeight: "900",
-  },
+  retryButtonText: { color: "#fff", fontSize: 11, fontWeight: "700" },
   listContent: {
-    paddingTop: spacing.sm,
-    paddingBottom: 24,
-    gap: spacing.sm,
+    paddingTop: 4,
+    paddingBottom: 36,
+    gap: 10,
   },
   itemCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 20,
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: colors.borderWarm,
-    padding: spacing.md,
+    borderColor: "#e5e7eb",
+    padding: 14,
+    gap: 8,
   },
   itemTopRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: spacing.sm,
+    justifyContent: "space-between",
+    gap: 8,
   },
-  requestIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 13,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surfaceMuted,
-  },
-  itemTextBlock: {
-    flex: 1,
-  },
-  itemTitle: {
-    fontSize: 16,
-    fontWeight: "900",
-    color: colors.primaryDark,
-  },
-  itemProduct: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#8b7255",
-    marginTop: 3,
-  },
-  requestInfoList: {
-    marginTop: spacing.sm,
+  itemTextBlock: { flex: 1 },
+  itemTitle: { fontSize: 15, fontWeight: "800", color: "#1f2937" },
+  itemProduct: { fontSize: 13, color: "#8b7255", fontWeight: "700", marginTop: 2 },
+  badgeColumn: {
+    alignItems: "flex-end",
     gap: 4,
+  },
+  statusBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  statusBadgeText: { fontSize: 10, fontWeight: "800", textTransform: "uppercase" },
+  requestInfoList: {
+    gap: 4,
+    borderTopWidth: 1,
+    borderTopColor: "#f8fafc",
+    paddingTop: 6,
   },
   requestInfoRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 7,
+    gap: 6,
   },
   itemMeta: {
+    color: "#64748b",
+    fontSize: 12,
     flex: 1,
-    color: colors.textMuted,
-    lineHeight: 19,
-    fontSize: 13,
   },
-  statusBadge: {
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  statusBadgeText: {
-    fontSize: 11,
-    fontWeight: "900",
+  itemMetaPrice: {
+    color: "#1f2937",
+    fontSize: 12,
+    fontWeight: "700",
+    flex: 1,
   },
   viewDetailsRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "flex-end",
     gap: 4,
-    marginTop: spacing.sm,
-    paddingTop: spacing.sm,
+    paddingTop: 6,
     borderTopWidth: 1,
-    borderTopColor: colors.surfaceMuted,
+    borderTopColor: "#f8fafc",
   },
   viewDetailsText: {
-    color: colors.primary,
-    fontSize: 13,
-    fontWeight: "900",
+    color: "#22312d",
+    fontSize: 12,
+    fontWeight: "700",
   },
   emptyText: {
     textAlign: "center",
-    color: colors.textMuted,
-    marginTop: 40,
+    color: "#94a3b8",
+    fontSize: 13,
+    marginTop: 36,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 16,
+    backgroundColor: "rgba(15,23,42,0.6)",
+    justifyContent: "flex-end",
   },
   modalCard: {
     width: "100%",
-    maxWidth: 640,
-    maxHeight: "88%",
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: spacing.lg,
+    maxHeight: "92%",
+    backgroundColor: "#ffffff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    overflow: "hidden",
+  },
+  modalScroll: {
+    padding: 18,
+    paddingBottom: 36,
+    gap: 14,
   },
   modalHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: spacing.sm,
+    justifyContent: "space-between",
+    gap: 10,
   },
-  modalHeaderCopy: {
-    flex: 1,
-  },
+  modalHeaderCopy: { flex: 1 },
+  modalKicker: { fontSize: 11, fontWeight: "700", color: "#94a3b8", textTransform: "uppercase" },
+  modalTitle: { fontSize: 18, fontWeight: "800", color: "#1f2937", marginTop: 2 },
+  modalSubtitle: { fontSize: 12, color: "#64748b", marginTop: 2 },
   modalCloseButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#f1f5f9",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.surfaceMuted,
   },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: "900",
-    color: colors.primaryDark,
+  statusBannerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
   },
-  modalSubtitle: {
-    color: colors.textMuted,
-    fontSize: 13,
-    fontWeight: "700",
-    marginTop: 4,
-    marginBottom: 12,
+  imageGallery: {
+    gap: 10,
   },
-  modalMainImage: {
-    width: "100%",
-    height: 200,
+  imageCard: {
     borderRadius: 12,
-    marginBottom: 12,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    backgroundColor: "#f8fafc",
   },
-  detailLabel: {
-    color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: "800",
-    marginTop: 10,
+  galleryImage: {
+    width: "100%",
+    height: 180,
+  },
+  imageCaption: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#64748b",
+    padding: 8,
+    textAlign: "center",
+  },
+  modalSection: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    padding: 14,
+    gap: 8,
+  },
+  paymentSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 4,
   },
-  detailValue: {
-    color: colors.text,
-    fontSize: 14,
-    lineHeight: 20,
+  sectionHeading: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#1e293b",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
   },
-  modalStatusBadge: {
-    alignSelf: "flex-start",
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
   },
-  closeButton: {
-    minHeight: 46,
-    borderRadius: 12,
-    backgroundColor: colors.surfaceMuted,
+  infoLabel: { fontSize: 12, color: "#64748b" },
+  infoValue: { fontSize: 13, color: "#1f2937", fontWeight: "600", textAlign: "right", flex: 1 },
+  infoValueBold: { fontSize: 14, color: "#1f2937", fontWeight: "800", textAlign: "right" },
+  channelRow: { flexDirection: "row", alignItems: "center", gap: 6, justifyContent: "flex-end" },
+  unboxedChannelLogo: { width: 34, height: 16 },
+  notesBlock: {
+    backgroundColor: "#ffffff",
+    borderRadius: 8,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    marginTop: 4,
+  },
+  notesLabel: { fontSize: 11, fontWeight: "700", color: "#64748b" },
+  notesText: { fontSize: 12, color: "#334155", marginTop: 2, lineHeight: 17 },
+  paymentActivityBox: {
+    backgroundColor: "#ffffff",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    padding: 10,
+    marginTop: 4,
+    gap: 6,
+  },
+  activityHeader: { fontSize: 11, fontWeight: "800", color: "#475569", textTransform: "uppercase" },
+  activityItem: { gap: 2 },
+  activityTitle: { fontSize: 12, fontWeight: "700", color: "#1e293b" },
+  activitySub: { fontSize: 11, color: "#64748b", lineHeight: 15 },
+  proofBox: {
+    marginTop: 6,
+    gap: 6,
+  },
+  proofTitle: { fontSize: 11, fontWeight: "700", color: "#64748b", textTransform: "uppercase" },
+  proofImage: { width: "100%", height: 180, borderRadius: 10, backgroundColor: "#ffffff", borderWidth: 1, borderColor: "#e2e8f0" },
+  modalCloseActionButton: {
+    minHeight: 42,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    backgroundColor: "#ffffff",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 16,
+    marginTop: 6,
   },
-  closeButtonText: {
-    color: colors.primaryDark,
-    fontSize: 14,
-    fontWeight: "900",
-  },
+  modalCloseActionText: { fontSize: 13, fontWeight: "700", color: "#374151" },
 });

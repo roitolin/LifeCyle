@@ -13,6 +13,14 @@ export type ServiceRequest = {
   productId?: string
   productName?: string | null
   productPrice?: string | null
+  productFullPrice?: number | string | null
+  downpaymentPercentageSnapshot?: number | string | null
+  downpaymentAmountSnapshot?: number | string | null
+  paymentOption?: 'full' | 'downpayment' | null
+  paymentProvider?: string | null
+  providerPaymentMethod?: string | null
+  providerPaymentId?: string | null
+  providerPaymentCompletedAt?: string | null
   productImageUrl?: string | null
   variationName?: string | null
   packageItems?: string[] | null
@@ -88,6 +96,18 @@ function statusLabel(status: string) {
   if (s === 'declined_by_shop') return 'Declined'
   if (s === 'cancelled_by_requester') return 'Cancelled'
   return s.replace(/_/g, ' ')
+}
+
+function getFamilyPaymentStatus(request: ServiceRequest) {
+  const status = String(request.status || '').toLowerCase()
+  const isDownpayment = String(request.paymentOption || '').toLowerCase() === 'downpayment'
+  if (status === 'payment_submitted') {
+    return { label: isDownpayment ? 'Downpayment Submitted' : 'Payment Submitted', className: 'status-pill pending' }
+  }
+  if (request.paymentVerifiedAt || ['payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(status)) {
+    return { label: isDownpayment ? 'Downpayment Confirmed' : 'Payment Confirmed', className: 'status-pill is-live' }
+  }
+  return null
 }
 
 function AdminOrdersPage() {
@@ -275,7 +295,18 @@ function AdminOrdersPage() {
                   </td>
                   <td data-label="Price">{item.productPrice != null ? formatPeso(item.productPrice) : 'Custom pricing'}</td>
                   <td data-label="Status">
-                    <span className={`status-pill ${statusPill(item.status)}`}>{statusLabel(item.status)}</span>
+                    <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                      <span className={`status-pill ${statusPill(item.status)}`}>{statusLabel(item.status)}</span>
+                      {(() => {
+                        const payBadge = getFamilyPaymentStatus(item)
+                        if (!payBadge) return null
+                        return (
+                          <span className={payBadge.className} style={{ fontSize: '0.72rem', whiteSpace: 'nowrap' }}>
+                            {payBadge.label}
+                          </span>
+                        )
+                      })()}
+                    </div>
                   </td>
                   <td data-label="Date">{item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '—'}</td>
                   <td data-label="Actions">

@@ -1,0 +1,481 @@
+.rb-payment {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-width: 0;
+  margin: 16px 0 0;
+  padding: 16px 0 0;
+  color: #1d2d28;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid #dfe6e2;
+  font: inherit;
+  text-align: left;
+}
+.rb-payment *, .rb-payment *::before, .rb-payment *::after { box-sizing: border-box; }
+
+.rbp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.rb-payment .rbp-header h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 750;
+  color: #1d2d28;
+}
+.rbp-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.rbp-amount {
+  color: #1d2d28;
+  font-size: 17px;
+  font-weight: 800;
+}
+.rbp-amount.is-paid {
+  color: #2f6b55;
+}
+.rb-payment .rbp-refresh {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid #d6e0da;
+  border-radius: 8px;
+  color: #2f6b55;
+  background: #ffffff;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.rb-payment .rbp-refresh:hover:not(:disabled) {
+  background: #f2f8f5;
+}
+
+.rbp-stack { display: grid; gap: 12px; min-width: 0; }
+.rbp-sub-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #5d6c66;
+}
+.rbp-methods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.rb-payment .rbp-method-btn {
+  min-height: 38px;
+  padding: 8px 16px;
+  border: 1.5px solid #d7e0db;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #22312d;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
+}
+.rb-payment .rbp-method-btn:hover:not(:disabled) {
+  border-color: #aebfb6;
+  background: #fafcfb;
+}
+.rb-payment .rbp-method-btn.is-selected {
+  border-color: #22312d;
+  background: #22312d;
+  color: #ffffff;
+}
+
+.rbp-account-list {
+  display: grid;
+  gap: 8px;
+}
+.rb-payment .rbp-account-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 13px;
+  border: 1.5px solid #dfe6e2;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #1d2d28;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+.rb-payment .rbp-account-row:hover:not(:disabled) {
+  border-color: #b4c4bc;
+  background: #fafcfb;
+}
+.rb-payment .rbp-account-row.is-selected {
+  border-color: #2f6b55;
+  background: #f2f8f5;
+}
+
+/* Direct unboxed logo — never inside a bordered box */
+.rbp-account-logo {
+  width: 36px;
+  height: 24px;
+  flex: none;
+  object-fit: contain;
+}
+.rbp-account-fallback-icon {
+  width: 36px;
+  height: 24px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: #2f6b55;
+}
+.rbp-account-fallback-icon svg {
+  width: 20px;
+  height: 20px;
+}
+.rbp-account-copy {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.rbp-account-copy strong {
+  color: #1d2d28;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.rbp-account-copy span {
+  color: #62706b;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rbp-account-radio {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border: 1.6px solid #b7c2bc;
+  border-radius: 50%;
+}
+.rb-payment .rbp-account-row.is-selected .rbp-account-radio {
+  border-color: #2f6b55;
+  background: #2f6b55;
+}
+.rb-payment .rbp-account-row.is-selected .rbp-account-radio::after {
+  position: absolute;
+  top: 3.5px;
+  left: 3px;
+  width: 8.5px;
+  height: 4.5px;
+  content: '';
+  border-left: 2px solid #ffffff;
+  border-bottom: 2px solid #ffffff;
+  transform: rotate(-45deg);
+}
+
+.rbp-muted { margin: 0; color: #687c72; font-size: 13px; }
+.rbp-error { margin: 0; color: #9f3434; font-size: 13px; font-weight: 600; }
+.rbp-payment-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
+.rbp-label { display: grid; gap: 6px; margin: 0; font-size: 12px; font-weight: 650; color: #53615d; }
+.rb-payment .rbp-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid #cfd8d3;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #1d2d28;
+  font: inherit;
+  font-size: 14px;
+  resize: vertical;
+}
+.rb-payment .rbp-input:focus {
+  outline: none;
+  border-color: #2f6b55;
+}
+.rb-payment .rbp-file {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 6px 0;
+  font: inherit;
+  font-size: 12px;
+  color: #56695f;
+  border: 0;
+  background: transparent;
+}
+.rbp-file::file-selector-button {
+  padding: 7px 12px;
+  margin-right: 8px;
+  border: 1px solid #cfd8d3;
+  border-radius: 8px;
+  color: #22312d;
+  background: #ffffff;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.rbp-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.rb-payment .rbp-primary, .rb-payment .rbp-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: fit-content;
+  min-height: 40px;
+  padding: 8px 16px;
+  border: 1px solid #22312d;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.rb-payment .rbp-primary { background: #22312d; color: #ffffff; }
+.rb-payment .rbp-primary:hover:not(:disabled) { background: #182421; }
+.rb-payment .rbp-secondary { background: #ffffff; color: #22312d; border-color: #cfd8d3; }
+.rb-payment .rbp-secondary:hover:not(:disabled) { background: #f6f8f7; }
+.rb-payment button:disabled { opacity: .5; cursor: not-allowed; }
+
+.rbp-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 32px;
+  margin: 0;
+}
+.rbp-details > div {
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-top: 1px solid #edf1ef;
+}
+.rbp-details dt { color: #6c7a74; font-size: 12.5px; font-weight: 550; }
+.rbp-details dd { color: #1d2d28; font-size: 12.5px; font-weight: 700; margin: 0; text-align: right; overflow-wrap: anywhere; }
+.rbp-details dd.is-paid { color: #226646; }
+.rbp-details dd.is-pending { color: #9a6700; }
+
+/* Activity log */
+.rbp-activity {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #edf1ef;
+}
+.rbp-activity-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b7873;
+}
+.rbp-activity-list {
+  display: grid;
+  gap: 8px;
+}
+.rbp-activity-item {
+  display: grid;
+  gap: 2px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f2f5f3;
+}
+.rbp-activity-item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.rbp-activity-item strong {
+  color: #1d2d28;
+  font-size: 13px;
+  font-weight: 700;
+}
+.rbp-activity-item span {
+  color: #62706b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* Receipt modal — centered on desktop, bottom sheet on mobile web */
+.rbp-viewer {
+  width: min(500px, 94vw);
+  max-height: 90dvh;
+  margin: auto;
+  padding: 0;
+  border: 1px solid #e5e1d8;
+  border-radius: 20px;
+  background: #ffffff;
+  color: #1d2d28;
+  box-shadow: 0 24px 64px rgba(18, 28, 25, 0.24);
+  overflow-y: auto;
+}
+.rbp-viewer::backdrop {
+  background: rgba(18, 28, 25, 0.52);
+  backdrop-filter: blur(2px);
+}
+.rbp-viewer-inner {
+  padding: 20px 22px 22px;
+}
+.rbp-viewer-handle {
+  display: none;
+}
+.rbp-viewer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.rbp-receipt-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: #1d2d28;
+}
+.rbp-receipt-sub {
+  margin: 3px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7873;
+}
+.rbp-viewer-close {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: #f2f4f3;
+  color: #42524c;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.rbp-viewer-close:hover {
+  background: #e5eae7;
+  color: #1d2d28;
+}
+.rbp-receipt-summary {
+  display: grid;
+  gap: 14px;
+}
+.rbp-receipt-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #f8f6f2;
+  border: 1px solid #e6e2d8;
+  border-radius: 14px;
+}
+.rbp-receipt-hero span {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #62706b;
+}
+.rbp-receipt-hero strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 22px;
+  font-weight: 800;
+  color: #1d2d28;
+}
+.rbp-receipt-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 750;
+}
+.rbp-receipt-pill.is-paid {
+  background: #e6f4ec;
+  color: #22543d;
+}
+.rbp-receipt-pill.is-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+.rbp-receipt-rows {
+  display: grid;
+  margin: 0;
+}
+.rbp-receipt-rows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 9px 0;
+  border-bottom: 1px solid #f0f3f1;
+}
+.rbp-receipt-rows > div:last-child {
+  border-bottom: 0;
+}
+.rbp-receipt-rows dt {
+  color: #687670;
+  font-size: 13px;
+  font-weight: 550;
+}
+.rbp-receipt-rows dd {
+  margin: 0;
+  color: #1d2d28;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.rbp-receipt-rows dd.is-paid {
+  color: #2f6b55;
+}
+.rbp-viewer-image-wrap {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #edf1ef;
+}
+.rbp-viewer-image-wrap img {
+  display: block;
+  width: 100%;
+  max-height: 54dvh;
+  border-radius: 12px;
+  border: 1px solid #e6e2d8;
+  object-fit: contain;
+  background: #faf9f6;
+}
+
+@media (max-width: 640px) {
+  .rbp-payment-grid, .rbp-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .rb-payment .rbp-actions > button {
+    flex: 1 1 auto;
+  }
+  .rbp-viewer {
+    width: 100%;
+    max-width: none;
+    max-height: 92dvh;
+    margin: auto 0 0;
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+    border-radius: 22px 22px 0 0;
+  }
+  .rbp-viewer-inner {
+    padding: 10px 18px max(20px, env(safe-area-inset-bottom));
+  }
+  .rbp-viewer-handle {
+    display: block;
+    width: 40px;
+    height: 4px;
+    margin: 2px auto 14px;
+    border-radius: 999px;
+    background: #d2d9d5;
+  }
+}

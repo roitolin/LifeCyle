@@ -15,6 +15,7 @@ import FuneralShopProductsScreen from "@/screens/funeral/FuneralShopProductsScre
 import FuneralShopsScreen from "@/screens/funeral/FuneralShopsScreen";
 import FuneralServiceRequestDetailsScreen from "@/screens/funeral/FuneralServiceRequestDetailsScreen";
 import FuneralEditServiceRequestScreen from "@/screens/funeral/FuneralEditServiceRequestScreen";
+import FuneralShopPaymentReceiptScreen from "@/screens/funeral/FuneralShopPaymentReceiptScreen";
 import { ChatScreen, ConversationsList, DisputeReportScreen, NotificationsScreen } from "@/pages/shared";
 import FuneralProfileStackNavigator from "./FuneralProfileStackNavigator";
 import { smoothStackTransition, smoothTabTransition } from "./navigationTransitions";
@@ -240,6 +241,7 @@ export default function FuneralNavigator() {
       <Stack.Screen name="Chat" component={ChatScreen} options={{ headerShown: true, title: "Chat" }} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: true, title: "Notifications" }} />
       <Stack.Screen name="NotificationServiceRequestDetails" component={FuneralServiceRequestDetailsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ShopPaymentReceipt" component={FuneralShopPaymentReceiptScreen} options={{ headerShown: false }} />
       <Stack.Screen name="EditServiceRequest" component={FuneralEditServiceRequestScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ReportCenter" component={DisputeReportScreen} options={{ headerShown: true, title: "Report Center" }} />
       <Stack.Screen name="FuneralCheckout" component={FuneralCheckoutScreen} options={{ headerShown: true, title: "Service Request" }} />

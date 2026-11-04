@@ -1,5 +1,6 @@
 // eslint-disable-next-line import/no-unresolved
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { xenditPayoutChannelCode } from '../_shared/xenditPayoutChannels.ts';
 
 const XENDIT_PAYOUTS_URL = 'https://api.xendit.co/v2/payouts';
 const MAX_BODY_BYTES = 256 * 1024;
@@ -321,13 +322,33 @@ Deno.serve(async (request) => {
     (event.eventKind === 'payment_completed' || event.eventKind === 'payment_expired');
   const isServicePaymentEvent = isUuid(event.referenceId);
 
+  let balancePaymentRow: { id?: string; provider_checkout_id?: string | null } | null = null;
+  if (isServicePaymentEvent) {
+    const { data, error } = await admin
+      .from('funeral_balance_payments')
+      .select('id,provider_checkout_id')
+      .eq('provider_reference_id', event.referenceId)
+      .maybeSingle();
+    if (error) {
+      console.error('Unable to resolve Xendit balance reference:', error.code || 'unknown');
+      return jsonResponse({ error: 'Unable to reconcile the Xendit event.' }, 500);
+    }
+    balancePaymentRow = data;
+  }
+  const isBalancePaymentEvent = Boolean(balancePaymentRow?.id);
+
   if (!isShopPaymentEvent && !isServicePaymentEvent) {
     return jsonResponse({ ignored: true });
   }
 
   // Resolve checkout ID from reference if missing
   if (event.eventKind === 'payment_completed' && !event.checkoutId) {
-    const lookup = isShopPaymentEvent
+    const lookup = isBalancePaymentEvent
+      ? Promise.resolve({
+          data: { providerCheckoutId: balancePaymentRow?.provider_checkout_id || null },
+          error: null,
+        })
+      : isShopPaymentEvent
       ? admin
         .from('shop_payments')
         .select('providerCheckoutId')
@@ -378,6 +399,33 @@ Deno.serve(async (request) => {
     return jsonResponse({
       received: true,
       paymentId: result?.paymentId || null,
+      status: result?.status || null,
+      providerStatus: result?.providerStatus || null,
+      duplicate: Boolean(result?.duplicate),
+    });
+  }
+
+  if (isBalancePaymentEvent) {
+    const { data, error } = await admin.rpc('reconcile_xendit_balance_event', {
+      p_event_id: event.eventId,
+      p_event_kind: event.eventKind,
+      p_checkout_id: event.checkoutId,
+      p_reference_id: event.referenceId,
+      p_provider_payment_id: event.paymentId,
+      p_currency: event.currency,
+      p_amount: event.grossAmount,
+      p_livemode: false,
+      p_payment_method: String(event.payload.channelCode || ''),
+    });
+    if (error) {
+      console.error('Unable to reconcile Xendit remaining balance:', error.code || 'unknown');
+      return jsonResponse({ error: 'Unable to reconcile the Xendit remaining balance.' }, 500);
+    }
+    const result = firstRpcRow<any>(data);
+    return jsonResponse({
+      received: true,
+      paymentId: result?.paymentId || null,
+      requestId: result?.requestId || null,
       status: result?.status || null,
       providerStatus: result?.providerStatus || null,
       duplicate: Boolean(result?.duplicate),
@@ -437,7 +485,7 @@ Deno.serve(async (request) => {
           // Call Xendit Payouts API to send 70% to shop
           const payoutBody = {
             reference_id: payoutRefId,
-            channel_code: payoutInfo.payoutChannelCode,
+            channel_code: xenditPayoutChannelCode(payoutInfo.payoutChannelCode),
             channel_properties: {
               account_holder_name: payoutInfo.payoutAccountName,
               account_number: payoutInfo.payoutAccountNumber,

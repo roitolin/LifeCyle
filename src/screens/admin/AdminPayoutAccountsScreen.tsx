@@ -51,19 +51,36 @@ type ShopPayout = {
   ownerEmail?: string;
 };
 
-type FilterMode = "all" | "attention" | "ready" | "missing";
+type PayoutReceiver = {
+  id: string;
+  shopId: string;
+  channelCode: string;
+  accountName: string;
+  accountNumber: string;
+  active: boolean;
+  verifiedByAdmin: boolean;
+};
+
+type FilterMode = "all" | "attention" | "ready" | "disabled" | "missing";
+type PayoutRow = { shop: ShopPayout; receiver: PayoutReceiver | null };
+
+function receiverStatus(receiver: PayoutReceiver | null): Exclude<FilterMode, "all"> {
+  if (!receiver) return "missing";
+  if (!receiver.verifiedByAdmin) return "attention";
+  return receiver.active ? "ready" : "disabled";
+}
 
 export default function AdminPayoutAccountsScreen() {
   const [shops, setShops] = useState<ShopPayout[]>([]);
+  const [receivers, setReceivers] = useState<PayoutReceiver[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterMode>("all");
+  const [channelFilter, setChannelFilter] = useState("all");
+  const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<ShopPayout | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
-  const [channelPickerVisible, setChannelPickerVisible] = useState(false);
   const [verifying, setVerifying] = useState(false);
-  const [overrideChannel, setOverrideChannel] = useState("");
-  const [overrideName, setOverrideName] = useState("");
-  const [overrideNumber, setOverrideNumber] = useState("");
+  const [selectedReceiverId, setSelectedReceiverId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -71,9 +88,13 @@ export default function AdminPayoutAccountsScreen() {
       const { data, error } = await supabase
         .from("funeral_shops")
         .select(`id, shopName, payoutChannelCode, payoutAccountName, payoutAccountNumber, payoutVerifiedByAdmin, payoutVerifiedAt, status, users!funeral_shops_id_fkey(email)`)
-        .in("status", ["verified", "live", "offline", "pending"])
         .order("shopName", { ascending: true });
       if (error) throw error;
+      const { data: receiverData, error: receiverError } = await supabase.functions.invoke("provision-xendit-shop", {
+        body: { action: "list-all" },
+      });
+      if (receiverError) throw receiverError;
+      setReceivers((receiverData?.accounts || []) as PayoutReceiver[]);
       const rows: ShopPayout[] = (data || []).map((r: any) => ({
         id: r.id,
         shopName: r.shopName,
@@ -95,48 +116,47 @@ export default function AdminPayoutAccountsScreen() {
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
-  const filtered = shops.filter((s) => {
-    if (filter === "attention") return !s.payoutVerifiedByAdmin && Boolean(s.payoutChannelCode);
-    if (filter === "ready") return s.payoutVerifiedByAdmin;
-    if (filter === "missing") return !s.payoutChannelCode;
-    return true;
+  const rows: PayoutRow[] = shops.flatMap<PayoutRow>((shop) => {
+    const accounts = receivers.filter((account) => account.shopId === shop.id);
+    return accounts.length ? accounts.map((receiver) => ({ shop, receiver })) : [{ shop, receiver: null }];
+  });
+  const query = search.trim().toLowerCase();
+  const filtered = rows.filter(({ shop, receiver }) => {
+    if (filter !== "all" && receiverStatus(receiver) !== filter) return false;
+    if (channelFilter !== "all" && receiver?.channelCode !== channelFilter) return false;
+    if (!query) return true;
+    return [shop.shopName, shop.ownerEmail, receiver?.accountName, receiver?.accountNumber, getChannelLabel(receiver?.channelCode)]
+      .some((value) => String(value || "").toLowerCase().includes(query));
   });
 
-  const pendingCount = shops.filter((s) => !s.payoutVerifiedByAdmin && Boolean(s.payoutChannelCode)).length;
-  const verifiedCount = shops.filter((s) => s.payoutVerifiedByAdmin).length;
-  const missingCount = shops.filter((s) => !s.payoutChannelCode).length;
+  const pendingCount = rows.filter(({ receiver }) => receiverStatus(receiver) === "attention").length;
+  const verifiedCount = rows.filter(({ receiver }) => receiverStatus(receiver) === "ready").length;
+  const disabledCount = rows.filter(({ receiver }) => receiverStatus(receiver) === "disabled").length;
+  const missingCount = rows.filter(({ receiver }) => receiverStatus(receiver) === "missing").length;
+  const selectedReceiver = receivers.find((account) => account.id === selectedReceiverId);
 
-  const openModal = (shop: ShopPayout) => {
+  const openModal = (shop: ShopPayout, account: PayoutReceiver | null) => {
     setSelected(shop);
-    setOverrideChannel("");
-    setOverrideName("");
-    setOverrideNumber("");
+    setSelectedReceiverId(account?.id || null);
     setModalVisible(true);
   };
 
   const handleSave = async () => {
-    if (!selected) return;
-    const channel = overrideChannel || selected.payoutChannelCode || "";
-    const name = overrideName || selected.payoutAccountName || "";
-    const number = overrideNumber || selected.payoutAccountNumber || "";
-    if (!channel || !name || !number) {
-      Alert.alert("Missing details", "Enter a payout channel, account name, and account number before saving.");
-      return;
-    }
+    if (!selected || !selectedReceiver || selectedReceiver.verifiedByAdmin) return;
     setVerifying(true);
     try {
-      await verifyShopPayout(selected.id, channel, name, number);
+      await verifyShopPayout(selected.id, selectedReceiver.id);
       void logAdminAction({
         adminId: auth.currentUser?.uid,
         action: "shop_payout_updated",
         targetType: "funeral_shop",
         targetId: selected.id,
-        summary: `Updated payout account for ${selected.shopName || selected.id} (${getChannelLabel(channel)})`,
-        metadata: { payoutChannel: channel, testMode: true },
+        summary: `Approved payout receiver for ${selected.shopName || selected.id} (${getChannelLabel(selectedReceiver.channelCode)})`,
+        metadata: { payoutChannel: selectedReceiver.channelCode, testMode: true },
       }).catch(() => {});
       Alert.alert(
-        "Payout account saved",
-        `${selected.shopName || "This shop"}'s ${getChannelLabel(channel)} account is ready for customer payments.`
+        "Payout account approved",
+        `${selected.shopName || "This shop"}'s ${getChannelLabel(selectedReceiver.channelCode)} account is ready for checkout.`
       );
       setModalVisible(false);
       void load();
@@ -148,10 +168,11 @@ export default function AdminPayoutAccountsScreen() {
   };
 
   const FILTERS: { key: FilterMode; label: string; count: number; color: string }[] = [
-    { key: "attention", label: "Needs Attention", count: pendingCount, color: "#2563eb" },
+    { key: "attention", label: "Needs Review", count: pendingCount, color: "#2563eb" },
     { key: "ready", label: "Ready", count: verifiedCount, color: "#059669" },
+    { key: "disabled", label: "Disabled", count: disabledCount, color: "#64748b" },
     { key: "missing", label: "Not Submitted", count: missingCount, color: "#d97706" },
-    { key: "all", label: "All", count: shops.length, color: "#6b7280" },
+    { key: "all", label: "All", count: rows.length, color: "#6b7280" },
   ];
 
   if (loading) return <LoadingBird fullScreen />;
@@ -159,9 +180,9 @@ export default function AdminPayoutAccountsScreen() {
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Payout Accounts</Text>
+        <Text style={styles.headerTitle}>Shop Payout Accounts</Text>
         <Text style={styles.headerSub}>
-          View and manage the GCash and bank accounts shops use to receive their payout share.
+          Review each bank and wallet account submitted by partner shops.
         </Text>
       </View>
 
@@ -180,59 +201,68 @@ export default function AdminPayoutAccountsScreen() {
         ))}
       </ScrollView>
 
+      <View style={styles.searchWrap}>
+        <TextInput style={styles.searchInput} value={search} onChangeText={setSearch} placeholder="Search shop or account" accessibilityLabel="Search payout accounts" />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.channelRow}>
+          <TouchableOpacity style={[styles.channelChip, channelFilter === "all" && styles.channelChipActive]} onPress={() => setChannelFilter("all")}><Text style={styles.channelChipText}>All channels</Text></TouchableOpacity>
+          {PAYOUT_CHANNELS.map((channel) => <TouchableOpacity key={channel.code} style={[styles.channelChip, channelFilter === channel.code && styles.channelChipActive]} onPress={() => setChannelFilter(channel.code)}><Text style={styles.channelChipText}>{channel.label}</Text></TouchableOpacity>)}
+        </ScrollView>
+      </View>
+
       <FlatList
         data={filtered}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.receiver?.id || `missing-${item.shop.id}`}
         contentContainerStyle={styles.list}
         ListEmptyComponent={
           <View style={styles.emptyWrap}>
             <Ionicons name="wallet-outline" size={40} color="#9ca3af" />
             <Text style={styles.emptyText}>
-              {filter === "attention" ? "Every submitted payout account is ready." :
-               filter === "missing" ? "All shops have submitted payout details." :
-               filter === "ready" ? "No checkout-ready payout accounts yet." : "No shops found."}
+              No accounts match these filters.
             </Text>
           </View>
         }
-        renderItem={({ item }) => (
-          <TouchableOpacity style={styles.card} onPress={() => openModal(item)} activeOpacity={0.8}>
-            <View style={styles.cardRow}>
-              <Ionicons
-                name={item.payoutVerifiedByAdmin ? "checkmark-circle" : item.payoutChannelCode ? "time" : "alert-circle"}
-                size={22}
-                color={item.payoutVerifiedByAdmin ? "#059669" : item.payoutChannelCode ? "#2563eb" : "#d97706"}
-              />
-              <View style={styles.cardBody}>
-                <Text style={styles.cardName}>{item.shopName || "Unnamed Shop"}</Text>
-                <Text style={styles.cardEmail}>{item.ownerEmail || item.id}</Text>
-                {item.payoutChannelCode ? (
-                  <Text style={styles.cardAccount}>
-                    {getChannelLabel(item.payoutChannelCode)} · {item.payoutAccountName || "—"} · {item.payoutAccountNumber || "—"}
-                  </Text>
-                ) : (
-                  <Text style={styles.cardMissing}>Shop has not submitted payout details</Text>
-                )}
-              </View>
-              <View style={[styles.statusBadge, {
-                backgroundColor: item.payoutVerifiedByAdmin ? "#dcfce7" : item.payoutChannelCode ? "#dbeafe" : "#fef3c7"
-              }]}>
-                <Text style={[styles.statusBadgeText, {
-                  color: item.payoutVerifiedByAdmin ? "#059669" : item.payoutChannelCode ? "#1d4ed8" : "#92400e"
+        renderItem={({ item: { shop, receiver } }) => {
+          const status = receiverStatus(receiver);
+          return (
+            <TouchableOpacity style={styles.card} onPress={() => openModal(shop, receiver)} activeOpacity={0.8}>
+              <View style={styles.cardRow}>
+                <Ionicons
+                  name={status === "attention" ? "time" : status === "ready" ? "checkmark-circle" : "alert-circle"}
+                  size={22}
+                  color={status === "attention" ? "#2563eb" : status === "ready" ? "#059669" : "#d97706"}
+                />
+                <View style={styles.cardBody}>
+                  <Text style={styles.cardName}>{shop.shopName || "Unnamed Shop"}</Text>
+                  <Text style={styles.cardEmail}>{shop.ownerEmail || shop.id}</Text>
+                  {receiver ? (
+                    <Text style={styles.cardAccount}>
+                      {getChannelLabel(receiver.channelCode)} · {receiver.accountName} · {receiver.accountNumber}
+                    </Text>
+                  ) : (
+                    <Text style={styles.cardMissing}>Shop has not submitted payout details</Text>
+                  )}
+                </View>
+                <View style={[styles.statusBadge, {
+                  backgroundColor: status === "attention" ? "#dbeafe" : status === "ready" ? "#dcfce7" : "#fef3c7"
                 }]}>
-                  {item.payoutVerifiedByAdmin ? "Ready" : item.payoutChannelCode ? "Attention" : "Missing"}
-                </Text>
+                  <Text style={[styles.statusBadgeText, {
+                    color: status === "attention" ? "#1d4ed8" : status === "ready" ? "#059669" : "#92400e"
+                  }]}>
+                    {status === "attention" ? "Review" : status === "ready" ? "Ready" : status === "disabled" ? "Disabled" : "Missing"}
+                  </Text>
+                </View>
               </View>
-            </View>
-          </TouchableOpacity>
-        )}
+            </TouchableOpacity>
+          );
+        }}
       />
 
       <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <View>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Payout Account</Text>
+                <Text style={styles.modalTitle}>Payout Account Review</Text>
                 <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeBtn}>
                   <Ionicons name="close" size={20} color="#6b7280" />
                 </TouchableOpacity>
@@ -241,111 +271,42 @@ export default function AdminPayoutAccountsScreen() {
                 <>
                   <Text style={styles.modalShopName}>{selected.shopName || "Unnamed Shop"}</Text>
                   <Text style={styles.modalEmail}>{selected.ownerEmail || selected.id}</Text>
-
-                  <View style={[styles.statusBox, {
-                    backgroundColor: selected.payoutVerifiedByAdmin ? "#f0fdf4" : selected.payoutChannelCode ? "#eff6ff" : "#fffbeb",
-                    borderColor: selected.payoutVerifiedByAdmin ? "#86efac" : selected.payoutChannelCode ? "#bfdbfe" : "#fde68a",
-                  }]}>
-                    <Ionicons
-                      name={selected.payoutVerifiedByAdmin ? "checkmark-circle" : selected.payoutChannelCode ? "time" : "alert-circle"}
-                      size={18}
-                      color={selected.payoutVerifiedByAdmin ? "#059669" : selected.payoutChannelCode ? "#2563eb" : "#d97706"}
-                    />
-                    <Text style={[styles.statusBoxText, {
-                      color: selected.payoutVerifiedByAdmin ? "#065f46" : selected.payoutChannelCode ? "#1e3a8a" : "#78350f"
-                    }]}>
-                      {selected.payoutVerifiedByAdmin
-                        ? "Payout account is ready. The shop can receive its share of customer payments."
-                        : selected.payoutChannelCode
-                        ? "This legacy account needs to be saved again before it appears at checkout."
-                        : "Shop has not set up their payout account yet."}
-                    </Text>
-                  </View>
-
-                  {selected.payoutChannelCode ? (
+                  {selectedReceiver ? (
                     <View style={styles.submittedBox}>
-                      <Text style={styles.submittedLabel}>Shop Submitted Details</Text>
-                      <Text style={styles.submittedText}>Channel: {getChannelLabel(selected.payoutChannelCode)}</Text>
-                      <Text style={styles.submittedText}>Name: {selected.payoutAccountName || "—"}</Text>
-                      <Text style={styles.submittedText}>Number: {selected.payoutAccountNumber || "—"}</Text>
+                      <Text style={styles.submittedLabel}>{getChannelLabel(selectedReceiver.channelCode)} · {receiverStatus(selectedReceiver) === "attention" ? "Needs review" : receiverStatus(selectedReceiver) === "ready" ? "Ready" : "Disabled"}</Text>
+                      <Text style={styles.submittedText}>Name: {selectedReceiver.accountName}</Text>
+                      <Text style={styles.submittedText}>Number: {selectedReceiver.accountNumber}</Text>
                     </View>
                   ) : (
                     <View style={styles.missingBox}>
                       <Ionicons name="information-circle-outline" size={16} color="#92400e" />
-                      <Text style={styles.missingText}>
-                        The shop owner must go to Shop Settings ? Payout Account and save their GCash or bank details first.
-                      </Text>
+                      <Text style={styles.missingText}>The owner has not submitted a payout account.</Text>
                     </View>
                   )}
-
-                  {selected.payoutChannelCode ? (
+                  {selectedReceiver && !selectedReceiver.verifiedByAdmin && (
                     <>
-                      <Text style={styles.sectionLabel}>Edit account details (optional)</Text>
-                      <Text style={styles.fieldLabel}>Payout Channel</Text>
-                      <TouchableOpacity style={styles.pickerBtn} onPress={() => setChannelPickerVisible(true)}>
-                        <Text style={styles.pickerBtnText}>
-                          {overrideChannel ? getChannelLabel(overrideChannel) : `Keep: ${getChannelLabel(selected.payoutChannelCode)}`}
-                        </Text>
-                        <Ionicons name="chevron-down" size={16} color="#6b7280" />
-                      </TouchableOpacity>
-                      <Text style={styles.fieldLabel}>Account Holder Name</Text>
-                      <TextInput
-                        style={styles.input}
-                        value={overrideName}
-                        onChangeText={setOverrideName}
-                        placeholder={selected.payoutAccountName || "Keep shop's name"}
-                      />
-                      <Text style={styles.fieldLabel}>Account / GCash Number</Text>
-                      <TextInput
-                        style={styles.input}
-                        value={overrideNumber}
-                        onChangeText={setOverrideNumber}
-                        placeholder={selected.payoutAccountNumber || "Keep shop's number"}
-                      />
+                      <Text style={styles.missingText}>Ask the owner to correct any details that do not match their registered account.</Text>
                       <TouchableOpacity
                         style={[styles.verifyBtn, verifying && styles.verifyBtnDisabled]}
                         onPress={() => void handleSave()}
                         disabled={verifying}
                       >
                         {verifying ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />}
-                        <Text style={styles.verifyBtnText}>
-                          {verifying ? "Saving..." : "Save Payout Account"}
-                        </Text>
+                        <Text style={styles.verifyBtnText}>{verifying ? "Approving..." : "Approve Account"}</Text>
                       </TouchableOpacity>
                     </>
-                  ) : null}
-
+                  )}
                   <TouchableOpacity style={styles.closeModalBtn} onPress={() => setModalVisible(false)}>
                     <Text style={styles.closeModalBtnText}>Close</Text>
                   </TouchableOpacity>
                 </>
               ) : null}
-            </ScrollView>
+            </View>
           </View>
         </View>
       </Modal>
 
-      <Modal visible={channelPickerVisible} transparent animationType="fade" onRequestClose={() => setChannelPickerVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { maxHeight: "65%" }]}>
-            <Text style={styles.modalTitle}>Select Payout Channel</Text>
-            <ScrollView>
-              {PAYOUT_CHANNELS.map((ch) => (
-                <TouchableOpacity
-                  key={ch.code}
-                  style={[styles.channelOption, overrideChannel === ch.code && styles.channelOptionActive]}
-                  onPress={() => { setOverrideChannel(ch.code); setChannelPickerVisible(false); }}
-                >
-                  <Text style={[styles.channelOptionText, overrideChannel === ch.code && { color: "#fff" }]}>{ch.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-            <TouchableOpacity style={styles.closeModalBtn} onPress={() => setChannelPickerVisible(false)}>
-              <Text style={styles.closeModalBtnText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+
     </View>
   );
 }
@@ -364,6 +325,12 @@ const styles = StyleSheet.create({
   filterChipText: { fontSize: 13, fontWeight: "700", color: "#374151" },
   filterBadge: { borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1 },
   filterBadgeText: { fontSize: 11, fontWeight: "800", color: "#fff" },
+  searchWrap: { backgroundColor: "#fff", paddingHorizontal: 14, paddingTop: 10, paddingBottom: 8, gap: 8 },
+  searchInput: { borderWidth: 1, borderColor: "#d1d5db", borderRadius: 9, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, color: "#111827" },
+  channelRow: { alignItems: "center", gap: 6, paddingBottom: 2 },
+  channelChip: { borderWidth: 1, borderColor: "#d1d5db", borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5 },
+  channelChipActive: { borderColor: "#2563eb", backgroundColor: "#dbeafe" },
+  channelChipText: { fontSize: 11, fontWeight: "700", color: "#374151" },
   list: { padding: 14, gap: 10, paddingBottom: 32 },
   card: {
     backgroundColor: "#fff", borderRadius: 14, padding: 14,
@@ -380,30 +347,20 @@ const styles = StyleSheet.create({
   emptyWrap: { alignItems: "center", paddingTop: 60, gap: 10 },
   emptyText: { color: "#6b7280", fontSize: 14, textAlign: "center", maxWidth: 260 },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
-  modalCard: { backgroundColor: "#fff", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20, maxHeight: "90%" },
+  modalCard: { backgroundColor: "#fff", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20 },
   modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
   modalTitle: { fontSize: 18, fontWeight: "900", color: "#111827" },
   closeBtn: { padding: 4 },
   modalShopName: { fontSize: 16, fontWeight: "800", color: "#1e3a5f", marginBottom: 2 },
   modalEmail: { fontSize: 12, color: "#6b7280", marginBottom: 14 },
-  statusBox: { flexDirection: "row", alignItems: "flex-start", gap: 8, borderRadius: 10, borderWidth: 1, padding: 12, marginBottom: 14 },
-  statusBoxText: { flex: 1, fontSize: 13, lineHeight: 18, fontWeight: "600" },
   submittedBox: { backgroundColor: "#f0f9ff", borderRadius: 10, padding: 12, marginBottom: 14, gap: 4 },
   submittedLabel: { fontSize: 11, fontWeight: "800", color: "#0369a1", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 },
   submittedText: { fontSize: 14, color: "#0c4a6e", fontWeight: "600" },
   missingBox: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#fffbeb", borderRadius: 10, padding: 12, marginBottom: 14 },
   missingText: { flex: 1, fontSize: 13, color: "#78350f", lineHeight: 18 },
-  sectionLabel: { fontSize: 11, fontWeight: "800", color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 },
-  fieldLabel: { fontSize: 12, fontWeight: "700", color: "#374151", marginBottom: 4, marginTop: 8 },
-  pickerBtn: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 10, borderWidth: 1, borderColor: "#d1d5db", backgroundColor: "#f9fafb", paddingHorizontal: 12, paddingVertical: 11 },
-  pickerBtnText: { fontSize: 14, color: "#374151" },
-  input: { borderRadius: 10, borderWidth: 1, borderColor: "#d1d5db", backgroundColor: "#f9fafb", paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: "#111827" },
   verifyBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#2563eb", borderRadius: 12, paddingVertical: 14, marginTop: 16 },
   verifyBtnDisabled: { opacity: 0.55 },
   verifyBtnText: { color: "#fff", fontSize: 14, fontWeight: "900" },
   closeModalBtn: { alignItems: "center", paddingVertical: 12, marginTop: 10, borderRadius: 10, borderWidth: 1, borderColor: "#e5e7eb" },
   closeModalBtnText: { fontSize: 14, color: "#6b7280", fontWeight: "700" },
-  channelOption: { paddingVertical: 12, paddingHorizontal: 14, borderRadius: 8, marginBottom: 4 },
-  channelOptionActive: { backgroundColor: "#2563eb" },
-  channelOptionText: { fontSize: 15, color: "#111827", fontWeight: "600" },
 });

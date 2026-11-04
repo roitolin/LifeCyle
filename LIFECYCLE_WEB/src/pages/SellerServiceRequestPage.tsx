@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, ty
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import BrandLogo from '@/components/BrandLogo'
 import DeathCertificateVaultCard from '@/components/DeathCertificateVaultCard'
+import RemainingBalancePaymentCard from '@/components/RemainingBalancePaymentCard'
 import PageBackButton from '@/components/PageBackButton'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import { supabase } from '@/lib/supabase'
+import { canPayRemainingBalance } from '@/utils/remainingBalancePayments'
 import { acceptFuneralServiceRequest } from '@/utils/serviceRequestFlow'
 import './SellerServiceRequestPage.css'
 
@@ -17,10 +19,18 @@ type ShopSummary = {
 
 type ServiceRequest = {
   id: string
+  shopId: string
   requesterId: string
   productId: string
   productName: string
   productPrice?: string | number | null
+  productFullPrice?: string | number | null
+  downpaymentAmountSnapshot?: string | number | null
+  downpaymentPercentageSnapshot?: string | number | null
+  paymentProvider?: string | null
+  providerPaymentMethod?: string | null
+  providerPaymentId?: string | null
+  providerPaymentCompletedAt?: string | null
   productImageUrl?: string | null
   variationName?: string | null
   packageItems?: string[] | null
@@ -35,6 +45,8 @@ type ServiceRequest = {
   contactNumber?: string | null
   status: string
   paymentAmount?: number | string | null
+  paymentOption?: 'pending' | 'full' | 'downpayment' | null
+  remainingBalance?: number | string | null
   paymentPayerName?: string | null
   paymentGcashName?: string | null
   paymentGcashNumber?: string | null
@@ -121,6 +133,27 @@ function formatTime(value: string | null | undefined) {
 
 function isCustomCasketRequest(request: ServiceRequest) {
   return request.requestType === 'custom_casket' || request.productId === 'custom_casket_design'
+}
+
+function formatPaymentChannelLabel(request: ServiceRequest) {
+  const base = request.paymentOption === 'downpayment' ? 'Downpayment' : 'Full payment'
+  if (request.providerPaymentMethod) {
+    const channelMap: Record<string, string> = {
+      PH_GCASH: 'GCash',
+      PH_MAYA: 'Maya',
+      PH_BDO: 'BDO',
+      PH_BPI: 'BPI',
+      PH_METROBANK: 'Metrobank',
+      PH_LANDBANK: 'LandBank',
+      PH_CHINABANK: 'Chinabank',
+    }
+    const raw = String(request.providerPaymentMethod).trim()
+    const mapped = channelMap[raw.toUpperCase()] || raw.replace(/^PH_/i, '').replace(/_/g, ' ')
+    return `${base} · ${mapped}`
+  }
+  if (request.paymentGcashNumber) return `${base} · GCash`
+  if (request.paymentProvider === 'xendit' || request.providerPaymentId) return `${base} · Online payment`
+  return base
 }
 
 function DetailList({ children }: { children: ReactNode }) {
@@ -286,7 +319,7 @@ export default function SellerServiceRequestPage() {
         : 'The family will be notified that your shop cannot take this case.',
       details: accepting
         ? [
-            `Payment amount: ${formatPeso(finalAmount)}. The customer can complete payment securely via Xendit.`,
+            `Payment amount: ${formatPeso(finalAmount)}. The customer can complete payment online.`,
             customRequest
               ? 'This custom design request will not change product stock.'
               : 'One item will be reserved from the product stock.',
@@ -592,11 +625,23 @@ export default function SellerServiceRequestPage() {
   }
 
   const normalizedStatus = String(request.status || '').toLowerCase()
-  const meta = STATUS_META[normalizedStatus] || {
+  const isDownpayment = String(request.paymentOption || '').toLowerCase() === 'downpayment'
+  const baseMeta = STATUS_META[normalizedStatus] || {
     label: titleCase(normalizedStatus || 'pending'),
     detail: 'Review the latest information for this case.',
     tone: 'neutral',
   }
+  const meta = normalizedStatus === 'payment_verified'
+    ? {
+        ...baseMeta,
+        label: isDownpayment ? 'Downpayment Confirmed' : 'Payment Confirmed',
+      }
+    : normalizedStatus === 'payment_submitted' && isDownpayment
+      ? {
+          ...baseMeta,
+          label: 'Downpayment Submitted',
+        }
+      : baseMeta
   const hasSchedule = Boolean(
     request.wakeAddress || request.churchName || request.cemeteryName
     || request.wakeStartDate || request.wakeEndDate || request.burialTime || request.pickupAddress,
@@ -608,20 +653,26 @@ export default function SellerServiceRequestPage() {
     || request.paymentGcashNumber
     || request.paymentReferenceNumber
     || request.paymentProofImageUrl
-    || request.paymentSubmittedAt,
+    || request.paymentSubmittedAt
+    || request.paymentVerifiedAt
+    || canPayRemainingBalance(request),
   )
   const requestedServiceImage = isCustomCasketRequest(request)
     ? (request.referencePhotoUrl || request.productImageUrl)
     : request.productImageUrl
   const receiptMeta = ['payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(normalizedStatus)
     ? {
-        title: normalizedStatus === 'completed' ? 'Payment complete' : 'Payment verified',
+        title: isDownpayment
+          ? 'Downpayment Confirmed'
+          : normalizedStatus === 'completed'
+            ? 'Payment Complete'
+            : 'Payment Confirmed',
         message: 'This family payment was reviewed and confirmed by the shop.',
         tone: 'verified',
       }
     : normalizedStatus === 'payment_submitted'
       ? {
-          title: 'Payment under review',
+          title: isDownpayment ? 'Downpayment under review' : 'Payment under review',
           message: 'Review the submitted payment information before verifying it.',
           tone: 'review',
         }
@@ -642,9 +693,17 @@ export default function SellerServiceRequestPage() {
             <h1>Service Request Record</h1>
             <p>Arrangement case #{request.id.slice(0, 8).toUpperCase()} · Filed {formatTimestamp(request.createdAt)}</p>
           </div>
-          <div className={`sr-status sr-status-${meta.tone}`} role="status">
-            <span aria-hidden="true" />
-            <strong>{meta.label}</strong>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+            <div className={`sr-status sr-status-${meta.tone}`} role="status">
+              <span aria-hidden="true" />
+              <strong>{meta.label}</strong>
+            </div>
+            {isDownpayment && request.paymentVerifiedAt && normalizedStatus !== 'payment_verified' ? (
+              <div className="sr-status sr-status-success" role="status">
+                <span aria-hidden="true" />
+                <strong>Downpayment Confirmed</strong>
+              </div>
+            ) : null}
           </div>
         </section>
 
@@ -671,9 +730,9 @@ export default function SellerServiceRequestPage() {
                   <span>Deceased</span>
                   <h2>{request.deceasedFullName || 'Name not provided'}</h2>
                   <dl>
+                    {request.deceasedDateOfBirth ? <div><dt>Date of birth</dt><dd>{formatDate(request.deceasedDateOfBirth)}</dd></div> : null}
                     <div><dt>Date of passing</dt><dd>{formatDate(request.deceasedDateOfPassing)}</dd></div>
                     <div><dt>Age</dt><dd>{request.deceasedAge ?? 'Not provided'}</dd></div>
-                    <div><dt>Requestor</dt><dd>{request.familyCoordinatorName || request.requesterName || 'Not provided'}</dd></div>
                   </dl>
                 </div>
 
@@ -713,7 +772,7 @@ export default function SellerServiceRequestPage() {
                           <small>Saved only when accepted</small>
                         </label>
                       ) : (
-                        <b>{formatPeso(request.paymentAmount || request.productPrice)}</b>
+                        <b>{formatPeso(request.productFullPrice ?? request.productPrice ?? request.paymentAmount)}</b>
                       )}
                     </div>
                   </div>
@@ -723,6 +782,12 @@ export default function SellerServiceRequestPage() {
                 <div className="sr-note">
                   <span>Custom design notes</span>
                   <p>{request.customDesignNotes}</p>
+                </div>
+              )}
+              {request.tributeMessage && (
+                <div className="sr-note">
+                  <span>Tribute message</span>
+                  <p>{request.tributeMessage}</p>
                 </div>
               )}
             </section>
@@ -735,6 +800,7 @@ export default function SellerServiceRequestPage() {
                 <DetailList>
                   <DetailRow label="Requestor" value={request.familyCoordinatorName || request.requesterName || 'Not provided'} />
                   <DetailRow label="Contact number" value={request.contactNumber || 'Not provided'} />
+                  <DetailRow label="Wake venue" value={request.wakeAddress || 'Not provided'} />
                 </DetailList>
                 <div className="sr-contact-actions" aria-label="Family contact actions">
                   <a
@@ -758,68 +824,76 @@ export default function SellerServiceRequestPage() {
                 </div>
               </section>
 
-              <section className="sr-card">
-                <div className="sr-section-heading">
-                  <h2>Deceased information</h2>
-                </div>
-                <DetailList>
-                  <DetailRow label="Full name" value={request.deceasedFullName || 'Not provided'} />
-                  <DetailRow label="Date of birth" value={formatDate(request.deceasedDateOfBirth)} />
-                  <DetailRow label="Date of passing" value={formatDate(request.deceasedDateOfPassing)} />
-                  <DetailRow label="Age" value={request.deceasedAge ?? 'Not provided'} />
-                </DetailList>
-              </section>
+              {hasSchedule && (
+                <section className="sr-card">
+                  <div className="sr-section-heading">
+                    <h2>Schedule and logistics</h2>
+                  </div>
+                  <DetailList>
+                    <DetailRow label="Church / chapel" value={request.churchName || 'Not provided'} />
+                    <DetailRow label="Cemetery" value={request.cemeteryName || 'Not provided'} />
+                    <DetailRow
+                      label="Wake schedule"
+                      value={request.wakeStartDate || request.wakeEndDate
+                        ? `${formatDate(request.wakeStartDate)} to ${formatDate(request.wakeEndDate)}`
+                        : 'Not provided'}
+                    />
+                    <DetailRow label="Burial time" value={formatTime(request.burialTime)} />
+                    <DetailRow label="Pickup address" value={request.pickupAddress || 'Not provided'} />
+                  </DetailList>
+                </section>
+              )}
             </div>
 
-            {hasSchedule && (
-              <section className="sr-card">
-                <div className="sr-section-heading">
-                  <h2>Schedule and logistics</h2>
-                </div>
-                <DetailList>
-                  <DetailRow label="Wake venue" value={request.wakeAddress || 'Not provided'} />
-                  <DetailRow label="Church / chapel" value={request.churchName || 'Not provided'} />
-                  <DetailRow label="Cemetery" value={request.cemeteryName || 'Not provided'} />
-                  <DetailRow
-                    label="Wake schedule"
-                    value={request.wakeStartDate || request.wakeEndDate
-                      ? `${formatDate(request.wakeStartDate)} to ${formatDate(request.wakeEndDate)}`
-                      : 'Not provided'}
-                  />
-                  <DetailRow label="Burial time" value={formatTime(request.burialTime)} />
-                  <DetailRow label="Pickup address" value={request.pickupAddress || 'Not provided'} />
-                </DetailList>
-              </section>
-            )}
-
-            {request.tributeMessage && (
-              <section className="sr-card sr-tribute">
-                <span>Tribute message</span>
-                <blockquote>{request.tributeMessage}</blockquote>
-              </section>
-            )}
-
-            {hasPayment && (
-              <section className="sr-card sr-payment-summary">
-                <div className="sr-section-heading">
-                  <h2>Payment</h2>
-                </div>
-                <dl>
-                  <div><dt>Status</dt><dd>{receiptMeta.title}</dd></div>
-                  <div><dt>Amount</dt><dd>{formatPeso(request.paymentAmount)}</dd></div>
-                  <div><dt>Reference number</dt><dd>{request.paymentReferenceNumber || 'Not provided'}</dd></div>
-                  <div><dt>Submitted</dt><dd>{formatTimestamp(request.paymentSubmittedAt)}</dd></div>
-                </dl>
-                <button
-                  type="button"
-                  className="sr-view-receipt"
-                  onClick={() => setPaymentReceiptOpen(true)}
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" /><path d="M9 8h6M9 12h6" /></svg>
-                  View payment receipt
-                </button>
-              </section>
-            )}
+            {hasPayment && (() => {
+              const totalServicePrice = request.productFullPrice ?? request.productPrice ?? request.paymentAmount
+              const initialReceivedAmount = request.downpaymentAmountSnapshot ?? request.paymentAmount
+              const isInitialConfirmed = Boolean(request.paymentVerifiedAt) || ['payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(normalizedStatus)
+              const paymentTypeLabel = formatPaymentChannelLabel(request)
+              return (
+                <section className="sr-card sr-payment-summary">
+                  <div className="sr-section-heading">
+                    <h2>Family payment</h2>
+                  </div>
+                  <dl>
+                    <div><dt>Status</dt><dd>{receiptMeta.title}</dd></div>
+                    <div><dt>Total service price</dt><dd>{formatPeso(totalServicePrice)}</dd></div>
+                    <div><dt>Payment type</dt><dd>{paymentTypeLabel}</dd></div>
+                    <div><dt>{request.paymentOption === 'downpayment' ? 'Downpayment received' : 'Amount received'}</dt><dd>{formatPeso(initialReceivedAmount)}</dd></div>
+                    <div><dt>Reference number</dt><dd>{request.paymentReferenceNumber || request.providerPaymentId || `#PAY-${request.id.slice(0, 8).toUpperCase()}`}</dd></div>
+                    <div><dt>{request.paymentVerifiedAt ? 'Confirmed' : 'Submitted'}</dt><dd>{formatTimestamp(request.paymentVerifiedAt || request.paymentSubmittedAt)}</dd></div>
+                  </dl>
+                  <button
+                    type="button"
+                    className="sr-view-receipt"
+                    onClick={() => setPaymentReceiptOpen(true)}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" /><path d="M9 8h6M9 12h6" /></svg>
+                    View payment receipt
+                  </button>
+                  {(request.paymentSubmittedAt || request.paymentVerifiedAt) ? (
+                    <div className="sr-payment-activity">
+                      <h3>Payment activity</h3>
+                      <div className="sr-payment-activity-list">
+                        {request.paymentSubmittedAt ? (
+                          <div>
+                            <strong>{isDownpayment ? 'Downpayment submitted' : 'Payment submitted'} · {paymentTypeLabel}</strong>
+                            <span>Amount: {formatPeso(initialReceivedAmount)} · {formatTimestamp(request.paymentSubmittedAt)}</span>
+                          </div>
+                        ) : null}
+                        {isInitialConfirmed ? (
+                          <div>
+                            <strong>{isDownpayment ? 'Downpayment confirmed' : 'Payment confirmed'} · {paymentTypeLabel}</strong>
+                            <span>Shop received {formatPeso(initialReceivedAmount)} · Total received: {formatPeso(initialReceivedAmount)} of {formatPeso(totalServicePrice)} · {formatTimestamp(request.paymentVerifiedAt || request.paymentSubmittedAt)}</span>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+                  <RemainingBalancePaymentCard request={request} role="shop" />
+                </section>
+              )
+            })()}
 
             {paymentReceiptOpen && hasPayment && (
               <div className="sr-receipt-modal-overlay" role="presentation" onClick={() => setPaymentReceiptOpen(false)}>
@@ -854,7 +928,7 @@ export default function SellerServiceRequestPage() {
                   </div>
                   <div className="sr-receipt-amount">
                     <span>{receiptMeta.tone === 'verified' ? 'Received' : 'Amount'}</span>
-                    <strong>{formatPeso(request.paymentAmount)}</strong>
+                    <strong>{formatPeso(request.downpaymentAmountSnapshot ?? request.paymentAmount)}</strong>
                   </div>
                 </div>
 
@@ -864,7 +938,7 @@ export default function SellerServiceRequestPage() {
                     <dl className="sr-receipt-order-grid">
                       <div>
                         <dt>Order date</dt>
-                        <dd>{formatTimestamp(request.paymentSubmittedAt || request.createdAt)}</dd>
+                        <dd>{formatTimestamp(request.paymentSubmittedAt || request.paymentVerifiedAt || request.createdAt)}</dd>
                       </div>
                       <div>
                         <dt>Order ID</dt>
@@ -895,18 +969,19 @@ export default function SellerServiceRequestPage() {
                       <span>{request.variationName || 'Service arrangement'}</span>
                       <span>{request.deceasedFullName || 'Family service'}</span>
                     </div>
-                    <b>{formatPeso(request.paymentAmount)}</b>
+                    <b>{formatPeso(request.productFullPrice ?? request.productPrice ?? request.paymentAmount)}</b>
                   </section>
 
                   <section className="sr-receipt-section sr-receipt-info">
                     <h3>Receipt information</h3>
                     <DetailList>
-                      <DetailRow label="Payment method" value="GCash / E-wallet" />
+                      <DetailRow label="Payment type" value={formatPaymentChannelLabel(request)} />
                       <DetailRow label="Sender" value={request.paymentPayerName || request.familyCoordinatorName || 'Not provided'} />
-                      <DetailRow label="GCash name" value={request.paymentGcashName || 'Not provided'} />
-                      <DetailRow label="GCash number" value={request.paymentGcashNumber || 'Not provided'} />
-                      <DetailRow label="Reference number" value={request.paymentReferenceNumber || 'Not provided'} />
-                      <DetailRow label="Amount" value={formatPeso(request.paymentAmount)} />
+                      {request.paymentGcashName ? <DetailRow label="Account name" value={request.paymentGcashName} /> : null}
+                      {request.paymentGcashNumber ? <DetailRow label="Account number" value={request.paymentGcashNumber} /> : null}
+                      <DetailRow label="Reference number" value={request.paymentReferenceNumber || request.providerPaymentId || `#PAY-${request.id.slice(0, 8).toUpperCase()}`} />
+                      <DetailRow label="Total service price" value={formatPeso(request.productFullPrice ?? request.productPrice ?? request.paymentAmount)} />
+                      <DetailRow label={request.paymentOption === 'downpayment' ? 'Downpayment received' : 'Amount received'} value={formatPeso(request.downpaymentAmountSnapshot ?? request.paymentAmount)} />
                       {request.paymentVerifiedAt && (
                         <DetailRow label="Verified" value={formatTimestamp(request.paymentVerifiedAt)} />
                       )}

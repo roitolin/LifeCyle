@@ -1,6 +1,8 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import type { ServiceRequest } from './AdminOrdersPage'
 import PageBackButton from '@/components/PageBackButton'
+import RemainingBalancePaymentCard from '@/components/RemainingBalancePaymentCard'
+import { PAYOUT_CHANNEL_LOGOS } from '@/assets/paymentLogoAssets'
 import '../SellerServiceRequestPage.css'
 import './AdminOrdersPage.css'
 
@@ -25,11 +27,11 @@ const STATUS_META: Record<string, StatusMeta> = {
 
 function titleCase(value: string | null | undefined) {
   if (!value) return 'Standard service'
-  return value.replace(/_/g, ' ').replace(/\\b\\w/g, (letter) => letter.toUpperCase())
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
 
 function formatPeso(value: string | number | null | undefined) {
-  const amount = Number(String(value ?? '').replace(/[^\\d.]/g, ''))
+  const amount = Number(String(value ?? '').replace(/[^\d.]/g, ''))
   if (!Number.isFinite(amount) || amount <= 0) return '—'
   return `₱${new Intl.NumberFormat('en-PH', { maximumFractionDigits: 2 }).format(amount)}`
 }
@@ -50,7 +52,7 @@ function formatTimestamp(value: string | null | undefined) {
 
 function formatDate(value: string | null | undefined) {
   if (!value) return 'Not provided'
-  const match = /^(\\d{4})-(\\d{2})-(\\d{2})/.exec(value)
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value)
   const date = match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : new Date(value)
   if (Number.isNaN(date.getTime())) return 'Not provided'
   return date.toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -58,7 +60,7 @@ function formatDate(value: string | null | undefined) {
 
 function formatTime(value: string | null | undefined) {
   if (!value) return 'Not provided'
-  const match = /^(\\d{1,2}):(\\d{2})/.exec(value)
+  const match = /^(\d{1,2}):(\d{2})/.exec(value)
   if (!match) return value
   const hour = Number(match[1])
   const minute = Number(match[2])
@@ -79,6 +81,27 @@ function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   )
 }
 
+function formatPaymentChannelLabel(request: ServiceRequest) {
+  const base = request.paymentOption === 'downpayment' ? 'Downpayment' : 'Full payment'
+  if (request.providerPaymentMethod) {
+    const channelMap: Record<string, string> = {
+      PH_GCASH: 'GCash',
+      PH_MAYA: 'Maya',
+      PH_BDO: 'BDO',
+      PH_BPI: 'BPI',
+      PH_METROBANK: 'Metrobank',
+      PH_LANDBANK: 'LandBank',
+      PH_CHINABANK: 'Chinabank',
+    }
+    const raw = String(request.providerPaymentMethod).trim()
+    const mapped = channelMap[raw.toUpperCase()] || raw.replace(/^PH_/i, '').replace(/_/g, ' ')
+    return `${base} · ${mapped}`
+  }
+  if (request.paymentGcashNumber) return `${base} · GCash`
+  if (request.paymentProvider === 'xendit' || request.providerPaymentId) return `${base} · Online payment`
+  return base
+}
+
 type Props = {
   request: ServiceRequest
   onClose: () => void
@@ -88,41 +111,49 @@ function AdminServiceRequestDetail({ request, onClose }: Props) {
   const [paymentReceiptOpen, setPaymentReceiptOpen] = useState(false)
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
   const normalizedStatus = String(request.status || '').toLowerCase()
+  const isDownpayment = request.paymentOption === 'downpayment'
+
   const meta = STATUS_META[normalizedStatus] || {
     label: titleCase(normalizedStatus || 'Unknown status'),
     detail: 'Review the recorded information for this arrangement request.',
     tone: 'neutral' as const,
   }
+
   const hasSchedule = Boolean(
     request.wakeAddress || request.churchName || request.cemeteryName
     || request.wakeStartDate || request.wakeEndDate || request.burialTime || request.pickupAddress,
   )
+
   const hasPayment = Boolean(
     request.paymentAmount
+      || request.downpaymentAmountSnapshot
       || request.paymentPayerName
       || request.paymentGcashName
       || request.paymentGcashNumber
       || request.paymentReferenceNumber
       || request.paymentProofImageUrl
-      || request.paymentSubmittedAt,
+      || request.paymentSubmittedAt
+      || request.providerPaymentId,
   )
+
   const receiptMeta = ['payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(normalizedStatus)
     ? {
-        title: normalizedStatus === 'completed' ? 'Payment complete' : 'Payment verified',
+        title: isDownpayment ? 'Downpayment Confirmed' : normalizedStatus === 'completed' ? 'Payment Complete' : 'Payment Confirmed',
         message: 'This family payment was reviewed and confirmed by the funeral shop.',
-        tone: 'verified',
+        tone: 'verified' as const,
       }
     : normalizedStatus === 'payment_submitted'
       ? {
-          title: 'Payment under review',
+          title: isDownpayment ? 'Downpayment Submitted' : 'Payment Under Review',
           message: 'The submitted payment is waiting for the funeral shop to review it.',
-          tone: 'review',
+          tone: 'review' as const,
         }
       : {
-          title: 'Family payment',
+          title: isDownpayment ? 'Downpayment Pending' : 'Family Payment',
           message: 'Available payment and receipt information for this request.',
-          tone: 'default',
+          tone: 'default' as const,
         }
+
   const timeline = useMemo(() => [
     { label: 'Request created', value: request.createdAt },
     { label: 'Shop responded', value: request.shopRespondedAt || request.acceptedAt || request.declinedAt },
@@ -132,6 +163,13 @@ function AdminServiceRequestDetail({ request, onClose }: Props) {
     { label: 'Request completed', value: request.completedAt },
     { label: 'Request cancelled', value: request.cancelledAt },
   ].filter((item): item is { label: string; value: string } => Boolean(item.value)), [request])
+
+  const channelCode = String(request.providerPaymentMethod || (request.paymentGcashNumber ? 'PH_GCASH' : '')).toUpperCase()
+  const channelLogo = PAYOUT_CHANNEL_LOGOS[channelCode]
+  const paymentTypeLabel = formatPaymentChannelLabel(request)
+  const totalServicePrice = request.productFullPrice ?? request.productPrice ?? request.paymentAmount
+  const initialReceivedAmount = request.downpaymentAmountSnapshot ?? request.paymentAmount
+  const isInitialConfirmed = Boolean(request.paymentVerifiedAt) || ['payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(normalizedStatus)
 
   return (
     <>
@@ -197,7 +235,7 @@ function AdminServiceRequestDetail({ request, onClose }: Props) {
                           <strong>{request.productName || 'Custom casket service'}</strong>
                           <small>{request.variationName || titleCase(request.requestType)}</small>
                           {request.packageItems?.length ? <small>Packages: {request.packageItems.join(', ')}</small> : null}
-                          <b>{request.productPrice != null ? formatPeso(request.productPrice) : 'Custom pricing'}</b>
+                          <b>{formatPeso(totalServicePrice)}</b>
                         </div>
                       </div>
                     </div>
@@ -252,17 +290,41 @@ function AdminServiceRequestDetail({ request, onClose }: Props) {
 
                 {hasPayment ? (
                   <section className="sr-card sr-payment-summary">
-                    <div className="sr-section-heading"><h2>Payment</h2></div>
+                    <div className="sr-section-heading">
+                      <h2>Family payment</h2>
+                    </div>
                     <dl>
                       <div><dt>Status</dt><dd>{receiptMeta.title}</dd></div>
-                      <div><dt>Amount</dt><dd>{formatPeso(request.paymentAmount)}</dd></div>
-                      <div><dt>Reference number</dt><dd>{request.paymentReferenceNumber || 'Not provided'}</dd></div>
-                      <div><dt>Submitted</dt><dd>{formatTimestamp(request.paymentSubmittedAt)}</dd></div>
+                      <div><dt>Total service price</dt><dd>{formatPeso(totalServicePrice)}</dd></div>
+                      <div><dt>Payment type</dt><dd>{paymentTypeLabel}</dd></div>
+                      <div><dt>{isDownpayment ? 'Downpayment received' : 'Amount received'}</dt><dd>{formatPeso(initialReceivedAmount)}</dd></div>
+                      <div><dt>Reference number</dt><dd>{request.paymentReferenceNumber || request.providerPaymentId || `#PAY-${request.id.slice(0, 8).toUpperCase()}`}</dd></div>
+                      <div><dt>{request.paymentVerifiedAt ? 'Confirmed' : 'Submitted'}</dt><dd>{formatTimestamp(request.paymentVerifiedAt || request.paymentSubmittedAt)}</dd></div>
                     </dl>
                     <button type="button" className="sr-view-receipt" onClick={() => setPaymentReceiptOpen(true)}>
                       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" /><path d="M9 8h6M9 12h6" /></svg>
                       View payment receipt
                     </button>
+                    {(request.paymentSubmittedAt || request.paymentVerifiedAt) ? (
+                      <div className="sr-payment-activity">
+                        <h3>Payment activity</h3>
+                        <div className="sr-payment-activity-list">
+                          {request.paymentSubmittedAt ? (
+                            <div>
+                              <strong>{isDownpayment ? 'Downpayment submitted' : 'Payment submitted'} · {paymentTypeLabel}</strong>
+                              <span>Amount: {formatPeso(initialReceivedAmount)} · {formatTimestamp(request.paymentSubmittedAt)}</span>
+                            </div>
+                          ) : null}
+                          {isInitialConfirmed ? (
+                            <div>
+                              <strong>{isDownpayment ? 'Downpayment confirmed' : 'Payment confirmed'} · {paymentTypeLabel}</strong>
+                              <span>Shop received {formatPeso(initialReceivedAmount)} · Total received: {formatPeso(initialReceivedAmount)} of {formatPeso(totalServicePrice)} · {formatTimestamp(request.paymentVerifiedAt || request.paymentSubmittedAt)}</span>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : null}
+                    <RemainingBalancePaymentCard request={request as any} role="shop" />
                   </section>
                 ) : null}
               </div>
@@ -329,7 +391,7 @@ function AdminServiceRequestDetail({ request, onClose }: Props) {
                     : <svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" /><path d="M9 8h6M9 12h6" /></svg>}
                 </div>
                 <div className="sr-receipt-hero-copy"><h2 id="admin-payment-receipt-title">{receiptMeta.title}</h2><p>{receiptMeta.message}</p></div>
-                <div className="sr-receipt-amount"><span>{receiptMeta.tone === 'verified' ? 'Received' : 'Amount'}</span><strong>{formatPeso(request.paymentAmount)}</strong></div>
+                <div className="sr-receipt-amount"><span>{receiptMeta.tone === 'verified' ? 'Received' : 'Amount'}</span><strong>{formatPeso(initialReceivedAmount)}</strong></div>
               </div>
 
               <div className="sr-receipt-body">
@@ -353,18 +415,29 @@ function AdminServiceRequestDetail({ request, onClose }: Props) {
                     <span>{request.variationName || 'Service arrangement'}</span>
                     <span>{request.deceasedFullName || 'Family service'}</span>
                   </div>
-                  <b>{formatPeso(request.paymentAmount)}</b>
+                  <b>{formatPeso(totalServicePrice)}</b>
                 </section>
 
                 <section className="sr-receipt-section sr-receipt-info">
                   <h3>Receipt information</h3>
                   <DetailList>
-                    <DetailRow label="Payment method" value="GCash / E-wallet" />
-                    <DetailRow label="Sender" value={request.paymentPayerName || request.familyCoordinatorName || 'Not provided'} />
-                    <DetailRow label="GCash name" value={request.paymentGcashName || 'Not provided'} />
-                    <DetailRow label="GCash number" value={request.paymentGcashNumber || 'Not provided'} />
-                    <DetailRow label="Reference number" value={request.paymentReferenceNumber || 'Not provided'} />
-                    <DetailRow label="Amount" value={formatPeso(request.paymentAmount)} />
+                    <DetailRow
+                      label="Payment type"
+                      value={
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                          {channelLogo ? (
+                            <img src={channelLogo} alt="" style={{ height: 18, width: 'auto', objectFit: 'contain' }} />
+                          ) : null}
+                          <span>{paymentTypeLabel}</span>
+                        </span>
+                      }
+                    />
+                    <DetailRow label="Sender" value={request.paymentPayerName || request.familyCoordinatorName || request.requesterName || 'Not provided'} />
+                    {request.paymentGcashName ? <DetailRow label="Account name" value={request.paymentGcashName} /> : null}
+                    {request.paymentGcashNumber ? <DetailRow label="Account number" value={request.paymentGcashNumber} /> : null}
+                    <DetailRow label="Reference number" value={request.paymentReferenceNumber || request.providerPaymentId || `#PAY-${request.id.slice(0, 8).toUpperCase()}`} />
+                    <DetailRow label="Total service price" value={formatPeso(totalServicePrice)} />
+                    <DetailRow label={isDownpayment ? 'Downpayment received' : 'Amount received'} value={formatPeso(initialReceivedAmount)} />
                     {request.paymentVerifiedAt ? <DetailRow label="Verified" value={formatTimestamp(request.paymentVerifiedAt)} /> : null}
                   </DetailList>
                 </section>

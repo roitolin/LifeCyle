@@ -10,7 +10,7 @@ import {
   type TextInputInstance,
   type ViewInstance,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { NavigationBar } from "expo-navigation-bar";
 import { StatusBar } from "expo-status-bar";
 import { Button as PaperButton } from "react-native-paper";
@@ -22,7 +22,7 @@ import { supabase } from "../../services/supabaseClient";
 import { getSupabaseEmailRedirectTo } from "../../services/supabaseAuthRedirect";
 import { normalizeEmail } from "../../utils/inputSecurity";
 
-const PAGE_COLOR = "#edf0f2";
+const PAGE_COLOR = "#ffffff";
 const PASSWORD_SYMBOLS = "!@#$%^&*()_+-=[]{};'\\:\"|<>?,./`~";
 const PASSWORD_REQUIREMENTS = [
   { id: "length", label: "At least 8 characters", test: (value: string) => value.length >= 8 },
@@ -100,6 +100,7 @@ function PasswordStrengthChecklist({ password, onLayout, innerRef }: { password:
 }
 
 export default function RegisterScreen({ navigation }: any) {
+  const insets = useSafeAreaInsets();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -187,8 +188,12 @@ export default function RegisterScreen({ navigation }: any) {
 
   return (
     <View style={styles.page}>
-      <NavigationBar hidden={false} style="dark" />
+      <NavigationBar hidden={false} style="light" />
       <StatusBar hidden={false} style="dark" />
+      <View
+        pointerEvents="none"
+        style={[styles.navigationBarSurface, { height: insets.bottom }]}
+      />
 
       <SafeAreaView edges={["top", "bottom"]} style={styles.screen}>
         <KeyboardAwareScrollView
@@ -396,6 +401,7 @@ export default function RegisterScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: PAGE_COLOR },
+  navigationBarSurface: { position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 3, backgroundColor: PAGE_COLOR },
   screen: { flex: 1, backgroundColor: PAGE_COLOR },
   scrollContent: { flexGrow: 1, backgroundColor: colors.surface },
   formShell: { flexGrow: 1, width: "100%", maxWidth: 560, alignSelf: "center", backgroundColor: colors.surface, paddingHorizontal: 22, paddingTop: spacing.md, paddingBottom: spacing.lg },

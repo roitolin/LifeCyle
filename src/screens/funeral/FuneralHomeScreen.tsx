@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { Animated, Easing, Image, ImageBackground, Modal, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, type ScrollViewInstance } from "react-native";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useFocusEffect } from "@react-navigation/native";
@@ -6,7 +6,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import LoadingBird from "@/components/LoadingBird";
-import ProductRating from "@/components/ProductRating";
+import ProductCardMeta from "@/components/ProductCardMeta";
+import ProductDownpaymentBadge from "@/components/ProductDownpaymentBadge";
 import { useUnreadCount, useUnreadMessageCount } from "@/hooks";
 import { supabase } from "@/services/supabaseClient";
 import { colors, radii, spacing } from "@/theme";
@@ -14,6 +15,9 @@ import { formatPhilippinePeso } from "@/utils/funeralCatalog";
 import { summarizeProductRatings } from "@/utils/productRatings";
 import { getHomeHeroContent, type HomeHeroContent } from '@/utils/homeHero';
 import { subscribeTabRefresh } from "@/utils/tabRefresh";
+import { useAuth } from "@/context/AuthContext";
+import AppSpotlightTutorial, { type MeasuredTarget } from "@/components/AppSpotlightTutorial";
+import { hasCompletedAppTutorial, markAppTutorialCompleted } from "@/services/appTutorial";
 
 const appLogo = require("../../../assets/Icon/IconTraparent.png");
 
@@ -51,15 +55,23 @@ function getPrimaryProductImage(item: ShopProduct) {
   return item.imageUrl || item.galleryImageUrls?.[0] || item.variations?.find((entry) => entry.imageUrl)?.imageUrl || null;
 }
 
-export default function FuneralHomeScreen({ navigation }: any) {
+const HOME_PREVIEW_LIMIT = 12;
+const HOME_CACHE_TTL_MS = 45_000;
+let cachedHomeProducts: HomeProduct[] | null = null;
+let cachedHomeProductsAt = 0;
+let cachedHeroContent: HomeHeroContent | null = null;
+let cachedHeroContentAt = 0;
+
+export default function FuneralHomeScreen({ navigation, route }: any) {
+  const { user } = useAuth();
   const tabBarHeight = useBottomTabBarHeight();
   const unreadCount = useUnreadCount();
   const unreadMessageCount = useUnreadMessageCount();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => cachedHomeProducts === null);
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState(false);
-  const [products, setProducts] = useState<HomeProduct[]>([]);
-  const [heroContent, setHeroContent] = useState<HomeHeroContent | null>(null);
+  const [products, setProducts] = useState<HomeProduct[]>(() => cachedHomeProducts || []);
+  const [heroContent, setHeroContent] = useState<HomeHeroContent | null>(() => cachedHeroContent);
   const [filterExpanded, setFilterExpanded] = useState(false);
   const [selectedShopId, setSelectedShopId] = useState("all");
   const [sortBy, setSortBy] = useState<HomeSort>("name");
@@ -71,6 +83,99 @@ export default function FuneralHomeScreen({ navigation }: any) {
   const catalogOffsetRef = useRef(0);
   const filterBackdropOpacity = useRef(new Animated.Value(0)).current;
   const filterSheetProgress = useRef(new Animated.Value(0)).current;
+
+  const headerActionsRef = useRef<any>(null);
+  const searchRowRef = useRef<any>(null);
+  const heroCardRef = useRef<any>(null);
+  const [headerActionsTarget, setHeaderActionsTarget] = useState<MeasuredTarget | null>(null);
+  const [searchRowTarget, setSearchRowTarget] = useState<MeasuredTarget | null>(null);
+  const [heroCardTarget, setHeroCardTarget] = useState<MeasuredTarget | null>(null);
+  const [tutorialVisible, setTutorialVisible] = useState(false);
+  const tutorialCheckedUserRef = useRef<string | null>(null);
+  const measurementFrameRef = useRef<number | null>(null);
+
+  const measureTarget = useCallback((
+    ref: { current: any },
+    setter: Dispatch<SetStateAction<MeasuredTarget | null>>,
+  ) => {
+    ref.current?.measureInWindow?.((x: number, y: number, width: number, height: number) => {
+      if (width <= 0 || height <= 0) return;
+      const next = { x, y, width, height };
+      setter((current) => {
+        if (
+          current
+          && Math.abs(current.x - next.x) <= 1
+          && Math.abs(current.y - next.y) <= 1
+          && Math.abs(current.width - next.width) <= 1
+          && Math.abs(current.height - next.height) <= 1
+        ) {
+          return current;
+        }
+        return next;
+      });
+    });
+  }, []);
+
+  const measureTargets = useCallback(() => {
+    measureTarget(headerActionsRef, setHeaderActionsTarget);
+    measureTarget(searchRowRef, setSearchRowTarget);
+    measureTarget(heroCardRef, setHeroCardTarget);
+  }, [measureTarget]);
+
+  const scheduleTargetMeasurement = useCallback(() => {
+    if (measurementFrameRef.current !== null) return;
+    measurementFrameRef.current = requestAnimationFrame(() => {
+      measurementFrameRef.current = null;
+      measureTargets();
+    });
+  }, [measureTargets]);
+
+  useEffect(() => () => {
+    if (measurementFrameRef.current !== null) {
+      cancelAnimationFrame(measurementFrameRef.current);
+      measurementFrameRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    let openTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const openTutorial = () => {
+      if (!active) return;
+      setTutorialVisible(true);
+      scheduleTargetMeasurement();
+    };
+
+    if (route?.params?.replayTutorial) {
+      setTutorialVisible(true);
+      scheduleTargetMeasurement();
+      navigation.setParams({ replayTutorial: undefined });
+      return () => {
+        active = false;
+      };
+    }
+
+    const tutorialUserKey = user?.id || 'guest';
+    if (tutorialCheckedUserRef.current === tutorialUserKey) return undefined;
+    tutorialCheckedUserRef.current = tutorialUserKey;
+
+    void hasCompletedAppTutorial(user?.id).then((completed) => {
+      if (!completed && active) {
+        openTimer = setTimeout(openTutorial, 350);
+      }
+    });
+
+    return () => {
+      active = false;
+      if (openTimer) clearTimeout(openTimer);
+    };
+  }, [navigation, route?.params?.replayTutorial, scheduleTargetMeasurement, user?.id]);
+
+  const handleTutorialClose = useCallback(() => {
+    setTutorialVisible(false);
+    void markAppTutorialCompleted(user?.id);
+  }, [user?.id]);
 
   const loadProducts = useCallback(async () => {
     try {
@@ -87,7 +192,9 @@ export default function FuneralHomeScreen({ navigation }: any) {
         .eq("active", true)
         .gt("stock", 0)
         .eq("funeral_shops.status", "live")
-        .gt("funeral_shops.paidUntil", new Date().toISOString());
+        .gt("funeral_shops.paidUntil", new Date().toISOString())
+        .order("name", { ascending: true })
+        .limit(HOME_PREVIEW_LIMIT);
 
       if (error) throw error;
 
@@ -123,11 +230,17 @@ export default function FuneralHomeScreen({ navigation }: any) {
       }).filter((p: HomeProduct) => getPrimaryProductImage(p));
 
       nextProducts.sort((first, second) => first.name.localeCompare(second.name));
+      cachedHomeProducts = nextProducts;
+      cachedHomeProductsAt = Date.now();
       setProducts(nextProducts);
+      nextProducts.slice(0, 6).forEach((product) => {
+        const imageUrl = getPrimaryProductImage(product);
+        if (imageUrl) void Image.prefetch(imageUrl).catch(() => false);
+      });
 
     } catch (error) {
       console.error("Unable to load home products:", error);
-      setLoadError(true);
+      setLoadError(cachedHomeProducts === null);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -136,7 +249,11 @@ export default function FuneralHomeScreen({ navigation }: any) {
 
   const loadHeroContent = useCallback(async () => {
     try {
-      setHeroContent(await getHomeHeroContent());
+      const nextHeroContent = await getHomeHeroContent();
+      cachedHeroContent = nextHeroContent;
+      cachedHeroContentAt = Date.now();
+      setHeroContent(nextHeroContent);
+      if (nextHeroContent?.imageUrl) void Image.prefetch(nextHeroContent.imageUrl).catch(() => false);
     } catch (error) {
       console.warn('Unable to load mobile home feature:', error);
       setHeroContent(null);
@@ -145,8 +262,12 @@ export default function FuneralHomeScreen({ navigation }: any) {
 
   useFocusEffect(
     useCallback(() => {
-      void loadProducts();
-      void loadHeroContent();
+      if (!cachedHomeProducts || Date.now() - cachedHomeProductsAt >= HOME_CACHE_TTL_MS) {
+        void loadProducts();
+      }
+      if (!cachedHeroContentAt || Date.now() - cachedHeroContentAt >= HOME_CACHE_TTL_MS) {
+        void loadHeroContent();
+      }
       const unsubscribe = subscribeTabRefresh("Home", () => {
         scrollRef.current?.scrollTo({ y: 0, animated: true });
         setRefreshing(true);
@@ -305,7 +426,7 @@ export default function FuneralHomeScreen({ navigation }: any) {
             <Text style={styles.brand}>LifeCycle</Text>
           </View>
 
-          <View style={styles.headerActions}>
+          <View ref={headerActionsRef} onLayout={scheduleTargetMeasurement} style={styles.headerActions}>
             <TouchableOpacity
               accessibilityLabel="Open notifications"
               accessibilityRole="button"
@@ -338,7 +459,7 @@ export default function FuneralHomeScreen({ navigation }: any) {
           </View>
         </View>
 
-        <View style={styles.searchRow}>
+        <View ref={searchRowRef} onLayout={scheduleTargetMeasurement} style={styles.searchRow}>
           <TouchableOpacity
             accessibilityHint='Opens the product search screen'
             accessibilityLabel='Search caskets or funeral shops'
@@ -372,6 +493,8 @@ export default function FuneralHomeScreen({ navigation }: any) {
             accessibilityLabel={`${heroContent.title}. ${heroContent.buttonLabel}`}
             accessibilityRole='button'
             activeOpacity={0.9}
+            ref={heroCardRef as any}
+            onLayout={scheduleTargetMeasurement}
             style={styles.heroCard}
             onPress={openHeroDestination}
           >
@@ -466,7 +589,7 @@ export default function FuneralHomeScreen({ navigation }: any) {
               const price = formatPhilippinePeso(item.price);
               const hasDownpayment = Boolean(item.downpaymentEnabled && item.downpaymentAmount && item.downpaymentPercentage);
               const downpaymentText = hasDownpayment
-                ? `Down payment ${formatPhilippinePeso(item.downpaymentAmount)} (${item.downpaymentPercentage}%)`
+                ? `${item.downpaymentPercentage}% down payment`
                 : "";
               const isFavorite = favoriteProductIds.has(item.id);
               return (
@@ -484,6 +607,7 @@ export default function FuneralHomeScreen({ navigation }: any) {
                       style={styles.productImage}
                       resizeMode="cover"
                     />
+                    <ProductDownpaymentBadge product={item} />
                     <TouchableOpacity
                       accessibilityLabel={isFavorite ? `Remove ${item.name} from favorites` : `Add ${item.name} to favorites`}
                       accessibilityRole="button"
@@ -502,13 +626,9 @@ export default function FuneralHomeScreen({ navigation }: any) {
                     </TouchableOpacity>
                   </View>
                   <View style={styles.productDetails}>
-                    <Text style={styles.shopName} numberOfLines={1}>{item.shopName}</Text>
                     <Text style={styles.productTitle} numberOfLines={2}>{item.name}</Text>
                     <Text style={styles.price}>{price}</Text>
-                    <ProductRating rating={item.rating} count={item.reviewCount} />
-                    {hasDownpayment ? (
-                      <Text style={styles.downpayment} numberOfLines={2}>{downpaymentText}</Text>
-                    ) : null}
+                    <ProductCardMeta rating={item.rating} ratingCount={item.reviewCount} stock={item.stock} shopName={item.shopName} />
                   </View>
                 </TouchableOpacity>
               );
@@ -725,6 +845,15 @@ export default function FuneralHomeScreen({ navigation }: any) {
           </Animated.View>
         </View>
       </Modal>
+
+      <AppSpotlightTutorial
+        visible={tutorialVisible}
+        onClose={handleTutorialClose}
+        tabBarHeight={tabBarHeight}
+        headerActionsTarget={headerActionsTarget}
+        searchRowTarget={searchRowTarget}
+        heroCardTarget={heroCardTarget}
+      />
     </SafeAreaView>
   );
 }
@@ -1238,22 +1367,10 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginTop: 1,
   },
-  shopName: {
-    color: colors.textMuted,
-    fontSize: 10,
-    lineHeight: 14,
-  },
   price: {
     color: colors.text,
     fontSize: 13,
     fontWeight: "800",
     marginTop: 2,
-  },
-  downpayment: {
-    color: colors.primary,
-    fontSize: 10,
-    lineHeight: 14,
-    fontWeight: "800",
-    marginTop: 3,
   },
 });

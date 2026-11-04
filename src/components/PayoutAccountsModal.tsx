@@ -11,9 +11,13 @@ const CHANNELS = [
   { code: "PH_MAYA", label: "Maya", type: "wallet", logo: require("../../assets/Payment Logos/PayMaya_Logo.png") },
   { code: "PH_BDO", label: "BDO Unibank", type: "bank", logo: require("../../assets/Payment Logos/BDO_Logo.png") },
   { code: "PH_BPI", label: "Bank of the Philippine Islands (BPI)", type: "bank", logo: require("../../assets/Payment Logos/BPI_Logo.png") },
+  { code: "PH_UBP", label: "UnionBank", type: "bank", logo: require("../../assets/Payment Logos/UnionBank_Logo.png") },
   { code: "PH_METROBANK", label: "Metrobank", type: "bank", logo: require("../../assets/Payment Logos/MetroBank_Logo.png") },
   { code: "PH_LANDBANK", label: "Landbank of the Philippines", type: "bank", logo: require("../../assets/Payment Logos/Landbank_logo.png") },
+  { code: "PH_PNB", label: "Philippine National Bank (PNB)", type: "bank", logo: require("../../assets/Payment Logos/PNB_Logo.png") },
+  { code: "PH_RCBC", label: "Rizal Commercial Banking Corporation (RCBC)", type: "bank", logo: require("../../assets/Payment Logos/RCBC_Logo.png") },
   { code: "PH_CHINABANK", label: "China Banking Corporation", type: "bank", logo: require("../../assets/Payment Logos/Chinabank_Logo.png") },
+  { code: "PH_SECURITYBANK", label: "Security Bank", type: "bank", logo: require("../../assets/Payment Logos/SecurityBank_Logo.png") },
 ] as const;
 
 type Channel = (typeof CHANNELS)[number];
@@ -127,9 +131,9 @@ export default function PayoutAccountsModal({ visible, shopId, shopApproved, onC
         setPage("verify");
         return;
       }
-      if (!data || data.shopId !== shopId || data.payoutVerified !== true) throw new Error("The payout account could not be activated.");
+      if (!data || data.shopId !== shopId || (data.reviewPending !== true && data.unchanged !== true)) throw new Error("The test receiver could not be submitted.");
       await load(); await onChanged?.(); setPage("list");
-      Alert.alert("Payout account ready", "The account was saved and is now available to customers.");
+      Alert.alert(data.unchanged ? "No changes" : "Sent for test review", data.unchanged ? "This receiver's details are already saved." : "An admin will review this receiver before it becomes available for test payments.");
     } catch (error: any) { Alert.alert("Save failed", error?.message || "Unable to save the payout account."); }
     finally { setSaving(false); }
   };
@@ -150,7 +154,7 @@ export default function PayoutAccountsModal({ visible, shopId, shopApproved, onC
         code: verificationCode,
       } });
       if (error) throw new Error(await functionError(error, "Unable to verify the payout change."));
-      if (!data || data.shopId !== shopId || data.payoutVerified !== true) {
+      if (!data || data.shopId !== shopId || data.reviewPending !== true) {
         throw new Error("The payout change could not be confirmed.");
       }
       await load();
@@ -158,7 +162,7 @@ export default function PayoutAccountsModal({ visible, shopId, shopApproved, onC
       setPendingVerification(null);
       setVerificationCode("");
       setPage("list");
-      Alert.alert("Payout account updated", "Your email was verified and the new payout details are now active.");
+      Alert.alert("Sent for test review", "Your email was confirmed. An admin must review the changed receiver before it can be used for test payments.");
     } catch (error: any) {
       setVerificationCode("");
       Alert.alert("Verification failed", error?.message || "Unable to verify the payout change.");
@@ -196,6 +200,7 @@ export default function PayoutAccountsModal({ visible, shopId, shopApproved, onC
 
   const toggle = async (account: Account) => {
     if (!shopId || saving) return;
+    if (!account.verifiedByAdmin) return Alert.alert("Review pending", "An admin must review this test receiver before it can be enabled.");
     setSaving(true);
     try {
       const { error } = await supabase.functions.invoke("provision-xendit-shop", { body: {
@@ -207,7 +212,8 @@ export default function PayoutAccountsModal({ visible, shopId, shopApproved, onC
     finally { setSaving(false); }
   };
 
-  const enabled = accounts.filter((account) => account.active && account.verifiedByAdmin).length;
+  const activeAccounts = accounts.filter((account) => account.active && account.verifiedByAdmin);
+  const enabled = activeAccounts.length;
   const pending = accounts.filter((account) => !account.verifiedByAdmin).length;
 
   return (
@@ -260,17 +266,17 @@ export default function PayoutAccountsModal({ visible, shopId, shopApproved, onC
         ) : page === "setup" ? (
           <KeyboardAwareScrollView contentContainerStyle={styles.setupContent} keyboardShouldPersistTaps="handled">
             <Header eyebrow={channel.type === "wallet" ? "E-wallet receiver" : "Bank receiver"} title={`${accounts.some((item) => item.channelCode === channel.code) ? "Edit" : "Add"} ${channel.label}`} onBack={() => setPage("list")} />
-            <View style={styles.setupBrand}><Logo channel={channel} /><View style={styles.flex}><Text style={styles.setupTitle}>{channel.label}</Text><Text style={styles.small}>Set the receiver account for this payment method.</Text></View></View>
-            <View style={styles.readonly}><Text style={styles.eyebrow}>Payment method</Text><Text style={styles.readonlyValue}>{channel.label}</Text></View>
+            <View style={styles.setupBrand}><Logo channel={channel} /><View style={styles.flex}><Text style={styles.setupTitle}>{channel.label}</Text><Text style={styles.small}>Set the test payout destination for your shop.</Text></View></View>
+            <View style={styles.readonly}><Text style={styles.eyebrow}>Payout destination</Text><Text style={styles.readonlyValue}>{channel.label}</Text></View>
             <Text style={styles.inputLabel}>Registered account holder</Text>
             <TextInput style={styles.input} value={draft.name} onChangeText={(name) => setDraft((current) => ({ ...current, name }))} placeholder={channel.type === "wallet" ? "Name registered to the wallet" : "Name registered to the bank account"} placeholderTextColor="#9aa5b3" maxLength={120} autoCapitalize="words" />
             <Text style={styles.inputLabel}>{channel.type === "wallet" ? "Registered mobile number" : "Bank account number"}</Text>
             <TextInput style={styles.input} value={draft.number} onChangeText={(number) => setDraft((current) => ({ ...current, number }))} placeholder={channel.type === "wallet" ? "09XXXXXXXXX" : "Enter account number"} placeholderTextColor="#9aa5b3" keyboardType="number-pad" maxLength={30} />
-            <Text style={styles.help}>Enter the exact details registered with {channel.label}.</Text>
+            <Text style={styles.help}>{`Enter the exact details registered with ${channel.label}.`}</Text>
             <Notice
               icon="shield-checkmark-outline"
-              title={existingAccount ? "Email verification required" : "Available after saving"}
-              text={existingAccount ? "Changing saved receiver details requires a code sent to your account email. Your current payout remains active until verified." : "Approved shops can use this method immediately after the receiver details are saved."}
+              title={existingAccount ? "Email check and test review" : "Test review required"}
+              text={existingAccount ? "Changing saved details requires an email code. The changed receiver will be unavailable until an admin reviews it." : "An admin reviews this test receiver before it can be used for test payments. This does not verify a live account."}
             />
             <View style={styles.actions}><TouchableOpacity style={styles.secondary} onPress={() => setPage("list")} disabled={saving}><Text style={styles.secondaryText}>Cancel</Text></TouchableOpacity><TouchableOpacity style={[styles.primary, saving && styles.dim]} onPress={() => void save()} disabled={saving}>{saving && <ActivityIndicator size="small" color="#fff" />}<Text style={styles.primaryText}>{saving ? "Saving..." : "Save payout account"}</Text></TouchableOpacity></View>
           </KeyboardAwareScrollView>
@@ -278,15 +284,15 @@ export default function PayoutAccountsModal({ visible, shopId, shopApproved, onC
           <><Header eyebrow="Finance" title="Payout accounts" onBack={onClose} />
             {loading ? <View style={styles.loading}><ActivityIndicator size="small" color="#24374f" /><Text style={styles.small}>Loading payout accounts...</Text></View> : (
               <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-                <Text style={styles.description}>{"Choose where each customer payment method sends your shop's 70% share."}</Text>
+                <Text style={styles.description}>Register a test payout destination for your shop's share. These details are not a live payment account.</Text>
                 <View style={styles.summary}><Summary label="Set up" value={accounts.length} /><Summary label="Available" value={enabled} /><Summary label="Needs attention" value={pending} last /></View>
-                <Notice icon="wallet-outline" title="Customer methods follow your setup" text="A saved method appears at customer checkout while its receiver account is active." />
+                <Notice icon="wallet-outline" title="Test review" text="Only admin-reviewed, enabled receivers can be used for test checkout. Card payments are separate from payout destinations." />
                 {!shopApproved && <Notice warning icon="information-circle-outline" title="Available after shop approval" text="Your funeral shop must be approved before you can submit receiver accounts." />}
                 {accounts.length > 0 && <AccountSection accounts={accounts} saving={saving} onEdit={openSetup} onToggle={toggle} />}
-                <View style={styles.section}><Text style={styles.eyebrow}>Payment methods</Text><Text style={styles.sectionTitle}>Add or manage a receiver</Text><Text style={styles.small}>Each option opens its own setup page.</Text>
+                <View style={styles.section}><Text style={styles.eyebrow}>Payout destinations</Text><Text style={styles.sectionTitle}>Add or manage a test receiver</Text><Text style={styles.small}>Each option opens its own setup page.</Text>
                   {(["wallet", "bank"] as const).map((type) => <View style={styles.group} key={type}><Text style={styles.groupTitle}>{type === "wallet" ? "E-wallets" : "Philippine banks"}</Text>{CHANNELS.filter((item) => item.type === type).map((item) => {
                     const account = accounts.find((entry) => entry.channelCode === item.code); const ready = Boolean(account?.active && account.verifiedByAdmin);
-                    return <TouchableOpacity key={item.code} style={[styles.method, !shopApproved && styles.dim]} disabled={!shopApproved} onPress={() => openSetup(item)}><Logo channel={item} small /><View style={styles.flex}><Text style={styles.methodName}>{account ? item.label : `Add ${item.label}`}</Text><Text style={styles.methodDetail}>{account ? `${account.accountName} · ${mask(account.accountNumber)}` : item.type === "wallet" ? "Set up an e-wallet receiver" : "Set up a bank receiver account"}</Text></View><Text style={[styles.methodState, ready && styles.readyText, account && !ready && styles.pendingText]}>{ready ? "Ready" : account ? "Manage" : "Add"}</Text><Ionicons name="chevron-forward" size={18} color="#93a0af" /></TouchableOpacity>;
+                    return <TouchableOpacity key={item.code} style={[styles.method, !shopApproved && styles.dim]} disabled={!shopApproved} onPress={() => openSetup(item)}><Logo channel={item} small /><View style={styles.flex}><Text style={styles.methodName}>{account ? item.label : `Add ${item.label}`}</Text><Text style={styles.methodDetail}>{account ? `${account.accountName} · ${mask(account.accountNumber)}` : item.type === "wallet" ? "Set up an e-wallet receiver" : "Set up a bank receiver account"}</Text></View><Text style={[styles.methodState, ready && styles.readyText, account && !ready && styles.pendingText]}>{ready ? "Ready" : account ? account.verifiedByAdmin ? "Disabled" : "Pending" : "Add"}</Text><Ionicons name="chevron-forward" size={18} color="#93a0af" /></TouchableOpacity>;
                   })}</View>)}
                 </View>
               </ScrollView>
@@ -299,15 +305,26 @@ export default function PayoutAccountsModal({ visible, shopId, shopApproved, onC
 }
 
 function Header({ eyebrow, title, onBack }: { eyebrow: string; title: string; onBack: () => void }) { return <View style={styles.header}><TouchableOpacity style={styles.back} onPress={onBack}><Ionicons name="arrow-back" size={21} color="#24374f" /></TouchableOpacity><View style={styles.flex}><Text style={styles.eyebrow}>{eyebrow}</Text><Text style={styles.headerTitle}>{title}</Text></View></View>; }
-function Logo({ channel, small }: { channel: Channel; small?: boolean }) { return <View style={[styles.logo, small && styles.logoSmall]}><Image source={channel.logo} resizeMode="contain" style={[styles.logoImage, channel.code === "PH_MAYA" && styles.mayaLogo]} /></View>; }
+function Logo({ channel, small }: { channel: Channel; small?: boolean }) {
+  const logo = "logo" in channel ? channel.logo : undefined;
+  return (
+    <View style={[styles.logo, small && styles.logoSmall]}>
+      {logo ? (
+        <Image source={logo} resizeMode="contain" style={[styles.logoImage, channel.code === "PH_MAYA" && styles.mayaLogo]} />
+      ) : (
+        <Ionicons name={channel.type === "wallet" ? "wallet-outline" : "business-outline"} size={small ? 19 : 21} color="#49627f" />
+      )}
+    </View>
+  );
+}
 function Summary({ label, value, last }: { label: string; value: number; last?: boolean }) { return <View style={[styles.summaryItem, last && styles.noBorder]}><Text style={styles.eyebrow}>{label}</Text><Text style={styles.summaryValue}>{value}</Text></View>; }
 function Notice({ icon, title, text, warning }: { icon: keyof typeof Ionicons.glyphMap; title: string; text: string; warning?: boolean }) { return <View style={[styles.notice, warning && styles.noticeWarning]}><Ionicons name={icon} size={21} color={warning ? "#8a5b18" : "#49627f"} /><View style={styles.flex}><Text style={[styles.noticeTitle, warning && styles.warningText]}>{title}</Text><Text style={[styles.noticeText, warning && styles.warningText]}>{text}</Text></View></View>; }
 
 function AccountSection({ accounts, saving, onEdit, onToggle }: { accounts: Account[]; saving: boolean; onEdit: (channel: Channel) => void; onToggle: (account: Account) => void }) {
-  return <View style={styles.section}><Text style={styles.eyebrow}>Receiver accounts</Text><Text style={styles.sectionTitle}>Configured payment methods</Text><View style={styles.accountList}>{accounts.map((account) => {
+  return <View style={styles.section}><Text style={styles.eyebrow}>Test receiver accounts</Text><Text style={styles.sectionTitle}>Payout destinations</Text><View style={styles.accountList}>{accounts.map((account) => {
     const channel = CHANNELS.find((item) => item.code === account.channelCode); if (!channel) return null;
     const ready = account.active && account.verifiedByAdmin; const date = verifiedDate(account.verifiedAt);
-    return <View style={[styles.account, !account.active && styles.dim]} key={account.id}><Logo channel={channel} /><View style={styles.flex}><Text style={styles.accountType}>{channel.type === "wallet" ? "E-wallet" : "Philippine bank"}</Text><Text style={styles.accountName}>{channel.label}</Text><Text style={styles.methodDetail}>{account.accountName} · {mask(account.accountNumber)}</Text><View style={[styles.pill, ready ? styles.readyPill : account.verifiedByAdmin ? styles.disabledPill : styles.pendingPill]}><Text style={[styles.pillText, ready ? styles.readyText : account.verifiedByAdmin ? styles.disabledText : styles.pendingText]}>{ready ? "Available to customers" : account.verifiedByAdmin ? "Disabled" : "Enable to make available"}</Text></View>{date && <Text style={styles.date}>Ready since {date}</Text>}</View><View style={styles.accountActions}><TouchableOpacity disabled={saving} onPress={() => onEdit(channel)}><Text style={styles.actionText}>Edit</Text></TouchableOpacity><TouchableOpacity disabled={saving} onPress={() => void onToggle(account)}><Text style={styles.actionText}>{account.active ? "Disable" : "Enable"}</Text></TouchableOpacity></View></View>;
+    return <View style={[styles.account, !account.active && account.verifiedByAdmin && styles.dim]} key={account.id}><Logo channel={channel} /><View style={styles.flex}><Text style={styles.accountType}>{channel.type === "wallet" ? "E-wallet" : "Philippine bank"}</Text><Text style={styles.accountName}>{channel.label}</Text><Text style={styles.methodDetail}>{account.accountName} · {mask(account.accountNumber)}</Text><View style={[styles.pill, ready ? styles.readyPill : account.verifiedByAdmin ? styles.disabledPill : styles.pendingPill]}><Text style={[styles.pillText, ready ? styles.readyText : account.verifiedByAdmin ? styles.disabledText : styles.pendingText]}>{ready ? "Enabled for test checkout" : account.verifiedByAdmin ? "Disabled" : "Pending test review"}</Text></View>{date && <Text style={styles.date}>Reviewed {date}</Text>}</View><View style={styles.accountActions}><TouchableOpacity disabled={saving} onPress={() => onEdit(channel)}><Text style={styles.actionText}>Edit</Text></TouchableOpacity>{account.verifiedByAdmin && <TouchableOpacity disabled={saving} onPress={() => void onToggle(account)}><Text style={styles.actionText}>{account.active ? "Disable" : "Enable"}</Text></TouchableOpacity>}</View></View>;
   })}</View></View>;
 }
 

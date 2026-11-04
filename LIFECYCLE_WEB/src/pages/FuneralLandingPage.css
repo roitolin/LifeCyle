@@ -206,47 +206,62 @@
 /* ── Grid & Cards ────────────────────────────────────── */
 .sp-grid {
   @apply grid grid-cols-[repeat(5,1fr)] gap-[10px];
+  align-items: start;
 }
 .sp-card {
-  @apply [background:var(--white)] border border-[color:var(--border)] [transition:transform_0.25s_ease,box-shadow_0.25s_ease,border-color_0.25s_ease] cursor-pointer flex flex-col rounded-[2px] border-solid hover:translate-y-[-3px] hover:border-[color:var(--sp-accent)] hover:shadow-[0_0_0_1px_var(--sp-accent),0_10px_22px_rgba(15,23,42,0.12),0_3px_8px_rgba(15,23,42,0.06)];
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-main);
+  background: var(--white);
+  border: 1px solid #e6ebe8;
+  border-radius: 5px;
+  text-decoration: none;
+  transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+}
+.sp-card:hover {
+  border-color: #315f50;
+  box-shadow: 0 0 0 1px #315f50, 0 5px 16px rgba(35, 57, 46, 0.12);
+}
+.sp-card:focus-visible {
+  outline: 2px solid #315f50;
+  outline-offset: 3px;
 }
 .sp-card-img-wrap {
-  @apply relative w-full [background:var(--sp-bg)] overflow-hidden pt-[100%];
+  position: relative;
+  flex-shrink: 0;
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  background: #f3f5f3;
 }
 .sp-card-downpayment-badge {
-  align-self: stretch;
+  position: absolute;
+  z-index: 1;
+  bottom: 8px;
+  left: 8px;
   display: inline-flex;
   flex-wrap: wrap;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 3px 8px;
-  max-width: 100%;
-  margin: 8px 0 0;
-  padding: 6px 8px;
+  gap: 4px;
+  max-width: calc(100% - 16px);
+  margin: 0;
+  padding: 3px 6px;
   color: #315f50;
-  background: #eef6f1;
-  border: 1px solid #d7e7de;
-  border-radius: 8px;
-  line-height: 1.35;
+  background: rgba(251, 253, 251, 0.97);
+  border: 1px solid #bfd4c7;
+  border-radius: 3px;
+  font-size: 10px;
+  line-height: 1.4;
 }
 .sp-card-downpayment-badge strong {
   font-size: 10px;
-  font-weight: 600;
-}
-.sp-card-downpayment-badge small {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  column-gap: 4px;
-  font-size: 11px;
-  font-weight: 700;
+  font-weight: 750;
   font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
 }
-.sp-card-downpayment-percentage {
-  color: #5b7569;
-  font-size: 10px;
-  font-weight: 500;
+.sp-card-downpayment-badge > span {
+  font-weight: 600;
 }
 .sp-card-img-wrap img {
   @apply absolute w-full h-full object-cover left-0 top-0;
@@ -255,25 +270,78 @@
   @apply absolute w-full h-full flex items-center justify-center left-0 top-0;
 }
 .sp-card-body {
-  @apply flex flex-col flex-1 p-[8px];
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 9px 10px 10px;
 }
 .sp-card-name {
-  @apply text-[12px] leading-[1.4] h-[34px] overflow-hidden text-ellipsis [display:-webkit-box] [-webkit-line-clamp:2] [line-clamp:2] [-webkit-box-orient:vertical] text-[color:var(--text-main)] mb-[8px];
+  display: -webkit-box;
+  min-height: 39px;
+  overflow: hidden;
+  margin: 0;
+  color: #26372f;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 .sp-card-price-row {
-  @apply mb-[8px];
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
 }
 .sp-card-price {
-  @apply text-[color:var(--sp-accent)] text-[16px] font-medium;
+  color: #315f50;
+  font-size: 20px;
+  font-weight: 750;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
 }
 .sp-card-meta {
-  @apply flex items-center justify-between mb-[8px];
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
 }
 .sp-card-stock {
-  @apply text-[11px] text-[color:var(--text-muted)];
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #66766d;
+  font-size: 11px;
+  white-space: nowrap;
 }
-.sp-card-location {
-  @apply text-[11px] text-[color:var(--text-muted)] text-right mt-[4px];
+.sp-card-stock::before {
+  content: '';
+  height: 11px;
+  border-left: 1px solid #dfe6e1;
+}
+.sp-card-shop {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+  color: #78877f;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.sp-card-shop svg {
+  flex: 0 0 12px;
+  width: 12px;
+  height: 12px;
+}
+.sp-card-shop span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ── Bottom Pagination ──────────────────────────────── */
@@ -990,10 +1058,10 @@
     @apply p-[9px];
   }
   .sp-card-price {
-    @apply text-[15px];
+    @apply text-[18px];
   }
   .sp-card-meta {
-    @apply items-start flex-col gap-[4px];
+    @apply items-center flex-row flex-wrap gap-[6px];
   }
   .sp-sort-label {
     @apply m-0;
@@ -1984,33 +2052,34 @@
   }
 
   .sp-page .sp-card-body {
-    padding: 8px 9px 10px;
+    gap: 5px;
+    padding: 8px;
   }
 
   .sp-page .sp-card-name {
-    min-height: 34px;
-    margin-bottom: 7px;
-    font-size: 12px;
-    line-height: 1.35;
+    min-height: 36px;
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.4;
   }
 
   .sp-page .sp-card-price-row,
   .sp-page .sp-card-meta {
-    margin-bottom: 7px;
+    margin: 0;
   }
 
   .sp-page .sp-card-price {
-    font-size: 15px;
+    font-size: 18px;
   }
 
   .sp-page .sp-card-downpayment-badge {
-    padding: 5px 7px;
-    border-radius: 6px;
+    padding: 2px 4px;
+    border-radius: 3px;
   }
 
   .sp-page .sp-card-meta {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 4px;
+    align-items: center;
+    flex-direction: row;
+    gap: 5px;
   }
 }

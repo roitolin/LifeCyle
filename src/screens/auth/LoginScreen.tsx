@@ -12,7 +12,7 @@ import {
   Modal,
   type TextInputInstance,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { NavigationBar } from "expo-navigation-bar";
 import { StatusBar } from "expo-status-bar";
 import { LinearGradient } from "expo-linear-gradient";
@@ -31,11 +31,13 @@ import { recordAdminLoginActivity } from "../../utils/adminLoginActivity";
 
 import { recordAccountLoginActivity } from '../../utils/accountLoginActivity';
 
-const PAGE_COLOR = "#edf0f2";
+const PAGE_COLOR = "#ffffff";
+const AUTH_CHROME_COLOR = "#d9eee7";
 const REMEMBERED_EMAIL_KEY = "@lifecycle/remembered-login-email";
 const LIFECYCLE_MARK = require("../../../assets/Icon/IconTraparent.png");
 
 export default function LoginScreen({ navigation, route }: any) {
+  const insets = useSafeAreaInsets();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -237,8 +239,18 @@ export default function LoginScreen({ navigation, route }: any) {
 
   return (
     <View style={styles.page}>
-      <NavigationBar hidden={false} style="dark" />
+      <NavigationBar hidden={false} style="light" />
       <StatusBar hidden={false} style="dark" />
+      <LinearGradient
+        pointerEvents="none"
+        colors={[AUTH_CHROME_COLOR, AUTH_CHROME_COLOR]}
+        style={[styles.statusBarSurface, { height: insets.top }]}
+      />
+      <LinearGradient
+        pointerEvents="none"
+        colors={[PAGE_COLOR, PAGE_COLOR]}
+        style={[styles.navigationBarSurface, { height: insets.bottom }]}
+      />
 
       <SafeAreaView edges={["top", "bottom"]} style={styles.screen}>
         <Modal visible={!!banDialog} transparent animationType="fade" onRequestClose={() => setBanDialog(null)}>
@@ -300,7 +312,13 @@ export default function LoginScreen({ navigation, route }: any) {
           <View style={styles.fieldGroup}>
             <Text style={styles.fieldLabel}>Email</Text>
             <View style={[styles.inputShell, emailFocused && styles.inputFocused]}>
-              <Ionicons name="mail-outline" size={19} color={emailFocused ? colors.primary : colors.textMuted} />
+              <Ionicons
+                pointerEvents="none"
+                name="mail-outline"
+                size={19}
+                color={emailFocused ? colors.primary : colors.textMuted}
+                style={styles.inputIcon}
+              />
               <TextInput
                 ref={emailRef}
                 accessibilityLabel="Email address"
@@ -328,7 +346,13 @@ export default function LoginScreen({ navigation, route }: any) {
           <View style={styles.fieldGroup}>
             <Text style={styles.fieldLabel}>Password</Text>
             <View style={[styles.inputShell, passwordFocused && styles.inputFocused]}>
-              <Ionicons name="lock-closed-outline" size={19} color={passwordFocused ? colors.primary : colors.textMuted} />
+              <Ionicons
+                pointerEvents="none"
+                name="lock-closed-outline"
+                size={19}
+                color={passwordFocused ? colors.primary : colors.textMuted}
+                style={styles.inputIcon}
+              />
               <TextInput
                 ref={passwordRef}
                 accessibilityLabel="Password"
@@ -416,6 +440,8 @@ export default function LoginScreen({ navigation, route }: any) {
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: PAGE_COLOR },
+  statusBarSurface: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 1 },
+  navigationBarSurface: { position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 3 },
   screen: { flex: 1, backgroundColor: PAGE_COLOR },
   scrollContent: { flexGrow: 1, backgroundColor: colors.surface },
   hero: { minHeight: 188, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: 36, alignItems: "center", justifyContent: "center" },
@@ -436,12 +462,23 @@ const styles = StyleSheet.create({
   },
   fieldGroup: { marginBottom: spacing.md },
   fieldLabel: { color: colors.text, fontSize: 11, fontWeight: "800", marginBottom: 7, marginLeft: 2 },
-  inputShell: { minHeight: 50, flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderColor: "#e1e6e3", borderRadius: 15, paddingHorizontal: 14, backgroundColor: "#f7f9f8" },
+  inputShell: {
+    minHeight: 50,
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#e1e6e3",
+    borderRadius: 15,
+    backgroundColor: "#f7f9f8",
+    overflow: "hidden",
+  },
+  inputIcon: { position: "absolute", left: 14, zIndex: 2 },
   input: {
-    flex: 1,
+    width: "100%",
     minHeight: 48,
     paddingVertical: 10,
-    paddingHorizontal: 0,
+    paddingLeft: 44,
+    paddingRight: 14,
+    borderRadius: 14,
     color: colors.text,
     fontSize: 14,
   },
@@ -449,8 +486,11 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
     backgroundColor: colors.surface,
   },
-  passwordInput: { paddingRight: 0 },
+  passwordInput: { paddingRight: 50 },
   eyeButton: {
+    position: "absolute",
+    right: 4,
+    zIndex: 2,
     width: 36,
     height: 46,
     alignItems: "center",

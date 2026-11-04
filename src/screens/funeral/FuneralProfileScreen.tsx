@@ -53,11 +53,23 @@ export default function FuneralProfileScreen({ navigation }: any) {
     if (!user) return;
 
     try {
-      const { data: userData } = await supabase
-        .from("users")
-        .select("*")
-        .eq("id", user.uid)
-        .single();
+      const [userResult, shopResult] = await Promise.all([
+        supabase
+          .from("users")
+          .select("fullName, photoURL, gender")
+          .eq("id", user.uid)
+          .single(),
+        supabase
+          .from("funeral_shops")
+          .select("status, rejectionReason, shopName, shopAddress, shopPhoneNumber, shopImageUrl, coverImageUrl, generalLocation, registeredAddress")
+          .eq("id", user.uid)
+          .maybeSingle(),
+      ]);
+
+      if (userResult.error) throw userResult.error;
+      if (shopResult.error) throw shopResult.error;
+
+      const userData = userResult.data;
 
       if (!userData) return;
 
@@ -65,12 +77,7 @@ export default function FuneralProfileScreen({ navigation }: any) {
       setPhotoURL(userData.photoURL || null);
       setGender(userData.gender || null);
 
-      // Load shop status from funeral_shops table
-      const { data: shopData } = await supabase
-        .from("funeral_shops")
-        .select("*")
-        .eq("id", user.uid)
-        .maybeSingle();
+      const shopData = shopResult.data;
 
       if (shopData) {
         setShopStatus((shopData.status || "pending") as ShopStatus);
@@ -302,6 +309,16 @@ export default function FuneralProfileScreen({ navigation }: any) {
           </PaperButton>
           <PaperButton mode="outlined" textColor="#5a6b64" onPress={() => navigation.navigate("AppFeedback")} style={styles.utilityButton}>
             Rate & Feedback
+          </PaperButton>
+          <PaperButton
+            mode="outlined"
+            textColor="#5a6b64"
+            onPress={() => {
+              navigation.getParent()?.navigate("Home", { replayTutorial: true });
+            }}
+            style={styles.utilityButton}
+          >
+            App Tutorial
           </PaperButton>
           <PaperButton mode="outlined" textColor="#5a6b64" onPress={() => navigation.navigate("AccountSettings")} style={styles.utilityButton}>
             Account Settings

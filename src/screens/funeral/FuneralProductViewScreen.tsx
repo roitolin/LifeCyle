@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import LoadingBird from '@/components/LoadingBird';
-import ProductRating from '@/components/ProductRating';
+import ProductCardMeta from '@/components/ProductCardMeta';
+import ProductDownpaymentBadge from '@/components/ProductDownpaymentBadge';
 import {
   Alert,
   ActivityIndicator,
@@ -29,6 +30,7 @@ import { supabase } from "@/services/supabaseClient";
 import { createAdminNotification } from "@/utils/createAdminNotification";
 import { addFuneralCartItem } from "@/utils/funeralCart";
 import { hapticMedium } from "@/utils/haptics";
+import { loadFavoriteProductIds, subscribeFavoriteProducts, toggleFavoriteProduct } from "@/utils/favoriteProducts";
 import { colors, radii, spacing } from "@/theme";
 
 type ProductVariation = {
@@ -244,6 +246,18 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
   const cartConfirmSheetProgress = useRef(new Animated.Value(0)).current;
 
   const product = (route?.params?.product || null) as ProductViewItem | null;
+
+  useEffect(() => {
+    if (!product?.id) return;
+    let active = true;
+    const syncFavorites = (ids: Set<string>) => {
+      setIsFavorite(ids.has(product.id));
+      setRelatedFavoriteIds(ids);
+    };
+    void loadFavoriteProductIds().then((ids) => { if (active) syncFavorites(ids); });
+    const unsubscribe = subscribeFavoriteProducts(syncFavorites);
+    return () => { active = false; unsubscribe(); };
+  }, [product?.id]);
 
   const imageWidth = Math.max(width, 1);
   const imageHeight = Math.min(imageWidth, 420);
@@ -668,16 +682,11 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
               <Ionicons name="cube-outline" size={24} color={colors.textMuted} />
             </View>
           )}
+          <ProductDownpaymentBadge product={item} />
         </View>
         <Text style={styles.productRailName} numberOfLines={2}>{item.name}</Text>
         <Text style={styles.productRailPrice}>{formatPhilippinePeso(item.price)}</Text>
-        <ProductRating rating={item.rating ?? 0} count={item.reviewCount ?? 0} />
-        {showShopName ? (
-          <View style={styles.productRailShopRow}>
-            <Ionicons name="storefront-outline" size={14} color={colors.warning} />
-            <Text style={styles.productRailShopName} numberOfLines={1}>{item.shopName || "Funeral shop"}</Text>
-          </View>
-        ) : null}
+        <ProductCardMeta rating={item.rating ?? 0} ratingCount={item.reviewCount ?? 0} stock={item.stock} shopName={showShopName ? item.shopName || "Funeral shop" : undefined} />
       </TouchableOpacity>
     );
   };
@@ -702,6 +711,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
               <Ionicons name="cube-outline" size={27} color={colors.textMuted} />
             </View>
           )}
+          <ProductDownpaymentBadge product={item} />
           <TouchableOpacity
             accessibilityLabel={itemIsFavorite ? `Remove ${item.name} from favorites` : `Add ${item.name} to favorites`}
             accessibilityRole="button"
@@ -709,12 +719,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
             style={styles.homeProductFavoriteButton}
             onPress={(event) => {
               event.stopPropagation();
-              setRelatedFavoriteIds((current) => {
-                const next = new Set(current);
-                if (next.has(item.id)) next.delete(item.id);
-                else next.add(item.id);
-                return next;
-              });
+              void toggleFavoriteProduct(item.id).catch((error) => console.warn('Unable to save favorite product:', error));
             }}
           >
             <Ionicons
@@ -725,10 +730,9 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
           </TouchableOpacity>
         </View>
         <View style={styles.homeProductDetails}>
-          <Text style={styles.homeProductShopName} numberOfLines={1}>{item.shopName}</Text>
           <Text style={styles.homeProductName} numberOfLines={2}>{item.name}</Text>
           <Text style={styles.homeProductPrice}>{formatPhilippinePeso(item.price)}</Text>
-          <ProductRating rating={item.rating ?? 0} count={item.reviewCount ?? 0} />
+          <ProductCardMeta rating={item.rating ?? 0} ratingCount={item.reviewCount ?? 0} stock={item.stock} shopName={item.shopName} />
         </View>
       </TouchableOpacity>
     );
@@ -962,7 +966,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
             accessibilityLabel={isFavorite ? "Remove from favorites" : "Add to favorites"}
             accessibilityRole="button"
             style={styles.topIconButton}
-            onPress={() => setIsFavorite((favorite) => !favorite)}
+            onPress={() => { if (product?.id) void toggleFavoriteProduct(product.id).catch((error) => console.warn('Unable to save favorite product:', error)); }}
           >
             <Ionicons name={isFavorite ? "heart" : "heart-outline"} size={20} color={isFavorite ? colors.accent : colors.surface} />
           </TouchableOpacity>

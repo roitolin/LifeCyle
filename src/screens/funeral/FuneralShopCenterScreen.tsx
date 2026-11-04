@@ -23,6 +23,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import { LineChart, PieChart, type lineDataItem } from "react-native-gifted-charts";
 import { AppBackButton, AdminPaymentModal, KeyboardAwareScrollView } from "@/components";
+import PayoutAccountsModal from "@/components/PayoutAccountsModal";
 import { supabase } from "@/services/supabaseClient";
 import * as ImagePicker from "@/utils/permissionImagePicker";
 import { auth, uploadShopImage } from "@/services";
@@ -557,6 +558,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
   const [uploadingShopCover, setUploadingShopCover] = useState(false);
 
   const [shopStatus, setShopStatus] = useState<ShopStatus>("none");
+  const [shopId, setShopId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState<string | null>(null);
   const [shopInfo, setShopInfo] = useState<ShopInfo | null>(null);
   const [businessInfo, setBusinessInfo] = useState<BusinessInfo | null>(null);
@@ -589,6 +591,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
 
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [adminPaymentsVisible, setAdminPaymentsVisible] = useState(false);
+  const [payoutAccountsVisible, setPayoutAccountsVisible] = useState(false);
   const [shopDetailsVisible, setShopDetailsVisible] = useState(false);
   const [shopDetailsEditable, setShopDetailsEditable] = useState(false);
 
@@ -610,6 +613,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
       }
 
       if (!userId) {
+        setShopId(null);
         setShopStatus("none");
         setShopInfo(null);
         setBusinessInfo(null);
@@ -620,11 +624,49 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
         return;
       }
 
-      const { data: shopData, error: shopError } = await supabase
-        .from("funeral_shops")
-        .select("*")
-        .eq("id", userId)
-        .maybeSingle();
+      setShopId(userId);
+
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+      sixMonthsAgo.setDate(1);
+      sixMonthsAgo.setHours(0, 0, 0, 0);
+
+      const [shopResult, productResult, requestResult, analyticsResult, paymentResult] = await Promise.all([
+        supabase
+          .from("funeral_shops")
+          .select("*")
+          .eq("id", userId)
+          .maybeSingle(),
+        supabase
+          .from("funeral_products")
+          .select(`
+            *,
+            funeral_product_variations ( name, imageUrl ),
+            funeral_product_images ( imageUrl, displayOrder )
+          `)
+          .eq("shopId", userId),
+        supabase
+          .from("funeral_service_requests")
+          .select("*")
+          .eq("shopId", userId)
+          .order("createdAt", { ascending: false })
+          .limit(50),
+        supabase
+          .from("funeral_service_requests")
+          .select("id, status, productPrice, paymentAmount, createdAt, paymentVerifiedAt, completedAt, acceptedAt, declinedAt, cancelledAt")
+          .eq("shopId", userId)
+          .gte("createdAt", sixMonthsAgo.toISOString())
+          .limit(2000),
+        supabase
+          .from("shop_payments")
+          .select('id, status, amount, "createdAt", "verifiedAt", "expiresAt", "paymentProvider"')
+          .eq("shopId", userId)
+          .order("createdAt", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+
+      const { data: shopData, error: shopError } = shopResult;
       if (shopError) throw shopError;
 
       const currentShopStatus = (shopData?.status || "none") as ShopStatus;
@@ -682,14 +724,8 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
       setShopInfo(nextShopInfo);
       setBusinessInfo(nextBusinessInfo);
 
-      const { data: productRows } = await supabase
-        .from("funeral_products")
-        .select(`
-          *,
-          funeral_product_variations ( name, imageUrl ),
-          funeral_product_images ( imageUrl, displayOrder )
-        `)
-        .eq("shopId", userId);
+      const { data: productRows, error: productError } = productResult;
+      if (productError) throw productError;
 
       const nextProducts: ShopProduct[] = (productRows || []).map((row: any) => ({
         id: row.id,
@@ -712,34 +748,16 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
       }));
       setProducts(nextProducts);
 
-      const { data: requestRows } = await supabase
-        .from("funeral_service_requests")
-        .select("*")
-        .eq("shopId", userId)
-        .order("createdAt", { ascending: false })
-        .limit(50);
+      const { data: requestRows, error: requestError } = requestResult;
+      if (requestError) throw requestError;
       setRequests(dedupeServiceRequests((requestRows || []) as ServiceRequest[]));
 
-      const sixMonthsAgo = new Date();
-      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
-      sixMonthsAgo.setDate(1);
-      sixMonthsAgo.setHours(0, 0, 0, 0);
-
-      const { data: analyticsRows } = await supabase
-        .from("funeral_service_requests")
-        .select("id, status, productPrice, paymentAmount, createdAt, paymentVerifiedAt, completedAt, acceptedAt, declinedAt, cancelledAt")
-        .eq("shopId", userId)
-        .gte("createdAt", sixMonthsAgo.toISOString())
-        .limit(2000);
+      const { data: analyticsRows, error: analyticsError } = analyticsResult;
+      if (analyticsError) throw analyticsError;
       setAnalytics(computeSalesOverview((analyticsRows || []) as ServiceRequest[]));
 
-      const { data: paymentData } = await supabase
-        .from("shop_payments")
-        .select('id, status, amount, "createdAt", "verifiedAt", "expiresAt", "paymentProvider"')
-        .eq("shopId", userId)
-        .order("createdAt", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const { data: paymentData, error: paymentError } = paymentResult;
+      if (paymentError) throw paymentError;
       setPayment((paymentData as ShopPayment | null) || null);
 
       setShopNameInput(String(nextShopInfo?.shopName || ""));
@@ -1078,13 +1096,13 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
       Alert.alert(
         "Payment Required",
         payment?.status === "pending" && payment.paymentProvider === "xendit"
-          ? "Complete your Xendit checkout before your shop can go live."
+          ? "Complete your online payment before your shop can go live."
           : payment?.status === "pending"
-            ? "Your legacy payment is still under admin review."
-            : "Pay the LifeCycle registration fee securely through Xendit before going live.",
+            ? "Your payment is still under admin review."
+            : "Pay the LifeCycle registration fee online before going live.",
         [
           { text: "Cancel", style: "cancel" },
-          { text: "Open Xendit", onPress: () => setAdminPaymentsVisible(true) },
+          { text: "Open Payment", onPress: () => setAdminPaymentsVisible(true) },
         ]
       );
       return;
@@ -1093,7 +1111,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
     if (subscriptionExpired) {
       Alert.alert(
         "Subscription Expired",
-        "Your subscription expired on " + formatSubscriptionDate(subscriptionEnd) + ". Renew securely through Xendit before going live again.",
+        "Your subscription expired on " + formatSubscriptionDate(subscriptionEnd) + ". Renew online before going live again.",
         [
           { text: "Cancel", style: "cancel" },
           { text: "Renew Online", onPress: () => setAdminPaymentsVisible(true) },
@@ -1484,7 +1502,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
       setPaymentSettingsVisible(false);
       Alert.alert(
         "Payment Settings Saved",
-        "When you accept a service request, customers can pay with 1-click via Xendit. 30% commission goes to LifeCycle admin and 70% goes to your shop account."
+        "When you accept a service request, customers can pay online. 30% commission goes to LifeCycle admin and 70% goes to your shop account."
       );
     } catch (error: any) {
       Alert.alert("Error", error?.message || "Failed to save payment settings.");
@@ -1621,11 +1639,11 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
         {
           key: "payout-accounts",
           label: "Payout Accounts",
-          description: "Customer payment receiver accounts",
+          description: "Register test payout destinations",
           icon: "wallet-outline",
           badge: 0,
           urgent: false,
-          onPress: () => navigation.navigate("ShopSettings", { openSection: "payout" }),
+          onPress: () => setPayoutAccountsVisible(true),
         },
         {
           key: "lifecycle-payments",
@@ -2373,7 +2391,13 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
                           </View>
                         <View style={[styles.orderStatusBadge, verified ? styles.orderStatusDone : submitted ? styles.paymentStatusPending : styles.orderStatusWaiting]}>
                           <Text style={styles.orderStatusText}>
-                            {submitted ? "Awaiting Verification" : verified ? "Verified" : rejected ? "Rejected" : getRequestStatusLabel(item.status)}
+                            {submitted
+                              ? (String((item as any).paymentOption || "").toLowerCase() === "downpayment" ? "Downpayment Submitted" : "Awaiting Verification")
+                              : verified
+                                ? (String((item as any).paymentOption || "").toLowerCase() === "downpayment" ? "Downpayment Confirmed" : "Payment Confirmed")
+                                : rejected
+                                  ? "Rejected"
+                                  : getRequestStatusLabel(item.status)}
                           </Text>
                           </View>
                         </View>
@@ -2606,6 +2630,13 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
           </Animated.View>
         </View>
       </Modal>
+
+      <PayoutAccountsModal
+        visible={payoutAccountsVisible}
+        shopId={shopId}
+        shopApproved={isVerified}
+        onClose={() => setPayoutAccountsVisible(false)}
+      />
 
       <AdminPaymentModal
         visible={adminPaymentsVisible}
@@ -2840,7 +2871,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
                   <Ionicons name="card-outline" size={22} color="#22312d" />
                 </View>
                 <View style={styles.paymentSettingsHeaderCopy}>
-                  <Text style={styles.modalTitle}>Customer Payments Setup (Xendit)</Text>
+                  <Text style={styles.modalTitle}>Customer Payments Setup</Text>
                   <Text style={styles.paymentSettingsHeaderCaption}>Set how families pay after you accept a request.</Text>
                 </View>
                 <TouchableOpacity style={styles.paymentSettingsClose} onPress={closePaymentSettings} accessibilityLabel="Close payment settings">
@@ -2854,7 +2885,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
                   <Text style={styles.paymentSetupSummaryTitle}>{paymentDraftReady ? "Ready to receive payments" : "Finish payment setup"}</Text>
                   <Text style={styles.paymentSetupSummaryText}>
                     {paymentDraftReady
-                      ? "Xendit checkout and your default amount are ready for customer 1-click payments."
+                      ? "Online checkout and your default amount are ready for customer payments."
                       : "Add a valid customer payment amount before saving."}
                   </Text>
                 </View>
@@ -2883,7 +2914,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
               <View style={styles.paymentGatewayInfoCard}>
                 <Ionicons name="information-circle-outline" size={18} color="#7f6653" />
                 <Text style={styles.paymentGatewayInfoText}>
-                  Xendit handles customer payments with automatic split: 30% commission to LifeCycle Admin and 70% directly to your shop.
+                  Customer payments are split automatically: 30% commission to LifeCycle Admin and 70% directly to your shop.
                 </Text>
               </View>
 

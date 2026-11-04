@@ -63,13 +63,10 @@ type PackageDisplayItem = {
 };
 
 function normalizeProductImages(item?: ShopProduct | null) {
-  if (!item) return Array<string | null>(MAX_PRODUCT_PHOTO_COUNT).fill(null);
+  if (!item) return [null];
   const source = item.galleryImageUrls?.length ? item.galleryImageUrls : item.imageUrl ? [item.imageUrl] : [];
-  const next = Array<string | null>(MAX_PRODUCT_PHOTO_COUNT).fill(null);
-  source.slice(0, MAX_PRODUCT_PHOTO_COUNT).forEach((url, index) => {
-    next[index] = url || null;
-  });
-  return next;
+  const next = source.slice(0, MAX_PRODUCT_PHOTO_COUNT).map((url) => url || null);
+  return next.length > 0 ? next : [null];
 }
 
 function normalizeVariations(item?: ShopProduct | null) {
@@ -135,7 +132,6 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
-  const [photoCount, setPhotoCount] = useState(1);
   const [productName, setProductName] = useState("");
   const [productPrice, setProductPrice] = useState("");
   const [productStock, setProductStock] = useState("1");
@@ -146,7 +142,7 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
   const [variationEntries, setVariationEntries] = useState<ProductVariation[]>([]);
   const [shopPackage, setShopPackage] = useState<ShopPackage | null>(null);
   const [productDescription, setProductDescription] = useState("");
-  const [productImages, setProductImages] = useState<(string | null)[]>((Array<string | null>(MAX_PRODUCT_PHOTO_COUNT).fill(null)));
+  const [productImages, setProductImages] = useState<(string | null)[]>([null]);
   const packageItems = getPackageItems(shopPackage);
   const numericProductPrice = Number(productPrice.replace(/[^\d.]/g, "")) || 0;
   const downpaymentAmount = Number(downpaymentAmountInput.replace(/[^\d.]/g, "")) || 0;
@@ -164,15 +160,20 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
 
       setLoading(true);
       try {
+        let productQuery = supabase
+          .from("funeral_products")
+          .select(`
+            *,
+            funeral_product_variations ( id, name, price, imageUrl ),
+            funeral_product_images ( id, imageUrl, displayOrder )
+          `)
+          .eq("shopId", user.uid);
+        productQuery = productId
+          ? productQuery.eq("id", productId)
+          : productQuery.limit(0);
+
         const [productsResult, packagesResult] = await Promise.all([
-          supabase
-            .from("funeral_products")
-            .select(`
-              *,
-              funeral_product_variations ( id, name, price, imageUrl ),
-              funeral_product_images ( id, imageUrl, displayOrder )
-            `)
-            .eq("shopId", user.uid),
+          productQuery,
           supabase
             .from("funeral_shop_packages")
             .select("items, flowersImageUrl, candlesImageUrl, curtainsImageUrl, vehicleImageUrl, active")
@@ -233,7 +234,6 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
           setProductDescription(current.description || "");
           const normalizedImages = normalizeProductImages(current);
           setProductImages(normalizedImages);
-          setPhotoCount(Math.max(1, normalizedImages.filter(Boolean).length));
         }
       } catch (error) {
         console.error(error);
@@ -246,7 +246,7 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
     void load();
   }, [navigation, productId]);
 
-  const uploadedCount = useMemo(() => productImages.slice(0, photoCount).filter(Boolean).length, [photoCount, productImages]);
+  const uploadedCount = useMemo(() => productImages.filter(Boolean).length, [productImages]);
 
   const pickAndUploadImage = async (index: number) => {
     const picker = await ImagePicker.launchImageLibraryAsync({
@@ -268,7 +268,16 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
   };
 
   const removeImage = (index: number) => {
-    setProductImages((current) => current.map((entry, currentIndex) => (currentIndex === index ? null : entry)));
+    setProductImages((current) => {
+      const next = current.filter((_, currentIndex) => currentIndex !== index);
+      return next.length > 0 ? next : [null];
+    });
+  };
+
+  const addPhotoSlot = () => {
+    setProductImages((current) => (
+      current.length >= MAX_PRODUCT_PHOTO_COUNT ? current : [...current, null]
+    ));
   };
 
   const updateVariationCount = (count: number) => {
@@ -327,8 +336,8 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
       return;
     }
 
-    if (uploadedCount < photoCount) {
-      Alert.alert("More photos needed", `Please upload all ${photoCount} selected product ${photoCount === 1 ? "photo" : "photos"}.`);
+    if (uploadedCount < 1) {
+      Alert.alert("Photo required", "Please upload at least 1 product photo.");
       return;
     }
 
@@ -344,7 +353,7 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
       }
     }
 
-    const galleryImageUrls = productImages.slice(0, photoCount).filter((entry): entry is string => Boolean(entry));
+    const galleryImageUrls = productImages.filter((entry): entry is string => Boolean(entry));
     const finalProductId = productId || generateId();
 
     setSaving(true);
@@ -368,18 +377,29 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
       if (productError) throw productError;
 
       // Replace gallery images: delete old, insert new
-      await supabase.from("funeral_product_images").delete().eq("productId", finalProductId);
+      const { error: deleteImagesError } = await supabase
+        .from("funeral_product_images")
+        .delete()
+        .eq("productId", finalProductId);
+      if (deleteImagesError) throw deleteImagesError;
       if (galleryImageUrls.length > 0) {
         const imageRows = galleryImageUrls.map((url, index) => ({
           productId: finalProductId,
           imageUrl: url,
           displayOrder: index,
         }));
-        await supabase.from("funeral_product_images").insert(imageRows);
+        const { error: imageInsertError } = await supabase
+          .from("funeral_product_images")
+          .insert(imageRows);
+        if (imageInsertError) throw imageInsertError;
       }
 
       // Replace variations: delete old, insert new
-      await supabase.from("funeral_product_variations").delete().eq("productId", finalProductId);
+      const { error: deleteVariationsError } = await supabase
+        .from("funeral_product_variations")
+        .delete()
+        .eq("productId", finalProductId);
+      if (deleteVariationsError) throw deleteVariationsError;
       if (hasVariations && normalizedVariations.length > 0) {
         const variationRows = normalizedVariations.map((entry) => ({
           productId: finalProductId,
@@ -387,7 +407,10 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
           price: Number(String(entry.price || "").replace(/[^\d.]/g, "")),
           imageUrl: entry.imageUrl || null,
         }));
-        await supabase.from("funeral_product_variations").insert(variationRows);
+        const { error: variationInsertError } = await supabase
+          .from("funeral_product_variations")
+          .insert(variationRows);
+        if (variationInsertError) throw variationInsertError;
       }
 
       if (!isEditing && stockValue > 0) {
@@ -437,23 +460,10 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
       <KeyboardAwareScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Product Photos</Text>
-          <Text style={styles.sectionSubtitle}>Choose how many photos to add. Photo 1 is the main display image.</Text>
-
-          <Text style={styles.inputLabel}>Number of Photos</Text>
-          <View style={styles.variationCountRow}>
-            {Array.from({ length: MAX_PRODUCT_PHOTO_COUNT }, (_, index) => index + 1).map((count) => (
-              <TouchableOpacity
-                key={count}
-                style={[styles.variationCountButton, photoCount === count ? styles.variationCountButtonActive : null]}
-                onPress={() => setPhotoCount(count)}
-              >
-                <Text style={[styles.variationCountButtonText, photoCount === count ? styles.variationCountButtonTextActive : null]}>{count}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <Text style={styles.sectionSubtitle}>Upload at least 1 product photo. Add more if you want to show different angles. The first uploaded photo is the main image.</Text>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoRow}>
-            {productImages.slice(0, photoCount).map((imageUrl, index) => {
+            {productImages.map((imageUrl, index) => {
               const slotLabel = index === 0 ? "Main Photo" : `Angle ${index + 1}`;
               const isUploading = uploadingIndex === index;
               return (
@@ -482,9 +492,23 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
                 </View>
               );
             })}
+
+            {productImages.length < MAX_PRODUCT_PHOTO_COUNT ? (
+              <TouchableOpacity
+                accessibilityLabel="Add another product photo"
+                accessibilityRole="button"
+                activeOpacity={0.75}
+                style={[styles.photoCard, styles.addPhotoCard]}
+                onPress={addPhotoSlot}
+              >
+                <Ionicons name="add" size={28} color="#22312d" />
+                <Text style={styles.addPhotoText}>Add another photo</Text>
+                <Text style={styles.addPhotoHint}>Up to {MAX_PRODUCT_PHOTO_COUNT} photos</Text>
+              </TouchableOpacity>
+            ) : null}
           </ScrollView>
 
-          <Text style={styles.photoCounter}>{uploadedCount} of {photoCount} {photoCount === 1 ? "photo" : "photos"} uploaded</Text>
+          <Text style={styles.photoCounter}>{uploadedCount} {uploadedCount === 1 ? "photo" : "photos"} uploaded (minimum 1)</Text>
         </View>
 
         <View style={styles.section}>
@@ -757,6 +781,30 @@ const styles = StyleSheet.create({
   },
   photoCard: {
     width: 174,
+  },
+  addPhotoCard: {
+    minHeight: 244,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "#bfc9c3",
+    backgroundColor: "#f5f7f5",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  addPhotoText: {
+    color: "#22312d",
+    fontSize: 13,
+    fontWeight: "900",
+    marginTop: 8,
+    textAlign: "center",
+  },
+  addPhotoHint: {
+    color: "#86908a",
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 4,
   },
   photoBadge: {
     alignSelf: "flex-start",

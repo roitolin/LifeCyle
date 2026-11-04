@@ -140,6 +140,10 @@ type ServiceRequest = {
   tributeMessage: string
   contactNumber: string
   status: string
+  paymentOption?: 'pending' | 'full' | 'downpayment' | null
+  productFullPrice?: number | string | null
+  downpaymentAmountSnapshot?: number | string | null
+  remainingBalance?: number | string | null
   paymentAmount?: number | string | null
   paymentPayerName?: string | null
   paymentGcashName?: string | null
@@ -359,10 +363,23 @@ const SHOP_PAYOUT_CHANNELS = [
   { value: 'PH_MAYA', label: 'Maya', type: 'wallet' },
   { value: 'PH_BDO', label: 'BDO Unibank', type: 'bank' },
   { value: 'PH_BPI', label: 'Bank of the Philippine Islands (BPI)', type: 'bank' },
+  { value: 'PH_UBP', label: 'UnionBank', type: 'bank' },
   { value: 'PH_METROBANK', label: 'Metrobank', type: 'bank' },
   { value: 'PH_LANDBANK', label: 'Landbank of the Philippines', type: 'bank' },
+  { value: 'PH_PNB', label: 'Philippine National Bank (PNB)', type: 'bank' },
+  { value: 'PH_RCBC', label: 'Rizal Commercial Banking Corporation (RCBC)', type: 'bank' },
   { value: 'PH_CHINABANK', label: 'China Banking Corporation', type: 'bank' },
+  { value: 'PH_SECURITYBANK', label: 'Security Bank', type: 'bank' },
 ] as const
+const XENDIT_PAYMENT_METHOD_LABELS: Record<string, string> = {
+  CARDS: 'Cards (Visa, Mastercard, JCB)', CARD: 'Cards (Visa, Mastercard, JCB)',
+  CREDIT_CARD: 'Cards (Visa, Mastercard, JCB)', GCASH: 'GCash', PAYMAYA: 'Maya',
+  BDO_ONLINE_BANKING: 'BDO online banking', BPI_ONLINE_BANKING: 'BPI online banking',
+  UNIONBANK_ONLINE_BANKING: 'UnionBank online banking', METROBANK_ONLINE_BANKING: 'Metrobank online banking',
+  LANDBANK_ONLINE_BANKING: 'Landbank online banking', PNB_ONLINE_BANKING: 'PNB online banking',
+  RCBC_ONLINE_BANKING: 'RCBC online banking', CHINABANK_ONLINE_BANKING: 'China Bank online banking',
+  SECURITY_BANK_ONLINE_BANKING: 'Security Bank online banking',
+}
 
 function PayoutChannelLogo({ channelCode, label, fallback }: { channelCode: string; label: string; fallback: string }) {
   const logoUrl = PAYOUT_CHANNEL_LOGOS[channelCode]
@@ -373,7 +390,14 @@ function PayoutChannelLogo({ channelCode, label, fallback }: { channelCode: stri
 }
 
 function getPayoutChannelLabel(value: string | null | undefined) {
-  return SHOP_PAYOUT_CHANNELS.find(channel => channel.value === value)?.label || value || 'Not selected'
+  const payoutAliases: Record<string, string> = {
+    PH_PAYMAYA: 'Maya', PH_MET: 'Metrobank', PH_LBP: 'Landbank',
+    PH_CBC: 'China Banking Corporation', PH_SEC: 'Security Bank', PH_EWB: 'EastWest Bank',
+  }
+  return SHOP_PAYOUT_CHANNELS.find(channel => channel.value === value)?.label
+    || payoutAliases[String(value || '').toUpperCase()]
+    || value
+    || 'Not selected'
 }
 
 function maskPayoutAccount(value: string | null | undefined) {
@@ -408,11 +432,12 @@ function FamilyPaymentIcon({ name }: { name: FamilyPaymentIconName }) {
 
 function getFamilyPaymentStatus(request: ServiceRequest) {
   const status = String(request.status || '').toLowerCase()
+  const isDownpayment = String(request.paymentOption || '').toLowerCase() === 'downpayment'
   if (status === 'payment_submitted') {
-    return { label: 'Needs review', icon: 'clock' as FamilyPaymentIconName, className: 'is-review' }
+    return { label: isDownpayment ? 'Downpayment Submitted' : 'Needs review', icon: 'clock' as FamilyPaymentIconName, className: 'is-review' }
   }
   if (request.paymentVerifiedAt || ['payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(status)) {
-    return { label: 'Verified', icon: 'check' as FamilyPaymentIconName, className: 'is-verified' }
+    return { label: isDownpayment ? 'Downpayment Confirmed' : 'Payment Confirmed', icon: 'check' as FamilyPaymentIconName, className: 'is-verified' }
   }
   return { label: 'Submitted', icon: 'receipt' as FamilyPaymentIconName, className: 'is-submitted' }
 }
@@ -1160,24 +1185,26 @@ export default function SellerCentrePage() {
         setPayoutResendCooldown(Number(data.resendAfterSeconds) || 60)
         return
       }
-      if (!data || data.shopId !== shop.id || data.payoutVerified !== true) {
-        throw new Error('The payout account could not be activated.')
+      if (!data || data.shopId !== shop.id || (data.reviewPending !== true && data.unchanged !== true)) {
+        throw new Error('The test receiver could not be submitted.')
       }
 
       setPayoutDraft({ channel, name: accountName, number: accountNumber })
-      setShop(current => current ? {
-        ...current,
-        payoutChannelCode: channel,
-        payoutAccountName: accountName,
-        payoutAccountNumber: accountNumber,
-        payoutVerifiedByAdmin: true,
-        payoutVerifiedAt: new Date().toISOString(),
-      } : current)
+      if (!data.unchanged) {
+        setShop(current => current ? {
+          ...current,
+          payoutChannelCode: channel,
+          payoutAccountName: accountName,
+          payoutAccountNumber: accountNumber,
+          payoutVerifiedByAdmin: false,
+          payoutVerifiedAt: null,
+        } : current)
+      }
       setActiveTab('payout_accounts')
       await loadData()
       openAlert({
-        title: 'Payout Account Ready',
-        message: 'Your payout details were saved and this active method is now available to customers.',
+        title: data.unchanged ? 'No Changes' : 'Sent for Test Review',
+        message: data.unchanged ? 'This receiver is already saved.' : 'An admin will review this receiver before it can be used for test payments.',
         tone: 'info',
         okLabel: 'Done',
       })
@@ -1213,7 +1240,7 @@ export default function SellerCentrePage() {
       if (functionError) {
         throw new Error(await getPayoutFunctionError(functionError, 'Unable to verify the payout change.'))
       }
-      if (!data || data.shopId !== shop.id || data.payoutVerified !== true) {
+      if (!data || data.shopId !== shop.id || data.reviewPending !== true) {
         throw new Error('The payout change could not be confirmed.')
       }
 
@@ -1222,8 +1249,8 @@ export default function SellerCentrePage() {
       setActiveTab('payout_accounts')
       await loadData()
       openAlert({
-        title: 'Payout Account Updated',
-        message: 'Your email was verified and the new payout details are now active.',
+        title: 'Sent for Test Review',
+        message: 'Your email was confirmed. An admin must review the changed receiver before it can be used for test payments.',
         tone: 'info',
         okLabel: 'Done',
       })
@@ -1288,6 +1315,10 @@ export default function SellerCentrePage() {
 
   const togglePayoutAccount = async (account: ShopPayoutAccount) => {
     if (!shop || savingPayout) return
+    if (!account.verifiedByAdmin) {
+      openAlert({ title: 'Review Pending', message: 'An admin must review this test receiver before it can be enabled.', tone: 'info' })
+      return
+    }
     setSavingPayout(true)
     try {
       const { error: functionError } = await supabase.functions.invoke('provision-xendit-shop', {
@@ -2040,7 +2071,7 @@ export default function SellerCentrePage() {
       message: `Are you sure you want to ${nextStatus === 'accepted_by_shop' ? 'accept' : 'decline'} this request?`,
       details: nextStatus === 'accepted_by_shop'
         ? [
-            `Payment amount: ${formatPeso(finalAmount)}. The customer can complete payment securely via Xendit.`,
+            `Payment amount: ${formatPeso(finalAmount)}. The customer can complete payment online.`,
             request.productId !== 'custom_casket_design'
               ? 'If this is a product order, its stock will be reduced by 1.'
               : 'This is a custom casket design request — no stock will be deducted.',
@@ -3355,6 +3386,13 @@ export default function SellerCentrePage() {
                               const name = request.requesterName || request.familyCoordinatorName || 'Family Request'
                               const initial = (name.trim().charAt(0) || 'C').toUpperCase()
                               const cleanStatus = String(request.status || 'pending').toLowerCase()
+                              const isDownpayment = String(request.paymentOption || '').toLowerCase() === 'downpayment'
+                              const statusBadgeText = cleanStatus === 'payment_verified'
+                                ? (isDownpayment ? 'Downpayment Confirmed' : 'Payment Confirmed')
+                                : cleanStatus === 'payment_submitted'
+                                  ? (isDownpayment ? 'Downpayment Submitted' : 'Payment Submitted')
+                                  : cleanStatus.replace(/_/g, ' ')
+                              const showExtraDownpaymentBadge = isDownpayment && Boolean(request.paymentVerifiedAt) && cleanStatus !== 'payment_verified'
                               return (
                                 <button
                                   type="button"
@@ -3369,9 +3407,16 @@ export default function SellerCentrePage() {
                                       {request.productName || 'Funeral Service'} · {formatTimestamp(request.createdAt)}
                                     </span>
                                   </div>
-                                  <span className={`sc-status sc-status-${cleanStatus}`}>
-                                    {cleanStatus.replace(/_/g, ' ')}
-                                  </span>
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: 'flex-end' }}>
+                                    <span className={`sc-status sc-status-${cleanStatus}`}>
+                                      {statusBadgeText}
+                                    </span>
+                                    {showExtraDownpaymentBadge ? (
+                                      <span className="sc-status sc-status-payment_verified">
+                                        Downpayment Confirmed
+                                      </span>
+                                    ) : null}
+                                  </div>
                                   <span className="sc-stream-chevron">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
                                   </span>
@@ -4112,15 +4157,32 @@ export default function SellerCentrePage() {
                                 </div>
                               </td>
                               <td>
-                                <span className={`sc-status sc-status-${(r.status || 'pending').toLowerCase()}`}>
-                                  {(r.status || 'pending').replace(/_/g, ' ')}
-                                </span>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                                  <span className={`sc-status sc-status-${(r.status || 'pending').toLowerCase()}`}>
+                                    {String(r.status || '').toLowerCase() === 'payment_verified'
+                                      ? (String(r.paymentOption || '').toLowerCase() === 'downpayment' ? 'Downpayment Confirmed' : 'Payment Confirmed')
+                                      : String(r.status || '').toLowerCase() === 'payment_submitted'
+                                        ? (String(r.paymentOption || '').toLowerCase() === 'downpayment' ? 'Downpayment Submitted' : 'Payment Submitted')
+                                        : (r.status || 'pending').replace(/_/g, ' ')}
+                                  </span>
+                                  {String(r.paymentOption || '').toLowerCase() === 'downpayment'
+                                    && Boolean(r.paymentVerifiedAt)
+                                    && String(r.status || '').toLowerCase() !== 'payment_verified' ? (
+                                    <span className="sc-status sc-status-payment_verified">
+                                      Downpayment Confirmed
+                                    </span>
+                                  ) : null}
+                                </div>
                               </td>
                               <td>
-                                {['awaiting_payment', 'payment_submitted', 'payment_verified', 'completed'].includes(String(r.status || '').toLowerCase()) ? (
+                                {['awaiting_payment', 'payment_submitted', 'payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(String(r.status || '').toLowerCase()) ? (
                                   <div className="sc-payment-cell">
                                     <span className={`sc-status sc-status-${r.status.toLowerCase()}`}>
-                                      {(r.status || '').replace(/_/g, ' ')}
+                                      {['payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(String(r.status || '').toLowerCase())
+                                        ? (String(r.paymentOption || '').toLowerCase() === 'downpayment' ? 'Downpayment Confirmed' : 'Payment Confirmed')
+                                        : String(r.status || '').toLowerCase() === 'payment_submitted'
+                                          ? (String(r.paymentOption || '').toLowerCase() === 'downpayment' ? 'Downpayment Submitted' : 'Payment Submitted')
+                                          : (r.status || '').replace(/_/g, ' ')}
                                     </span>
                                     {r.paymentAmount != null && Number(r.paymentAmount) > 0 && (
                                       <span style={{ fontSize: '12px', color: 'var(--sc-muted)' }}>{formatPeso(r.paymentAmount)}</span>
@@ -4296,7 +4358,7 @@ export default function SellerCentrePage() {
                     }}
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
-                    {payoutVerification ? 'Payout details' : 'Payment methods'}
+                    {payoutVerification ? 'Payout details' : 'Payout destinations'}
                   </button>
 
                   {selectedPayoutChannel ? (
@@ -4349,8 +4411,8 @@ export default function SellerCentrePage() {
                           <div className="sc-method-setup-notice">
                             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>
                             <div>
-                              <strong>Your current payout stays active</strong>
-                              <span>The pending change expires in 10 minutes and replaces the live receiver only after verification succeeds.</span>
+                            <strong>Email check before test review</strong>
+                            <span>The code expires in 10 minutes. The changed receiver will be unavailable until an admin reviews it.</span>
                             </div>
                           </div>
                           <footer>
@@ -4370,7 +4432,7 @@ export default function SellerCentrePage() {
                       ) : (
                       <form className="sc-method-setup-form" onSubmit={event => { event.preventDefault(); void savePayoutAccount() }}>
                         <div className="sc-method-setup-readonly">
-                          <span>Payment method</span>
+                          <span>Test payout destination</span>
                           <strong>{selectedPayoutChannel.label}</strong>
                         </div>
 
@@ -4403,8 +4465,8 @@ export default function SellerCentrePage() {
                         <div className="sc-method-setup-notice">
                           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>
                           <div>
-                            <strong>{payoutAccounts.some(account => account.channelCode === payoutDraft.channel) ? 'Email verification required' : 'Available after saving'}</strong>
-                            <span>{payoutAccounts.some(account => account.channelCode === payoutDraft.channel) ? 'Changing saved receiver details requires a code sent to your account email. Your current payout remains active until verified.' : 'Approved shops can use this payment method immediately after the receiver details are saved.'}</span>
+                            <strong>{payoutAccounts.some(account => account.channelCode === payoutDraft.channel) ? 'Email check and test review' : 'Test review required'}</strong>
+                            <span>{payoutAccounts.some(account => account.channelCode === payoutDraft.channel) ? 'Changing saved details requires an email code. The changed receiver is unavailable until an admin reviews it.' : 'An admin reviews this test receiver before it can be used for test payments. This does not verify a live account.'}</span>
                           </div>
                         </div>
 
@@ -4419,9 +4481,9 @@ export default function SellerCentrePage() {
                     </section>
                   ) : (
                     <div className="sc-payout-empty">
-                      <strong>Select a payment method first</strong>
-                      <span>Return to the payment methods list and choose the receiver you want to set up.</span>
-                      <button type="button" onClick={() => setActiveTab('payout_accounts')}>View payment methods</button>
+                      <strong>Select a payout destination first</strong>
+                      <span>Return to the receiver list and choose a bank or wallet.</span>
+                      <button type="button" onClick={() => setActiveTab('payout_accounts')}>View receivers</button>
                     </div>
                   )}
                 </div>
@@ -4434,7 +4496,7 @@ export default function SellerCentrePage() {
                     <div>
                       <span>Finance</span>
                       <h2>Payout accounts</h2>
-                      <p>Choose where each customer payment method sends your shop’s 70% share.</p>
+                      <p>Register test payout destinations for your shop's share. These are not live payment accounts.</p>
                     </div>
                   </header>
 
@@ -4445,22 +4507,22 @@ export default function SellerCentrePage() {
                       <small>Wallets and bank accounts</small>
                     </article>
                     <article>
-                      <span>Available to customers</span>
+                      <span>Enabled for test checkout</span>
                       <strong>{payoutAccounts.filter(account => account.active && account.verifiedByAdmin).length}</strong>
-                      <small>Active payment methods</small>
+                      <small>Reviewed receiver accounts</small>
                     </article>
                     <article>
                       <span>Needs attention</span>
                       <strong>{payoutAccounts.filter(account => !account.verifiedByAdmin).length}</strong>
-                      <small>Legacy setup needing refresh</small>
+                      <small>Pending test review</small>
                     </article>
                   </div>
 
                   <div className="sc-payout-page-note">
                     <FamilyPaymentIcon name="wallet" />
                     <div>
-                      <strong>Customer methods follow your setup</strong>
-                      <span>Customers only see methods you have configured and kept active. The same rule applies to GCash, Maya, and bank transfer.</span>
+                      <strong>Test review</strong>
+                      <span>Only admin-reviewed, enabled receivers can be used for test checkout. Card payments are separate from payout destinations.</span>
                     </div>
                   </div>
 
@@ -4475,7 +4537,7 @@ export default function SellerCentrePage() {
                     <header>
                       <div>
                         <span>Receiver accounts</span>
-                        <h3>Configured payment methods</h3>
+                        <h3>Test payout destinations</h3>
                       </div>
                     </header>
 
@@ -4483,7 +4545,7 @@ export default function SellerCentrePage() {
                       <div className="sc-payout-empty">
                         <div><FamilyPaymentIcon name="wallet" /></div>
                         <strong>No receiver accounts yet</strong>
-                        <span>Add GCash, Maya, or a Philippine bank account. Active saved methods appear at checkout automatically.</span>
+                        <span>Add GCash, Maya, or a Philippine bank account for test review.</span>
                         {shopAccountApproved && <button type="button" onClick={() => openPayoutAccountEditor(undefined, SHOP_PAYOUT_CHANNELS[0].value)}>Add your first account</button>}
                       </div>
                     ) : (
@@ -4511,15 +4573,15 @@ export default function SellerCentrePage() {
                               <div className="sc-payout-account-status">
                                 <span className={enabled ? 'is-enabled' : account.verifiedByAdmin ? 'is-disabled' : 'is-pending'}>
                                   <i aria-hidden="true" />
-                                  {enabled ? 'Available to customers' : account.verifiedByAdmin ? 'Disabled' : 'Enable to make available'}
+                                  {enabled ? 'Enabled for test checkout' : account.verifiedByAdmin ? 'Disabled' : 'Pending test review'}
                                 </span>
-                                {account.verifiedAt && <small>Ready since {new Date(account.verifiedAt).toLocaleDateString('en-PH')}</small>}
+                                {account.verifiedAt && <small>Reviewed {new Date(account.verifiedAt).toLocaleDateString('en-PH')}</small>}
                               </div>
                               <div className="sc-payout-account-actions">
                                 <button type="button" onClick={() => openPayoutAccountEditor(account)}>Edit</button>
-                                <button type="button" disabled={savingPayout} onClick={() => void togglePayoutAccount(account)}>
+                                {account.verifiedByAdmin && <button type="button" disabled={savingPayout} onClick={() => void togglePayoutAccount(account)}>
                                   {account.active ? 'Disable' : 'Enable'}
-                                </button>
+                                </button>}
                               </div>
                             </article>
                           )
@@ -4531,7 +4593,7 @@ export default function SellerCentrePage() {
                   <section className="sc-payout-methods-panel">
                     <header>
                       <div>
-                        <span>Payment methods</span>
+                        <span>Payout destinations</span>
                         <h3>Add or manage a receiver</h3>
                         <p>Each option opens its own secure setup page.</p>
                       </div>
@@ -4561,7 +4623,7 @@ export default function SellerCentrePage() {
                               <small>{account ? `${account.accountName} · ${maskPayoutAccount(account.accountNumber)}` : 'Set up a new e-wallet receiver'}</small>
                             </span>
                             <span className={`sc-payout-method-state${account?.active && account.verifiedByAdmin ? ' is-ready' : account ? ' is-pending' : ''}`}>
-                              {account?.active && account.verifiedByAdmin ? 'Ready' : account ? 'Manage' : 'Add'}
+                              {account?.active && account.verifiedByAdmin ? 'Test ready' : account ? account.verifiedByAdmin ? 'Disabled' : 'Pending' : 'Add'}
                             </span>
                             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
                           </button>
@@ -4593,7 +4655,7 @@ export default function SellerCentrePage() {
                               <small>{account ? `${account.accountName} · ${maskPayoutAccount(account.accountNumber)}` : 'Set up a bank receiver account'}</small>
                             </span>
                             <span className={`sc-payout-method-state${account?.active && account.verifiedByAdmin ? ' is-ready' : account ? ' is-pending' : ''}`}>
-                              {account?.active && account.verifiedByAdmin ? 'Ready' : account ? 'Manage' : 'Add'}
+                              {account?.active && account.verifiedByAdmin ? 'Test ready' : account ? account.verifiedByAdmin ? 'Disabled' : 'Pending' : 'Add'}
                             </span>
                             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
                           </button>
@@ -5411,12 +5473,17 @@ export default function SellerCentrePage() {
         const status = String(r.status || '').toLowerCase()
         const paymentReceipt = getFamilyPaymentReceipt(r)
         const isProviderReceipt = paymentReceipt.source === 'provider'
-        const providerLabel = String(r.paymentProvider || '').toLowerCase() === 'xendit' ? 'Xendit' : 'Legacy online payment'
-        const rawProviderMethod = r.providerPaymentMethod || r.payoutChannelCode || ''
-        const providerMethodLabel = r.payoutChannelCode
-          ? getPayoutChannelLabel(r.payoutChannelCode)
-          : String(rawProviderMethod).replace(/^PH_/, '').replace(/_/g, ' ')
-        const statusLabel = String(r.status || 'pending').replace(/_/g, ' ').replace(/\\b\\w/g, letter => letter.toUpperCase())
+        const isDownpayment = String(r.paymentOption || '').toLowerCase() === 'downpayment'
+        const providerLabel = String(r.paymentProvider || '').toLowerCase() === 'xendit' ? 'Online payment' : 'Legacy online payment'
+        const rawProviderMethod = String(r.providerPaymentMethod || '').trim().toUpperCase()
+        const providerMethodLabel = rawProviderMethod
+          ? XENDIT_PAYMENT_METHOD_LABELS[rawProviderMethod] || rawProviderMethod.replace(/^PH_/, '').replace(/_/g, ' ')
+          : getPayoutChannelLabel(r.payoutChannelCode)
+        const statusLabel = status === 'payment_verified'
+          ? (isDownpayment ? 'Downpayment Confirmed' : 'Payment Confirmed')
+          : status === 'payment_submitted'
+            ? (isDownpayment ? 'Downpayment Submitted' : 'Payment Submitted')
+            : String(r.status || 'pending').replace(/_/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase())
         const requestTypeLabel = r.requestType?.replace(/_/g, ' ').replace(/\\b\\w/g, letter => letter.toUpperCase()) || 'Standard service'
         const showPayment = ['awaiting_payment', 'payment_submitted', 'payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(status) && (
           r.paymentAmount != null || r.paymentPayerName || r.paymentGcashName || r.paymentGcashNumber || r.paymentReferenceNumber || r.paymentProofImageUrl || r.paymentSubmittedAt || isProviderReceipt
@@ -5445,6 +5512,9 @@ export default function SellerCentrePage() {
                 </div>
                 <div className="sc-request-header-actions">
                   <span className={`sc-status sc-status-${status}`}>{statusLabel}</span>
+                  {isDownpayment && Boolean(r.paymentVerifiedAt) && status !== 'payment_verified' ? (
+                    <span className="sc-status sc-status-payment_verified">Downpayment Confirmed</span>
+                  ) : null}
                   <button type="button" className="sc-modal-close" aria-label="Close" onClick={() => setViewRequest(null)}>×</button>
                 </div>
               </div>
@@ -5624,7 +5694,11 @@ export default function SellerCentrePage() {
                         <span>Payment the requester sent for this service request.</span>
                       </div>
                       <span className={`sc-status sc-status-${status}`}>
-                        {(r.status || 'pending').replace(/_/g, ' ')}
+                        {['payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(status)
+                          ? (isDownpayment ? 'Downpayment Confirmed' : 'Payment Confirmed')
+                          : status === 'payment_submitted'
+                            ? (isDownpayment ? 'Downpayment Submitted' : 'Payment Submitted')
+                            : (r.status || 'pending').replace(/_/g, ' ')}
                       </span>
                     </div>
 

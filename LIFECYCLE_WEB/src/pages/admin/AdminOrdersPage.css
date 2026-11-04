@@ -55,4 +55,12 @@
   .admin-order-detail-surface .sr-main {
     @apply w-[calc(100%_-_28px)] pt-[18px] pb-[36px] px-0;
   }
+  .admin-receipt-overlay {
+    padding: 12px;
+    align-items: flex-end;
+  }
+  .admin-receipt-overlay .sr-receipt-modal {
+    max-height: calc(100vh - 24px);
+    border-radius: 16px 16px 0 0;
+  }
 }

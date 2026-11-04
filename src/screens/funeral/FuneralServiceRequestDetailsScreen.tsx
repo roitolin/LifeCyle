@@ -29,6 +29,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { AppBackButton } from "@/components";
 import DeathCertificateRequestCard from "@/components/DeathCertificateRequestCard";
 import ServiceXenditSheet from "@/components/ServiceXenditSheet";
+import RemainingBalancePaymentCard from "@/components/RemainingBalancePaymentCard";
 import { syncServiceXenditCheckout } from "@/services/serviceXendit";
 import { supabase } from "@/services/supabaseClient";
 import { auth, uploadCertificate } from "@/services";
@@ -150,8 +151,9 @@ const parseCustomCasketPrice = (value: string) => {
   return Number.isFinite(amount) ? amount : 0;
 };
 
-const getStatusMeta = (status: string) => {
+const getStatusMeta = (status: string, paymentOption?: string | null) => {
   const normalized = String(status || "").toLowerCase();
+  const isDownpayment = String(paymentOption || "").toLowerCase() === "downpayment";
   if (normalized === "accepted_by_shop") {
     return {
       label: "Accepted",
@@ -169,12 +171,12 @@ const getStatusMeta = (status: string) => {
       text: "#1c4f7e",
       icon: "wallet-outline" as IoniconName,
       message: "Tap Pay Online, then choose full payment or down payment in the secure checkout.",
-      shopMessage: "The Xendit checkout is ready. Waiting for the family to complete payment.",
+      shopMessage: "Online checkout is ready. Waiting for the family to complete payment.",
     };
   }
   if (normalized === "payment_submitted") {
     return {
-      label: "Payment Submitted",
+      label: isDownpayment ? "Downpayment Submitted" : "Payment Submitted",
       background: "#e0eefa",
       text: "#1c4f7e",
       icon: "receipt-outline" as IoniconName,
@@ -184,7 +186,7 @@ const getStatusMeta = (status: string) => {
   }
   if (normalized === "paid_waiting_for_split") {
     return {
-      label: "Processing Payout",
+      label: isDownpayment ? "Downpayment Confirmed" : "Processing Payout",
       background: "#fef3c7",
       text: "#86654a",
       icon: "wallet-outline" as IoniconName,
@@ -204,12 +206,16 @@ const getStatusMeta = (status: string) => {
   }
   if (normalized === "payment_verified") {
     return {
-      label: "Payment Confirmed",
+      label: isDownpayment ? "Downpayment Confirmed" : "Payment Confirmed",
       background: "#e7f5ec",
       text: "#166534",
       icon: "shield-checkmark-outline" as IoniconName,
-      message: "The shop confirmed your payment and is preparing the service.",
-      shopMessage: "Payment is verified. Complete the service and attach delivery proof when it is ready.",
+      message: isDownpayment
+        ? "The shop confirmed your downpayment and is preparing the service."
+        : "The shop confirmed your payment and is preparing the service.",
+      shopMessage: isDownpayment
+        ? "Downpayment is confirmed. Complete the service and attach delivery proof when it is ready."
+        : "Payment is verified. Complete the service and attach delivery proof when it is ready.",
     };
   }
   if (normalized === "awaiting_customer_confirmation") {
@@ -275,6 +281,51 @@ const formatCurrency = (value: number | string | null | undefined) => {
   return Number.isFinite(amount) && amount > 0
     ? "\u20B1" + amount.toLocaleString("en-PH")
     : "Not set";
+};
+
+const formatPaymentMethodLabel = (request: FuneralServiceRequest) => {
+  const code = String(request.providerPaymentMethod || "").trim().toUpperCase();
+  const map: Record<string, string> = {
+    PH_GCASH: "GCash",
+    GCASH: "GCash",
+    PH_MAYA: "Maya",
+    PAYMAYA: "Maya",
+    MAYA: "Maya",
+    PH_BDO: "BDO",
+    BDO: "BDO",
+    PH_BPI: "BPI",
+    BPI: "BPI",
+    PH_METROBANK: "Metrobank",
+    METROBANK: "Metrobank",
+    PH_LANDBANK: "Landbank",
+    LANDBANK: "Landbank",
+    PH_CHINABANK: "Chinabank",
+    CHINABANK: "Chinabank",
+    PH_UBP: "UnionBank",
+    UBP: "UnionBank",
+    PH_RCBC: "RCBC",
+    RCBC: "RCBC",
+    PH_PNB: "PNB",
+    PNB: "PNB",
+    CARDS: "Cards (Visa, Mastercard, JCB)",
+    CARD: "Cards (Visa, Mastercard, JCB)",
+    CREDIT_CARD: "Cards (Visa, Mastercard, JCB)",
+  };
+  if (code) return map[code] || code.replace(/^PH_/, "").replace(/_/g, " ");
+  if (request.paymentGcashNumber || request.paymentGcashName) return "GCash";
+  if (request.paymentProvider === "xendit") return "Online";
+  return "";
+};
+
+const formatPaymentType = (request: FuneralServiceRequest) => {
+  const optionLabel =
+    request.paymentOption === "downpayment"
+      ? "Downpayment"
+      : request.paymentOption === "full"
+        ? "Full payment"
+        : "Online payment";
+  const methodLabel = formatPaymentMethodLabel(request);
+  return methodLabel ? `${optionLabel} · ${methodLabel}` : optionLabel;
 };
 
 function DetailCard({
@@ -547,7 +598,8 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
   const [submittingPayment, setSubmittingPayment] = useState(false);
   const [paymentExpanded, setPaymentExpanded] = useState(
     focusPaymentOnOpen ||
-      ["awaiting_payment", "payment_submitted"].includes(String(initialRequest.status || "").toLowerCase())
+      ["awaiting_payment", "payment_submitted"].includes(String(initialRequest.status || "").toLowerCase()) ||
+      (initialRequest.paymentOption === "downpayment" && Number(initialRequest.remainingBalance) > 0)
   );
   const [paymentSuccessRequest, setPaymentSuccessRequest] = useState<FuneralServiceRequest | null>(null);
   const [xenditVisible, setXenditVisible] = useState(false);
@@ -1209,25 +1261,44 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
     [updatingRequestId]
   );
 
-  const statusMeta = getStatusMeta(request.status);
+  const statusMeta = getStatusMeta(request.status, request.paymentOption);
   const normalizedRequestStatus = String(request.status || '').toLowerCase();
-  const shopHasFamilyPayment =
-    !requesterView &&
-    Boolean(request.paymentSubmittedAt || request.paymentPayerName || request.paymentProofImageUrl) &&
+  const hasFamilyPaymentRecord =
+    Boolean(
+      request.paymentSubmittedAt ||
+        request.paymentVerifiedAt ||
+        Number(request.paymentAmount) > 0 ||
+        request.paymentPayerName ||
+        request.paymentProofImageUrl
+    ) &&
     ["payment_submitted", "payment_verified", "awaiting_customer_confirmation", "completed"].includes(
       normalizedRequestStatus
     );
+  const shopHasFamilyPayment = !requesterView && hasFamilyPaymentRecord;
   const paymentSectionVisible =
     ["awaiting_payment", "payment_submitted", "payment_verified", "awaiting_customer_confirmation", "completed"].includes(
       normalizedRequestStatus
-    ) && (normalizedRequestStatus === "awaiting_payment" || hasPaymentSetup(request));
+    ) && (normalizedRequestStatus === "awaiting_payment" || hasPaymentSetup(request) || Number(request.remainingBalance) > 0);
   const currentStatusMessage = requesterView ? statusMeta.message : statusMeta.shopMessage;
+  const totalOrderPrice =
+    Number(request.productFullPrice ?? request.productPrice ?? request.paymentAmount) || 0;
+  const initialPaymentType = formatPaymentType(request);
   const timelineEvents: { label: string; value: string }[] = [
     { label: "Request submitted", value: formatTimestamp(request.createdAt) },
   ];
   if (request.acceptedAt) timelineEvents.push({ label: "Accepted by shop", value: formatTimestamp(request.acceptedAt) });
-  if (request.paymentSubmittedAt) timelineEvents.push({ label: "Payment submitted", value: formatTimestamp(request.paymentSubmittedAt) });
-  if (request.paymentVerifiedAt) timelineEvents.push({ label: "Payment verified", value: formatTimestamp(request.paymentVerifiedAt) });
+  if (request.paymentSubmittedAt) {
+    timelineEvents.push({
+      label: `Payment submitted · ${initialPaymentType}`,
+      value: `Amount: ${formatCurrency(request.paymentAmount)} · Total: ${formatCurrency(request.paymentAmount)} of ${formatCurrency(totalOrderPrice)} · ${formatTimestamp(request.paymentSubmittedAt)}`,
+    });
+  }
+  if (request.paymentVerifiedAt) {
+    timelineEvents.push({
+      label: `Payment verified · ${initialPaymentType}`,
+      value: `Shop received ${formatCurrency(request.paymentAmount)} · Total received: ${formatCurrency(request.paymentAmount)} of ${formatCurrency(totalOrderPrice)} · ${formatTimestamp(request.paymentVerifiedAt)}`,
+    });
+  }
   if (request.shopMarkedCompletedAt) timelineEvents.push({ label: "Marked delivered", value: formatTimestamp(request.shopMarkedCompletedAt) });
   if (request.completedAt) timelineEvents.push({ label: "Request completed", value: formatTimestamp(request.completedAt) });
   if (request.declinedAt) timelineEvents.push({ label: "Request declined", value: formatTimestamp(request.declinedAt) });
@@ -1456,88 +1527,32 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
                 {request.requestType === "custom_casket" ? "Custom Casket Request" : request.productName}
               </Text>
               <Text style={styles.heroSubtitle}>
-                Service request
+                {`${request.variationName || "Service request"}${totalOrderPrice > 0 ? ` · ${formatCurrency(totalOrderPrice)}` : ""}`}
               </Text>
             </View>
           </View>
 
           <View style={styles.heroDivider} />
           <View style={styles.heroStatusRow}>
-            <View style={[styles.statusBadge, { backgroundColor: statusMeta.background }]}>
-              <Ionicons name={statusMeta.icon} size={14} color={statusMeta.text} />
-              <Text style={[styles.statusBadgeText, { color: statusMeta.text }]}>{statusMeta.label}</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              <View style={[styles.statusBadge, { backgroundColor: statusMeta.background }]}>
+                <Ionicons name={statusMeta.icon} size={14} color={statusMeta.text} />
+                <Text style={[styles.statusBadgeText, { color: statusMeta.text }]}>{statusMeta.label}</Text>
+              </View>
+              {request.paymentOption === "downpayment" &&
+              request.paymentVerifiedAt &&
+              normalizedRequestStatus !== "payment_verified" ? (
+                <View style={[styles.statusBadge, { backgroundColor: "#e7f5ec" }]}>
+                  <Ionicons name="shield-checkmark-outline" size={14} color="#166534" />
+                  <Text style={[styles.statusBadgeText, { color: "#166534" }]}>Downpayment Confirmed</Text>
+                </View>
+              ) : null}
             </View>
             <Text style={styles.heroStatusMessage}>{currentStatusMessage}</Text>
           </View>
         </View>
 
-        <RequestProgressStepper status={request.status} />
-
-        <View>
-          <DeathCertificateRequestCard
-            serviceRequestId={request.id}
-            requesterView={requesterView}
-            ownerView={isRequestOwner}
-          />
-        </View>
-
-        {!requesterView ? (
-          <View style={styles.shopOwnerBrief}>
-            <View style={styles.shopOwnerBriefHeader}>
-              <View style={styles.shopOwnerBriefIcon}>
-                <Ionicons name="compass-outline" size={22} color="#ffffff" />
-              </View>
-              <View style={styles.shopOwnerBriefHeading}>
-                <Text style={styles.shopOwnerBriefTitle}>Next shop action</Text>
-              </View>
-            </View>
-
-            <View style={styles.shopOwnerPriority}>
-              <View style={styles.shopOwnerPriorityIcon}>
-                <Ionicons name={stickyAction?.icon || "eye-outline"} size={19} color="#2f6b55" />
-              </View>
-              <View style={styles.shopOwnerPriorityCopy}>
-                <Text style={styles.shopOwnerPriorityLabel}>Next step</Text>
-                <Text style={styles.shopOwnerPriorityTitle}>{stickyAction?.label || "Monitor this request"}</Text>
-                <Text style={styles.shopOwnerPriorityText}>{stickyAction?.helper || currentStatusMessage}</Text>
-              </View>
-            </View>
-
-            <View style={styles.shopOwnerReadinessRow}>
-              {([
-                {
-                  key: "contact",
-                  icon: "call-outline" as IoniconName,
-                  label: "Family contact",
-                  value: shopFamilyContactReady ? "Ready" : "Missing",
-                  ready: shopFamilyContactReady,
-                },
-                {
-                  key: "schedule",
-                  icon: "calendar-outline" as IoniconName,
-                  label: "Schedule",
-                  value: shopScheduleReady ? "Complete" : "Review",
-                  ready: shopScheduleReady,
-                },
-                {
-                  key: "checklist",
-                  icon: "checkmark-done-outline" as IoniconName,
-                  label: "Preparation",
-                  value: `${checklistCompletedCount}/${SHOP_PREPARATION_ITEMS.length}`,
-                  ready: checklistCompletedCount === SHOP_PREPARATION_ITEMS.length,
-                },
-              ]).map((item) => (
-                <View key={item.key} style={styles.shopOwnerReadinessItem}>
-                  <View style={[styles.shopOwnerReadinessIcon, item.ready ? styles.shopOwnerReadinessIconReady : null]}>
-                    <Ionicons name={item.icon} size={15} color={item.ready ? "#256047" : "#8a6d4e"} />
-                  </View>
-                  <Text style={styles.shopOwnerReadinessLabel}>{item.label}</Text>
-                  <Text style={[styles.shopOwnerReadinessValue, item.ready ? styles.shopOwnerReadinessValueReady : null]}>{item.value}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        ) : null}
+        {requesterView ? <RequestProgressStepper status={request.status} /> : null}
 
         <DetailCard
           icon="cube-outline"
@@ -1572,8 +1587,8 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
           ) : null}
           <InfoRow
             icon="cash-outline"
-            label="Service amount"
-            value={Number(request.paymentAmount) > 0 ? formatCurrency(request.paymentAmount) : request.productPrice || "Not set"}
+            label="Total service price"
+            value={totalOrderPrice > 0 ? formatCurrency(totalOrderPrice) : request.productPrice || "Not set"}
           />
           {request.customDesignNotes ? (
             <InfoRow icon="create-outline" label="Custom design specifications" value={request.customDesignNotes} />
@@ -1718,125 +1733,17 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
           <InfoRow icon="navigate-outline" label="Pickup address" value={request.pickupAddress || "Not provided"} />
         </DetailCard>
 
-        {!requesterView ? (
-          <>
-          <View style={styles.requestSectionIntro}>
-            <Text style={styles.requestSectionTitle}>Shop preparation</Text>
-            <Text style={styles.requestSectionText}>This checklist is visible only to the shop.</Text>
-          </View>
-          <DetailCard
-            icon="checkmark-done-circle-outline"
-            title="Preparation checklist"
-            subtitle="Private to your shop and synced across devices"
-          >
-            <View style={styles.checklistProgressRow}>
-              <Text style={styles.checklistProgressText}>
-                {checklistCompletedCount} of {SHOP_PREPARATION_ITEMS.length} completed
-              </Text>
-              <Text style={styles.checklistProgressPercent}>
-                {Math.round((checklistCompletedCount / SHOP_PREPARATION_ITEMS.length) * 100)}%
-              </Text>
-            </View>
-            <View style={styles.checklistProgressTrack}>
-              <View
-                style={[
-                  styles.checklistProgressFill,
-                  {
-                    width:
-                      ((checklistCompletedCount / SHOP_PREPARATION_ITEMS.length) * 100 +
-                        "%") as DimensionValue,
-                  },
-                ]}
-              />
-            </View>
-
-            {checklistLoading ? (
-              <View style={styles.checklistLoadingRow}>
-                <ActivityIndicator size="small" color="#2f6b55" />
-                <Text style={styles.checklistLoadingText}>Loading preparation progress...</Text>
-              </View>
-            ) : (
-              <View style={styles.checklistItems}>
-                {SHOP_PREPARATION_ITEMS.map((item) => {
-                  const checked = shopChecklist[item.key];
-                  const saving = checklistSavingKey === item.key;
-                  return (
-                    <TouchableOpacity
-                      key={item.key}
-                      activeOpacity={0.78}
-                      style={[
-                        styles.checklistItem,
-                        checked ? styles.checklistItemChecked : null,
-                        checklistLocked ? styles.checklistItemLocked : null,
-                      ]}
-                      onPress={() => void toggleShopChecklistItem(item.key)}
-                      disabled={Boolean(checklistSavingKey) || checklistLocked}
-                      accessibilityRole="checkbox"
-                      accessibilityState={{
-                        checked,
-                        disabled: Boolean(checklistSavingKey) || checklistLocked,
-                      }}
-                      accessibilityLabel={item.label}
-                    >
-                      <View
-                        style={[
-                          styles.checklistCheckbox,
-                          checked ? styles.checklistCheckboxChecked : null,
-                        ]}
-                      >
-                        {saving ? (
-                          <ActivityIndicator size={14} color={checked ? "#ffffff" : "#2f6b55"} />
-                        ) : (
-                          <Ionicons
-                            name={checked ? "checkmark" : item.icon}
-                            size={checked ? 17 : 16}
-                            color={checked ? "#ffffff" : "#71807a"}
-                          />
-                        )}
-                      </View>
-                      <View style={styles.checklistItemCopy}>
-                        <Text
-                          style={[
-                            styles.checklistItemLabel,
-                            checked ? styles.checklistItemLabelChecked : null,
-                          ]}
-                        >
-                          {item.label}
-                        </Text>
-                        <Text style={styles.checklistItemDescription}>{item.description}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-
-            {checklistError ? (
-              <View style={styles.checklistErrorCard}>
-                <Ionicons name="cloud-offline-outline" size={18} color="#9b403b" />
-                <View style={styles.checklistErrorCopy}>
-                  <Text style={styles.checklistErrorTitle}>Checklist could not sync</Text>
-                  <Text style={styles.checklistErrorText}>{checklistError}</Text>
-                </View>
-                <TouchableOpacity onPress={() => void loadShopChecklist()} style={styles.checklistRetryButton}>
-                  <Text style={styles.checklistRetryText}>Retry</Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
-
-            <View style={styles.checklistPrivacyNote}>
-              <Ionicons name="lock-closed-outline" size={14} color="#6f7d78" />
-              <Text style={styles.checklistPrivacyText}>
-                Customers cannot see this operational checklist.
-              </Text>
-            </View>
-          </DetailCard>
-          </>
-        ) : null}
+        <View>
+          <DeathCertificateRequestCard
+            serviceRequestId={request.id}
+            requesterView={requesterView}
+            ownerView={isRequestOwner}
+          />
+        </View>
 
         {paymentSectionVisible ? (
           <View
-            style={styles.paymentSection}
+            style={styles.detailCard}
             onLayout={(event) => {
               paymentSectionY.current = event.nativeEvent.layout.y;
               if (focusPaymentOnOpen && !paymentFocusHandledRef.current) {
@@ -1846,163 +1753,146 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
             }}
           >
             <TouchableOpacity
-              style={styles.paymentHeader}
+              style={[styles.detailCardHeader, paymentExpanded ? styles.detailCardHeaderOpen : null]}
               onPress={() => setPaymentExpanded((current) => !current)}
               accessibilityRole="button"
               accessibilityLabel={paymentExpanded ? "Hide payment details" : "Show payment details"}
               accessibilityState={{ expanded: paymentExpanded }}
             >
-              <View style={styles.paymentHeaderIcon}>
-                <Ionicons name="wallet-outline" size={20} color="#2d6752" />
+              <View style={styles.detailCardIcon}>
+                <Ionicons name="wallet-outline" size={19} color="#846a4f" />
               </View>
-              <View style={styles.paymentHeaderCopy}>
-                <Text style={styles.paymentTitle}>{requesterView ? "Payment details" : "Family payment"}</Text>
-                <Text style={styles.paymentSubtitle} numberOfLines={2}>
-                  {requesterView
-                    ? normalizedRequestStatus === "awaiting_payment" && Number(request.downpaymentAmountSnapshot) > 0
-                      ? "Choose full payment or down payment after tapping Pay Online."
-                      : "Send the exact amount and keep your receipt."
-                    : shopHasFamilyPayment
-                      ? `${request.paymentPayerName || request.familyCoordinatorName || "Family sender"}${request.paymentSubmittedAt ? ` · ${formatTimestamp(request.paymentSubmittedAt)}` : ""}`
-                      : "Waiting for the family to send a receipt."}
+              <View style={styles.detailCardHeading}>
+                <Text style={styles.detailCardTitle}>{requesterView ? "Payment details" : "Family payment"}</Text>
+                <Text style={styles.detailCardSubtitle} numberOfLines={2}>
+                  {`${initialPaymentType} · Total: ${formatCurrency(totalOrderPrice)}${
+                    request.paymentOption === "downpayment" && Number(request.paymentAmount) > 0
+                      ? ` · Downpayment: ${formatCurrency(request.paymentAmount)}`
+                      : ""
+                  }`}
                 </Text>
               </View>
-              {Number(request.paymentAmount) > 0 ? (
-                <View style={styles.paymentAmountBadge}>
-                  <Text style={styles.paymentAmountCaption}>
-                    {requesterView && normalizedRequestStatus === "awaiting_payment" && Number(request.downpaymentAmountSnapshot) > 0
-                      ? "FULL PRICE"
-                      : requesterView
-                        ? "SEND"
-                        : shopHasFamilyPayment
-                          ? "RECEIVED"
-                          : "RECEIVE"}
-                  </Text>
-                  <Text style={styles.paymentAmountStrong}>{formatCurrency(request.paymentAmount)}</Text>
-                </View>
-              ) : null}
               <Ionicons name={paymentExpanded ? "chevron-up" : "chevron-down"} size={19} color="#6f7b76" />
             </TouchableOpacity>
 
             {paymentExpanded ? (
-              <>
-            {isRequestOwner && String(request.status || "").toLowerCase() === "awaiting_payment" ? (
-              <TouchableOpacity
-                style={[styles.acceptButton, { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }]}
-                onPress={() => setXenditVisible(true)}
-              >
-                <Ionicons name="flash" size={19} color="#ffffff" />
-                <Text style={styles.acceptButtonText}>Pay Online (GCash, Cards & Maya)</Text>
-              </TouchableOpacity>
-            ) : null}
+              <View style={styles.detailCardBody}>
+                <InfoRow
+                  icon="pricetag-outline"
+                  label="Total service price"
+                  value={formatCurrency(totalOrderPrice)}
+                  emphasize
+                />
+                <InfoRow
+                  icon="card-outline"
+                  label="Payment type"
+                  value={initialPaymentType}
+                />
+                {request.paymentOption === "downpayment" ? (
+                  <InfoRow
+                    icon="wallet-outline"
+                    label={normalizedRequestStatus === "awaiting_payment" ? "Downpayment due" : "Downpayment received"}
+                    value={formatCurrency(request.downpaymentAmountSnapshot || request.paymentAmount)}
+                  />
+                ) : Number(request.paymentAmount) > 0 ? (
+                  <InfoRow
+                    icon="wallet-outline"
+                    label={normalizedRequestStatus === "awaiting_payment" ? "Amount due" : "Amount received"}
+                    value={formatCurrency(request.paymentAmount)}
+                  />
+                ) : null}
 
-            {false && isRequestOwner && String(request.status || "").toLowerCase() === "awaiting_payment" ? (
-              <>
-                {request.paymentRejectionReason ? (
-                  <View style={styles.rejectReasonCard}>
-                    <Text style={styles.rejectReasonTitle}>Your previous payment was rejected</Text>
-                    <Text style={styles.rejectReasonText}>{request.paymentRejectionReason}</Text>
+                {isRequestOwner && String(request.status || "").toLowerCase() === "awaiting_payment" ? (
+                  <TouchableOpacity
+                    style={[styles.acceptButton, { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 8 }]}
+                    onPress={() => setXenditVisible(true)}
+                  >
+                    <Ionicons name="flash" size={19} color="#ffffff" />
+                    <Text style={styles.acceptButtonText}>Pay Online (GCash, Cards & Maya)</Text>
+                  </TouchableOpacity>
+                ) : null}
+
+                {hasFamilyPaymentRecord ? (
+                  <>
+                    {(request.paymentPayerName || request.familyCoordinatorName) ? (
+                      <InfoRow
+                        icon="person-outline"
+                        label="Sender"
+                        value={request.paymentPayerName || request.familyCoordinatorName || "—"}
+                      />
+                    ) : null}
+                    {request.paymentGcashName ? (
+                      <InfoRow icon="wallet-outline" label="Account name" value={request.paymentGcashName} />
+                    ) : null}
+                    {request.paymentGcashNumber ? (
+                      <InfoRow icon="call-outline" label="Account number" value={request.paymentGcashNumber} />
+                    ) : null}
+                    <InfoRow
+                      icon="document-text-outline"
+                      label="Reference number"
+                      value={request.paymentReferenceNumber || `#PAY-${request.id.slice(0, 8).toUpperCase()}`}
+                    />
+                  </>
+                ) : null}
+
+                {!requesterView && normalizedRequestStatus === "payment_verified" ? (
+                  <InfoRow
+                    icon="swap-horizontal-outline"
+                    label="Shop payout (70%)"
+                    value={
+                      request.payoutStatus === "succeeded"
+                        ? `₱${Number(request.payoutAmount || 0).toLocaleString()} sent${request.payoutCompletedAt ? ` on ${formatTimestamp(request.payoutCompletedAt)}` : ""}`
+                        : request.payoutStatus === "failed"
+                        ? `Payout of ₱${Number(request.payoutAmount || 0).toLocaleString()} failed (${request.payoutFailureCode || "Contact admin"})`
+                        : request.payoutStatus === "pending"
+                        ? `₱${Number(request.payoutAmount || 0).toLocaleString()} processing`
+                        : "70% payout will be sent to your registered account"
+                    }
+                  />
+                ) : null}
+
+                {(request.paymentSubmittedAt || request.paymentVerifiedAt || request.payoutCompletedAt) ? (
+                  <View style={styles.timelineList}>
+                    {request.paymentSubmittedAt ? (
+                      <TimelineItem
+                        label={`${request.paymentOption === "downpayment" ? "Downpayment" : "Payment"} submitted · ${initialPaymentType}`}
+                        value={`Amount: ${formatCurrency(request.downpaymentAmountSnapshot || request.paymentAmount)} · Total: ${formatCurrency(request.downpaymentAmountSnapshot || request.paymentAmount)} of ${formatCurrency(totalOrderPrice)} · ${formatTimestamp(request.paymentSubmittedAt)}`}
+                        active
+                        last={!request.paymentVerifiedAt && !request.payoutCompletedAt}
+                      />
+                    ) : null}
+                    {request.paymentVerifiedAt ? (
+                      <TimelineItem
+                        label={`${request.paymentOption === "downpayment" ? "Downpayment" : "Payment"} verified · ${initialPaymentType}`}
+                        value={`Shop received ${formatCurrency(request.downpaymentAmountSnapshot || request.paymentAmount)} · Total received: ${formatCurrency(request.downpaymentAmountSnapshot || request.paymentAmount)} of ${formatCurrency(totalOrderPrice)} · ${formatTimestamp(request.paymentVerifiedAt)}`}
+                        active
+                        last={!request.payoutCompletedAt}
+                      />
+                    ) : null}
+                    {request.payoutCompletedAt ? (
+                      <TimelineItem
+                        label="Shop payout (70%) dispatched"
+                        value={`Shop received ₱${Number(request.payoutAmount || 0).toLocaleString()} payout · ${formatTimestamp(request.payoutCompletedAt)}`}
+                        active
+                        last
+                      />
+                    ) : null}
                   </View>
                 ) : null}
 
-                <Text style={styles.detailLabel}>Sender Name *</Text>
-                <TextInput
-                  style={styles.paymentSetupInput}
-                  value={paymentForm.senderName}
-                  onChangeText={(value) => setPaymentForm((current) => ({ ...current, senderName: value }))}
-                  placeholder="Name used for the payment"
-                  placeholderTextColor="#9aa39d"
-                />
-
-                <Text style={styles.detailLabel}>GCash Name *</Text>
-                <TextInput
-                  style={styles.paymentSetupInput}
-                  value={paymentForm.gcashName}
-                  onChangeText={(value) => setPaymentForm((current) => ({ ...current, gcashName: value }))}
-                  placeholder="Name registered to the GCash account"
-                  placeholderTextColor="#9aa39d"
-                />
-                <Text style={styles.detailLabel}>GCash Number *</Text>
-                <TextInput
-                  style={styles.paymentSetupInput}
-                  value={paymentForm.gcashNumber}
-                  onChangeText={(value) => setPaymentForm((current) => ({ ...current, gcashNumber: value }))}
-                  placeholder="e.g. 09XX XXX XXXX"
-                  placeholderTextColor="#9aa39d"
-                  keyboardType="phone-pad"
-                />
-
-                <Text style={styles.detailLabel}>Transaction Reference *</Text>
-                <TextInput
-                  style={styles.paymentSetupInput}
-                  value={paymentForm.referenceNumber}
-                  onChangeText={(value) => setPaymentForm((current) => ({ ...current, referenceNumber: value }))}
-                  placeholder="Reference shown on the receipt"
-                  placeholderTextColor="#9aa39d"
-                  autoCapitalize="characters"
-                  maxLength={40}
-                />
-
-                <Text style={styles.detailLabel}>Proof of Payment *</Text>
-                {paymentForm.proofImageUrl ? (
+                {requesterView && request.paymentProofImageUrl ? (
                   <>
+                    <Text style={styles.detailLabel}>Submitted Proof</Text>
                     <PhotoFrame
-                      uri={paymentForm.proofImageUrl!}
+                      uri={request.paymentProofImageUrl}
+                      ratio={photoRatios[request.paymentProofImageUrl]}
                       fallbackHeight={190}
-                      onPress={() => setPhotoViewerUrl(paymentForm.proofImageUrl!)}
+                      onPress={() => setPhotoViewerUrl(request.paymentProofImageUrl!)}
                     />
-                    <TouchableOpacity
-                      style={styles.removeProofButton}
-                      onPress={() => setPaymentForm((current) => ({ ...current, proofImageUrl: null }))}
-                    >
-                      <Text style={styles.removeProofButtonText}>Remove Proof</Text>
-                    </TouchableOpacity>
                   </>
-                ) : (
-                  <TouchableOpacity
-                    style={styles.uploadProofButton}
-                    onPress={() => void pickPaymentProof()}
-                    disabled={uploadingProof}
-                  >
-                    {uploadingProof ? <ActivityIndicator size="small" color="#7f6653" /> : <Ionicons name="cloud-upload-outline" size={21} color="#7f6653" />}
-                    <Text style={styles.uploadProofButtonText}>{uploadingProof ? "Uploading..." : "Attach Payment Screenshot"}</Text>
-                  </TouchableOpacity>
-                )}
+                ) : null}
 
-                <TouchableOpacity
-                  style={[styles.acceptButton, submittingPayment ? styles.buttonDisabled : null]}
-                  onPress={() => void submitRequesterPayment()}
-                  disabled={submittingPayment || uploadingProof}
-                >
-                  <Text style={styles.acceptButtonText}>{submittingPayment ? "Submitting..." : "Submit Payment Proof"}</Text>
-                </TouchableOpacity>
-              </>
-            ) : null}
-
-            {requesterView &&
-            ["payment_submitted", "payment_verified", "awaiting_customer_confirmation", "completed"].includes(String(request.status || "").toLowerCase()) ? (
-              <>
-                <Text style={styles.detailLabel}>Sender Name</Text>
-                <Text style={styles.detailValue}>{request.paymentPayerName || "—"}</Text>
-                <Text style={styles.detailLabel}>GCash Name</Text>
-                <Text style={styles.detailValue}>{request.paymentGcashName || "—"}</Text>
-                <Text style={styles.detailLabel}>GCash Number</Text>
-                <Text style={styles.detailValue}>{request.paymentGcashNumber || "—"}</Text>
-                <Text style={styles.detailLabel}>Reference Number</Text>
-                <Text style={styles.detailValue}>{request.paymentReferenceNumber || "Not provided"}</Text>
-                <Text style={styles.detailLabel}>Submitted Proof</Text>
-                {request.paymentProofImageUrl ? (
-                  <PhotoFrame
-                    uri={request.paymentProofImageUrl}
-                    ratio={photoRatios[request.paymentProofImageUrl]}
-                    fallbackHeight={190}
-                    onPress={() => setPhotoViewerUrl(request.paymentProofImageUrl!)}
-                  />
-                ) : (
-                  <Text style={styles.detailValue}>No proof attached.</Text>
-                )}
-
-                {request.completionProofImageUrl ? (
+                {requesterView && request.completionProofImageUrl ? (
                   <>
                     <Text style={styles.detailLabel}>Completion Proof</Text>
                     <PhotoFrame
@@ -2013,34 +1903,22 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
                     />
                   </>
                 ) : null}
-              </>
-            ) : null}
 
-            {shopHasFamilyPayment ? (
-              <View style={styles.familyPaymentDetails}>
-                <View style={styles.familyPaymentSafetyNote}>
-                  <Ionicons name="shield-checkmark-outline" size={17} color="#2d6752" />
-                  <Text style={styles.familyPaymentSafetyText}>
-                    Open the receipt and check its sender, reference, amount, and proof before verifying.
-                  </Text>
-                </View>
+                {hasFamilyPaymentRecord ? (
+                  <TouchableOpacity
+                    activeOpacity={0.88}
+                    style={styles.viewFamilyReceiptButton}
+                    onPress={() => navigation.navigate("ShopPaymentReceipt", { request })}
+                    accessibilityRole="button"
+                    accessibilityLabel="View payment receipt"
+                  >
+                    <Ionicons name="receipt-outline" size={19} color="#ffffff" />
+                    <Text style={styles.viewFamilyReceiptButtonText}>View payment receipt</Text>
+                    <Ionicons name="arrow-forward" size={17} color="#ffffff" />
+                  </TouchableOpacity>
+                ) : null}
 
-                <TouchableOpacity
-                  activeOpacity={0.88}
-                  style={[styles.viewFamilyReceiptButton, !request.paymentProofImageUrl ? styles.viewFamilyReceiptButtonDisabled : null]}
-                  onPress={() => navigation.navigate("ShopPaymentReceipt", { request })}
-                  disabled={!request.paymentProofImageUrl}
-                  accessibilityRole="button"
-                  accessibilityLabel="View family payment receipt"
-                >
-                  <Ionicons name="receipt-outline" size={19} color="#ffffff" />
-                  <Text style={styles.viewFamilyReceiptButtonText}>
-                    {request.paymentProofImageUrl ? "View receipt" : "Receipt unavailable"}
-                  </Text>
-                  <Ionicons name="arrow-forward" size={17} color="#ffffff" />
-                </TouchableOpacity>
-
-                {normalizedRequestStatus === "payment_submitted" ? (
+                {shopHasFamilyPayment && normalizedRequestStatus === "payment_submitted" ? (
                   <View style={styles.actionStack}>
                     <TouchableOpacity
                       style={[styles.acceptButton, updatingRequestId === request.id ? styles.buttonDisabled : null]}
@@ -2058,38 +1936,19 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
                     </TouchableOpacity>
                   </View>
                 ) : null}
-              </View>
-            ) : null}
 
-            {!requesterView && String(request.status || "").toLowerCase() === "payment_verified" ? (
-              <View>
-                <Text style={styles.paymentNote}>Payment confirmed. Prepare the casket and mark the request as completed once delivered.</Text>
-                <View style={styles.payoutStatusContainer}>
-                  <Text style={styles.payoutStatusHeader}>Shop Payout (70%):</Text>
-                  <Text style={styles.payoutStatusBody}>
-                    {request.payoutStatus === "succeeded"
-                      ? `₱${Number(request.payoutAmount || 0).toLocaleString()} sent to your registered account${request.payoutCompletedAt ? ` on ${formatTimestamp(request.payoutCompletedAt)}` : ""}.`
-                      : request.payoutStatus === "failed"
-                      ? `Payout of ₱${Number(request.payoutAmount || 0).toLocaleString()} failed (${request.payoutFailureCode || "Contact admin"}). Admin will review.`
-                      : request.payoutStatus === "pending"
-                      ? `Payout of ₱${Number(request.payoutAmount || 0).toLocaleString()} is being processed by Xendit.`
-                      : "Payment confirmed. 70% payout will be sent to your registered GCash/bank account."}
-                  </Text>
-                </View>
-              </View>
-            ) : null}
-
-            {!requesterView && String(request.status || "").toLowerCase() === "awaiting_payment" ? (
-              <>
-                {request.paymentRejectionReason ? (
-                  <View style={styles.rejectReasonCard}>
-                    <Text style={styles.rejectReasonTitle}>Last submission was rejected</Text>
-                    <Text style={styles.rejectReasonText}>{request.paymentRejectionReason}</Text>
-                  </View>
+                {!requesterView && String(request.status || "").toLowerCase() === "awaiting_payment" && request.paymentRejectionReason ? (
+                  <InfoRow
+                    icon="alert-circle-outline"
+                    label="Last rejection reason"
+                    value={request.paymentRejectionReason}
+                  />
                 ) : null}
-              </>
-            ) : null}
-              </>
+
+                {isRequestOwner || (!requesterView && request.shopId === auth.currentUser?.uid) ? (
+                  <RemainingBalancePaymentCard request={request} isShop={!requesterView} />
+                ) : null}
+              </View>
             ) : null}
           </View>
         ) : null}
@@ -2208,25 +2067,6 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
           </View>
         ) : String(request.status || "").toLowerCase() === "awaiting_customer_confirmation" ? (
           <View style={styles.actionStack}>
-            <View style={styles.readonlyStatusCard}>
-              <Text style={styles.readonlyStatusTitle}>Waiting for Customer Confirmation</Text>
-              <Text style={styles.readonlyStatusText}>
-                The request has been marked as delivered. The family will review your completion proof and confirm the request as done.
-              </Text>
-            </View>
-            <View style={styles.readReceiptCard}>
-              <Text style={styles.readReceiptIcon}>{request.completionProofSeenAt ? "👁️" : "🔔"}</Text>
-              <View style={styles.readReceiptTextWrap}>
-                <Text style={styles.readReceiptTitle}>
-                  {request.completionProofSeenAt ? "Seen by the family" : "Delivered but not yet seen"}
-                </Text>
-                <Text style={styles.readReceiptSubtitle}>
-                  {request.completionProofSeenAt
-                    ? `The family opened this request and viewed your completion proof on ${formatTimestamp(request.completionProofSeenAt)}.`
-                    : "Once the family opens the request and views your completion proof, you will see the exact time here."}
-                </Text>
-              </View>
-            </View>
             {request.completionProofImageUrl ? (
               <>
                 <Text style={styles.detailLabel}>Attached Completion Proof</Text>
@@ -2239,18 +2079,11 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
               </>
             ) : null}
           </View>
-        ) : (
-          <View style={styles.readonlyStatusCard}>
-            <Text style={styles.readonlyStatusTitle}>Response Recorded</Text>
-            <Text style={styles.readonlyStatusText}>
-              This request has already been {getStatusMeta(request.status).label.toLowerCase()}.
-            </Text>
-          </View>
-        )}
+        ) : null}
         </View>
       </ScrollView>
 
-      {stickyAction ? (
+      {stickyAction && !stickyAction.disabled ? (
         <View style={styles.stickyActionContainer}>
           <View style={styles.stickyActionSummary}>
             <View style={styles.stickyActionIcon}>

@@ -13,7 +13,7 @@ const VALID_PAYOUT_CHANNELS = new Set([
   'PH_GCASH', 'PH_MAYA',
   'PH_BDO', 'PH_BPI', 'PH_UBP', 'PH_METROBANK',
   'PH_LANDBANK', 'PH_PNB', 'PH_RCBC', 'PH_CHINABANK',
-  'PH_SECURITYBANK', 'PH_EASTWESTBANK',
+  'PH_SECURITYBANK',
 ]);
 
 function corsHeaders(request: Request) {
@@ -105,8 +105,8 @@ async function sendPayoutChangeCode(
 
 /**
  * Save and manage a shop's payout account details.
- * Approved shop owners can activate valid receiver details immediately.
- * The legacy verification columns remain checkout-readiness flags.
+ * Owners submit test receiver details for administrator review. Only approved
+ * receiver rows are eligible for checkout.
  */
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders(request) });
@@ -147,6 +147,7 @@ Deno.serve(async (request) => {
     payoutChannelCode?: unknown;
     payoutAccountName?: unknown;
     payoutAccountNumber?: unknown;
+    payoutAccountId?: unknown;
     active?: unknown;
     action?: unknown;
     challengeId?: unknown;
@@ -159,10 +160,9 @@ Deno.serve(async (request) => {
     return jsonResponse(request, { error: 'Invalid request.' }, status);
   }
 
-  const shopId = String(input?.shopId || '').trim().toLowerCase();
-  if (!isUuid(shopId)) return jsonResponse(request, { error: 'A valid funeral shop is required.' }, 400);
-
   const action = String(input?.action || 'verify').trim().toLowerCase();
+  const shopId = String(input?.shopId || '').trim().toLowerCase();
+  if (action !== 'list-all' && !isUuid(shopId)) return jsonResponse(request, { error: 'A valid funeral shop is required.' }, 400);
   const sensitiveAction = ['update', 'confirm-update', 'resend-update-code'].includes(action);
   const rateLimit = await consumeUserRateLimit(
     admin,
@@ -174,6 +174,7 @@ Deno.serve(async (request) => {
   if (rateLimit.unavailable) {
     return jsonResponse(request, { error: 'Security checks are temporarily unavailable.' }, 503);
   }
+
   if (!rateLimit.allowed) {
     return jsonResponse(request, {
       error: 'Too many payout-account requests. Please wait before trying again.',
@@ -181,86 +182,45 @@ Deno.serve(async (request) => {
     }, 429);
   }
 
-  // Admin save action. "verify" remains as a backwards-compatible alias.
+  if (action === 'list-all' || action === 'list') {
+    if (!isAdmin) return jsonResponse(request, { error: 'Only an active administrator can review test receivers.' }, 403);
+    let accountQuery = admin
+      .from('funeral_shop_payout_accounts')
+      .select('id, "shopId", "channelCode", "accountName", "accountNumber", active, "verifiedByAdmin", "verifiedAt", "createdAt", "updatedAt"')
+      .order('createdAt', { ascending: true });
+    if (action === 'list') accountQuery = accountQuery.eq('shopId', shopId);
+    const { data: accounts, error } = await accountQuery;
+    if (error) return jsonResponse(request, { error: 'Unable to load receiver accounts.' }, 500);
+    return jsonResponse(request, { shopId, accounts });
+  }
+
+  // Admin approval of an owner-submitted test receiver.
   if (action === 'save' || action === 'verify') {
     if (!actor || !ADMIN_ROLES.has(String(actor.role)) || actor.disabled) {
       return jsonResponse(request, { error: 'Only an active administrator can manage another shop\'s payout account.' }, 403);
     }
 
-    const { data: shop, error: shopError } = await admin
-      .from('funeral_shops')
-      .select('id, status, payoutChannelCode, payoutAccountName, payoutAccountNumber, payoutVerifiedByAdmin')
-      .eq('id', shopId)
-      .maybeSingle();
-    if (shopError) return jsonResponse(request, { error: 'Unable to load the funeral shop.' }, 500);
-    if (!shop) return jsonResponse(request, { error: 'Funeral shop not found.' }, 404);
-    if (!PAYOUT_READY_SHOP_STATUSES.has(String(shop.status || '').toLowerCase())) {
-      return jsonResponse(request, { error: 'Approve the funeral shop before setting up payouts.' }, 409);
-    }
-
-    // If admin provides new payout details, update them
-    const channelCode = String(input?.payoutChannelCode || shop.payoutChannelCode || '').trim().toUpperCase();
-    const accountName = String(input?.payoutAccountName || shop.payoutAccountName || '').trim();
-    const accountNumber = String(input?.payoutAccountNumber || shop.payoutAccountNumber || '').trim();
-
-    if (!VALID_PAYOUT_CHANNELS.has(channelCode)) {
-      return jsonResponse(request, { error: 'Select a valid payout channel (e.g. GCash, BDO, BPI).' }, 400);
-    }
-    if (!accountName || accountName.length < 2 || accountName.length > 120) {
-      return jsonResponse(request, { error: 'A valid account holder name is required.' }, 400);
-    }
-    if (!accountNumber || accountNumber.length < 4 || accountNumber.length > 30) {
-      return jsonResponse(request, { error: 'A valid account number is required.' }, 400);
-    }
-
-    const { error: updateError } = await admin
-      .from('funeral_shops')
-      .update({
-        payoutChannelCode: channelCode,
-        payoutAccountName: accountName,
-        payoutAccountNumber: accountNumber,
-        payoutVerifiedByAdmin: true,
-        payoutVerifiedAt: new Date().toISOString(),
-        // Also mark the legacy xendit provisioning as 'provisioned' for backward compatibility
-        xenditProvisioningStatus: 'provisioned',
-        xenditProvisioningError: null,
-        xenditProvisioningUpdatedAt: new Date().toISOString(),
-      })
-      .eq('id', shopId);
-
-    if (updateError) {
-      console.error('Unable to save shop payout:', updateError.code || 'unknown');
-      return jsonResponse(request, { error: 'Unable to save the payout account.' }, 500);
-    }
-
-    const verifiedAt = new Date().toISOString();
-    const { error: accountError } = await admin
-      .from('funeral_shop_payout_accounts')
-      .upsert({
-        shopId,
-        channelCode,
-        accountName,
-        accountNumber,
-        active: true,
-        verifiedByAdmin: true,
-        verifiedAt,
-        updatedAt: verifiedAt,
-      }, { onConflict: 'shopId,channelCode' });
-    if (accountError) {
-      console.error('Unable to save receiver account:', accountError.code || 'unknown');
-      return jsonResponse(request, { error: 'Unable to save the receiver account.' }, 500);
-    }
-
-    return jsonResponse(request, {
-      shopId,
-      payoutChannelCode: channelCode,
-      payoutAccountName: accountName,
-      payoutVerified: true,
-      testMode: true,
+    const accountId = String(input?.payoutAccountId || '').trim().toLowerCase();
+    if (!isUuid(accountId)) return jsonResponse(request, { error: 'Select an owner-submitted test receiver to review.' }, 400);
+    const { data: approved, error: approvalError } = await admin.rpc('approve_test_payout_receiver', {
+      p_shop_id: shopId,
+      p_account_id: accountId,
     });
+    if (approvalError || !approved) {
+      console.error('Unable to approve test receiver:', approvalError?.code || 'empty_result');
+      const reason = String(approvalError?.message || '');
+      return jsonResponse(request, { error: reason.includes('shop_not_ready')
+        ? 'Approve the funeral shop before reviewing payout accounts.'
+        : reason.includes('receiver_already_reviewed')
+          ? 'This test receiver was already reviewed. Refresh the list.'
+          : reason.includes('receiver_not_found')
+            ? 'This test receiver was not found. Refresh the list.'
+            : 'Unable to approve the test receiver.' }, 409);
+    }
+    return jsonResponse(request, approved);
   }
 
-  // First-time receiver setup is immediate. Editing an existing receiver requires
+  // New details await test review. Editing an existing receiver also requires
   // a one-time code sent to the shop owner's confirmed account email.
   if (action === 'update') {
     if (userData.user.id !== shopId && !isAdmin) {
@@ -294,7 +254,7 @@ Deno.serve(async (request) => {
 
     const { data: existingAccount, error: existingAccountError } = await admin
       .from('funeral_shop_payout_accounts')
-      .select('id, accountName, accountNumber')
+      .select('id, accountName, accountNumber, verifiedByAdmin')
       .eq('shopId', shopId)
       .eq('channelCode', channelCode)
       .maybeSingle();
@@ -307,6 +267,16 @@ Deno.serve(async (request) => {
       String(existingAccount.accountName || '').trim() !== accountName ||
       String(existingAccount.accountNumber || '').trim() !== accountNumber
     );
+
+    if (existingAccount && !receiverChanged) {
+      return jsonResponse(request, {
+        shopId,
+        unchanged: true,
+        payoutVerified: existingAccount.verifiedByAdmin === true,
+        reviewPending: existingAccount.verifiedByAdmin !== true,
+        testMode: true,
+      });
+    }
 
     if (receiverChanged) {
       if (!anonKey) return jsonResponse(request, { error: 'Email verification is temporarily unavailable.' }, 503);
@@ -369,18 +339,15 @@ Deno.serve(async (request) => {
       });
     }
 
-    const readyAt = new Date().toISOString();
+    const submittedAt = new Date().toISOString();
     const { error: updateError } = await admin
       .from('funeral_shops')
       .update({
         payoutChannelCode: channelCode,
         payoutAccountName: accountName,
         payoutAccountNumber: accountNumber,
-        payoutVerifiedByAdmin: true,
-        payoutVerifiedAt: readyAt,
-        xenditProvisioningStatus: 'provisioned',
-        xenditProvisioningError: null,
-        xenditProvisioningUpdatedAt: readyAt,
+        payoutVerifiedByAdmin: false,
+        payoutVerifiedAt: null,
       })
       .eq('id', shopId);
 
@@ -396,10 +363,10 @@ Deno.serve(async (request) => {
         channelCode,
         accountName,
         accountNumber,
-        active: true,
-        verifiedByAdmin: true,
-        verifiedAt: readyAt,
-        updatedAt: readyAt,
+        active: false,
+        verifiedByAdmin: false,
+        verifiedAt: null,
+        updatedAt: submittedAt,
       }, { onConflict: 'shopId,channelCode' });
     if (accountError) {
       console.error('Unable to save receiver account:', accountError.code || 'unknown');
@@ -410,7 +377,8 @@ Deno.serve(async (request) => {
       shopId,
       payoutChannelCode: channelCode,
       payoutAccountName: accountName,
-      payoutVerified: true,
+      payoutVerified: false,
+      reviewPending: true,
       testMode: true,
     });
   }
@@ -521,9 +489,9 @@ Deno.serve(async (request) => {
           channelCode: challenge.channelCode,
           accountName: challenge.accountName,
           accountNumber: challenge.accountNumber,
-          active: true,
-          verifiedByAdmin: true,
-          verifiedAt: fallbackAt,
+          active: false,
+          verifiedByAdmin: false,
+          verifiedAt: null,
           updatedAt: fallbackAt,
         }, { onConflict: 'shopId,channelCode' })
         .select('id')
@@ -534,8 +502,8 @@ Deno.serve(async (request) => {
           payoutChannelCode: challenge.channelCode,
           payoutAccountName: challenge.accountName,
           payoutAccountNumber: challenge.accountNumber,
-          payoutVerifiedByAdmin: true,
-          payoutVerifiedAt: fallbackAt,
+          payoutVerifiedByAdmin: false,
+          payoutVerifiedAt: null,
         })
         .eq('id', shopId)
         .select('id')
@@ -551,7 +519,8 @@ Deno.serve(async (request) => {
             shopId,
             payoutChannelCode: challenge.channelCode,
             payoutAccountName: challenge.accountName,
-            payoutVerified: true,
+            payoutVerified: false,
+            reviewPending: true,
             testMode: true,
           });
         }
@@ -568,7 +537,7 @@ Deno.serve(async (request) => {
     }
 
     await admin.from('payout_account_change_challenges').delete().eq('id', challengeId);
-    return jsonResponse(request, { ...applied, testMode: true });
+    return jsonResponse(request, { ...applied, reviewPending: true, testMode: true });
   }
 
   if (action === 'resend-update-code') {
@@ -660,21 +629,22 @@ Deno.serve(async (request) => {
     }
 
     const changedAt = new Date().toISOString();
-    const activationFields = input.active
-      ? { active: true, verifiedByAdmin: true, verifiedAt: changedAt, updatedAt: changedAt }
-      : { active: false, updatedAt: changedAt };
-    const { data: account, error: accountError } = await admin
+    let accountUpdate = admin
       .from('funeral_shop_payout_accounts')
-      .update(activationFields)
+      .update({ active: input.active, updatedAt: changedAt })
       .eq('shopId', shopId)
-      .eq('channelCode', channelCode)
+      .eq('channelCode', channelCode);
+    if (input.active) accountUpdate = accountUpdate.eq('verifiedByAdmin', true);
+    const { data: account, error: accountError } = await accountUpdate
       .select('channelCode, active, verifiedByAdmin')
       .maybeSingle();
     if (accountError) {
       console.error('Unable to change receiver account status:', accountError.code || 'unknown');
       return jsonResponse(request, { error: 'Unable to change the receiver account status.' }, 500);
     }
-    if (!account) return jsonResponse(request, { error: 'Receiver account not found.' }, 404);
+    if (!account) return jsonResponse(request, { error: input.active
+      ? 'This test receiver must be reviewed before it can be enabled.'
+      : 'Receiver account not found.' }, input.active ? 409 : 404);
 
     const { data: readyAccount, error: readyError } = await admin
       .from('funeral_shop_payout_accounts')

@@ -7,7 +7,6 @@ import { AdminSidebarContent } from '@/components';
 import {
   AdminAuditLogsScreen,
   AdminAnnouncementsScreen,
-  AdminDeletionRequestsScreen,
   AdminDashboard,
   AdminFuneralShopVerificationsScreen,
   AdminHomeContentScreen,
@@ -40,7 +39,6 @@ const routeLabels: Record<string, string> = {
   Support: 'Support Inbox',
   ActivityLogs: 'Activity Logs',
   LoginSecurity: 'Login & Security',
-  Deletions: 'Account Deletion Requests',
   HomeContent: 'Mobile Home Feature',
   PayoutAccounts: 'Payout Accounts',
   Announcements: 'Announcements',
@@ -137,7 +135,6 @@ export default function AdminTabsNavigator() {
       <Drawer.Screen name="Support" component={AdminSupportMessages} options={{ title: 'Support Inbox' }} />
       <Drawer.Screen name="ActivityLogs" component={AdminAuditLogsScreen} options={{ title: 'Activity Logs' }} />
       <Drawer.Screen name="LoginSecurity" component={AdminLoginSecurityScreen} options={{ title: 'Login & Security' }} />
-      {isRootAdmin ? <Drawer.Screen name="Deletions" component={AdminDeletionRequestsScreen} options={{ title: 'Account Deletions' }} /> : null}
       {isRootAdmin ? <Drawer.Screen name="HomeContent" component={AdminHomeContentScreen} options={{ title: 'Mobile Home Feature' }} /> : null}
       {isFuneralAdmin ? <Drawer.Screen name="PayoutAccounts" component={AdminPayoutAccountsScreen} options={{ title: 'Payout Accounts' }} /> : null}
       {isRootAdmin ? <Drawer.Screen name="Announcements" component={AdminAnnouncementsScreen} options={{ title: 'Announcements' }} /> : null}

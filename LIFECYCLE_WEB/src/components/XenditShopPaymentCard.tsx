@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { supabase, isolatedAuthClient } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 import BrandLogo from '@/components/BrandLogo'
 import { APP_ICON_TRANSPARENT_URL } from '@/assets/appIconAssets'
-import { createXenditShopCheckout, syncXenditShopPayment, type XenditShopPaymentMethod } from '@/utils/xenditShop'
+import { createXenditShopCheckout, syncXenditShopPayment } from '@/utils/xenditShop'
 import { getPaymentSetting } from '@/utils/paymentSettings'
 import './XenditShopPaymentCard.css'
 
@@ -26,26 +26,6 @@ type Payment = {
   providerCheckoutUrl: string | null
   providerPaymentId: string | null
   providerPaymentMethod: string | null
-}
-
-const PAYMENT_METHODS: Array<{ id: XenditShopPaymentMethod; label: string; detail: string; icon: string }> = [
-  { id: 'gcash', label: 'GCash', detail: 'Verified shop phone and password required', icon: 'G' },
-  { id: 'ewallets', label: 'Other e-wallets', detail: 'GrabPay and ShopeePay', icon: 'W' },
-  { id: 'cards', label: 'Cards', detail: 'Credit or debit card', icon: 'C' },
-  { id: 'bank_transfer', label: 'Bank transfer', detail: 'Pay from your bank account', icon: 'B' },
-]
-
-function normalizePhilippinePhone(value: string) {
-  const digits = value.replace(/\D/g, '')
-  if (/^09\d{9}$/.test(digits)) return `+63${digits.slice(1)}`
-  if (/^639\d{9}$/.test(digits)) return `+${digits}`
-  if (/^9\d{9}$/.test(digits)) return `+63${digits}`
-  return null
-}
-
-function maskPhone(value: string) {
-  const digits = value.replace(/\D/g, '')
-  return digits.length >= 4 ? `+63 9•• ••• ${digits.slice(-4)}` : 'Verified number'
 }
 
 const peso = (value: number) => new Intl.NumberFormat('en-PH', {
@@ -107,18 +87,6 @@ export default function XenditShopPaymentCard({
   const [historyOpen, setHistoryOpen] = useState(false)
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null)
   const [purchaseConfirmOpen, setPurchaseConfirmOpen] = useState(false)
-  const [paymentMethodMenuOpen, setPaymentMethodMenuOpen] = useState(false)
-  const [paymentMethod, setPaymentMethod] = useState<XenditShopPaymentMethod>('gcash')
-  const [accountPassword, setAccountPassword] = useState('')
-  const [passwordAccessToken, setPasswordAccessToken] = useState('')
-  const passwordConfirmed = Boolean(passwordAccessToken)
-  const [checkingPassword, setCheckingPassword] = useState(false)
-  const [phoneInput, setPhoneInput] = useState('')
-  const [pendingPhone, setPendingPhone] = useState('')
-  const [verifiedPhone, setVerifiedPhone] = useState('')
-  const [phoneOtp, setPhoneOtp] = useState('')
-  const [phoneOtpSent, setPhoneOtpSent] = useState(false)
-  const [phoneVerificationBusy, setPhoneVerificationBusy] = useState(false)
 
   const load = useCallback(async () => {
     const [{ data: { user } }, setting] = await Promise.all([
@@ -147,12 +115,8 @@ export default function XenditShopPaymentCard({
     if (paymentResult.error) throw paymentResult.error
     if (shopResult.error) throw shopResult.error
     const resolvedShopName = shopResult.data?.shopName || 'Funeral shop'
-    const authPhone = String(user.phone || '')
-    const isPhoneConfirmed = Boolean(authPhone && user.phone_confirmed_at)
     setShopName(resolvedShopName)
     setPaidUntil(shopResult.data?.paidUntil || null)
-    setVerifiedPhone(isPhoneConfirmed ? authPhone : '')
-    setPhoneInput(current => current || authPhone || String(shopResult.data?.shopPhoneNumber || ''))
     setPayments((paymentResult.data || []).map((row: any) => ({
       id: row.id,
       status: row.status || 'pending',
@@ -230,89 +194,6 @@ export default function XenditShopPaymentCard({
           ? `Expired on ${dateOnly(paidUntil)}`
           : 'No active subscription'
 
-  const confirmLifecyclePassword = async () => {
-    if (!accountPassword || checkingPassword) return
-    setCheckingPassword(true)
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user?.email) throw new Error('Your signed-in email is unavailable.')
-      const result = await isolatedAuthClient.auth.signInWithPassword({ email: user.email, password: accountPassword })
-      const reauthToken = result.data.session?.access_token
-      if (result.error || result.data.user?.id !== user.id || !reauthToken) {
-        throw new Error('Your LifeCycle password is incorrect.')
-      }
-      setAccountPassword('')
-      setPasswordAccessToken(reauthToken)
-    } catch (error) {
-      setPasswordAccessToken('')
-      openAlert({ title: 'Password not confirmed', message: error instanceof Error ? error.message : 'Please try again.', tone: 'danger', okLabel: 'Close' })
-    } finally {
-      setCheckingPassword(false)
-    }
-  }
-
-  const sendPhoneVerification = async () => {
-    const normalizedPhone = normalizePhilippinePhone(phoneInput)
-    if (!normalizedPhone) {
-      openAlert({ title: 'Invalid mobile number', message: 'Enter a Philippine mobile number such as 09XX XXX XXXX.', tone: 'warning', okLabel: 'Got It' })
-      return
-    }
-    setPhoneVerificationBusy(true)
-    try {
-      const { error } = await supabase.auth.updateUser({ phone: normalizedPhone })
-      if (error) throw error
-      setPendingPhone(normalizedPhone)
-      setPhoneOtp('')
-      setPhoneOtpSent(true)
-      openAlert({ title: 'Verification code sent', message: 'Enter the six-digit code sent to this mobile number.', tone: 'info', okLabel: 'Continue' })
-    } catch (error) {
-      const rawMessage = error instanceof Error ? error.message : ''
-      const providerUnavailable = /phone provider|sms provider|unsupported|not enabled/i.test(rawMessage)
-      openAlert({
-        title: 'Unable to send code',
-        message: providerUnavailable
-          ? 'Real SMS verification is not enabled in Supabase yet. An administrator must connect an SMS provider first.'
-          : rawMessage || 'Please try again.',
-        tone: 'danger',
-        okLabel: 'Close',
-      })
-    } finally {
-      setPhoneVerificationBusy(false)
-    }
-  }
-
-  const verifyPhoneCode = async () => {
-    if (!pendingPhone || !/^\d{6}$/.test(phoneOtp.trim())) {
-      openAlert({ title: 'Verification code required', message: 'Enter the six-digit SMS code.', tone: 'warning', okLabel: 'Got It' })
-      return
-    }
-    setPhoneVerificationBusy(true)
-    try {
-      const { error } = await supabase.auth.verifyOtp({ phone: pendingPhone, token: phoneOtp.trim(), type: 'phone_change' })
-      if (error) throw error
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user?.phone || !user.phone_confirmed_at) throw new Error('The mobile number was not confirmed.')
-      const { error: shopError } = await supabase.from('funeral_shops').update({ shopPhoneNumber: user.phone }).eq('id', user.id)
-      if (shopError) throw shopError
-      setVerifiedPhone(user.phone)
-      setPhoneInput(user.phone)
-      setPhoneOtp('')
-      setPhoneOtpSent(false)
-      openAlert({ title: 'Mobile number verified', message: 'This number is now linked to the shop owner. LifeCycle payment notifications remain enabled.', tone: 'info', okLabel: 'Done' })
-    } catch (error) {
-      openAlert({ title: 'Code not verified', message: error instanceof Error ? error.message : 'Please request a new code.', tone: 'danger', okLabel: 'Close' })
-    } finally {
-      setPhoneVerificationBusy(false)
-    }
-  }
-
-  const choosePaymentMethod = (nextMethod: XenditShopPaymentMethod) => {
-    setPaymentMethod(nextMethod)
-    setPaymentMethodMenuOpen(false)
-    setAccountPassword('')
-    setPasswordAccessToken('')
-  }
-
   const startCheckout = async () => {
     if (starting) return
     if (paymentComplete) {
@@ -326,24 +207,13 @@ export default function XenditShopPaymentCard({
       })
       return
     }
-    if (paymentMethod === 'gcash' && !verifiedPhone) {
-      openAlert({ title: 'Verify your mobile number', message: 'GCash checkout requires a verified shop-owner mobile number.', tone: 'warning', okLabel: 'Got It' })
-      return
-    }
-    if (paymentMethod === 'gcash' && !passwordConfirmed) {
-      openAlert({ title: 'Confirm your password', message: 'Enter your LifeCycle account password before opening GCash checkout.', tone: 'warning', okLabel: 'Got It' })
-      return
-    }
     if (fee <= 0) {
       openAlert({ title: 'Payment unavailable', message: 'The registration fee has not been configured yet.', tone: 'warning', okLabel: 'Got It' })
       return
     }
     setStarting(true)
     try {
-      const result = await createXenditShopCheckout(
-        paymentMethod,
-        paymentMethod === 'gcash' ? passwordAccessToken : undefined,
-      )
+      const result = await createXenditShopCheckout('all')
       if (result.paid) {
         setPurchaseConfirmOpen(false)
         await load()
@@ -365,20 +235,18 @@ export default function XenditShopPaymentCard({
     }
   }
 
-  if (!ready) return <div className='pm-card pm-loading'>Loading secure payment...</div>
+  if (!ready) return <div className='pm-card pm-loading'>Loading subscription details…</div>
 
   const manualPending = latestPending?.paymentProvider === 'manual'
   const returned = new URLSearchParams(window.location.search).get('xendit')
-  const selectedMethod = PAYMENT_METHODS.find(method => method.id === paymentMethod) || PAYMENT_METHODS[0]
 
   return (
     <section className={'pm-card' + (className ? ` ${className}` : '')}>
       <div className='pm-hero'>
         <BrandLogo to='/funeral' compact className='pm-payment-brand' />
-        <span className='pm-secure-chip'>Secure checkout</span>
       </div>
 
-      {returned === 'success' && <div className='pm-banner success'>Checkout finished. We are confirming your payment now.</div>}
+      {returned === 'success' && <div className='pm-banner success'>Checkout finished. Confirming your payment now.</div>}
       {returned === 'cancelled' && <div className='pm-banner'>Checkout was cancelled. You can continue whenever you are ready.</div>}
 
       <div className='pm-product-row'>
@@ -397,20 +265,16 @@ export default function XenditShopPaymentCard({
           <span>{paymentComplete ? 'Current subscription' : 'Registration / renewal fee'}</span>
           <strong>{peso(fee)}</strong>
         </div>
-        <div className='pm-summary-row'>
-          <span>Packages &amp; services</span>
-          <strong className='included'>Included</strong>
-        </div>
         <div className='pm-summary-total'>
           <div>
-            <strong>{paymentComplete ? 'Subscription status' : 'Total amount'}</strong>
+            <strong>{paymentComplete ? 'Subscription status' : 'Amount due'}</strong>
             <small>{subscriptionActive
-              ? `Active until ${dateOnly(paidUntil)} - ${subscriptionDaysLeft} day${subscriptionDaysLeft === 1 ? '' : 's'} left`
+              ? `Active until ${dateOnly(paidUntil)} · ${subscriptionDaysLeft} day${subscriptionDaysLeft === 1 ? '' : 's'} left`
               : renewalPaymentReady
-                ? 'Payment confirmed - starts when your shop goes live'
+                ? 'Payment confirmed · starts when your shop goes live'
                 : latestPending
                   ? 'Waiting for payment confirmation'
-                  : 'Payment details are handled securely'}</small>
+                  : 'Includes shop listing and service request management'}</small>
           </div>
           <b className={paymentComplete ? 'paid' : ''}>{paymentComplete ? 'Paid' : peso(fee)}</b>
         </div>
@@ -517,59 +381,8 @@ export default function XenditShopPaymentCard({
               <b>{peso(fee)}</b>
             </div>
             <div className='pm-purchase-divider' />
-            <button type='button' className='pm-purchase-method-row' onClick={() => setPaymentMethodMenuOpen(open => !open)}>
-              <div className='pm-purchase-card-icon' aria-hidden='true'>{selectedMethod.icon}</div>
-              <div>
-                <strong>{selectedMethod.label}</strong>
-                <small>{selectedMethod.detail}</small>
-              </div>
-              <span className='pm-purchase-chevron' aria-hidden='true'>›</span>
-            </button>
-            {paymentMethodMenuOpen && (
-              <div className='pm-method-menu' role='menu' aria-label='Payment methods'>
-                {PAYMENT_METHODS.map(method => (
-                  <button type='button' key={method.id} className={'pm-method-option' + (method.id === paymentMethod ? ' selected' : '')} onClick={() => choosePaymentMethod(method.id)}>
-                    <span className='pm-method-icon' aria-hidden='true'>{method.icon}</span>
-                    <span><strong>{method.label}</strong><small>{method.detail}</small></span>
-                    {method.id === paymentMethod && <b aria-label='Selected'>✓</b>}
-                  </button>
-                ))}
-              </div>
-            )}
-            {paymentMethod === 'gcash' && (
-              <div className='pm-security-card'>
-                <strong>Confirm shop owner</strong>
-                {verifiedPhone ? (
-                  <div className='pm-verified-row'><span aria-hidden='true'>✓</span><div><b>{maskPhone(verifiedPhone)}</b><small>Mobile number verified</small></div></div>
-                ) : (
-                  <div className='pm-verification-form'>
-                    <input type='tel' value={phoneInput} onChange={event => setPhoneInput(event.target.value)} placeholder='09XX XXX XXXX' disabled={phoneVerificationBusy} autoComplete='tel' />
-                    {phoneOtpSent && <input type='text' inputMode='numeric' value={phoneOtp} onChange={event => setPhoneOtp(event.target.value.replace(/\D/g, '').slice(0, 6))} placeholder='6-digit SMS code' disabled={phoneVerificationBusy} autoComplete='one-time-code' />}
-                    <button type='button' disabled={phoneVerificationBusy} onClick={() => void (phoneOtpSent ? verifyPhoneCode() : sendPhoneVerification())}>
-                      {phoneVerificationBusy ? 'Please wait...' : phoneOtpSent ? 'Verify Code' : 'Send Verification Code'}
-                    </button>
-                  </div>
-                )}
-                {passwordConfirmed ? (
-                  <div className='pm-verified-row'><span aria-hidden='true'>✓</span><div><b>Password confirmed</b><small>LifeCycle account re-authenticated</small></div></div>
-                ) : (
-                  <div className='pm-password-row'>
-                    <input type='password' value={accountPassword} onChange={event => setAccountPassword(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void confirmLifecyclePassword() } }} placeholder='LifeCycle password' disabled={checkingPassword} autoComplete='current-password' />
-                    <button type='button' disabled={!accountPassword || checkingPassword} onClick={(event) => { event.preventDefault(); event.stopPropagation(); void confirmLifecyclePassword() }}>{checkingPassword ? 'Checking...' : 'Confirm'}</button>
-                  </div>
-                )}
-                <small className='pm-security-note'>The verified number confirms the shop owner. Payment alerts are sent through LifeCycle notifications.</small>
-              </div>
-            )}
-            <p>Your payment details are handled securely.</p>
-            <button type='button' className='pm-purchase-buy' aria-busy={starting} disabled={starting || (paymentMethod === 'gcash' && (!verifiedPhone || !passwordConfirmed))} onClick={() => void startCheckout()}>
-              {starting
-                ? 'Opening checkout...'
-                : paymentMethod === 'gcash' && !passwordConfirmed
-                  ? 'Confirm password to continue'
-                  : paymentMethod === 'gcash' && !verifiedPhone
-                    ? 'Verify mobile number to continue'
-                    : 'Continue to payment'}
+            <button type='button' className='pm-purchase-buy' aria-busy={starting} disabled={starting} onClick={() => void startCheckout()}>
+              {starting ? 'Opening checkout...' : 'Continue to payment'}
             </button>
           </section>
         </div>
@@ -629,7 +442,7 @@ export default function XenditShopPaymentCard({
               {selectedPayment.paymentProvider === 'xendit' && (
                 <div className={'pm-receipt-provider-note ' + (selectedPayment.status === 'verified' ? 'verified' : 'pending')}>
                   <strong>{selectedPayment.status === 'verified' ? 'Payment verified' : 'Confirmation pending'}</strong>
-                  <span>{selectedPayment.status === 'verified' ? 'LifeCycle verified this payment automatically. No screenshot or manual admin approval was required.' : 'This receipt will update automatically after the payment is confirmed.'}</span>
+                  <span>{selectedPayment.status === 'verified' ? 'Confirmed automatically upon checkout.' : 'This receipt will update automatically after the payment is confirmed.'}</span>
                 </div>
               )}
 

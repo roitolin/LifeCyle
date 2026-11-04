@@ -5,12 +5,10 @@ import {
   Animated,
   AppState,
   Easing,
-  Image,
   Linking,
   Modal,
   Platform,
   ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -21,8 +19,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/services/supabaseClient';
 import { createXenditShopCheckout, syncXenditShopPayment } from '@/services/xenditShop';
 import { formatPhilippinePeso } from '@/utils/funeralCatalog';
-
-const appLogo = require('../../assets/Icon/IconTraparent.png');
 
 type Payment = {
   id: string;
@@ -83,9 +79,9 @@ function formatDate(value?: string | null) {
 }
 
 function formatTimestamp(value?: string | null) {
-  if (!value) return 'Not provided';
+  if (!value) return '—';
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return 'Not provided';
+  if (Number.isNaN(parsed.getTime())) return '—';
   return parsed.toLocaleString(undefined, {
     day: '2-digit',
     month: '2-digit',
@@ -95,46 +91,20 @@ function formatTimestamp(value?: string | null) {
   });
 }
 
-function getShopReceiptStatus(status?: string) {
-  const normalized = String(status || '').toLowerCase();
-  if (['verified', 'paid', 'completed'].includes(normalized)) {
-    return {
-      title: 'Payment Verified',
-      message: 'This shop subscription payment was reviewed and confirmed by LifeCycle Admin.',
-      icon: 'checkmark' as const,
-      badge: '#59c57d',
-    };
-  }
-  if (['pending', 'submitted'].includes(normalized)) {
-    return {
-      title: 'Payment Under Review',
-      message: 'Your payment was submitted and is awaiting gateway verification or review.',
-      icon: 'receipt-outline' as const,
-      badge: '#f0b253',
-    };
-  }
-  return {
-    title: 'Payment Unsuccessful',
-    message: 'This payment attempt could not be completed or was rejected.',
-    icon: 'close' as const,
-    badge: '#ef4444',
-  };
-}
-
 function statusMeta(payment: Payment) {
-  if (payment.status === 'verified') return { label: 'Paid', color: '#166534', bg: '#dcfce7', icon: 'checkmark-circle' as const };
+  if (payment.status === 'verified') return { label: 'Paid', color: '#166534', bg: '#e7f5ec', icon: 'checkmark-circle' as const };
   if (payment.status === 'rejected') return { label: 'Not completed', color: '#991b1b', bg: '#fee2e2', icon: 'close-circle' as const };
-  return { label: payment.paymentProvider === 'xendit' ? 'Awaiting checkout' : 'Admin review', color: '#92400e', bg: '#fef3c7', icon: 'time' as const };
+  return { label: 'Pending', color: '#86654a', bg: '#fef3c7', icon: 'time-outline' as const };
 }
 
 function methodLabel(payment: Payment) {
   if (payment.paymentProvider === 'manual') return 'Manual payment';
-  const method = String(payment.providerPaymentMethod || '').replace(/_/g, ' ').trim();
-  return method ? `Xendit · ${method}` : 'Xendit hosted checkout';
+  const method = String(payment.providerPaymentMethod || '').replace(/^PH_/, '').replace(/_/g, ' ').trim();
+  return method ? `Online (${method})` : 'Online payment';
 }
 
 function receiptNumber(payment: Payment) {
-  return `LC-${payment.id.replace(/-/g, '').slice(0, 12).toUpperCase()}`;
+  return `LC-${payment.id.replace(/-/g, '').slice(0, 10).toUpperCase()}`;
 }
 
 export default function XenditShopPaymentModal({ visible, onClose, onChanged }: Props) {
@@ -151,7 +121,6 @@ export default function XenditShopPaymentModal({ visible, onClose, onChanged }: 
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const sheetProgress = useRef(new Animated.Value(0)).current;
 
-  // Spring animation matching the customer ServiceXenditSheet
   useEffect(() => {
     if (visible) {
       backdropOpacity.setValue(0);
@@ -161,14 +130,14 @@ export default function XenditShopPaymentModal({ visible, onClose, onChanged }: 
       Animated.parallel([
         Animated.timing(backdropOpacity, {
           toValue: 1,
-          duration: 220,
+          duration: 200,
           easing: Easing.out(Easing.quad),
           useNativeDriver: true,
         }),
         Animated.spring(sheetProgress, {
           toValue: 1,
-          damping: 18,
-          stiffness: 160,
+          damping: 20,
+          stiffness: 170,
           mass: 0.9,
           useNativeDriver: true,
         }),
@@ -181,13 +150,13 @@ export default function XenditShopPaymentModal({ visible, onClose, onChanged }: 
     Animated.parallel([
       Animated.timing(sheetProgress, {
         toValue: 0,
-        duration: 180,
+        duration: 160,
         easing: Easing.in(Easing.quad),
         useNativeDriver: true,
       }),
       Animated.timing(backdropOpacity, {
         toValue: 0,
-        duration: 160,
+        duration: 150,
         easing: Easing.linear,
         useNativeDriver: true,
       }),
@@ -228,7 +197,7 @@ export default function XenditShopPaymentModal({ visible, onClose, onChanged }: 
         if (mounted) setLoading(false);
       });
 
-    const channel = supabase.channel('shop-xendit-mobile-sub')
+    const channel = supabase.channel('shop-payment-mobile-sub')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_payments' }, () => {
         void load().then(() => onChanged?.()).catch(() => undefined);
       })
@@ -239,7 +208,7 @@ export default function XenditShopPaymentModal({ visible, onClose, onChanged }: 
         try {
           const syncRes = await syncXenditShopPayment();
           if (syncRes.paid) {
-            Alert.alert('Payment Confirmed', 'Your shop subscription payment was verified successfully!');
+            Alert.alert('Payment Confirmed', 'Your shop subscription payment was confirmed.');
             await load();
             onChanged?.();
             handleClose();
@@ -270,7 +239,7 @@ export default function XenditShopPaymentModal({ visible, onClose, onChanged }: 
     if (isSubscriptionActive) {
       Alert.alert(
         'Subscription Active',
-        `Your shop subscription is already paid and active through ${formatDate(paidUntil)}. Renewal payment will only become available once this subscription period expires.`
+        `Your shop subscription is active through ${formatDate(paidUntil)}.`,
       );
       return;
     }
@@ -289,7 +258,7 @@ export default function XenditShopPaymentModal({ visible, onClose, onChanged }: 
         return;
       }
       if (!result.checkoutUrl || !(await Linking.canOpenURL(result.checkoutUrl))) {
-        throw new Error('The secure Xendit checkout link is unavailable.');
+        throw new Error('Checkout link is unavailable.');
       }
       await Linking.openURL(result.checkoutUrl);
     } catch (error) {
@@ -303,7 +272,7 @@ export default function XenditShopPaymentModal({ visible, onClose, onChanged }: 
 
   const bottomPadding = Math.max(
     insets.bottom + 16,
-    Platform.OS === 'android' ? 44 : 24
+    Platform.OS === 'android' ? 40 : 24,
   );
 
   return (
@@ -315,17 +284,15 @@ export default function XenditShopPaymentModal({ visible, onClose, onChanged }: 
       statusBarTranslucent={false}
     >
       <View style={styles.overlay}>
-        {/* Animated backdrop */}
         <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
           <TouchableOpacity
             style={StyleSheet.absoluteFill}
             activeOpacity={1}
             onPress={handleClose}
-            accessibilityLabel="Close checkout"
+            accessibilityLabel="Close payment"
           />
         </Animated.View>
 
-        {/* Animated Bottom Sheet */}
         <Animated.View
           style={[
             styles.sheet,
@@ -338,33 +305,16 @@ export default function XenditShopPaymentModal({ visible, onClose, onChanged }: 
                     outputRange: [600, 0],
                   }),
                 },
-                {
-                  scale: sheetProgress.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.96, 1],
-                  }),
-                },
               ],
             },
           ]}
         >
-          {/* Grab Handle */}
           <View style={styles.handle} />
 
-          {/* Header Row */}
           <View style={styles.header}>
-            <View style={styles.brandRow}>
-              <View style={styles.brandIdentity}>
-                <Image source={appLogo} style={styles.brandLogo} resizeMode="contain" />
-                <View>
-                  <Text style={styles.brandText}>LifeCycle</Text>
-                  <Text style={styles.brandTagline}>FUNERAL SERVICES</Text>
-                </View>
-              </View>
-              <View style={styles.secureBadge}>
-                <Ionicons name="shield-checkmark" size={13} color="#059669" />
-                <Text style={styles.secureBadgeText}>SECURE CHECKOUT</Text>
-              </View>
+            <View style={styles.headerCopy}>
+              <Text style={styles.headerTitle}>Shop Subscription</Text>
+              <Text style={styles.headerSubtitle}>Registration and marketplace listing access</Text>
             </View>
             <TouchableOpacity
               style={styles.closeBtn}
@@ -373,105 +323,80 @@ export default function XenditShopPaymentModal({ visible, onClose, onChanged }: 
               accessibilityLabel="Close"
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons name="close" size={20} color="#64748b" />
+              <Ionicons name="close" size={18} color="#475569" />
             </TouchableOpacity>
           </View>
 
           {loading ? (
-            <View style={styles.loadingBox}>
-              <ActivityIndicator size="small" color="#059669" />
-              <Text style={styles.loadingText}>Preparing checkout details...</Text>
+            <View style={styles.statusRow}>
+              <ActivityIndicator size="small" color="#22312d" />
+              <Text style={styles.statusText}>Loading subscription details…</Text>
             </View>
           ) : (
-            <>
-              {/* Product / Service Summary Row */}
-              <View style={styles.productRow}>
-                <View style={styles.productIconWrap}>
-                  <Ionicons name="storefront" size={26} color="#059669" />
-                </View>
-                <View style={styles.productInfo}>
-                  <Text style={styles.productName} numberOfLines={2}>
-                    Shop Registration & Renewal
-                  </Text>
-                  <View style={styles.shopMetaRow}>
-                    <Ionicons name="business-outline" size={13} color="#64748b" />
-                    <Text style={styles.shopName} numberOfLines={1}>
-                      LifeCycle Admin Platform • {shopName}
+            <View style={styles.body}>
+              <View style={styles.summaryBanner}>
+                <View style={styles.productRow}>
+                  <View style={styles.shopIconBox}>
+                    <Ionicons name="storefront-outline" size={20} color="#2f6b55" />
+                  </View>
+                  <View style={styles.productInfo}>
+                    <Text style={styles.productName}>Shop Registration & Renewal</Text>
+                    <Text style={styles.shopName} numberOfLines={1}>{shopName}</Text>
+                  </View>
+                  <View style={[styles.statusBadge, isSubscriptionActive ? styles.statusBadgeActive : styles.statusBadgeInactive]}>
+                    <Ionicons
+                      name={isSubscriptionActive ? 'checkmark-circle' : 'time-outline'}
+                      size={13}
+                      color={isSubscriptionActive ? '#166534' : '#86654a'}
+                    />
+                    <Text style={[styles.statusBadgeText, isSubscriptionActive ? styles.statusBadgeTextActive : styles.statusBadgeTextInactive]}>
+                      {isSubscriptionActive ? 'Active' : 'Renewal Due'}
                     </Text>
                   </View>
-                  {Boolean(paidUntil) && (
-                    <View style={styles.activePill}>
-                      <Ionicons name={isSubscriptionActive ? "checkmark-circle" : "time-outline"} size={11} color={isSubscriptionActive ? "#059669" : "#d97706"} />
-                      <Text style={[styles.activePillText, !isSubscriptionActive && styles.expiredPillText]}>
-                        {isSubscriptionActive ? `Active through ${formatDate(paidUntil)}` : `Expired on ${formatDate(paidUntil)}`}
-                      </Text>
+                </View>
+
+                <View style={styles.bannerDivider} />
+
+                <View style={styles.breakdown}>
+                  {paidUntil ? (
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>{isSubscriptionActive ? 'Active through' : 'Expired on'}</Text>
+                      <Text style={styles.summaryValue}>{formatDate(paidUntil)}</Text>
                     </View>
-                  )}
-                </View>
-              </View>
-
-              {/* Clean Order Total Summary Card */}
-              <View style={styles.summaryCard}>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>
-                    {isSubscriptionActive ? 'Current Subscription' : 'Registration / Renewal Fee'}
-                  </Text>
-                  <Text style={styles.summaryValue}>{formatPhilippinePeso(fee)}</Text>
-                </View>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Packages & Services</Text>
-                  <Text style={styles.summaryFreeValue}>Included</Text>
-                </View>
-                <View style={styles.summaryDivider} />
-                <View style={styles.totalRow}>
-                  <View>
-                    <Text style={styles.totalMainLabel}>
-                      {isSubscriptionActive ? 'Subscription Status' : 'Total Amount'}
-                    </Text>
-                    <Text style={styles.totalSubNotice}>
-                      {isSubscriptionActive ? `Active until ${formatDate(paidUntil)}` : 'Authorized & encrypted'}
+                  ) : null}
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.totalMainLabel}>{isSubscriptionActive ? 'Subscription status' : 'Subscription fee'}</Text>
+                    <Text style={[styles.totalMainValue, isSubscriptionActive && styles.paidText]}>
+                      {isSubscriptionActive ? 'Paid' : formatPhilippinePeso(fee)}
                     </Text>
                   </View>
-                  <Text style={[styles.totalMainValue, isSubscriptionActive && styles.totalActiveText]}>
-                    {isSubscriptionActive ? 'PAID' : formatPhilippinePeso(fee)}
-                  </Text>
                 </View>
               </View>
 
-              {/* Payment Method Info Badge */}
-              <View style={styles.methodRow}>
-                <View style={styles.methodIcon}>
-                  <Ionicons name="card-outline" size={18} color="#059669" />
+              <View style={styles.channelCard}>
+                <Ionicons name="card-outline" size={21} color="#2f6b55" />
+                <View style={styles.flatRowCopy}>
+                  <Text style={styles.flatRowTitle}>Online payment</Text>
+                  <Text style={styles.flatRowSub}>GCash, Maya, Cards & Online Banking</Text>
                 </View>
-                <View style={styles.methodInfo}>
-                  <Text style={styles.methodTitle}>Xendit Payment Gateway</Text>
-                  <Text style={styles.methodSubtitle}>Credit/Debit Cards, Online Banking & E-Wallets</Text>
-                </View>
-                <Ionicons name="checkmark-circle" size={18} color="#059669" />
+                <Ionicons name="checkmark-circle" size={19} color="#2f6b55" />
               </View>
 
-              {/* High-visibility Action Button or Already Paid Status */}
               {isSubscriptionActive ? (
-                <View style={styles.alreadyPaidBtnWrap}>
-                  <View style={styles.alreadyPaidBtn}>
-                    <Ionicons name="checkmark-circle" size={18} color="#059669" />
-                    <Text style={styles.alreadyPaidBtnText}>
-                      Already Paid • Renews After {formatDate(paidUntil)}
-                    </Text>
-                  </View>
-                  {payments.length > 0 && (
+                <View style={styles.actionGroup}>
+                  {payments.length > 0 ? (
                     <TouchableOpacity
-                      style={styles.viewActiveReceiptBtn}
+                      style={styles.secondaryButton}
                       onPress={() => {
                         const verified = payments.find((p) => p.status === 'verified') || payments[0];
                         if (verified) setSelectedReceipt(verified);
                       }}
                       activeOpacity={0.84}
                     >
-                      <Ionicons name="receipt-outline" size={16} color="#065f46" />
-                      <Text style={styles.viewActiveReceiptBtnText}>View Payment Receipt</Text>
+                      <Ionicons name="receipt-outline" size={17} color="#22312d" />
+                      <Text style={styles.secondaryButtonText}>View payment receipt</Text>
                     </TouchableOpacity>
-                  )}
+                  ) : null}
                 </View>
               ) : (
                 <TouchableOpacity
@@ -483,214 +408,140 @@ export default function XenditShopPaymentModal({ visible, onClose, onChanged }: 
                   {starting ? (
                     <View style={styles.buttonLoadingRow}>
                       <ActivityIndicator size="small" color="#ffffff" />
-                      <Text style={styles.payButtonText}>Connecting to Xendit...</Text>
+                      <Text style={styles.payButtonText}>Opening payment…</Text>
                     </View>
                   ) : (
-                    <View style={styles.buttonInnerRow}>
-                      <Ionicons name="lock-closed" size={17} color="#ffffff" />
-                      <Text style={styles.payButtonText}>
-                        Pay {formatPhilippinePeso(fee)}
-                      </Text>
+                    <View style={styles.buttonLoadingRow}>
+                      <Ionicons name="shield-checkmark-outline" size={18} color="#ffffff" />
+                      <Text style={styles.payButtonText}>Pay {formatPhilippinePeso(fee)}</Text>
                     </View>
                   )}
                 </TouchableOpacity>
               )}
 
-              {/* Discrete Payment History Link */}
-              {payments.length > 0 && (
+              {payments.length > 0 ? (
                 <TouchableOpacity
                   style={styles.historyToggleRow}
                   onPress={() => setShowHistory(true)}
-                  activeOpacity={0.7}
+                  activeOpacity={0.75}
                 >
-                  <Ionicons name="receipt-outline" size={15} color="#64748b" />
-                  <Text style={styles.historyToggleText}>
-                    View Payment History ({payments.length})
-                  </Text>
-                  <Ionicons name="chevron-forward" size={14} color="#94a3b8" />
+                  <View style={styles.historyToggleLeft}>
+                    <Ionicons name="time-outline" size={16} color="#53615d" />
+                    <Text style={styles.historyToggleText}>Payment history ({payments.length})</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={15} color="#62706b" />
                 </TouchableOpacity>
-              )}
-            </>
+              ) : null}
+            </View>
           )}
         </Animated.View>
       </View>
 
-      {/* History Slide-Over Modal */}
       <Modal
         visible={showHistory}
-        animationType="slide"
-        presentationStyle="pageSheet"
+        transparent
+        animationType="fade"
         onRequestClose={() => setShowHistory(false)}
       >
-        <View style={styles.historyScreen}>
-          <View style={styles.historyHeader}>
-            <TouchableOpacity onPress={() => setShowHistory(false)} style={styles.historyCloseBtn}>
-              <Ionicons name="close" size={22} color="#0f172a" />
-            </TouchableOpacity>
-            <Text style={styles.historyHeaderTitle}>Payment History</Text>
-            <View style={{ width: 36 }} />
+        <View style={styles.dialogOverlay}>
+          <View style={styles.dialogSheet}>
+            <View style={styles.header}>
+              <View style={styles.headerCopy}>
+                <Text style={styles.headerTitle}>Payment History</Text>
+                <Text style={styles.headerSubtitle}>{shopName}</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowHistory(false)} style={styles.closeBtn}>
+                <Ionicons name="close" size={18} color="#475569" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 360 }} contentContainerStyle={styles.historyList} showsVerticalScrollIndicator={false}>
+              {payments.map((p) => {
+                const meta = statusMeta(p);
+                return (
+                  <TouchableOpacity
+                    key={p.id}
+                    style={styles.historyRowCard}
+                    onPress={() => {
+                      setShowHistory(false);
+                      setSelectedReceipt(p);
+                    }}
+                    activeOpacity={0.78}
+                  >
+                    <View style={styles.flatRowCopy}>
+                      <Text style={styles.flatRowTitle}>{formatPhilippinePeso(p.amount)}</Text>
+                      <Text style={styles.flatRowSub}>{methodLabel(p)} · {formatDate(p.createdAt)}</Text>
+                    </View>
+                    <View style={[styles.statusBadge, { backgroundColor: meta.bg }]}>
+                      <Ionicons name={meta.icon} size={12} color={meta.color} />
+                      <Text style={[styles.statusBadgeText, { color: meta.color }]}>{meta.label}</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
           </View>
-          <ScrollView contentContainerStyle={styles.historyListContent}>
-            {payments.map((p) => {
-              const meta = statusMeta(p);
-              return (
-                <TouchableOpacity
-                  key={p.id}
-                  style={styles.historyCard}
-                  onPress={() => setSelectedReceipt(p)}
-                  activeOpacity={0.75}
-                >
-                  <View style={[styles.historyStatusIcon, { backgroundColor: meta.bg }]}>
-                    <Ionicons name={meta.icon} size={20} color={meta.color} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.historyCardAmount}>{formatPhilippinePeso(p.amount)}</Text>
-                    <Text style={styles.historyCardDate}>{methodLabel(p)} • {formatDate(p.createdAt)}</Text>
-                  </View>
-                  <View style={[styles.historyBadge, { backgroundColor: meta.bg }]}>
-                    <Text style={[styles.historyBadgeText, { color: meta.color }]}>{meta.label}</Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
         </View>
       </Modal>
 
-      {/* Customer & Shop Styled Receipt Modal */}
       <Modal
         visible={Boolean(selectedReceipt)}
-        animationType="slide"
-        presentationStyle="fullScreen"
+        transparent
+        animationType="fade"
         onRequestClose={() => setSelectedReceipt(null)}
-        statusBarTranslucent={false}
       >
-        {selectedReceipt ? (
-          <View style={styles.receiptScreen}>
-            <StatusBar barStyle="light-content" />
-            <ScrollView
-              contentContainerStyle={styles.receiptScrollContent}
-              showsVerticalScrollIndicator={false}
-              bounces={false}
-            >
-              {/* Dark Hero Section matching customer & shop receipt */}
-              <View style={[styles.receiptHero, { paddingTop: Math.max(38, insets.top + 18) }]}>
-                <TouchableOpacity
-                  activeOpacity={0.84}
-                  style={[styles.receiptHeroClose, { top: Math.max(14, insets.top + 6) }]}
-                  onPress={() => setSelectedReceipt(null)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Close payment receipt"
-                >
-                  <Ionicons name="close" size={24} color="#ffffff" />
-                </TouchableOpacity>
-                <View style={[styles.receiptStatusIcon, { backgroundColor: getShopReceiptStatus(selectedReceipt.status).badge }]}>
-                  <Ionicons name={getShopReceiptStatus(selectedReceipt.status).icon} size={29} color="#18201d" />
-                </View>
-                <Text style={styles.receiptHeroTitle}>{getShopReceiptStatus(selectedReceipt.status).title}</Text>
-                <Text style={styles.receiptHeroMessage}>{getShopReceiptStatus(selectedReceipt.status).message}</Text>
+        <View style={styles.dialogOverlay}>
+          <View style={styles.dialogSheet}>
+            <View style={styles.header}>
+              <View style={styles.headerCopy}>
+                <Text style={styles.headerTitle}>Payment Receipt</Text>
+                <Text style={styles.headerSubtitle}>{shopName}</Text>
               </View>
-
-              {/* Receipt Body */}
-              <View style={[styles.receiptBody, { paddingBottom: Math.max(30, insets.bottom + 20) }]}>
-                <Text style={styles.sectionTitle}>Order Details</Text>
-                <View style={styles.detailsBlock}>
-                  <DetailLine
-                    label="Order Date"
-                    value={formatTimestamp(selectedReceipt.verifiedAt || selectedReceipt.createdAt)}
-                  />
-                  <DetailLine label="Order ID" value={`#${receiptNumber(selectedReceipt)}`} />
-                  <DetailLine label="Shop Name" value={shopName} />
-                  <DetailLine
-                    label="Access Valid Until"
-                    value={selectedReceipt.expiresAt ? formatDate(selectedReceipt.expiresAt) : paidUntil ? formatDate(paidUntil) : 'Active Monthly'}
-                  />
-                </View>
-
-                <View style={styles.receiptDivider} />
-
-                {/* Service Row */}
-                <View style={styles.serviceRow}>
-                  <View style={[styles.serviceImage, styles.serviceImageFallback]}>
-                    <Ionicons name="storefront" size={26} color="#059669" />
-                  </View>
-                  <View style={styles.serviceCopy}>
-                    <Text style={styles.serviceName} numberOfLines={2}>
-                      LifeCycle Shop Registration & Renewal
-                    </Text>
-                    <Text style={styles.serviceMeta}>Admin Platform Monthly Access</Text>
-                    <Text style={styles.serviceMeta}>Verified Merchant Account • Full Access</Text>
-                  </View>
-                  <Text style={styles.serviceAmount}>{formatPhilippinePeso(selectedReceipt.amount)}</Text>
-                </View>
-
-                <View style={styles.receiptDivider} />
-
-                {/* Receipt Information Section */}
-                <View style={styles.sectionHeadingRow}>
-                  <Text style={styles.sectionTitle}>Receipt Information</Text>
-                  <View style={styles.sectionHeadingIcon}>
-                    <Ionicons name="receipt-outline" size={18} color="#53615d" />
-                  </View>
-                </View>
-                <View style={styles.receiptInfoCard}>
-                  <DetailLine label="Payment Method" value={methodLabel(selectedReceipt)} />
-                  <DetailLine label="Shop / Payer" value={selectedReceipt.payerName || shopName} />
-                  <DetailLine label="Reference Number" value={selectedReceipt.referenceNumber || receiptNumber(selectedReceipt)} />
-                  <DetailLine
-                    label="Provider Reference"
-                    value={selectedReceipt.providerPaymentId || selectedReceipt.providerCheckoutId || 'Xendit Gateway'}
-                  />
-                  <DetailLine label="Status" value={getShopReceiptStatus(selectedReceipt.status).title} />
-                  <DetailLine label="Amount" value={formatPhilippinePeso(selectedReceipt.amount)} />
-                  <DetailLine
-                    label="Confirmed Date"
-                    value={formatTimestamp(selectedReceipt.verifiedAt || selectedReceipt.createdAt)}
-                  />
-                </View>
-
-                {/* Rejection / Problem Reason if present */}
-                {selectedReceipt.rejectionReason ? (
-                  <View style={styles.receiptRejectionBox}>
-                    <Ionicons name="alert-circle-outline" size={20} color="#991b1b" />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.receiptRejectionTitle}>Payment Issue</Text>
-                      <Text style={styles.receiptRejectionText}>{selectedReceipt.rejectionReason}</Text>
+              <TouchableOpacity onPress={() => setSelectedReceipt(null)} style={styles.closeBtn}>
+                <Ionicons name="close" size={18} color="#475569" />
+              </TouchableOpacity>
+            </View>
+            {selectedReceipt ? (
+              <View style={styles.receiptBody}>
+                <View style={styles.receiptHeroBanner}>
+                  <View style={styles.receiptHeroTop}>
+                    <Text style={styles.receiptHeroLabel}>Subscription payment</Text>
+                    <View style={[styles.statusBadge, { backgroundColor: statusMeta(selectedReceipt).bg }]}>
+                      <Ionicons name={statusMeta(selectedReceipt).icon} size={12} color={statusMeta(selectedReceipt).color} />
+                      <Text style={[styles.statusBadgeText, { color: statusMeta(selectedReceipt).color }]}>
+                        {statusMeta(selectedReceipt).label}
+                      </Text>
                     </View>
                   </View>
-                ) : null}
-
-                {/* Security Trust Note */}
-                <View style={styles.providerTrustRow}>
-                  <Ionicons name="shield-checkmark" size={15} color="#059669" />
-                  <Text style={styles.providerTrustText}>Verified by Xendit Payment Gateway</Text>
+                  <Text style={styles.receiptHeroAmount}>{formatPhilippinePeso(selectedReceipt.amount)}</Text>
                 </View>
 
-                {/* Close Button */}
-                <TouchableOpacity
-                  style={styles.closeReceiptButton}
-                  activeOpacity={0.88}
-                  onPress={() => setSelectedReceipt(null)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Close receipt"
-                >
-                  <Ionicons name="checkmark-circle-outline" size={18} color="#ffffff" />
-                  <Text style={styles.closeReceiptButtonText}>Close Receipt</Text>
-                </TouchableOpacity>
+                <DetailLine label="Receipt no." value={`#${receiptNumber(selectedReceipt)}`} />
+                <DetailLine label="Shop" value={shopName} />
+                <DetailLine label="Payment method" value={methodLabel(selectedReceipt)} />
+                <DetailLine label="Reference" value={selectedReceipt.referenceNumber || receiptNumber(selectedReceipt)} />
+                <DetailLine label="Date" value={formatTimestamp(selectedReceipt.verifiedAt || selectedReceipt.createdAt)} />
+                {selectedReceipt.expiresAt ? (
+                  <DetailLine label="Valid until" value={formatDate(selectedReceipt.expiresAt)} />
+                ) : null}
+                <View style={styles.receiptDivider} />
+                <DetailLine label="Total paid" value={formatPhilippinePeso(selectedReceipt.amount)} strong />
+                {selectedReceipt.rejectionReason ? (
+                  <Text style={styles.errorText}>{selectedReceipt.rejectionReason}</Text>
+                ) : null}
               </View>
-            </ScrollView>
+            ) : null}
           </View>
-        ) : null}
+        </View>
       </Modal>
     </Modal>
   );
 }
 
-function DetailLine({ label, value }: { label: string; value: string }) {
+function DetailLine({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
     <View style={styles.detailLine}>
       <Text style={styles.detailLabel}>{label}</Text>
-      <Text style={styles.detailValue} selectable>{value}</Text>
+      <Text style={[styles.detailValue, strong && styles.detailValueStrong]} selectable>{value}</Text>
     </View>
   );
 }
@@ -702,622 +553,330 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    backgroundColor: 'rgba(15, 23, 42, 0.52)',
   },
   sheet: {
     backgroundColor: '#ffffff',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     paddingHorizontal: 20,
-    paddingTop: 12,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: -6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 24,
+    paddingTop: 10,
+    maxHeight: '90%',
   },
   handle: {
     alignSelf: 'center',
-    width: 44,
+    width: 38,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#cbd5e1',
-    marginBottom: 14,
+    backgroundColor: '#d4dbd8',
+    marginBottom: 12,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    paddingBottom: 14,
   },
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flexShrink: 1,
+  headerCopy: {
+    flex: 1,
   },
-  brandIdentity: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    flexShrink: 1,
-  },
-  brandLogo: {
-    width: 36,
-    height: 36,
-  },
-  brandText: {
-    color: '#0f172a',
-    fontSize: 19,
+  headerTitle: {
+    color: '#1d2d28',
+    fontSize: 18,
     fontWeight: '800',
-    letterSpacing: -0.4,
-    lineHeight: 20,
   },
-  brandTagline: {
-    color: '#64748b',
-    fontSize: 7,
-    fontWeight: '800',
-    letterSpacing: 1.2,
-    lineHeight: 9,
-  },
-  secureBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#ecfdf5',
-    borderWidth: 1,
-    borderColor: '#a7f3d0',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-  },
-  secureBadgeText: {
-    color: '#065f46',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.5,
+  headerSubtitle: {
+    color: '#6e7c77',
+    fontSize: 12,
+    marginTop: 2,
   },
   closeBtn: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: '#f2efe9',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  loadingBox: {
-    paddingVertical: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+  body: {
     gap: 12,
   },
-  loadingText: {
-    color: '#64748b',
-    fontSize: 13,
+  summaryBanner: {
+    backgroundColor: '#f8f6f2',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#e6e2d8',
+    gap: 12,
   },
   productRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 13,
-    padding: 12,
-    backgroundColor: '#f8fafc',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    marginBottom: 12,
+    gap: 11,
   },
-  productIconWrap: {
-    width: 54,
-    height: 54,
-    borderRadius: 14,
-    backgroundColor: '#ecfdf5',
+  shopIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#e7f2ec',
     alignItems: 'center',
     justifyContent: 'center',
   },
   productInfo: {
     flex: 1,
+    gap: 2,
   },
   productName: {
-    color: '#0f172a',
-    fontSize: 15,
-    fontWeight: '700',
-    lineHeight: 20,
-  },
-  shopMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginTop: 3,
+    color: '#1d2d28',
+    fontSize: 14,
+    fontWeight: '800',
   },
   shopName: {
-    color: '#64748b',
-    fontSize: 12.5,
-    fontWeight: '500',
+    color: '#5a6964',
+    fontSize: 12,
+    fontWeight: '600',
   },
-  activePill: {
+  statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    alignSelf: 'flex-start',
-    backgroundColor: '#ecfdf5',
-    borderWidth: 1,
-    borderColor: '#a7f3d0',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 6,
-    marginTop: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
   },
-  activePillText: {
-    color: '#065f46',
+  statusBadgeActive: {
+    backgroundColor: '#e7f5ec',
+  },
+  statusBadgeInactive: {
+    backgroundColor: '#fef3c7',
+  },
+  statusBadgeText: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '800',
   },
-  expiredPillText: {
-    color: '#d97706',
+  statusBadgeTextActive: {
+    color: '#166534',
   },
-  activeNoticeCard: {
-    backgroundColor: '#ecfdf5',
-    borderWidth: 1,
-    borderColor: '#a7f3d0',
-    borderRadius: 16,
-    padding: 13,
-    marginBottom: 12,
+  statusBadgeTextInactive: {
+    color: '#86654a',
   },
-  activeNoticeHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  bannerDivider: {
+    height: 1,
+    backgroundColor: '#e6e2d8',
+  },
+  breakdown: {
     gap: 6,
-    marginBottom: 4,
-  },
-  activeNoticeTitle: {
-    color: '#065f46',
-    fontSize: 13.5,
-    fontWeight: '700',
-  },
-  activeNoticeDesc: {
-    color: '#047857',
-    fontSize: 12,
-    lineHeight: 17,
-  },
-  summaryCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    marginBottom: 14,
   },
   summaryRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 3,
   },
   summaryLabel: {
-    color: '#64748b',
-    fontSize: 13,
-    fontWeight: '500',
+    color: '#62706b',
+    fontSize: 12,
   },
   summaryValue: {
-    color: '#1e293b',
+    color: '#22312d',
     fontSize: 13,
-    fontWeight: '600',
-  },
-  summaryFreeValue: {
-    color: '#059669',
-    fontSize: 12,
     fontWeight: '700',
-  },
-  summaryDivider: {
-    height: 1,
-    backgroundColor: '#f1f5f9',
-    marginVertical: 10,
-  },
-  totalRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
   },
   totalMainLabel: {
-    color: '#0f172a',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  totalSubNotice: {
-    color: '#94a3b8',
-    fontSize: 11,
-    marginTop: 1,
+    color: '#1d2d28',
+    fontSize: 13,
+    fontWeight: '800',
   },
   totalMainValue: {
-    color: '#0f172a',
-    fontSize: 22,
+    color: '#2f6b55',
+    fontSize: 17,
     fontWeight: '900',
-    letterSpacing: -0.3,
   },
-  totalActiveText: {
-    color: '#059669',
-    fontSize: 20,
+  paidText: {
+    color: '#166534',
   },
-  alreadyPaidBtnWrap: {
-    width: '100%',
-    alignItems: 'center',
-  },
-  alreadyPaidBtn: {
-    width: '100%',
-    minHeight: 52,
-    borderRadius: 16,
-    backgroundColor: '#ecfdf5',
-    borderWidth: 1.5,
-    borderColor: '#a7f3d0',
+  channelCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
+    gap: 12,
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#2f6b55',
+    backgroundColor: '#f2f8f5',
   },
-  alreadyPaidBtnText: {
-    color: '#065f46',
+  flatRowCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  flatRowTitle: {
+    color: '#1d2d28',
     fontSize: 14,
     fontWeight: '800',
   },
-  alreadyPaidHint: {
-    color: '#64748b',
-    fontSize: 11.5,
-    marginTop: 8,
-    textAlign: 'center',
-    lineHeight: 16,
+  flatRowSub: {
+    color: '#62706b',
+    fontSize: 11,
   },
-  viewActiveReceiptBtn: {
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 18,
+  },
+  statusText: {
+    color: '#62706b',
+    fontSize: 13,
+  },
+  actionGroup: {
+    marginTop: 2,
+  },
+  payButton: {
+    minHeight: 50,
+    borderRadius: 14,
+    backgroundColor: '#22312d',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  secondaryButton: {
+    minHeight: 46,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#d9d6cd',
+    backgroundColor: '#fbfaf7',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 7,
-    backgroundColor: '#ffffff',
-    borderWidth: 1.5,
-    borderColor: '#a7f3d0',
-    borderRadius: 14,
-    paddingVertical: 11,
-    paddingHorizontal: 16,
-    width: '100%',
-    marginTop: 10,
+    paddingHorizontal: 14,
   },
-  viewActiveReceiptBtnText: {
-    color: '#065f46',
-    fontSize: 13.5,
-    fontWeight: '700',
-  },
-  methodRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 11,
-    backgroundColor: '#f8fafc',
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    marginBottom: 18,
-  },
-  methodIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#ecfdf5',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  methodInfo: {
-    flex: 1,
-  },
-  methodTitle: {
-    color: '#0f172a',
+  secondaryButtonText: {
+    color: '#22312d',
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
   },
-  methodSubtitle: {
-    color: '#64748b',
-    fontSize: 11,
-    marginTop: 1,
-  },
-  payButton: {
-    minHeight: 52,
-    borderRadius: 16,
-    backgroundColor: '#059669',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#059669',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  buttonInnerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  buttonDisabled: {
+    opacity: 0.45,
   },
   buttonLoadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
   payButtonText: {
     color: '#ffffff',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
-    letterSpacing: 0.2,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
   },
   historyToggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 12,
-    marginTop: 4,
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: '#f8f6f2',
+    borderWidth: 1,
+    borderColor: '#e6e2d8',
   },
-  historyToggleText: {
-    color: '#64748b',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  historyScreen: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  historyHeader: {
-    height: 56,
+  historyToggleLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-    backgroundColor: '#ffffff',
+    gap: 7,
   },
-  historyCloseBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#f1f5f9',
-    alignItems: 'center',
+  historyToggleText: {
+    color: '#3c4b46',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  dialogOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
     justifyContent: 'center',
+    padding: 20,
   },
-  historyHeaderTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#0f172a',
+  dialogSheet: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 18,
   },
-  historyListContent: {
-    padding: 16,
-    gap: 10,
+  historyList: {
+    gap: 8,
+    paddingTop: 4,
   },
-  historyCard: {
+  historyRowCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: '#ffffff',
-    padding: 14,
-    borderRadius: 16,
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  historyStatusIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  historyCardAmount: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
-  historyCardDate: {
-    fontSize: 12,
-    color: '#64748b',
-    marginTop: 2,
-  },
-  historyBadge: {
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  historyBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  receiptScreen: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-  },
-  receiptScrollContent: {
-    flexGrow: 1,
-    backgroundColor: '#ffffff',
-  },
-  receiptHero: {
-    minHeight: 255,
-    backgroundColor: '#101312',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingBottom: 30,
-  },
-  receiptHeroClose: {
-    position: 'absolute',
-    right: 18,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#303332',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  receiptStatusIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  receiptHeroTitle: {
-    color: '#ffffff',
-    fontSize: 23,
-    fontWeight: '900',
-    textAlign: 'center',
-    marginTop: 22,
-  },
-  receiptHeroMessage: {
-    color: '#b9bfbc',
-    fontSize: 13,
-    lineHeight: 20,
-    textAlign: 'center',
-    maxWidth: 330,
-    marginTop: 9,
+    borderColor: '#e3e8e5',
+    backgroundColor: '#fbfcfa',
   },
   receiptBody: {
-    paddingHorizontal: 22,
-    paddingTop: 26,
+    paddingTop: 4,
+    gap: 9,
   },
-  sectionTitle: {
-    color: '#191c1b',
-    fontSize: 16,
+  receiptHeroBanner: {
+    backgroundColor: '#f8f6f2',
+    borderRadius: 14,
+    padding: 13,
+    borderWidth: 1,
+    borderColor: '#e6e2d8',
+    marginBottom: 4,
+    gap: 6,
+  },
+  receiptHeroTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  receiptHeroLabel: {
+    color: '#62706b',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  receiptHeroAmount: {
+    color: '#1d2d28',
+    fontSize: 22,
     fontWeight: '900',
-  },
-  detailsBlock: {
-    gap: 16,
-    marginTop: 22,
   },
   detailLine: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 18,
+    gap: 12,
   },
   detailLabel: {
-    flex: 1,
-    color: '#858c88',
-    fontSize: 12,
+    color: '#62706b',
+    fontSize: 13,
   },
   detailValue: {
-    flex: 1.35,
-    color: '#303634',
-    fontSize: 12,
-    fontWeight: '900',
+    color: '#22312d',
+    fontSize: 13,
+    fontWeight: '700',
     textAlign: 'right',
+    flexShrink: 1,
+  },
+  detailValueStrong: {
+    color: '#1d2d28',
+    fontSize: 15,
+    fontWeight: '900',
   },
   receiptDivider: {
     height: 1,
-    backgroundColor: '#e5e8e6',
-    marginVertical: 24,
+    backgroundColor: '#edf1ef',
+    marginVertical: 4,
   },
-  serviceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  serviceImage: {
-    width: 58,
-    height: 70,
-    borderRadius: 12,
-    backgroundColor: '#edf0ee',
-  },
-  serviceImageFallback: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  serviceCopy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  serviceName: {
-    color: '#282e2b',
-    fontSize: 14,
-    fontWeight: '900',
-  },
-  serviceMeta: {
-    color: '#868d89',
-    fontSize: 11,
-    marginTop: 3,
-  },
-  serviceAmount: {
-    color: '#222725',
-    fontSize: 14,
-    fontWeight: '900',
-  },
-  sectionHeadingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  sectionHeadingIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#f1f3f2',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  receiptInfoCard: {
-    borderRadius: 15,
-    backgroundColor: '#f7f8f7',
-    gap: 15,
-    padding: 14,
-    marginTop: 12,
-  },
-  receiptRejectionBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    borderRadius: 15,
-    backgroundColor: '#fef2f2',
-    borderWidth: 1,
-    borderColor: '#fecaca',
-    padding: 14,
-    marginTop: 14,
-  },
-  receiptRejectionTitle: {
-    fontSize: 13,
-    fontWeight: '800',
+  errorText: {
     color: '#991b1b',
-  },
-  receiptRejectionText: {
-    fontSize: 12,
-    color: '#b91c1c',
-    marginTop: 2,
-    lineHeight: 16,
-  },
-  providerTrustRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginTop: 20,
-    paddingVertical: 6,
-  },
-  providerTrustText: {
-    fontSize: 12,
-    color: '#64748b',
-    fontWeight: '600',
-  },
-  closeReceiptButton: {
-    minHeight: 52,
-    borderRadius: 15,
-    backgroundColor: '#22312d',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 20,
-  },
-  closeReceiptButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '900',
+    fontSize: 13,
+    marginTop: 4,
   },
 });

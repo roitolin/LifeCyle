@@ -8,7 +8,7 @@ export const smoothStackTransition = {
     android: 'ios_from_right',
     default: 'fade',
   }),
-  animationDuration: 300,
+  animationDuration: 220,
   animationMatchesGesture: true,
   gestureEnabled: true,
 } satisfies NativeStackNavigationOptions;
@@ -16,13 +16,13 @@ export const smoothStackTransition = {
 export const smoothAuthTransition = {
   ...smoothStackTransition,
   animation: 'fade_from_bottom',
-  animationDuration: 280,
+  animationDuration: 200,
 } satisfies NativeStackNavigationOptions;
 
 export const smoothTabTransition = {
   animation: 'fade',
   transitionSpec: {
     animation: 'timing',
-    config: { duration: 220 },
+    config: { duration: 120 },
   },
 } satisfies BottomTabNavigationOptions;

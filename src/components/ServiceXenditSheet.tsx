@@ -6,7 +6,6 @@ import {
   AppState,
   Easing,
   Image,
-  ImageSourcePropType,
   ImageStyle,
   Linking,
   Modal,
@@ -23,6 +22,7 @@ import {
   chooseServicePaymentOption,
   createServiceXenditCheckout,
   getServicePaymentMethods,
+  prepareServicePaymentOption,
   type ServicePaymentOption,
   type ServicePaymentMethod,
   syncServiceXenditCheckout,
@@ -57,44 +57,17 @@ type Props = {
   onChanged?: () => void | Promise<void>;
 };
 
-const PAYMENT_METHOD_LOGOS: Record<string, ImageSourcePropType> = {
-  PH_GCASH: require('../../assets/Payment Logos/Gcash_Logo.png'),
-  PH_MAYA: require('../../assets/Payment Logos/PayMaya_Logo.png'),
-  PH_BDO: require('../../assets/Payment Logos/BDO_Logo.png'),
-  PH_BPI: require('../../assets/Payment Logos/BPI_Logo.png'),
-  PH_METROBANK: require('../../assets/Payment Logos/MetroBank_Logo.png'),
-  PH_LANDBANK: require('../../assets/Payment Logos/Landbank_logo.png'),
-  PH_CHINABANK: require('../../assets/Payment Logos/Chinabank_Logo.png'),
-};
-
-function PaymentMethodIcon({ method }: { method: ServicePaymentMethod }) {
-  const logo = PAYMENT_METHOD_LOGOS[method.code];
-  if (logo) {
-    return <Image source={logo} style={styles.paymentMethodLogo} resizeMode={'contain'} />;
-  }
-
-  return (
-    <Ionicons
-      name={method.type === 'wallet' ? 'wallet-outline' : 'business-outline'}
-      size={21}
-      color={'#047857'}
-    />
-  );
-}
-
 export default function ServiceXenditSheet({ visible, request, onClose, onChanged }: Props) {
   const insets = useSafeAreaInsets();
   const [starting, setStarting] = useState(false);
   const [loadingMethods, setLoadingMethods] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState<ServicePaymentMethod[]>([]);
-  const [selectedMethod, setSelectedMethod] = useState('');
   const [methodsError, setMethodsError] = useState<string | null>(null);
   const [selectedPaymentOption, setSelectedPaymentOption] = useState<ServicePaymentOption | ''>('');
 
   const [backdropOpacity] = useState(() => new Animated.Value(0));
   const [sheetProgress] = useState(() => new Animated.Value(0));
 
-  // Spring animation for bottom sheet presentation
   useEffect(() => {
     if (visible) {
       backdropOpacity.setValue(0);
@@ -102,14 +75,14 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
       Animated.parallel([
         Animated.timing(backdropOpacity, {
           toValue: 1,
-          duration: 220,
+          duration: 210,
           easing: Easing.out(Easing.quad),
           useNativeDriver: true,
         }),
         Animated.spring(sheetProgress, {
           toValue: 1,
-          damping: 18,
-          stiffness: 160,
+          damping: 19,
+          stiffness: 165,
           mass: 0.9,
           useNativeDriver: true,
         }),
@@ -139,21 +112,16 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
         if (!active) return null;
         setLoadingMethods(true);
         setPaymentMethods([]);
-        setSelectedMethod('');
         setMethodsError(null);
         return getServicePaymentMethods(targetRequestId);
       })
       .then((result) => {
         if (!active || !result) return;
         setPaymentMethods(result.methods);
-        const savedMethod = result.methods.some((method) => method.code === result.selectedMethod)
-          ? result.selectedMethod || ''
-          : '';
-        setSelectedMethod(savedMethod || (result.methods.length === 1 ? result.methods[0].code : ''));
       })
       .catch((error) => {
         if (!active) return;
-        setMethodsError(error instanceof Error ? error.message : 'Unable to load the shop payment methods.');
+        setMethodsError(error instanceof Error ? error.message : 'Unable to load payment methods.');
       })
       .finally(() => {
         if (active) setLoadingMethods(false);
@@ -169,13 +137,13 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
     Animated.parallel([
       Animated.timing(sheetProgress, {
         toValue: 0,
-        duration: 180,
+        duration: 170,
         easing: Easing.in(Easing.quad),
         useNativeDriver: true,
       }),
       Animated.timing(backdropOpacity, {
         toValue: 0,
-        duration: 160,
+        duration: 150,
         easing: Easing.linear,
         useNativeDriver: true,
       }),
@@ -184,7 +152,6 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
     });
   }, [backdropOpacity, onClose, sheetProgress, starting]);
 
-  // Listen for AppState changes when user returns from Xendit checkout
   useEffect(() => {
     if (!visible || !request) return;
     const targetRequestId = String(request.id || (request as any)?.requestId || (request as any)?._id || '').trim();
@@ -196,7 +163,10 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
           const syncResult = await syncServiceXenditCheckout(targetRequestId);
           if (syncResult?.paid) {
             await onChanged?.();
-            Alert.alert('Payment Confirmed', 'Payment succeeded! The order has been verified.');
+            Alert.alert(
+              selectedPaymentOption === 'downpayment' ? 'Downpayment Confirmed' : 'Payment Confirmed',
+              'Your payment has been confirmed.',
+            );
             handleClose();
             return;
           }
@@ -207,7 +177,7 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
       }
     });
     return () => subscription.remove();
-  }, [handleClose, onChanged, visible, request]);
+  }, [handleClose, onChanged, visible, request, selectedPaymentOption]);
 
   const fullPrice = useMemo(() => {
     const raw = request?.productFullPrice ?? request?.productPrice ?? 0;
@@ -222,39 +192,48 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
 
   const downpaymentPercentage = Number(request?.downpaymentPercentageSnapshot) || 0;
   const hasDownpayment = downpaymentAmount > 0 && downpaymentPercentage > 0;
+  const remainingAfterDownpayment = Math.max(0, fullPrice - downpaymentAmount);
   const totalAmount = selectedPaymentOption === 'downpayment' ? downpaymentAmount : fullPrice;
 
   const handleOneClickPay = async () => {
-    if (!request || !selectedMethod || !selectedPaymentOption || starting) return;
+    if (!request || paymentMethods.length === 0 || !selectedPaymentOption || starting) return;
     const targetRequestId = String(request.id || (request as any)?.requestId || (request as any)?._id || '').trim();
     if (!targetRequestId) {
       Alert.alert(
-        'Unable to complete checkout',
+        'Unable to complete payment',
         'Could not identify this service request. Please reopen the request details and try again.',
       );
       return;
     }
     setStarting(true);
     try {
-      await chooseServicePaymentOption(targetRequestId, selectedPaymentOption);
-      const result = await createServiceXenditCheckout(targetRequestId, selectedMethod);
+      const prepared = await prepareServicePaymentOption(targetRequestId, selectedPaymentOption);
+      if (prepared.paid) {
+        await onChanged?.();
+        Alert.alert('Payment Confirmed', 'Your payment has been confirmed.');
+        handleClose();
+        return;
+      }
+      if (!prepared.checkoutActive || prepared.paymentOption !== selectedPaymentOption) {
+        await chooseServicePaymentOption(targetRequestId, selectedPaymentOption);
+      }
+      const result = await createServiceXenditCheckout(targetRequestId);
       if (result.paid) {
         await onChanged?.();
         Alert.alert(
-          'Payment Confirmed',
-          'Payment succeeded! The order has been verified.',
+          selectedPaymentOption === 'downpayment' ? 'Downpayment Confirmed' : 'Payment Confirmed',
+          'Your payment has been confirmed.',
         );
         handleClose();
         return;
       }
       if (!result.checkoutUrl) {
-        throw new Error('The secure Xendit checkout link is unavailable.');
+        throw new Error('Checkout link is unavailable.');
       }
-      // Instant launch of Xendit checkout
       await Linking.openURL(result.checkoutUrl);
     } catch (error) {
       Alert.alert(
-        'Unable to complete checkout',
+        'Unable to complete payment',
         error instanceof Error ? error.message : 'Please try again in a moment.',
       );
     } finally {
@@ -266,8 +245,10 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
 
   const bottomPadding = Math.max(
     insets.bottom + 16,
-    Platform.OS === 'android' ? 44 : 24
+    Platform.OS === 'android' ? 40 : 24,
   );
+
+  const canPay = !starting && !loadingMethods && Boolean(request) && paymentMethods.length > 0 && Boolean(selectedPaymentOption) && totalAmount > 0;
 
   return (
     <Modal
@@ -278,17 +259,15 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
       statusBarTranslucent={false}
     >
       <View style={styles.overlay}>
-        {/* Animated backdrop */}
         <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
           <TouchableOpacity
             style={StyleSheet.absoluteFill}
             activeOpacity={1}
             onPress={handleClose}
-            accessibilityLabel="Close checkout"
+            accessibilityLabel="Close payment"
           />
         </Animated.View>
 
-        {/* Animated Bottom Sheet */}
         <Animated.View
           style={[
             styles.sheet,
@@ -301,34 +280,18 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
                     outputRange: [600, 0],
                   }),
                 },
-                {
-                  scale: sheetProgress.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.96, 1],
-                  }),
-                },
               ],
             },
           ]}
         >
-          {/* Grab Handle */}
           <View style={styles.handle} />
 
-          <ScrollView
-            style={styles.scrollArea}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            bounces={false}
-          >
-
-          {/* Header Row */}
           <View style={styles.header}>
-            <View style={styles.brandRow}>
-              <Text style={styles.brandText}>LifeCycle</Text>
-              <View style={styles.secureBadge}>
-                <Ionicons name="shield-checkmark" size={13} color="#059669" />
-                <Text style={styles.secureBadgeText}>SECURE CHECKOUT</Text>
-              </View>
+            <View style={styles.headerCopy}>
+              <Text style={styles.headerTitle}>Online Payment</Text>
+              <Text style={styles.headerSubtitle}>
+                {hasDownpayment ? 'Choose how much to pay, then continue to secure checkout.' : 'Review the amount and continue to secure checkout.'}
+              </Text>
             </View>
             <TouchableOpacity
               style={styles.closeBtn}
@@ -337,199 +300,158 @@ export default function ServiceXenditSheet({ visible, request, onClose, onChange
               accessibilityLabel="Close"
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons name="close" size={20} color="#64748b" />
+              <Ionicons name="close" size={19} color="#42524c" />
             </TouchableOpacity>
           </View>
 
-          {/* Product Summary Row */}
-          <View style={styles.productRow}>
-            {request?.productImageUrl ? (
-              <Image source={{ uri: request.productImageUrl }} style={styles.productThumbnail as ImageStyle} resizeMode="cover" />
-            ) : (
-              <View style={styles.productIconFallback}>
-                <Ionicons name="cube-outline" size={26} color="#3b82f6" />
-              </View>
-            )}
-            <View style={styles.productInfo}>
-              <Text style={styles.productName} numberOfLines={2}>
-                {request?.productName || 'Funeral Casket / Product'}
-              </Text>
-              <View style={styles.shopMetaRow}>
-                <Ionicons name="storefront-outline" size={13} color="#64748b" />
-                <Text style={styles.shopName} numberOfLines={1}>
-                  {request?.shopName || 'Funeral Shop'}
-                </Text>
-              </View>
-              {Boolean(request?.variationName) && (
-                <View style={styles.variationPill}>
-                  <Text style={styles.variationText}>{request?.variationName}</Text>
+          <ScrollView
+            style={styles.scrollArea}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+          >
+            {/* Service & Price Summary Banner */}
+            <View style={styles.summaryBanner}>
+              <View style={styles.productRow}>
+                {request?.productImageUrl ? (
+                  <Image
+                    source={{ uri: request.productImageUrl }}
+                    style={styles.productThumbnail as ImageStyle}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={styles.productIconFallback}>
+                    <Ionicons name="cube-outline" size={22} color="#2f6b55" />
+                  </View>
+                )}
+                <View style={styles.productInfo}>
+                  <Text style={styles.productName} numberOfLines={2}>
+                    {request?.productName || 'Funeral Service'}
+                  </Text>
+                  <View style={styles.shopMetaRow}>
+                    <Ionicons name="storefront-outline" size={13} color="#62706b" />
+                    <Text style={styles.shopName} numberOfLines={1}>
+                      {request?.shopName || 'Funeral Shop'}
+                    </Text>
+                  </View>
+                  {request?.variationName ? (
+                    <View style={styles.variationPill}>
+                      <Text style={styles.variationText}>{request.variationName}</Text>
+                    </View>
+                  ) : null}
                 </View>
-              )}
-            </View>
-          </View>
-
-          {/* Clean Order Total Summary Card */}
-          <View style={styles.summaryCard}>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Order Subtotal</Text>
-              <Text style={styles.summaryValue}>{formatPhilippinePeso(fullPrice)}</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Packages & Services</Text>
-              <Text style={styles.summaryFreeValue}>Included</Text>
-            </View>
-            <View style={styles.summaryDivider} />
-            <View style={styles.totalRow}>
-              <View>
-                <Text style={styles.totalMainLabel}>Total Amount</Text>
-                <Text style={styles.totalSubNotice}>Authorized & encrypted</Text>
               </View>
-              <Text style={styles.totalMainValue}>
-                {selectedPaymentOption ? formatPhilippinePeso(totalAmount) : 'Choose below'}
-              </Text>
-            </View>
-          </View>
 
-          {hasDownpayment ? (
-            <View style={styles.paymentOptionSection}>
-              <View style={styles.paymentOptionHeader}>
-                <Text style={styles.paymentOptionTitle}>Choose payment amount</Text>
-                <Text style={styles.paymentOptionHint}>Select this before continuing to Xendit.</Text>
-              </View>
-              <View style={styles.paymentOptionList}>
-                <TouchableOpacity
-                  style={[styles.paymentOptionCard, selectedPaymentOption === 'full' && styles.paymentOptionCardSelected]}
-                  onPress={() => setSelectedPaymentOption('full')}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: selectedPaymentOption === 'full' }}
-                >
-                  <View style={styles.paymentOptionCopy}>
-                    <Text style={styles.paymentOptionLabel}>Pay in full</Text>
-                    <Text style={styles.paymentOptionAmount}>{formatPhilippinePeso(fullPrice)}</Text>
-                  </View>
-                  <Ionicons
-                    name={selectedPaymentOption === 'full' ? 'radio-button-on' : 'radio-button-off'}
-                    size={22}
-                    color={selectedPaymentOption === 'full' ? '#315f50' : '#94a3b8'}
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.paymentOptionCard, selectedPaymentOption === 'downpayment' && styles.paymentOptionCardSelected]}
-                  onPress={() => setSelectedPaymentOption('downpayment')}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: selectedPaymentOption === 'downpayment' }}
-                >
-                  <View style={styles.paymentOptionCopy}>
-                    <Text style={styles.paymentOptionLabel}>Down payment</Text>
-                    <Text style={styles.paymentOptionAmount}>
-                      {formatPhilippinePeso(downpaymentAmount)} · {downpaymentPercentage}%
-                    </Text>
-                    <Text style={styles.paymentOptionBalance}>
-                      Remaining balance: {formatPhilippinePeso(Math.max(0, fullPrice - downpaymentAmount))}
-                    </Text>
-                  </View>
-                  <Ionicons
-                    name={selectedPaymentOption === 'downpayment' ? 'radio-button-on' : 'radio-button-off'}
-                    size={22}
-                    color={selectedPaymentOption === 'downpayment' ? '#315f50' : '#94a3b8'}
-                  />
-                </TouchableOpacity>
+              <View style={styles.bannerDivider} />
+
+              <View style={styles.breakdownRows}>
+                <View style={styles.breakdownRow}>
+                  <Text style={styles.breakdownLabel}>Total service price</Text>
+                  <Text style={styles.breakdownValue}>{formatPhilippinePeso(fullPrice)}</Text>
+                </View>
+                {selectedPaymentOption === 'downpayment' ? (
+                  <>
+                    <View style={styles.breakdownRow}>
+                      <Text style={styles.breakdownLabel}>Downpayment ({downpaymentPercentage}%)</Text>
+                      <Text style={styles.breakdownValue}>{formatPhilippinePeso(downpaymentAmount)}</Text>
+                    </View>
+                    <View style={styles.breakdownRow}>
+                      <Text style={styles.breakdownLabel}>Remaining balance</Text>
+                      <Text style={styles.breakdownValue}>{formatPhilippinePeso(remainingAfterDownpayment)}</Text>
+                    </View>
+                  </>
+                ) : null}
+                <View style={styles.dueRow}>
+                  <Text style={styles.dueLabel}>
+                    {selectedPaymentOption === 'downpayment' ? 'Downpayment due now' : 'Amount due now'}
+                  </Text>
+                  <Text style={styles.dueValue}>
+                    {selectedPaymentOption ? formatPhilippinePeso(totalAmount) : formatPhilippinePeso(fullPrice)}
+                  </Text>
+                </View>
               </View>
             </View>
-          ) : null}
 
-          {/* Payment Method Info Badge */}
-          <View style={styles.methodRow}>
-            <View style={styles.methodIcon}>
-              <Ionicons name="card-outline" size={18} color="#059669" />
-            </View>
-            <View style={styles.methodInfo}>
-              <Text style={styles.methodTitle}>Xendit Payment Gateway</Text>
-              <Text style={styles.methodSubtitle}>Credit/Debit Cards, Online Banking & E-Wallets</Text>
-            </View>
-            <Ionicons name="checkmark-circle" size={18} color="#059669" />
-          </View>
-
-          <View style={styles.methodPicker}>
-            <View style={styles.methodPickerHeader}>
-              <Text style={styles.methodPickerTitle}>Choose how to pay</Text>
-              {!loadingMethods && paymentMethods.length > 0 ? (
-                <Text style={styles.methodCount}>
-                  {paymentMethods.length} {paymentMethods.length === 1 ? 'method' : 'methods'} available
-                </Text>
-              ) : null}
-            </View>
-
-            {loadingMethods ? (
-              <View style={styles.methodsStatusRow}>
-                <ActivityIndicator size={'small'} color={'#059669'} />
-                <Text style={styles.methodsStatusText}>Loading payment methods...</Text>
-              </View>
-            ) : paymentMethods.length > 0 ? (
-              <View style={styles.methodOptions}>
-                {paymentMethods.map((method) => {
-                  const selected = selectedMethod === method.code;
-                  return (
-                    <TouchableOpacity
-                      key={method.code}
-                      style={[styles.methodOption, selected && styles.methodOptionSelected]}
-                      onPress={() => setSelectedMethod(method.code)}
-                      activeOpacity={0.78}
-                      accessibilityRole={'radio'}
-                      accessibilityState={{ checked: selected }}
-                      accessibilityLabel={`${method.label}, ${method.type === 'wallet' ? 'E-wallet' : 'Online bank transfer'}`}
-                    >
-                      <View style={[styles.methodOptionIcon, selected && styles.methodOptionIconSelected]}>
-                        <PaymentMethodIcon method={method} />
+            {/* Payment Option Selection */}
+            {hasDownpayment ? (
+              <View style={styles.sectionBlock}>
+                <Text style={styles.sectionLabel}>PAYMENT OPTION</Text>
+                <View style={styles.optionGroup}>
+                  <TouchableOpacity
+                    style={[styles.optionItem, selectedPaymentOption === 'full' && styles.optionItemSelected]}
+                    onPress={() => setSelectedPaymentOption('full')}
+                    activeOpacity={0.8}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: selectedPaymentOption === 'full' }}
+                  >
+                    <View style={styles.optionCopy}>
+                      <View style={styles.optionTitleRow}>
+                        <Text style={styles.optionTitle}>Full payment</Text>
+                        <Text style={styles.optionAmount}>{formatPhilippinePeso(fullPrice)}</Text>
                       </View>
-                      <View style={styles.methodOptionCopy}>
-                        <Text style={styles.methodOptionTitle}>{method.label}</Text>
-                        <Text style={styles.methodOptionSubtitle}>
-                          {method.type === 'wallet' ? 'E-wallet' : 'Online bank transfer'}
-                        </Text>
+                      <Text style={styles.optionSub}>Settle the entire service price now</Text>
+                    </View>
+                    <Ionicons
+                      name={selectedPaymentOption === 'full' ? 'checkmark-circle' : 'ellipse-outline'}
+                      size={21}
+                      color={selectedPaymentOption === 'full' ? '#2f6b55' : '#b7c2bc'}
+                    />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.optionItem, selectedPaymentOption === 'downpayment' && styles.optionItemSelected]}
+                    onPress={() => setSelectedPaymentOption('downpayment')}
+                    activeOpacity={0.8}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: selectedPaymentOption === 'downpayment' }}
+                  >
+                    <View style={styles.optionCopy}>
+                      <View style={styles.optionTitleRow}>
+                        <Text style={styles.optionTitle}>Downpayment ({downpaymentPercentage}%)</Text>
+                        <Text style={styles.optionAmount}>{formatPhilippinePeso(downpaymentAmount)}</Text>
                       </View>
-                      <Ionicons
-                        name={selected ? 'radio-button-on' : 'radio-button-off'}
-                        size={22}
-                        color={selected ? '#059669' : '#94a3b8'}
-                      />
-                    </TouchableOpacity>
-                  );
-                })}
+                      <Text style={styles.optionSub}>
+                        Remaining balance: {formatPhilippinePeso(remainingAfterDownpayment)}
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name={selectedPaymentOption === 'downpayment' ? 'checkmark-circle' : 'ellipse-outline'}
+                      size={21}
+                      color={selectedPaymentOption === 'downpayment' ? '#2f6b55' : '#b7c2bc'}
+                    />
+                  </TouchableOpacity>
+                </View>
               </View>
-            ) : (
-              <View style={styles.noMethodsCard}>
-                <Ionicons name={'alert-circle-outline'} size={22} color={'#b45309'} />
-                <Text style={styles.noMethodsText}>
-                  {methodsError || 'This shop has no active payment receiver account yet. Please contact the shop before paying.'}
+            ) : null}
+
+            {!loadingMethods && paymentMethods.length === 0 ? (
+              <View style={styles.emptyBox}>
+                <Ionicons name="alert-circle-outline" size={19} color="#9a6700" />
+                <Text style={styles.emptyBoxText}>
+                  {methodsError || 'Online checkout is unavailable for this shop right now.'}
                 </Text>
               </View>
-            )}
-          </View>
-
+            ) : null}
           </ScrollView>
 
-          {/* High-visibility Action Button */}
           <TouchableOpacity
-            style={[styles.payButton, (starting || loadingMethods || !request || !selectedMethod || !selectedPaymentOption || totalAmount <= 0) && styles.buttonDisabled]}
-            disabled={starting || loadingMethods || !request || !selectedMethod || !selectedPaymentOption || totalAmount <= 0}
+            style={[styles.payButton, !canPay && styles.buttonDisabled]}
+            disabled={!canPay}
             onPress={() => void handleOneClickPay()}
             activeOpacity={0.88}
           >
             {starting ? (
-              <View style={styles.buttonLoadingRow}>
+              <View style={styles.buttonInnerRow}>
                 <ActivityIndicator size="small" color="#ffffff" />
-                <Text style={styles.payButtonText}>Connecting to Xendit...</Text>
+                <Text style={styles.payButtonText}>Opening payment…</Text>
               </View>
             ) : (
               <View style={styles.buttonInnerRow}>
-                <Ionicons name="lock-closed" size={17} color="#ffffff" />
+                <Ionicons name="shield-checkmark-outline" size={18} color="#ffffff" />
                 <Text style={styles.payButtonText}>
                   {!selectedPaymentOption
-                    ? 'Choose full or down payment'
-                    : selectedMethod
-                    ? `Pay ${formatPhilippinePeso(totalAmount)} with ${paymentMethods.find((method) => method.code === selectedMethod)?.label || 'selected method'}`
-                    : 'Select a payment method'}
+                    ? 'Select full payment or downpayment'
+                    : `Pay ${formatPhilippinePeso(totalAmount)} online`}
                 </Text>
               </View>
             )}
@@ -547,101 +469,89 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    backgroundColor: 'rgba(18, 28, 25, 0.54)',
   },
   sheet: {
     backgroundColor: '#ffffff',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
     paddingHorizontal: 20,
-    paddingTop: 12,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
+    paddingTop: 10,
+    maxHeight: '92%',
     shadowColor: '#0f172a',
     shadowOffset: { width: 0, height: -6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 24,
-    maxHeight: '92%',
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
+    elevation: 20,
   },
   handle: {
     alignSelf: 'center',
-    width: 44,
+    width: 42,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#cbd5e1',
-    marginBottom: 14,
-  },
-  scrollArea: {
-    flexShrink: 1,
-  },
-  scrollContent: {
-    paddingBottom: 2,
+    backgroundColor: '#d0d7d4',
+    marginBottom: 12,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#edf1ef',
   },
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+  headerCopy: {
+    flex: 1,
+    paddingRight: 12,
   },
-  brandText: {
-    color: '#0f172a',
-    fontSize: 21,
-    fontWeight: '800',
-    letterSpacing: -0.4,
+  headerTitle: {
+    color: '#1d2d28',
+    fontSize: 18,
+    fontWeight: '900',
   },
-  secureBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#ecfdf5',
-    borderWidth: 1,
-    borderColor: '#a7f3d0',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-  },
-  secureBadgeText: {
-    color: '#065f46',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.5,
+  headerSubtitle: {
+    color: '#62706b',
+    fontSize: 12,
+    marginTop: 2,
   },
   closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#f1f5f9',
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#f2efe9',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  scrollArea: {
+    flexShrink: 1,
+  },
+  scrollContent: {
+    paddingVertical: 14,
+    gap: 16,
+  },
+  summaryBanner: {
+    backgroundColor: '#f8f6f2',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e6e2d8',
+    padding: 14,
   },
   productRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 13,
-    padding: 12,
-    backgroundColor: '#f8fafc',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    marginBottom: 12,
+    gap: 12,
   },
   productThumbnail: {
-    width: 56,
-    height: 56,
+    width: 52,
+    height: 52,
     borderRadius: 12,
-    backgroundColor: '#e2e8f0',
+    backgroundColor: '#e6e2d8',
   },
   productIconFallback: {
-    width: 56,
-    height: 56,
+    width: 52,
+    height: 52,
     borderRadius: 12,
-    backgroundColor: '#eff6ff',
+    backgroundColor: '#e7f2ec',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -649,9 +559,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   productName: {
-    color: '#0f172a',
+    color: '#1d2d28',
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
     lineHeight: 20,
   },
   shopMetaRow: {
@@ -661,299 +571,200 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   shopName: {
-    color: '#64748b',
-    fontSize: 13,
-    fontWeight: '500',
+    color: '#62706b',
+    fontSize: 12,
+    fontWeight: '600',
   },
   variationPill: {
     alignSelf: 'flex-start',
-    backgroundColor: '#e2e8f0',
-    paddingHorizontal: 7,
+    backgroundColor: '#eae6dc',
+    paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
-    marginTop: 4,
+    marginTop: 5,
   },
   variationText: {
-    color: '#334155',
+    color: '#42524c',
     fontSize: 11,
+    fontWeight: '700',
+  },
+  bannerDivider: {
+    height: 1,
+    backgroundColor: '#e6e2d8',
+    marginVertical: 12,
+  },
+  breakdownRows: {
+    gap: 6,
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  breakdownLabel: {
+    color: '#62706b',
+    fontSize: 12,
     fontWeight: '600',
   },
-  summaryCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    marginBottom: 14,
+  breakdownValue: {
+    color: '#22312d',
+    fontSize: 13,
+    fontWeight: '700',
   },
-  paymentOptionSection: {
-    marginBottom: 16,
+  dueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#eae6dc',
   },
-  paymentOptionHeader: {
-    marginBottom: 9,
-    paddingHorizontal: 2,
-  },
-  paymentOptionTitle: {
-    color: '#0f172a',
+  dueLabel: {
+    color: '#1d2d28',
     fontSize: 14,
     fontWeight: '800',
   },
-  paymentOptionHint: {
-    color: '#64748b',
-    fontSize: 11,
-    marginTop: 2,
+  dueValue: {
+    color: '#2f6b55',
+    fontSize: 19,
+    fontWeight: '900',
   },
-  paymentOptionList: {
+  sectionBlock: {
     gap: 8,
   },
-  paymentOptionCard: {
-    minHeight: 68,
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sectionLabel: {
+    color: '#6f7c77',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+  },
+  sectionCount: {
+    color: '#62706b',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  methodSummaryCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 13,
+    backgroundColor: '#f8faf9',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#dbe5df',
+  },
+  optionGroup: {
+    gap: 8,
+  },
+  optionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e3e8e5',
+    backgroundColor: '#ffffff',
+  },
+  optionItemSelected: {
+    borderColor: '#2f6b55',
+    backgroundColor: '#f2f8f5',
+  },
+  optionCopy: {
+    flex: 1,
+  },
+  optionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  optionTitle: {
+    color: '#1d2d28',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  optionAmount: {
+    color: '#2f6b55',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  optionSub: {
+    color: '#62706b',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  methodItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     paddingHorizontal: 13,
-    paddingVertical: 10,
+    paddingVertical: 11,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: '#e3e8e5',
     backgroundColor: '#ffffff',
-  },
-  paymentOptionCardSelected: {
-    borderColor: '#315f50',
-    backgroundColor: '#eef4f0',
-  },
-  paymentOptionCopy: {
-    flex: 1,
-  },
-  paymentOptionLabel: {
-    color: '#334155',
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  paymentOptionAmount: {
-    color: '#315f50',
-    fontSize: 16,
-    fontWeight: '900',
-    marginTop: 2,
-  },
-  paymentOptionBalance: {
-    color: '#64748b',
-    fontSize: 10,
-    marginTop: 2,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 3,
-  },
-  summaryLabel: {
-    color: '#64748b',
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  summaryValue: {
-    color: '#1e293b',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  summaryFreeValue: {
-    color: '#059669',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  summaryDivider: {
-    height: 1,
-    backgroundColor: '#f1f5f9',
-    marginVertical: 10,
-  },
-  totalRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  totalMainLabel: {
-    color: '#0f172a',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  totalSubNotice: {
-    color: '#94a3b8',
-    fontSize: 11,
-    marginTop: 1,
-  },
-  totalMainValue: {
-    color: '#0f172a',
-    fontSize: 22,
-    fontWeight: '900',
-    letterSpacing: -0.3,
-  },
-  methodRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 11,
-    backgroundColor: '#f8fafc',
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    marginBottom: 18,
-  },
-  methodIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#ecfdf5',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  methodInfo: {
-    flex: 1,
-  },
-  methodTitle: {
-    color: '#0f172a',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  methodSubtitle: {
-    color: '#64748b',
-    fontSize: 11,
-    marginTop: 1,
-  },
-  methodPicker: {
-    marginBottom: 14,
-  },
-  methodPickerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 9,
-    paddingHorizontal: 2,
-  },
-  methodPickerTitle: {
-    color: '#0f172a',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  methodCount: {
-    color: '#64748b',
-    fontSize: 11,
-    fontWeight: '500',
-  },
-  methodsStatusRow: {
-    minHeight: 58,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 9,
-    borderRadius: 14,
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  methodsStatusText: {
-    color: '#475569',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  methodOptions: {
-    gap: 8,
-  },
-  methodOption: {
-    minHeight: 62,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 11,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    backgroundColor: '#ffffff',
-  },
-  methodOptionSelected: {
-    borderColor: '#10b981',
-    backgroundColor: '#ecfdf5',
-  },
-  methodOptionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    overflow: 'hidden',
-  },
-  methodOptionIconSelected: {
-    backgroundColor: '#ffffff',
-    borderColor: '#a7f3d0',
   },
   paymentMethodLogo: {
-    width: 32,
-    height: 25,
+    width: 36,
+    height: 24,
   },
-  methodOptionCopy: {
-    flex: 1,
-  },
-  methodOptionTitle: {
-    color: '#0f172a',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  methodOptionSubtitle: {
-    color: '#64748b',
-    fontSize: 11,
-    marginTop: 2,
-  },
-  noMethodsCard: {
+  statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    padding: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 14,
     borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#fcd34d',
-    backgroundColor: '#fffbeb',
+    backgroundColor: '#f8faf9',
   },
-  noMethodsText: {
-    flex: 1,
-    color: '#92400e',
-    fontSize: 12,
-    lineHeight: 17,
+  statusText: {
+    color: '#53615d',
+    fontSize: 13,
     fontWeight: '600',
   },
+  emptyBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 13,
+    borderRadius: 14,
+    backgroundColor: '#fef9ec',
+    borderWidth: 1,
+    borderColor: '#f5e1b5',
+  },
+  emptyBoxText: {
+    flex: 1,
+    color: '#7c5211',
+    fontSize: 13,
+    lineHeight: 18,
+  },
   payButton: {
-    minHeight: 52,
-    borderRadius: 16,
-    backgroundColor: '#059669',
+    minHeight: 50,
+    borderRadius: 15,
+    backgroundColor: '#22312d',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#059669',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 6,
-    marginTop: 4,
+    marginTop: 10,
+  },
+  buttonDisabled: {
+    opacity: 0.45,
   },
   buttonInnerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  buttonLoadingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
   payButtonText: {
     color: '#ffffff',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
-    letterSpacing: 0.2,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
   },
 });

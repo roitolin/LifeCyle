@@ -36,7 +36,13 @@ function getPaymentStatus(request: PaymentRequest) {
     return { label: "Needs review", icon: "time-outline" as IoniconName, background: "#fff0dc", color: "#934b16" };
   }
   if (request.paymentVerifiedAt || ["payment_verified", "awaiting_customer_confirmation", "completed"].includes(status)) {
-    return { label: "Verified", icon: "checkmark-circle-outline" as IoniconName, background: "#e3f3e8", color: "#236441" };
+    const isDownpayment = String(request.paymentOption || "").toLowerCase() === "downpayment";
+    return {
+      label: isDownpayment ? "Downpayment Confirmed" : "Payment Confirmed",
+      icon: "checkmark-circle-outline" as IoniconName,
+      background: "#e3f3e8",
+      color: "#236441",
+    };
   }
   return { label: "Submitted", icon: "receipt-outline" as IoniconName, background: "#e8eef5", color: "#3f5f7d" };
 }

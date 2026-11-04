@@ -7,12 +7,24 @@ import { Platform } from 'react-native';
 import { supabase } from '@/services/supabaseClient';
 import type { NotificationPreferences } from '@/utils/notificationPreferences';
 
-export const PUSH_ALERTS_CHANNEL_ID = 'lifecycle-alerts';
+// Android does not let apps raise the importance of a channel after it has
+// been created. Use a versioned ID so existing installs receive the new
+// heads-up/MAX-importance configuration on their next launch.
+export const PUSH_ALERTS_CHANNEL_ID = 'lifecycle-alerts-v2';
 export const PUSH_SILENT_CHANNEL_ID = 'lifecycle-silent';
 
 const STORED_EXPO_TOKEN_KEY = '@lifecycle/expo-push-token';
+const PUSH_REGISTRATION_CACHE_KEY = '@lifecycle/push-registration-cache';
+const PUSH_REGISTRATION_TTL_MS = 24 * 60 * 60 * 1000;
 let notificationHandlerConfigured = false;
 let notificationsModule: typeof import('expo-notifications') | null = null;
+
+type PushRegistrationCache = {
+  userId: string;
+  token: string;
+  appVersion: string | null;
+  syncedAt: number;
+};
 
 export function getNotificationsModule() {
   if (Platform.OS === 'web' || isRunningInExpoGo()) return null;
@@ -33,9 +45,10 @@ export function configureForegroundPushNotifications() {
     handleNotification: async () => ({
       shouldShowBanner: true,
       shouldShowList: true,
-      // Realtime uses the app's custom sound while foregrounded. The remote
-      // payload/channel supplies the system sound in background or terminated.
-      shouldPlaySound: false,
+      // Android suppresses the heads-up/drop-down alert whenever this is false,
+      // even for a MAX-importance channel. The selected channel still decides
+      // whether the notification is audible for the user's sound preference.
+      shouldPlaySound: Platform.OS === 'android',
       shouldSetBadge: true,
     }),
   });
@@ -50,7 +63,7 @@ async function ensureAndroidChannels() {
     Notifications.setNotificationChannelAsync(PUSH_ALERTS_CHANNEL_ID, {
       name: 'LifeCycle updates',
       description: 'Service status, payment, message, and announcement alerts.',
-      importance: Notifications.AndroidImportance.HIGH,
+      importance: Notifications.AndroidImportance.MAX,
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       enableLights: true,
       lightColor: '#d8c58f',
@@ -103,19 +116,30 @@ function deviceLabel() {
 }
 
 async function saveTokenForUser(
+  userId: string,
   expoPushToken: string,
   preferences: NotificationPreferences
 ) {
+  const appVersion = Constants.expoConfig?.version ?? null;
   const { error } = await supabase.rpc('register_push_token', {
     p_expo_push_token: expoPushToken,
     p_platform: Platform.OS,
     p_device_name: deviceLabel(),
-    p_app_version: Constants.expoConfig?.version ?? null,
+    p_app_version: appVersion,
     p_preferences: preferences,
   });
   if (error) throw error;
 
-  await AsyncStorage.setItem(STORED_EXPO_TOKEN_KEY, expoPushToken);
+  const registration: PushRegistrationCache = {
+    userId,
+    token: expoPushToken,
+    appVersion,
+    syncedAt: Date.now(),
+  };
+  await AsyncStorage.multiSet([
+    [STORED_EXPO_TOKEN_KEY, expoPushToken],
+    [PUSH_REGISTRATION_CACHE_KEY, JSON.stringify(registration)],
+  ]);
 }
 
 export async function registerCurrentDeviceForPush(
@@ -144,10 +168,30 @@ export async function registerCurrentDeviceForPush(
       return null;
     }
 
+    const appVersion = Constants.expoConfig?.version ?? null;
+    const cachedRegistration = await AsyncStorage.getItem(PUSH_REGISTRATION_CACHE_KEY);
+    if (cachedRegistration) {
+      try {
+        const cached = JSON.parse(cachedRegistration) as Partial<PushRegistrationCache>;
+        if (
+          cached.userId === normalizedUserId
+          && typeof cached.token === 'string'
+          && cached.token.length > 0
+          && cached.appVersion === appVersion
+          && typeof cached.syncedAt === 'number'
+          && Date.now() - cached.syncedAt < PUSH_REGISTRATION_TTL_MS
+        ) {
+          return cached.token;
+        }
+      } catch {
+        // Replace malformed or outdated cache data below.
+      }
+    }
+
     const expoPushToken = (
       await Notifications.getExpoPushTokenAsync({ projectId })
     ).data;
-    await saveTokenForUser(expoPushToken, preferences);
+    await saveTokenForUser(normalizedUserId, expoPushToken, preferences);
     return expoPushToken;
   } catch (error) {
     console.warn('Unable to register this device for push notifications:', error);
@@ -165,7 +209,7 @@ export async function updateCurrentPushPreferences(
   if (!userId.trim() || !expoPushToken) return;
 
   try {
-    await saveTokenForUser(expoPushToken, preferences);
+    await saveTokenForUser(userId.trim(), expoPushToken, preferences);
   } catch (error) {
     console.warn('Unable to synchronize push notification preferences:', error);
   }
@@ -180,7 +224,7 @@ export async function unregisterCurrentDevicePushToken() {
       p_expo_push_token: expoPushToken,
     });
     if (error) throw error;
-    await AsyncStorage.removeItem(STORED_EXPO_TOKEN_KEY);
+    await AsyncStorage.multiRemove([STORED_EXPO_TOKEN_KEY, PUSH_REGISTRATION_CACHE_KEY]);
   } catch (error) {
     // Logout should still succeed if the device is temporarily offline.
     console.warn('Unable to unregister this device push token:', error);

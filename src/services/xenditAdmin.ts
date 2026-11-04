@@ -4,7 +4,7 @@ export type PayoutVerifyResult = {
   shopId: string;
   payoutChannelCode: string;
   payoutAccountName: string;
-  payoutVerified: boolean;
+  payoutVerified: true;
   testMode: true;
 };
 
@@ -34,25 +34,19 @@ const getSafeErrorMessage = async (error: unknown): Promise<string> => {
 };
 
 /**
- * Admin saves a shop's payout account details. The legacy function name is
- * retained for callers that have not yet migrated to the automatic-ready flow.
- * No Xendit sub-account is created — this just confirms the bank/GCash info.
+ * Approve an owner-submitted receiver for test checkout.
+ * This does not create or verify a live payment account.
  */
 export async function verifyShopPayout(
   shopId: string,
-  payoutChannelCode: string,
-  payoutAccountName: string,
-  payoutAccountNumber: string,
+  payoutAccountId: string,
 ): Promise<PayoutVerifyResult> {
-  // Verification must go through the server so the legacy shop fields and the
-  // per-channel receiver row used by customer checkout are updated together.
+  // The server updates the shop summary and receiver atomically.
   const { data, error } = await supabase.functions.invoke("provision-xendit-shop", {
     body: {
       shopId,
       action: "save",
-      payoutChannelCode,
-      payoutAccountName,
-      payoutAccountNumber,
+      payoutAccountId,
     },
   });
 
@@ -64,34 +58,6 @@ export async function verifyShopPayout(
     data.payoutVerified !== true ||
     data.testMode !== true
   ) {
-    throw new Error(DEFAULT_ERROR);
-  }
-
-  return data as PayoutVerifyResult;
-}
-
-/**
- * Shop owner saves payout details. Approved shops become checkout-ready immediately.
- */
-export async function updateShopPayout(
-  shopId: string,
-  payoutChannelCode: string,
-  payoutAccountName: string,
-  payoutAccountNumber: string,
-): Promise<PayoutVerifyResult> {
-  const { data, error } = await supabase.functions.invoke("provision-xendit-shop", {
-    body: {
-      shopId,
-      action: "update",
-      payoutChannelCode,
-      payoutAccountName,
-      payoutAccountNumber,
-    },
-  });
-
-  if (error) throw new Error(await getSafeErrorMessage(error));
-
-  if (!data || data.shopId !== shopId || data.payoutVerified !== true) {
     throw new Error(DEFAULT_ERROR);
   }
 

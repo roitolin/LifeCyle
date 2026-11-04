@@ -7,6 +7,7 @@ import { getPaymentSetting, savePaymentSetting } from '@/utils/paymentSettings'
 import { addMonths, SUBSCRIPTION_MONTHS } from '@/utils/subscription'
 import { buildCsv, csvTimestamp, dateStamp, downloadCsv } from '@/utils/exportCsv'
 import { createNotification } from '@/utils/supabaseNotifications'
+import { PAYOUT_CHANNEL_LOGOS } from '@/assets/paymentLogoAssets'
 import AdminShopPaymentReceipt from './AdminShopPaymentReceipt'
 import AdminCommissionsPanel from './AdminCommissionsPanel'
 import './AdminPaymentsPage.css'
@@ -61,6 +62,31 @@ function getSellerIdentity(entry: PaymentSubmission) {
   ) || ''
 
   return { primary, secondary }
+}
+
+function getPaymentMethodInfo(entry: PaymentSubmission) {
+  const rawMethod = entry.providerPaymentMethod?.trim().toUpperCase() || ''
+  const logo = (rawMethod && PAYOUT_CHANNEL_LOGOS[rawMethod])
+    || (entry.gcashNumber || entry.gcashName ? PAYOUT_CHANNEL_LOGOS['PH_GCASH'] : null)
+
+  let label = 'Online payment'
+  if (rawMethod === 'PH_GCASH') label = 'GCash'
+  else if (rawMethod === 'PH_MAYA') label = 'Maya'
+  else if (rawMethod === 'PH_BDO') label = 'BDO'
+  else if (rawMethod === 'PH_BPI') label = 'BPI'
+  else if (rawMethod === 'PH_METROBANK') label = 'Metrobank'
+  else if (rawMethod) label = rawMethod.replace(/^PH_/i, '').replace(/_/g, ' ')
+  else if (entry.gcashNumber || entry.gcashName) label = 'GCash'
+  else if (entry.paymentProvider === 'manual') label = 'Manual transfer'
+
+  return { label, logo }
+}
+
+function getPaymentStatusInfo(status: string) {
+  const s = String(status || '').toLowerCase()
+  if (s === 'verified') return { label: 'Payment Confirmed', className: 'status-pill is-live' }
+  if (s === 'rejected') return { label: 'Needs correction', className: 'status-pill is-empty' }
+  return { label: 'Needs review', className: 'status-pill pending' }
 }
 
 export default function AdminPaymentsPage() {
@@ -428,7 +454,7 @@ export default function AdminPaymentsPage() {
                       onChange={(event) => setFeeAmount(event.target.value)}
                     />
                   </div>
-                  <span className="payments-field-hint">Xendit charges this exact amount through secure hosted checkout.</span>
+                  <span className="payments-field-hint">Partners pay this exact amount through secure online checkout.</span>
                 </div>
               </div>
             </section>
@@ -436,12 +462,12 @@ export default function AdminPaymentsPage() {
             <section className="payments-card">
               <div className="payments-card-head">
                 <h3>Payment Gateway</h3>
-                <p>Registration and renewal payments are processed securely via Xendit.</p>
+                <p>Registration and renewal payments are processed securely via online checkout.</p>
               </div>
 
               <div className="payments-gateway-status">
                 <strong>Automated Checkout Active</strong>
-                <p>Partners pay registration and renewal fees through Xendit hosted checkout. Payments and subscription terms are verified automatically.</p>
+                <p>Partners pay registration and renewal fees through secure online checkout. Payments and subscription terms are verified automatically.</p>
               </div>
             </section>
           </div>
@@ -495,6 +521,7 @@ export default function AdminPaymentsPage() {
                   <tr>
                     <th>Seller</th>
                     <th>Shop</th>
+                    <th>Method</th>
                     <th>Amount</th>
                     <th>Submitted</th>
                     <th>Status</th>
@@ -505,6 +532,8 @@ export default function AdminPaymentsPage() {
                   {payments.map((entry) => {
                     const busy = payingId === entry.id
                     const sellerIdentity = getSellerIdentity(entry)
+                    const method = getPaymentMethodInfo(entry)
+                    const statusInfo = getPaymentStatusInfo(entry.status)
                     return (
                       <tr key={entry.id}>
                         <td data-label="Seller">
@@ -513,10 +542,22 @@ export default function AdminPaymentsPage() {
                           <div className="row-muted">{entry.gcashNumber || ''}</div>
                         </td>
                         <td data-label="Shop">{entry.shopName || '-'}</td>
+                        <td data-label="Method">
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            {method.logo ? (
+                              <img
+                                src={method.logo}
+                                alt=""
+                                style={{ height: 16, width: 'auto', objectFit: 'contain' }}
+                              />
+                            ) : null}
+                            <span>{method.label}</span>
+                          </span>
+                        </td>
                         <td data-label="Amount">{entry.amount > 0 ? `₱${Number(entry.amount).toLocaleString('en-PH')}` : '—'}</td>
                         <td data-label="Submitted">{formatUpdatedAt(entry.createdAt)}</td>
                         <td data-label="Status">
-                          <span className={`status-pill ${entry.status}`}>{entry.status}</span>
+                          <span className={statusInfo.className}>{statusInfo.label}</span>
                         </td>
                         <td data-label="Actions">
                           <div className="request-actions">

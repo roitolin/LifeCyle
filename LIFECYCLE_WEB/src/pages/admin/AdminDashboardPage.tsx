@@ -232,7 +232,6 @@ function AdminDashboardPage() {
                   </Link>
                   <Link to="/admin/funeral-shops" className="dashboard-queue-row"><span><strong>Shop applications</strong><small>Waiting for registration review</small></span><b>{operationCounts.shop}</b></Link>
                   <Link to="/admin/payments" className="dashboard-queue-row"><span><strong>Payment verification</strong><small>Shop submissions awaiting review</small></span><b>{operationCounts.payment}</b></Link>
-                  <Link to="/admin/account-deletions" className="dashboard-queue-row"><span><strong>Account deletions</strong><small>Verified privacy requests</small></span><b>{operationCounts.deletion}</b></Link>
                   <Link to="/admin/orders" className="dashboard-queue-row"><span><strong>Service escalations</strong><small>Requests or payments awaiting action</small></span><b>{operationCounts.service}</b></Link>
                 </>
               ) : (

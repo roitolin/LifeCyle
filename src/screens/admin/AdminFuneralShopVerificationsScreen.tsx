@@ -15,7 +15,6 @@ import {
 import { Button, Searchbar, SegmentedButtons } from "react-native-paper";
 import { supabase } from "@/services/supabaseClient";
 import { auth } from "@/services";
-import { verifyShopPayout } from "@/services/xenditAdmin";
 import { useResponsive } from "@/utils/responsive";
 import { logAdminAction } from "@/utils/adminAuditLog";
 
@@ -93,12 +92,7 @@ export default function AdminFuneralShopVerificationsScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
-  const [verifyingPayoutShopId, setVerifyingPayoutShopId] = useState<string | null>(null);
   // Payout form state
-  const [payoutChannel, setPayoutChannel] = useState("");
-  const [payoutName, setPayoutName] = useState("");
-  const [payoutNumber, setPayoutNumber] = useState("");
-  const [channelPickerVisible, setChannelPickerVisible] = useState(false);
   const applyFilters = useCallback((allItems: ShopApplicant[], search: string, filter: FilterType) => {
     let result = [...allItems];
 
@@ -187,9 +181,6 @@ export default function AdminFuneralShopVerificationsScreen() {
     setModalVisible(false);
     setSelectedItem(null);
     setRejectionReason("");
-    setPayoutChannel("");
-    setPayoutName("");
-    setPayoutNumber("");
   };
 
   const notifyUser = async (userId: string, type: string, title: string, body: string) => {
@@ -201,70 +192,6 @@ export default function AdminFuneralShopVerificationsScreen() {
       read: false,
       createdAt: new Date().toISOString(),
     });
-  };
-
-  const verifyPayoutAccount = async (
-    item: ShopApplicant,
-    options: { afterApproval?: boolean } = {},
-  ): Promise<boolean> => {
-    // Use payout details from form or existing shop data
-    const channel = payoutChannel || item.payoutChannelCode || "";
-    const name = payoutName || item.payoutAccountName || "";
-    const number = payoutNumber || item.payoutAccountNumber || "";
-
-    if (!channel || !name || !number) {
-      Alert.alert("Missing payout details", "Enter the shop's payout channel, account name, and account number.");
-      return false;
-    }
-
-    setVerifyingPayoutShopId(item.id);
-    try {
-      const result = await verifyShopPayout(item.id, channel, name, number);
-
-      const updatedShop: Partial<ShopApplicant> = {
-        payoutChannelCode: result.payoutChannelCode,
-        payoutAccountName: result.payoutAccountName,
-        payoutVerifiedByAdmin: result.payoutVerified,
-        payoutVerifiedAt: new Date().toISOString(),
-        xenditProvisioningStatus: "provisioned",
-        xenditProvisioningError: null,
-      };
-      setItems((current) =>
-        current.map((shop) =>
-          shop.id === item.id ? { ...shop, ...updatedShop } : shop
-        )
-      );
-      setSelectedItem((current) =>
-        current?.id === item.id ? { ...current, ...updatedShop } : current
-      );
-
-      void logAdminAction({
-        adminId: auth.currentUser?.uid,
-        action: "shop_payout_updated",
-        targetType: "funeral_shop",
-        targetId: item.id,
-        summary: `Updated payout account for ${item.shopName || item.ownerEmail || item.id} (${getChannelLabel(channel)})`,
-        metadata: { payoutChannel: channel, testMode: true },
-      }).catch((error) => console.warn("Unable to record payout account audit log", error));
-
-      Alert.alert(
-        options.afterApproval ? "Shop approved and payout ready" : "Payout account saved",
-        `The shop's ${getChannelLabel(channel)} payout account is ready. 70% of casket payments will be sent here automatically.`,
-      );
-      return true;
-    } catch (error: any) {
-      const safeMessage =
-        typeof error?.message === "string"
-          ? error.message
-          : "Payout account setup could not be completed.";
-      Alert.alert(
-        options.afterApproval ? "Shop approved — payout setup pending" : "Payout save failed",
-        `${safeMessage}\n\nThe shop remains approved. You can safely retry from the shop details.`,
-      );
-      return false;
-    } finally {
-      setVerifyingPayoutShopId(null);
-    }
   };
 
   const approveShop = async (item: ShopApplicant) => {
@@ -308,26 +235,12 @@ export default function AdminFuneralShopVerificationsScreen() {
         }
       });
 
-      // If payout details are filled in, verify them as part of approval
-      const hasPayoutDetails = (payoutChannel || item.payoutChannelCode) &&
-        (payoutName || item.payoutAccountName) &&
-        (payoutNumber || item.payoutAccountNumber);
-
-      if (hasPayoutDetails) {
-        const verified = await verifyPayoutAccount(
-          { ...item, status: "verified", rejectionReason: null },
-          { afterApproval: true },
-        );
-        await loadApplicants();
-        if (verified) closeModal();
-      } else {
-        Alert.alert(
-          "Shop approved",
-          "The shop is approved. Set up payout details (GCash/bank) so they can receive customer payments.",
-        );
-        await loadApplicants();
-      }
-    } catch (error: any) {
+      Alert.alert(
+        "Shop approved",
+        "The owner can now submit a test payout receiver. Review it separately in Payout Accounts.",
+      );
+      await loadApplicants();
+      closeModal();    } catch (error: any) {
       Alert.alert("Error", error?.message || "Failed to approve funeral shop.");
     } finally {
       setActionLoading(false);
@@ -387,9 +300,6 @@ export default function AdminFuneralShopVerificationsScreen() {
   const openModal = (item: ShopApplicant) => {
     setSelectedItem(item);
     setRejectionReason(item.rejectionReason || "");
-    setPayoutChannel(item.payoutChannelCode || "");
-    setPayoutName(item.payoutAccountName || "");
-    setPayoutNumber(item.payoutAccountNumber || "");
     setModalVisible(true);
   };
 
@@ -464,63 +374,10 @@ export default function AdminFuneralShopVerificationsScreen() {
                   <Text style={styles.detailText}>TIN: {selectedItem.tin || "-"}</Text>
                   <Text style={styles.detailText}>VAT Status: {selectedItem.vatRegistrationStatus ? "Registered" : "Not Registered"}</Text>
 
-                  {/* Payout Account Section */}
-                  <View
-                    style={[
-                      styles.payoutCard,
-                      selectedItem.payoutVerifiedByAdmin
-                        ? styles.payoutCardReady
-                        : styles.payoutCardPending,
-                    ]}
-                  >
-                    <Text style={styles.payoutTitle}>Payout Account</Text>
-                    <Text style={styles.payoutDetail}>
-                      Status: {selectedItem.payoutVerifiedByAdmin ? "Ready for checkout" : selectedItem.payoutChannelCode ? "Needs setup refresh" : "Shop has not submitted payout details yet"}
-                    </Text>
-
-                    {/* Show what the shop submitted (read-only summary) */}
-                    {selectedItem.payoutChannelCode ? (
-                      <View style={{ marginTop: 8, marginBottom: 4, padding: 10, backgroundColor: "#f0f9ff", borderRadius: 8 }}>
-                        <Text style={{ fontSize: 11, fontWeight: "700", color: "#0369a1", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Shop Submitted Details</Text>
-                        <Text style={{ color: "#0c4a6e" }}>Channel: {getChannelLabel(selectedItem.payoutChannelCode)}</Text>
-                        <Text style={{ color: "#0c4a6e" }}>Name: {selectedItem.payoutAccountName || "—"}</Text>
-                        <Text style={{ color: "#0c4a6e" }}>Number: {selectedItem.payoutAccountNumber || "—"}</Text>
-                      </View>
-                    ) : (
-                      <Text style={{ color: "#92400e", fontSize: 12, marginTop: 6, fontStyle: "italic" }}>
-                        The shop owner can set up their payout account from Shop Settings → Payout Account after approval.
-                      </Text>
-                    )}
-
-                    {/* Admin can manage the channel, name, and number when support is needed. */}
-                    <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Payout Channel</Text>
-                    <TouchableOpacity
-                      style={styles.channelPicker}
-                      onPress={() => setChannelPickerVisible(true)}
-                    >
-                      <Text style={styles.channelPickerText}>
-                        {payoutChannel ? getChannelLabel(payoutChannel) : "Keep shop's channel / select to override..."}
-                      </Text>
-                    </TouchableOpacity>
-
-                    <Text style={styles.fieldLabel}>Override Account Holder Name (optional)</Text>
-                    <TextInput
-                      style={styles.payoutInput}
-                      value={payoutName}
-                      onChangeText={setPayoutName}
-                      placeholder={selectedItem.payoutAccountName || "Keep shop's name / enter to override"}
-                    />
-
-                    <Text style={styles.fieldLabel}>Override Account Number (optional)</Text>
-                    <TextInput
-                      style={styles.payoutInput}
-                      value={payoutNumber}
-                      onChangeText={setPayoutNumber}
-                      placeholder={selectedItem.payoutAccountNumber || "Keep shop's number / enter to override"}
-                      keyboardType="default"
-                    />
+                  <View style={styles.payoutCard}>
+                    <Text style={styles.payoutTitle}>Test payout receivers</Text>
+                    <Text style={styles.payoutDetail}>The owner submits receiver details after shop approval. Review submitted accounts in Payout Accounts.</Text>
                   </View>
-
                   <Button mode="outlined" onPress={() => void openExternalLink(selectedItem.birCertificateUrl)} style={styles.linkButton}>
                     View BIR Certificate
                   </Button>
@@ -538,7 +395,7 @@ export default function AdminFuneralShopVerificationsScreen() {
                       mode="contained"
                       onPress={() => void approveShop(selectedItem)}
                       loading={actionLoading}
-                      disabled={actionLoading || verifyingPayoutShopId === selectedItem.id}
+                      disabled={actionLoading}
                     >
                       Approve
                     </Button>
@@ -547,30 +404,14 @@ export default function AdminFuneralShopVerificationsScreen() {
                       buttonColor="#b91c1c"
                       onPress={() => void rejectShop(selectedItem)}
                       loading={actionLoading}
-                      disabled={actionLoading || verifyingPayoutShopId === selectedItem.id}
+                      disabled={actionLoading}
                     >
                       Reject
                     </Button>
-                    {["verified", "live", "offline"].includes(selectedItem.status) &&
-                    (selectedItem.payoutChannelCode || payoutChannel) ? (
-                      <Button
-                        mode="contained-tonal"
-                        buttonColor={selectedItem.payoutVerifiedByAdmin ? "#059669" : "#2563eb"}
-                        textColor="#ffffff"
-                        onPress={async () => {
-                          await verifyPayoutAccount(selectedItem);
-                          await loadApplicants();
-                        }}
-                        loading={verifyingPayoutShopId === selectedItem.id}
-                        disabled={actionLoading || verifyingPayoutShopId === selectedItem.id}
-                      >
-                        Save Payout Account
-                      </Button>
-                    ) : null}
                     <Button
                       mode="outlined"
                       onPress={closeModal}
-                      disabled={actionLoading || verifyingPayoutShopId === selectedItem.id}
+                      disabled={actionLoading}
                     >
                       Close
                     </Button>
@@ -582,33 +423,7 @@ export default function AdminFuneralShopVerificationsScreen() {
         </View>
       </Modal>
 
-      {/* Channel picker modal */}
-      <Modal visible={channelPickerVisible} transparent animationType="fade" onRequestClose={() => setChannelPickerVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { maxHeight: "70%" }]}>
-            <Text style={styles.modalTitle}>Select Payout Channel</Text>
-            <ScrollView>
-              {PAYOUT_CHANNELS.map((ch) => (
-                <TouchableOpacity
-                  key={ch.code}
-                  style={[styles.channelOption, payoutChannel === ch.code && styles.channelOptionSelected]}
-                  onPress={() => {
-                    setPayoutChannel(ch.code);
-                    setChannelPickerVisible(false);
-                  }}
-                >
-                  <Text style={[styles.channelOptionText, payoutChannel === ch.code && styles.channelOptionTextSelected]}>
-                    {ch.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-            <Button mode="outlined" onPress={() => setChannelPickerVisible(false)} style={{ marginTop: 10 }}>
-              Cancel
-            </Button>
-          </View>
-        </View>
-      </Modal>
+
     </View>
   );
 }

@@ -42,7 +42,7 @@ const ShopRegistrationPage = lazy(() => import('./pages/ShopRegistrationPage'))
 const FavoritesPage = lazy(() => import('./pages/FavoritesPage'))
 
 const AdminAuditLogsPage = lazy(() => import('./pages/admin/AdminAuditLogsPage'))
-const AdminAccountDeletionsPage = lazy(() => import('./pages/admin/AdminAccountDeletionsPage'))
+
 const AdminAnalyticsPage = lazy(() => import('./pages/admin/AdminAnalyticsPage'))
 const AdminAnnouncementsPage = lazy(() => import('./pages/admin/AdminAnnouncementsPage'))
 const AdminLoginSecurityPage = lazy(() => import('./pages/admin/AdminLoginSecurityPage'))
@@ -154,7 +154,7 @@ function App() {
                 <Route path="analytics" element={<AdminAnalyticsPage />} />
                 <Route path="announcements" element={<AdminAnnouncementsPage />} />
                 <Route path="home-content" element={<AdminHomeContentPage />} />
-                <Route path="account-deletions" element={<AdminAccountDeletionsPage />} />
+                <Route path="account-deletions" element={<Navigate to="/admin" replace />} />
               </Route>
               <Route path="users" element={<AdminUsersPage />} />
               <Route path="users/:id" element={<AdminUserDetailPage />} />

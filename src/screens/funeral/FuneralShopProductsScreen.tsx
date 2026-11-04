@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import LoadingBird from '@/components/LoadingBird';
-import ProductRating from '@/components/ProductRating';
+import ProductCardMeta from '@/components/ProductCardMeta';
+import ProductDownpaymentBadge from '@/components/ProductDownpaymentBadge';
 import {
   ActivityIndicator,
   Alert,
@@ -43,6 +44,9 @@ type ShopProduct = {
   variations: ProductVariation[];
   active: boolean;
   createdAt?: string | null;
+  downpaymentEnabled?: boolean;
+  downpaymentAmount?: number | null;
+  downpaymentPercentage?: number | null;
 };
 
 type ShopInfo = {
@@ -123,11 +127,13 @@ function ProductCard({
   onPress,
   rating = 0,
   ratingCount = 0,
+  shopName,
 }: {
   item: ShopProduct;
   onPress: () => void;
   rating?: number;
   ratingCount?: number;
+  shopName: string;
 }) {
   const imageUrl = getPrimaryProductImage(item);
   const [imageFailed, setImageFailed] = useState(false);
@@ -157,6 +163,7 @@ function ProductCard({
             <Ionicons name="cube-outline" size={30} color="#718079" />
           </View>
         )}
+        <ProductDownpaymentBadge product={item} />
         {item.stock <= 0 ? (
           <View style={styles.soldOutBadge}>
             <Text style={styles.soldOutBadgeText}>Sold out</Text>
@@ -166,7 +173,7 @@ function ProductCard({
       <View style={styles.productDetails}>
         <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
         <Text style={styles.productPrice}>{formatPhilippinePeso(item.price)}</Text>
-        <ProductRating rating={rating} count={ratingCount} />
+        <ProductCardMeta rating={rating} ratingCount={ratingCount} stock={item.stock} shopName={shopName} />
       </View>
     </TouchableOpacity>
   );
@@ -232,7 +239,7 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
         supabase
           .from("funeral_products")
           .select(`
-            id, name, description, price, stock, imageUrl, hasVariations, active, createdAt,
+            id, name, description, price, stock, imageUrl, hasVariations, active, createdAt, downpaymentEnabled, downpaymentAmount, downpaymentPercentage,
             funeral_product_variations ( name, imageUrl ),
             funeral_product_images ( imageUrl, displayOrder )
           `)
@@ -275,6 +282,9 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
           variations,
           active: Boolean(row.active),
           createdAt: row.createdAt || null,
+          downpaymentEnabled: Boolean(row.downpaymentEnabled),
+          downpaymentAmount: row.downpaymentAmount == null ? null : Number(row.downpaymentAmount),
+          downpaymentPercentage: row.downpaymentPercentage == null ? null : Number(row.downpaymentPercentage),
         } as ShopProduct;
       });
 
@@ -500,6 +510,7 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
               item={item}
               rating={ratingStats.get(item.id)?.average ?? 0}
               ratingCount={ratingStats.get(item.id)?.count ?? 0}
+              shopName={shopName}
               onPress={() => openProduct(item)}
             />
           ))}
@@ -574,6 +585,7 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
               item={item}
               rating={ratingStats.get(item.id)?.average ?? 0}
               ratingCount={ratingStats.get(item.id)?.count ?? 0}
+              shopName={shopName}
               onPress={() => openProduct(item)}
             />
           ))}

@@ -5,6 +5,7 @@ import { useAlertDialog } from '@/hooks/useAlertDialog'
 import BrandLogo from '@/components/BrandLogo'
 import LogoutLink from '@/components/LogoutLink'
 import ServiceXenditModal from '@/components/ServiceXenditModal'
+import RemainingBalancePaymentCard from '@/components/RemainingBalancePaymentCard'
 import DeathCertificateVaultCard from '@/components/DeathCertificateVaultCard'
 import PageBackButton from '@/components/PageBackButton'
 import AccountMobileHeader from '@/components/AccountMobileHeader'
@@ -20,6 +21,7 @@ type ViewerProfile = {
 
 type ServiceRequest = {
   id: string
+  requesterId: string
   shopId: string
   shopName: string | null
   productName: string
@@ -30,7 +32,10 @@ type ServiceRequest = {
   downpaymentAmountSnapshot?: number | string | null
   downpaymentPercentageSnapshot?: number | string | null
   remainingBalance?: number | string | null
+  paymentProvider?: string | null
   providerCheckoutId?: string | null
+  providerPaymentId?: string | null
+  providerPaymentMethod?: string | null
   variationName?: string | null
   packageItems?: string[] | null
   requestType?: string
@@ -143,6 +148,29 @@ function buildReceiptNumber(id: string) {
   return `RCPT-${String(id || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}`
 }
 
+function formatRequestPaymentType(request: ServiceRequest) {
+  const base = String(request.paymentOption || '').toLowerCase() === 'downpayment' ? 'Downpayment' : 'Full payment'
+  if (request.providerPaymentMethod) {
+    const channelMap: Record<string, string> = {
+      PH_GCASH: 'GCash',
+      PH_MAYA: 'Maya',
+      PH_BDO: 'BDO',
+      PH_BPI: 'BPI',
+      PH_METROBANK: 'Metrobank',
+      PH_LANDBANK: 'LandBank',
+      PH_CHINABANK: 'Chinabank',
+    }
+    const raw = String(request.providerPaymentMethod).trim()
+    const mapped = channelMap[raw.toUpperCase()] || raw.replace(/^PH_/i, '').replace(/_/g, ' ')
+    return `${base} · ${mapped}`
+  }
+  if (request.paymentGcashNumber) return `${base} · GCash`
+  if (request.paymentProvider === 'xendit' || request.providerPaymentId || request.providerCheckoutId) {
+    return `${base} · Online payment`
+  }
+  return base
+}
+
 function getRequestCardImage(request: ServiceRequest) {
   const isCustomCasket = String(request.requestType || '').toLowerCase() === 'custom_casket'
   return isCustomCasket
@@ -150,7 +178,8 @@ function getRequestCardImage(request: ServiceRequest) {
     : request.productImageUrl || null
 }
 
-function statusMeta(status?: string | null): { label: string; tone: string } {
+function statusMeta(status?: string | null, paymentOption?: string | null): { label: string; tone: string } {
+  const isDownpayment = String(paymentOption || '').toLowerCase() === 'downpayment'
   switch (String(status || '').toLowerCase()) {
     case 'pending_shop_acceptance':
       return { label: 'Waiting for Shop', tone: 'pending' }
@@ -159,9 +188,9 @@ function statusMeta(status?: string | null): { label: string; tone: string } {
     case 'awaiting_payment':
       return { label: 'Awaiting Payment', tone: 'pending' }
     case 'payment_submitted':
-      return { label: 'Payment Submitted', tone: 'submitted' }
+      return { label: isDownpayment ? 'Downpayment Submitted' : 'Payment Submitted', tone: 'submitted' }
     case 'payment_verified':
-      return { label: 'Payment Confirmed', tone: 'verified' }
+      return { label: isDownpayment ? 'Downpayment Confirmed' : 'Payment Confirmed', tone: 'verified' }
     case 'awaiting_customer_confirmation':
       return { label: 'Awaiting Your Confirmation', tone: 'pending' }
     case 'completed':
@@ -175,13 +204,14 @@ function statusMeta(status?: string | null): { label: string; tone: string } {
   }
 }
 
-function statusDetail(status?: string | null): {
+function statusDetail(status?: string | null, paymentOption?: string | null): {
   label: string
   background: string
   text: string
   message: string
   icon: 'wallet' | 'clock' | 'check' | 'alert'
 } {
+  const isDownpayment = String(paymentOption || '').toLowerCase() === 'downpayment'
   switch (String(status || '').toLowerCase()) {
     case 'accepted_by_shop':
       return {
@@ -201,7 +231,7 @@ function statusDetail(status?: string | null): {
       }
     case 'payment_submitted':
       return {
-        label: 'Payment Under Review',
+        label: isDownpayment ? 'Downpayment Under Review' : 'Payment Under Review',
         background: '#e0eefa',
         text: '#1c4f7e',
         message: 'Your payment details are under review by the shop.',
@@ -209,10 +239,12 @@ function statusDetail(status?: string | null): {
       }
     case 'payment_verified':
       return {
-        label: 'Payment Confirmed',
+        label: isDownpayment ? 'Downpayment Confirmed' : 'Payment Confirmed',
         background: '#e7f5ec',
         text: '#166534',
-        message: 'Your payment is confirmed. The shop is preparing your casket.',
+        message: isDownpayment
+          ? 'Your downpayment is confirmed. The shop is preparing your service.'
+          : 'Your payment is confirmed. The shop is preparing your casket.',
         icon: 'check',
       }
     case 'awaiting_customer_confirmation':
@@ -276,8 +308,7 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
   const [proofFileInputRef] = useState<{ current: HTMLInputElement | null }>({ current: null })
   const [viewerUrl, setViewerUrl] = useState<string | null>(null)
   const [detailsRequest, setDetailsRequest] = useState<ServiceRequest | null>(null)
-  const [paymentInfoExpanded, setPaymentInfoExpanded] = useState(false)
-  const [submittedProofExpanded, setSubmittedProofExpanded] = useState(false)
+  const [paymentReceiptOpen, setPaymentReceiptOpen] = useState(false)
   const [xenditModalRequest, setXenditModalRequest] = useState<ServiceRequest | null>(null)
   const [manualPaymentExpanded, setManualPaymentExpanded] = useState<Record<string, boolean>>({})
 
@@ -416,8 +447,7 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
 
   useEffect(() => {
     if (!detailRequestId) return
-    setPaymentInfoExpanded(false)
-    setSubmittedProofExpanded(false)
+    setPaymentReceiptOpen(false)
     setDetailsRequest(requests.find((request) => request.id === detailRequestId) ?? null)
   }, [detailRequestId, requests])
 
@@ -570,7 +600,9 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
 
   const canShowPaymentSection = (r: ServiceRequest) => {
     const status = String(r.status || '').toLowerCase()
-    const hasPaymentSetup = r.paymentAmount != null && Number(r.paymentAmount) > 0
+    const hasPaymentSetup = (r.paymentAmount != null && Number(r.paymentAmount) > 0)
+      || (r.productFullPrice != null && Number(r.productFullPrice) > 0)
+      || (r.productPrice != null && Number(r.productPrice) > 0)
     return ['awaiting_payment', 'payment_submitted', 'payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(status) && hasPaymentSetup
   }
 
@@ -638,11 +670,15 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
           </section>
         ) : (
           requests.map(request => {
-            const payMeta = statusMeta(request.status)
+            const payMeta = statusMeta(request.status, request.paymentOption)
             const showPayment = canShowPaymentSection(request)
             const paymentForm = getForm(request.id)
             const canSubmit = String(request.status || '').toLowerCase() === 'awaiting_payment'
             const cardImageUrl = getRequestCardImage(request)
+            const showDownpaymentBadge =
+              String(request.paymentOption || '').toLowerCase() === 'downpayment' &&
+              Boolean(request.paymentVerifiedAt) &&
+              String(request.status || '').toLowerCase() !== 'payment_verified'
 
             return (
               <section key={request.id} className="requests-card">
@@ -664,8 +700,11 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                       {request.variationName && <p className="requests-card-sub">Variation: {request.variationName}</p>}
                     </div>
                   </div>
-                  <div className="requests-card-header-right">
+                  <div className="requests-card-header-right" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
                     <span className={`requests-status status-${(request.status || 'pending').toLowerCase()}`}>{payMeta.label}</span>
+                    {showDownpaymentBadge ? (
+                      <span className="requests-status status-payment_verified">Downpayment Confirmed</span>
+                    ) : null}
                   </div>
                 </div>
 
@@ -705,11 +744,10 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                               className="requests-pay-online-primary-btn"
                               onClick={() => setXenditModalRequest(request)}
                             >
-                              <span className="requests-pay-flash-icon">⚡</span>
-                              <span>Pay Online (GCash, Cards & Maya)</span>
+                              <span>Pay online</span>
                             </button>
                             <p className="requests-online-pay-hint">
-                              Choose full payment or the shop&apos;s available down payment in secure checkout.
+                              Choose full payment or downpayment in online checkout.
                             </p>
                           </div>
                         )}
@@ -957,13 +995,24 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
 
       {detailsRequest && (() => {
         const detail = detailsRequest
-        const payDetail = statusDetail(detail.status)
-        const amountSource = Number(detail.paymentAmount) > 0 ? detail.paymentAmount : detail.productPrice
+        const payDetail = statusDetail(detail.status, detail.paymentOption)
+        const fullPriceNum = Number(detail.productFullPrice ?? detail.productPrice ?? detail.paymentAmount) || 0
+        const amountSource = fullPriceNum > 0 ? fullPriceNum : (Number(detail.paymentAmount) > 0 ? detail.paymentAmount : detail.productPrice)
         const amount = amountSource != null && Number(amountSource) > 0 ? formatPeso(amountSource) : 'Quote pending'
-        const statusLabel = statusMeta(detail.status).label
-        const paymentForm = getForm(detail.id)
+        const statusLabel = statusMeta(detail.status, detail.paymentOption).label
         const paymentStatus = String(detail.status || '').toLowerCase()
         const showPaymentWorkspace = canShowPaymentSection(detail)
+        const isDownpayment = String(detail.paymentOption || '').toLowerCase() === 'downpayment'
+        const initialPaidNum = Number(detail.downpaymentAmountSnapshot ?? detail.paymentAmount) || 0
+        const initialPaidText = initialPaidNum > 0 ? formatPeso(initialPaidNum) : amount
+        const availableDownpaymentNum = Number(detail.downpaymentAmountSnapshot) || 0
+        const availableDownpaymentPct = Number(detail.downpaymentPercentageSnapshot) || 0
+        const isInitialVerified = Boolean(detail.paymentVerifiedAt) || ['payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(paymentStatus)
+        const showDownpaymentBadgeInHeader = isDownpayment && Boolean(detail.paymentVerifiedAt) && paymentStatus !== 'payment_verified'
+        const paymentTypeText = formatRequestPaymentType(detail)
+        const receiptStatusLabel = isInitialVerified
+          ? (isDownpayment ? 'Downpayment Confirmed' : 'Payment Confirmed')
+          : (isDownpayment ? 'Downpayment Submitted' : 'Payment Submitted')
 
         return (
           <div className="requests-detail-page">
@@ -976,8 +1025,11 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                 <div className="requests-pd-title-row">
                   <PageBackButton to="/user/requests" label="Back to requests" className="requests-detail-back" />
                 </div>
-                <div className="requests-pd-head-actions">
-                  <span className={`requests-pay-pill pay-${statusMeta(detail.status).tone}`}>{statusLabel}</span>
+                <div className="requests-pd-head-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+                  <span className={`requests-pay-pill pay-${statusMeta(detail.status, detail.paymentOption).tone}`}>{statusLabel}</span>
+                  {showDownpaymentBadgeInHeader ? (
+                    <span className="requests-pay-pill pay-verified">Downpayment Confirmed</span>
+                  ) : null}
                 </div>
               </div>
 
@@ -1139,362 +1191,236 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
                       {detail.cancelledAt ? <div><span>Request cancelled</span><strong>{formatDateTime(detail.cancelledAt)}</strong></div> : null}
                     </div>
                   </details>
-                </section>
-
-                <DeathCertificateVaultCard serviceRequestId={detail.id} role="customer" />
-
-                {showPaymentWorkspace ? (
-                <div className="requests-pd-layout">
-                  <aside className="requests-pd-sidebar">
-                <div className="requests-pd-section-title">Payment details</div>
-                <div className="requests-pd-box">
-                  <div className="requests-pd-row">
-                    <span>Order Date</span>
-                    <strong>{formatDateTime(detail.paymentSubmittedAt || detail.createdAt)}</strong>
-                  </div>
-                  <div className="requests-pd-row">
-                    <span>Order ID</span>
-                    <strong>#{detail.id.slice(0, 10).toUpperCase()}</strong>
-                  </div>
-                  <div className="requests-pd-row">
-                    <span>Service Address</span>
-                    <strong>{detail.wakeAddress || '—'}</strong>
-                  </div>
-                </div>
-
-                  </aside>
-
-                  <section className="requests-pd-main">
-                {paymentStatus === 'awaiting_payment' ? (
-                  <>
-                    <div className="requests-pd-online-pay-card">
-                      <div className="requests-pd-online-heading">
-                        <div className="requests-pd-online-title-group">
-                          <span className="requests-pd-online-title-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                              <rect x="3" y="5" width="18" height="14" rx="3" />
-                              <path d="M3 10h18M7 15h3" />
-                            </svg>
-                          </span>
+                  {showPaymentWorkspace ? (
+                    <details open className="requests-family-payment-details">
+                      <summary>
+                        <span><strong>Family payment</strong><small>Total service price, payment activity, and receipts</small></span>
+                      </summary>
+                      <div className="requests-family-payment-body">
+                        <div className="requests-detail-grid requests-family-payment-grid">
                           <div>
-                          <span className="requests-pd-kicker">Recommended Payment</span>
-                          <h3>Instant Online Checkout</h3>
+                            <span>Status</span>
+                            <strong>{paymentStatus === 'awaiting_payment' ? 'Awaiting payment' : receiptStatusLabel}</strong>
                           </div>
-                        </div>
-                        <span className="requests-secure-pill">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                            <path d="M12 3 5 6v5c0 4.7 2.8 8.1 7 10 4.2-1.9 7-5.3 7-10V6l-7-3Z" />
-                            <path d="m9 12 2 2 4-4" />
-                          </svg>
-                          Secure checkout
-                        </span>
-                      </div>
-                      <div className="requests-pd-online-gateway">
-                        <span className="requests-pd-online-gateway-icon" aria-hidden="true">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                            <path d="M4 7.5h14.5A1.5 1.5 0 0 1 20 9v9a2 2 0 0 1-2 2H5a3 3 0 0 1-3-3V6a2 2 0 0 1 2-2h13" />
-                            <path d="M16 12h4v4h-4a2 2 0 0 1 0-4Z" />
-                          </svg>
-                        </span>
-                        <div>
-                          <strong>Xendit Payment Gateway</strong>
-                          <span>GCash, Maya, cards and online banking</span>
-                        </div>
-                        <svg className="requests-pd-online-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                          <circle cx="12" cy="12" r="9" />
-                          <path d="m8.5 12 2.2 2.2 4.8-4.8" />
-                        </svg>
-                      </div>
-                      <button
-                        type="button"
-                        className="requests-pay-online-primary-btn requests-pd-pay-btn"
-                        onClick={() => setXenditModalRequest(detail)}
-                      >
-                        <svg className="requests-pay-flash-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                          <path d="M13.2 2 5 13h6l-.2 9L19 11h-6l.2-9Z" />
-                        </svg>
-                        <span>Pay Online (GCash, Cards & Maya)</span>
-                      </button>
-                      <p className="requests-pd-online-desc">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                          <rect x="5" y="10" width="14" height="10" rx="2" />
-                          <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-                        </svg>
-                        Payment is encrypted and verified automatically by Xendit
-                      </p>
-                    </div>
-
-                    {MANUAL_PAYMENT_ENABLED && <div className="requests-manual-accordion">
-                      <button
-                        type="button"
-                        className="requests-manual-accordion-btn"
-                        onClick={() => setManualPaymentExpanded(prev => ({ ...prev, [detail.id]: !prev[detail.id] }))}
-                      >
-                        <span>Alternative manual payment</span>
-                        <span>{manualPaymentExpanded[detail.id] ? '▴' : '▾'}</span>
-                      </button>
-                      {manualPaymentExpanded[detail.id] && (
-                        <div className="requests-manual-accordion-body">
-                          <div className="requests-pd-form-card">
-                            <div className="requests-pd-form-heading">
+                          <div>
+                            <span>Total service price</span>
+                            <strong className="requests-service-amount">{amount}</strong>
+                          </div>
+                          {paymentStatus === 'awaiting_payment' ? (
+                            <>
+                              {availableDownpaymentNum > 0 && availableDownpaymentPct > 0 ? (
+                                <>
+                                  <div>
+                                    <span>Downpayment option ({availableDownpaymentPct}%)</span>
+                                    <strong>{formatPeso(availableDownpaymentNum)}</strong>
+                                  </div>
+                                  <div>
+                                    <span>Remaining balance</span>
+                                    <strong>{formatPeso(Math.max(0, fullPriceNum - availableDownpaymentNum))}</strong>
+                                  </div>
+                                </>
+                              ) : (
+                                <div>
+                                  <span>Amount due</span>
+                                  <strong>{amount}</strong>
+                                </div>
+                              )}
                               <div>
-                                <span className="requests-pd-kicker">Payment information</span>
-                                <h3>Submit your payment</h3>
+                                <span>Order ID</span>
+                                <strong>#{detail.id.slice(0, 10).toUpperCase()}</strong>
                               </div>
-                              <span>All fields marked * are required</span>
-                            </div>
+                            </>
+                          ) : (
+                            <>
+                              <div>
+                                <span>Payment type</span>
+                                <strong>{paymentTypeText}</strong>
+                              </div>
+                              <div>
+                                <span>{isDownpayment ? 'Downpayment paid' : 'Amount paid'}</span>
+                                <strong>{initialPaidText}</strong>
+                              </div>
+                              <div>
+                                <span>Total received by shop</span>
+                                <strong>{isInitialVerified ? initialPaidText : formatPeso(0)} of {amount}</strong>
+                              </div>
+                              <div>
+                                <span>Reference number</span>
+                                <strong>{detail.paymentReferenceNumber || detail.providerPaymentId || buildReceiptNumber(detail.id)}</strong>
+                              </div>
+                            </>
+                          )}
+                        </div>
 
+                        {paymentStatus === 'awaiting_payment' ? (
+                          <div className="requests-fp-checkout-bar">
                             {detail.paymentRejectionReason ? (
                               <div className="requests-reject-card requests-pd-reject">
                                 <strong>Your previous submission needs attention</strong>
                                 <p>{detail.paymentRejectionReason}</p>
                               </div>
                             ) : null}
-
-                            <div className="requests-pd-form-grid">
-                              <label className="requests-form-row">
-                                <span>Sender Name *</span>
-                                <input
-                                  type="text"
-                                  className="requests-input"
-                                  autoComplete="name"
-                                  placeholder="Person sending the payment"
-                                  value={paymentForm.payerName}
-                                  onChange={e => setFormField(detail.id, 'payerName', e.target.value)}
-                                />
-                              </label>
-                              <label className="requests-form-row">
-                                <span>GCash Account Name *</span>
-                                <input
-                                  type="text"
-                                  className="requests-input"
-                                  placeholder="Name registered to GCash"
-                                  value={paymentForm.gcashName}
-                                  onChange={e => setFormField(detail.id, 'gcashName', e.target.value)}
-                                />
-                              </label>
-                              <label className="requests-form-row">
-                                <span>GCash Number *</span>
-                                <input
-                                  type="tel"
-                                  className="requests-input"
-                                  inputMode="tel"
-                                  autoComplete="tel"
-                                  placeholder="09XX XXX XXXX"
-                                  value={paymentForm.gcashNumber}
-                                  onChange={e => setFormField(detail.id, 'gcashNumber', e.target.value)}
-                                />
-                              </label>
-                              <label className="requests-form-row">
-                                <span>Reference Number</span>
-                                <input
-                                  type="text"
-                                  className="requests-input"
-                                  placeholder="Optional transaction reference"
-                                  value={paymentForm.referenceNumber}
-                                  onChange={e => setFormField(detail.id, 'referenceNumber', e.target.value)}
-                                />
-                              </label>
-                            </div>
-
-                            <div className="requests-form-row requests-pd-upload-field">
-                              <span>Proof of Payment *</span>
-                              <input
-                                ref={el => { proofFileInputRef.current = el }}
-                                type="file"
-                                accept="image/*"
-                                hidden
-                                onChange={e => {
-                                  handleProofFileChange(detail.id, e.target.files?.[0] ?? null)
-                                  e.target.value = ''
-                                }}
-                              />
-                              {proofPreviews[detail.id] ? (
-                                <div className="requests-pd-upload-preview">
-                                  <button
-                                    type="button"
-                                    className="requests-proof-img-btn"
-                                    onClick={() => setViewerUrl(proofPreviews[detail.id] as string)}
-                                    aria-label="View uploaded payment receipt"
-                                  >
-                                    <img src={proofPreviews[detail.id] as string} alt="Uploaded payment receipt" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="requests-remove-proof"
-                                    onClick={() => {
-                                      if (proofPreviews[detail.id]) URL.revokeObjectURL(proofPreviews[detail.id] as string)
-                                      setProofFiles(prev => ({ ...prev, [detail.id]: null }))
-                                      setProofPreviews(prev => ({ ...prev, [detail.id]: null }))
-                                    }}
-                                  >
-                                    Remove receipt
-                                  </button>
-                                </div>
-                              ) : (
-                                <button type="button" className="requests-pd-upload" onClick={() => proofFileInputRef.current?.click()}>
-                                  <svg viewBox="0 0 24 24" fill="none" width="28" height="28">
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                    <polyline points="17 8 12 3 7 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                    <line x1="12" y1="3" x2="12" y2="15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                  </svg>
-                                  <span><strong>Upload payment receipt</strong>PNG, JPG, or other image format</span>
-                                </button>
-                              )}
-                            </div>
-
                             <button
                               type="button"
-                              className="requests-submit-btn requests-pd-submit"
-                              disabled={Boolean(submittingId)}
-                              onClick={() => void handleSubmitPayment(detail)}
+                              className="requests-fp-primary-btn"
+                              onClick={() => setXenditModalRequest(detail)}
                             >
-                              {submittingId === detail.id ? 'Submitting…' : 'Submit Payment Details'}
+                              Pay online
                             </button>
                           </div>
+                        ) : (
+                          <div className="requests-fp-settled-wrap">
+                            {(detail.paymentSubmittedAt || detail.paymentVerifiedAt) ? (
+                              <div className="requests-fp-activity">
+                                <h4>Payment activity</h4>
+                                <div className="requests-fp-activity-list">
+                                  {detail.paymentSubmittedAt ? (
+                                    <div>
+                                      <strong>{isDownpayment ? 'Downpayment submitted' : 'Payment submitted'} · {paymentTypeText}</strong>
+                                      <span>Amount: {initialPaidText} · {formatDateTime(detail.paymentSubmittedAt)}</span>
+                                    </div>
+                                  ) : null}
+                                  {isInitialVerified ? (
+                                    <div>
+                                      <strong>{isDownpayment ? 'Downpayment confirmed' : 'Payment confirmed'} · {paymentTypeText}</strong>
+                                      <span>Shop received {initialPaidText} · Total received: {initialPaidText} of {amount} · {formatDateTime(detail.paymentVerifiedAt || detail.paymentSubmittedAt)}</span>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </div>
+                            ) : null}
+
+                            <div className="requests-fp-actions">
+                              <button
+                                type="button"
+                                className="requests-fp-secondary-btn"
+                                onClick={() => setPaymentReceiptOpen(true)}
+                              >
+                                View payment receipt
+                              </button>
+                              {detail.paymentProofImageUrl ? (
+                                <button
+                                  type="button"
+                                                                  className="requests-fp-secondary-btn"
+                                  onClick={() => setViewerUrl(detail.paymentProofImageUrl!)}
+                                >
+                                  View uploaded proof
+                                </button>
+                              ) : null}
+                            </div>
+
+                            {detail.requesterId === viewerId ? <RemainingBalancePaymentCard request={detail} /> : null}
+                          </div>
+                        )}
+                      </div>
+                    </details>
+                  ) : null}
+                </section>
+
+                <DeathCertificateVaultCard serviceRequestId={detail.id} role="customer" />
+
+                {(detail.completionProofImageUrl || paymentStatus === 'awaiting_customer_confirmation') ? (
+                  <div className="requests-completion-section">
+                    {detail.completionProofImageUrl ? (
+                      <div className="requests-pd-proof">
+                        <div className="requests-pd-media-label">Completion Proof</div>
+                        <button
+                          type="button"
+                          className="requests-pd-proof-img"
+                          aria-label="View completion proof full size"
+                          title="Click to view full size"
+                          onClick={() => setViewerUrl(detail.completionProofImageUrl!)}
+                        >
+                          <img src={detail.completionProofImageUrl} alt="Completion proof" />
+                        </button>
+                      </div>
+                    ) : null}
+
+                    {paymentStatus === 'awaiting_customer_confirmation' ? (
+                      <>
+                        <div className="requests-pd-confirm-note">
+                          <strong>Awaiting your confirmation</strong>
+                          <p>The shop has delivered and attached a completion proof above. Review the photo and confirm the request as done.</p>
                         </div>
-                      )}
-                    </div>}
-                  </>
-                ) : null}
-
-                <button
-                  type="button"
-                  className="requests-pd-accordion"
-                  onClick={() => setPaymentInfoExpanded((v) => !v)}
-                  aria-expanded={paymentInfoExpanded}
-                >
-                  <span>Payment Information</span>
-                  <span className={`requests-pd-chevron${paymentInfoExpanded ? ' is-open' : ''}`} aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" width="18" height="18">
-                      <polyline points="6 9 12 15 18 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </span>
-                </button>
-                {paymentInfoExpanded ? (
-                  <div className="requests-pd-box">
-                    <div className="requests-pd-row"><span>Payment Method</span><strong>GCash / E-wallet</strong></div>
-                    {detail.paymentPayerName && <div className="requests-pd-row"><span>Sender</span><strong>{detail.paymentPayerName}</strong></div>}
-                    {detail.paymentGcashName && <div className="requests-pd-row"><span>GCash Name</span><strong>{detail.paymentGcashName}</strong></div>}
-                    {detail.paymentGcashNumber && <div className="requests-pd-row"><span>GCash Number</span><strong>{detail.paymentGcashNumber}</strong></div>}
-                    {detail.paymentReferenceNumber && <div className="requests-pd-row"><span>Reference Number</span><strong>{detail.paymentReferenceNumber}</strong></div>}
-                    {detail.paymentSubmittedAt && <div className="requests-pd-row"><span>Payment Submitted</span><strong>{formatDateTime(detail.paymentSubmittedAt)}</strong></div>}
-                    {detail.paymentVerifiedAt && <div className="requests-pd-row"><span>Payment Verified</span><strong>{formatDateTime(detail.paymentVerifiedAt)}</strong></div>}
-                  </div>
-                ) : null}
-
-                {detail.paymentProofImageUrl ? (
-                  <div className="requests-pd-proof">
-                    <button
-                      type="button"
-                      className="requests-pd-accordion"
-                      onClick={() => setSubmittedProofExpanded((v) => !v)}
-                      aria-expanded={submittedProofExpanded}
-                    >
-                      <span>Submitted Proof</span>
-                      <span className={`requests-pd-chevron${submittedProofExpanded ? ' is-open' : ''}`} aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none" width="18" height="18">
-                          <polyline points="6 9 12 15 18 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </span>
-                    </button>
-                    {submittedProofExpanded ? (
-                      <button
-                        type="button"
-                        className="requests-pd-proof-img"
-                        aria-label="View proof of payment full size"
-                        title="Click to view full size"
-                        onClick={() => setViewerUrl(detail.paymentProofImageUrl!)}
-                      >
-                        <img src={detail.paymentProofImageUrl} alt="Proof of payment" />
-                      </button>
+                        <button
+                          type="button"
+                          className="requests-submit-btn requests-pd-confirm-btn"
+                          disabled={Boolean(submittingId)}
+                          onClick={() => void handleConfirmCompletion(detail)}
+                        >
+                          {submittingId === detail.id ? 'Confirming…' : 'Confirm as Done'}
+                        </button>
+                      </>
                     ) : null}
                   </div>
                 ) : null}
 
-                {detail.completionProofImageUrl ? (
-                  <div className="requests-pd-proof">
-                    <div className="requests-pd-media-label">Completion Proof</div>
-                    <button
-                      type="button"
-                      className="requests-pd-proof-img"
-                      aria-label="View completion proof full size"
-                      title="Click to view full size"
-                      onClick={() => setViewerUrl(detail.completionProofImageUrl!)}
+                {paymentReceiptOpen && paymentStatus !== 'awaiting_payment' ? (
+                  <div className="requests-receipt-modal-overlay" role="presentation" onClick={() => setPaymentReceiptOpen(false)}>
+                    <div
+                      className="requests-receipt-modal-sheet"
+                      role="dialog"
+                      aria-modal="true"
+                      aria-label="Payment receipt"
+                      onClick={event => event.stopPropagation()}
                     >
-                      <img src={detail.completionProofImageUrl} alt="Completion proof" />
-                    </button>
-                  </div>
-                ) : null}
+                      <div className="requests-receipt-modal-handle" aria-hidden="true" />
+                      <button
+                        type="button"
+                        className="requests-receipt-modal-close"
+                        aria-label="Close payment receipt"
+                        onClick={() => setPaymentReceiptOpen(false)}
+                      >
+                        ×
+                      </button>
 
-                {String(detail.status || '').toLowerCase() === 'awaiting_customer_confirmation' ? (
-                  <div className="requests-pd-confirm-note">
-                    <strong>Awaiting your confirmation</strong>
-                    <p>The shop has delivered and attached a completion proof above. Review the photo and confirm the request as done.</p>
-                  </div>
-                ) : null}
+                      <div className="requests-receipt-print">
+                        <BrandLogo to="/funeral" compact className="receipt-brand-logo" />
+                        <h3 className="receipt-title">Payment Receipt</h3>
+                        <span className={`requests-pay-pill receipt-status pay-${isInitialVerified ? 'verified' : 'submitted'}`}>{receiptStatusLabel}</span>
+                        <div className="receipt-meta">
+                          <span>Receipt No: {buildReceiptNumber(detail.id)}</span>
+                          <span>Issued: {formatDateTime(detail.paymentVerifiedAt || detail.paymentSubmittedAt || detail.createdAt)}</span>
+                        </div>
+                        <div className="receipt-divider" />
+                        <div className="receipt-amount">
+                          <span>{isDownpayment ? 'Downpayment Paid' : 'Amount Paid'}</span>
+                          <strong>{initialPaidText}</strong>
+                        </div>
+                        <div className="receipt-rows">
+                          <div><span>Total Service Price</span><strong>{amount}</strong></div>
+                          <div><span>Payment Type</span><strong>{paymentTypeText}</strong></div>
+                          <div><span>Shop</span><strong>{detail.shopName || '—'}</strong></div>
+                          <div><span>Service</span><strong>{detail.productName || '—'}{detail.variationName ? ` (${detail.variationName})` : ''}</strong></div>
+                          <div><span>Deceased</span><strong>{detail.deceasedFullName || '—'}</strong></div>
+                          <div><span>Sender</span><strong>{detail.paymentPayerName || detail.familyCoordinatorName || profile?.fullName || '—'}</strong></div>
+                          {detail.paymentGcashName ? <div><span>Account Name</span><strong>{detail.paymentGcashName}</strong></div> : null}
+                          {detail.paymentGcashNumber ? <div><span>Account Number</span><strong>{detail.paymentGcashNumber}</strong></div> : null}
+                          <div><span>Reference Number</span><strong>{detail.paymentReferenceNumber || detail.providerPaymentId || buildReceiptNumber(detail.id)}</strong></div>
+                          {detail.shopAddress ? <div><span>Shop Address</span><strong>{detail.shopAddress}</strong></div> : null}
+                          {detail.shopContactNumber ? <div><span>Shop Contact</span><strong>{detail.shopContactNumber}</strong></div> : null}
+                        </div>
+                        {detail.paymentProofImageUrl ? (
+                          <button
+                            type="button"
+                            className="receipt-proof"
+                            onClick={() => setViewerUrl(detail.paymentProofImageUrl!)}
+                            aria-label="View payment proof full size"
+                          >
+                            <img src={detail.paymentProofImageUrl} alt="Payment proof" />
+                          </button>
+                        ) : null}
+                        <div className="receipt-divider" />
+                        <p className="receipt-footer">
+                          This receipt confirms your payment to {detail.shopName || 'the funeral shop'} through LifeCycle.
+                        </p>
+                      </div>
 
-                {paymentStatus !== 'awaiting_payment' ? (
-                  <>
-                <div className="requests-receipt-print">
-                  <BrandLogo to="/funeral" compact className="receipt-brand-logo" />
-                  <h3 className="receipt-title">Payment Receipt</h3>
-                  <span className={`requests-pay-pill receipt-status pay-${statusMeta(detail.status).tone}`}>{statusLabel}</span>
-                  <div className="receipt-meta">
-                    <span>Receipt No: {buildReceiptNumber(detail.id)}</span>
-                    <span>Issued: {formatDateTime(detail.paymentVerifiedAt || detail.paymentSubmittedAt || detail.createdAt)}</span>
+                      <button type="button" className="requests-print-btn" onClick={() => window.print()}>
+                        Print Receipt
+                      </button>
+                    </div>
                   </div>
-                  <div className="receipt-divider" />
-                  <div className="receipt-amount">
-                    <span>Amount Paid</span>
-                    <strong>{amount}</strong>
-                  </div>
-                  <div className="receipt-rows">
-                    <div><span>Shop</span><strong>{detail.shopName || '—'}</strong></div>
-                    <div><span>Service</span><strong>{detail.productName || '—'}{detail.variationName ? ` (${detail.variationName})` : ''}</strong></div>
-                    <div><span>Deceased</span><strong>{detail.deceasedFullName || '—'}</strong></div>
-                    <div><span>Sender</span><strong>{detail.paymentPayerName || '—'}</strong></div>
-                    <div><span>GCash Name</span><strong>{detail.paymentGcashName || '—'}</strong></div>
-                    <div><span>GCash Number</span><strong>{detail.paymentGcashNumber || '—'}</strong></div>
-                    <div><span>GCash Reference</span><strong>{detail.paymentReferenceNumber || '—'}</strong></div>
-                    <div><span>Payment Method</span><strong>GCash / E-wallet</strong></div>
-                    {detail.shopAddress ? <div><span>Shop Address</span><strong>{detail.shopAddress}</strong></div> : null}
-                    {detail.shopContactNumber ? <div><span>Shop Contact</span><strong>{detail.shopContactNumber}</strong></div> : null}
-                  </div>
-                  {detail.paymentProofImageUrl ? (
-                    <button
-                      type="button"
-                      className="receipt-proof"
-                      onClick={() => setViewerUrl(detail.paymentProofImageUrl!)}
-                      aria-label="View payment proof full size"
-                    >
-                      <img src={detail.paymentProofImageUrl} alt="Payment proof" />
-                    </button>
-                  ) : null}
-                  <div className="receipt-divider" />
-                  <p className="receipt-footer">
-                    Thank you for your payment. This receipt confirms your payment to {detail.shopName} through LifeCycle.
-                  </p>
-                </div>
-
-                <button type="button" className="requests-print-btn" onClick={() => window.print()}>
-                  Print Receipt
-                </button>
-                  </>
-                ) : null}
-
-                {String(detail.status || '').toLowerCase() === 'awaiting_customer_confirmation' ? (
-                  <button
-                    type="button"
-                    className="requests-submit-btn requests-pd-confirm-btn"
-                    disabled={Boolean(submittingId)}
-                    onClick={() => void handleConfirmCompletion(detail)}
-                  >
-                    {submittingId === detail.id ? 'Confirming…' : 'Confirm as Done'}
-                  </button>
-                ) : null}
-                  </section>
-                </div>
                 ) : null}
               </div>
             </div>
@@ -1510,9 +1436,6 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
         onClose={() => setXenditModalRequest(null)}
         onSuccess={() => {
           if (viewerId) void loadRequests(viewerId)
-          if (detailsRequest && xenditModalRequest?.id === detailsRequest.id) {
-            setDetailsRequest(prev => prev ? { ...prev, status: 'payment_verified' } : prev)
-          }
         }}
       />
     </div>

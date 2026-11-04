@@ -278,7 +278,7 @@ export default function AdminShopDetailsPage() {
 
               <div className="sc-details-card">
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <h4 className="sc-details-head" style={{ margin: 0 }}>Payout Account (Direct Payout)</h4>
+                  <h4 className="sc-details-head" style={{ margin: 0 }}>Test Payout Receiver</h4>
                   <Link
                     to="/admin/payout-accounts"
                     className="sc-link-btn"
@@ -287,7 +287,7 @@ export default function AdminShopDetailsPage() {
                     Manage Payout Accounts &rarr;
                   </Link>
                 </div>
-                <p className="sc-details-head-sub">Used by Xendit Payouts API to disburse 70% of customer order payments directly to the shop.</p>
+                <p className="sc-details-head-sub">Owner-submitted destination for test payments. Admin review here does not verify a live account.</p>
                 <div className="sc-details-grid">
                   <div className="sc-detail">
                     <span>Channel</span>
@@ -306,7 +306,7 @@ export default function AdminShopDetailsPage() {
                     <strong>
                       {shop.payoutVerifiedByAdmin ? (
                         <span style={{ color: '#16a34a', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                          &#10003; Ready {shop.payoutVerifiedAt ? `(${new Date(shop.payoutVerifiedAt).toLocaleDateString()})` : ''}
+                          &#10003; Test ready {shop.payoutVerifiedAt ? `(${new Date(shop.payoutVerifiedAt).toLocaleDateString()})` : ''}
                         </span>
                       ) : shop.payoutChannelCode ? (
                         <span style={{ color: '#2563eb' }}>Needs Setup Refresh</span>

@@ -15,7 +15,7 @@ export type ServiceXenditCheckoutResult = {
 export type ServicePaymentMethod = {
   code: string;
   label: string;
-  type: 'wallet' | 'bank';
+  type: 'wallet' | 'bank' | 'card';
 };
 
 export type ServicePaymentOption = 'full' | 'downpayment';
@@ -30,8 +30,16 @@ export type SelectedServicePaymentTerms = {
   remainingBalance?: number | string | null;
 };
 
+export type PreparedServicePaymentOption = {
+  ready?: boolean;
+  paid?: boolean;
+  paymentOption?: ServicePaymentOption;
+  checkoutActive?: boolean;
+  requestId: string;
+};
+
 const getFunctionErrorMessage = async (error: unknown): Promise<string> => {
-  const fallback = 'Unable to start Xendit checkout.';
+  const fallback = 'Unable to start online payment.';
   if (!(error instanceof Error)) return fallback;
 
   const context = (error as Error & { context?: Response }).context;
@@ -71,7 +79,7 @@ export async function chooseServicePaymentOption(
     p_request_id: requestId,
     p_payment_option: paymentOption,
   });
-  if (error) throw error;
+  if (error) throw new Error(error.message || 'Unable to choose the payment option.');
 
   const selected = Array.isArray(data) ? data[0] : data;
   if (!selected?.id || Number(selected.paymentAmount) <= 0) {
@@ -80,12 +88,26 @@ export async function chooseServicePaymentOption(
   return selected as SelectedServicePaymentTerms;
 }
 
+export async function prepareServicePaymentOption(
+  requestId: string,
+  paymentOption: ServicePaymentOption,
+): Promise<PreparedServicePaymentOption> {
+  const { data, error } = await supabase.functions.invoke('create-service-xendit-checkout', {
+    body: { requestId, action: 'prepare', paymentOption, platform: 'mobile' },
+  });
+  if (error) throw new Error(await getFunctionErrorMessage(error));
+  if (data?.paid !== true && data?.ready !== true) {
+    throw new Error('Unable to prepare the payment option. Please try again.');
+  }
+  return data as PreparedServicePaymentOption;
+}
+
 export async function createServiceXenditCheckout(
   requestId: string,
-  paymentMethod: string,
+  paymentMethod?: string,
 ): Promise<ServiceXenditCheckoutResult> {
   const { data, error } = await supabase.functions.invoke('create-service-xendit-checkout', {
-    body: { requestId, paymentMethod, platform: 'mobile' },
+    body: { requestId, paymentMethod: paymentMethod || undefined, platform: 'mobile' },
   });
 
   if (error) throw new Error(await getFunctionErrorMessage(error));
@@ -93,7 +115,7 @@ export async function createServiceXenditCheckout(
   // Direct payout model: no waitingForSplit state
   const isSettled = data?.paid === true;
   if (!isSettled && typeof data?.checkoutUrl !== 'string') {
-    throw new Error('Xendit did not return a checkout link.');
+    throw new Error('Checkout link is unavailable.');
   }
 
   const isTestMode = data?.testMode === true || data?.livemode === false;
