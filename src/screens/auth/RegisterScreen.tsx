@@ -208,7 +208,7 @@ export default function RegisterScreen({ navigation }: any) {
           ) : null}
           <View style={styles.headingBlock}>
             <Text style={styles.title}>Create Account</Text>
-            <Text style={styles.subtitle}>Create your account with email, Google, or Facebook.</Text>
+            <Text style={styles.subtitle}>Email sign-up uses a 6-digit verification code. Google and Facebook sign-up continues through those services.</Text>
           </View>
 
           <View style={styles.fieldGroup}>

@@ -222,7 +222,7 @@ function RegisterPage() {
 
           <div className="auth-card-head">
             <h1>Create Account</h1>
-            <p className="auth-subtitle">Create your account with email, Google, or Facebook.</p>
+            <p className="auth-subtitle">Email sign-up uses a 6-digit verification code. Google and Facebook sign-up continues through those services.</p>
 
           {error ? <p className="auth-message auth-message-error">{error}</p> : null}
           </div>
