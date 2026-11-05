@@ -16,6 +16,7 @@ import { StatusBar } from "expo-status-bar";
 import { Button as PaperButton } from "react-native-paper";
 import { Ionicons } from "@expo/vector-icons";
 import { AppBackButton, KeyboardAwareScrollView } from "@/components";
+import SocialAuthButtons from "@/components/SocialAuthButtons";
 import { colors, radii, spacing } from "@/theme";
 import { supabase } from "../../services/supabaseClient";
 import { getSupabaseEmailRedirectTo } from "../../services/supabaseAuthRedirect";
@@ -207,7 +208,7 @@ export default function RegisterScreen({ navigation }: any) {
           ) : null}
           <View style={styles.headingBlock}>
             <Text style={styles.title}>Create Account</Text>
-            <Text style={styles.subtitle}>Register with your email first. After verification, you can sign in with a matching Google or Facebook account.</Text>
+            <Text style={styles.subtitle}>Create your account with email, Google, or Facebook.</Text>
           </View>
 
           <View style={styles.fieldGroup}>
@@ -379,6 +380,11 @@ export default function RegisterScreen({ navigation }: any) {
           >
             {loading ? "Creating account..." : "Create account"}
           </PaperButton>
+
+          <SocialAuthButtons
+            disabled={loading}
+            onError={(title, message) => Alert.alert(title, message)}
+          />
 
           <View style={styles.accountPrompt}>
             <Text style={styles.accountPromptText}>Already have an account?</Text>

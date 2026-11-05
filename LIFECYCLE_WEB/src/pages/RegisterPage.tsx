@@ -6,6 +6,7 @@ import { getSupabaseEmailRedirectTo } from '@/lib/supabaseAuthRedirect'
 import { normalizeEmail } from '@/utils/inputSecurity'
 import { APP_ICON_TRANSPARENT_URL } from '@/assets/appIconAssets'
 import PageBackButton from '@/components/PageBackButton'
+import SocialAuthButtons from '@/components/SocialAuthButtons'
 
 const PASSWORD_SYMBOLS = "!@#$%^&*()_+-=[]{};'\\:\"|<>?,./`~"
 const PASSWORD_REQUIREMENTS = [
@@ -221,7 +222,7 @@ function RegisterPage() {
 
           <div className="auth-card-head">
             <h1>Create Account</h1>
-            <p className="auth-subtitle">Register with your email first. After verification, you can sign in with a matching Google or Facebook account.</p>
+            <p className="auth-subtitle">Create your account with email, Google, or Facebook.</p>
 
           {error ? <p className="auth-message auth-message-error">{error}</p> : null}
           </div>
@@ -328,6 +329,12 @@ function RegisterPage() {
               {loading ? 'Registering...' : 'Sign up'}
             </button>
           </form>
+
+          <SocialAuthButtons
+            next={redirectAfterRegister}
+            disabled={loading}
+            onError={setError}
+          />
 
           <p className="auth-switch">
             Already have an account? <Link to={redirectAfterRegister ? `/login?next=${encodeURIComponent(redirectAfterRegister)}` : '/login'}>Login</Link>
