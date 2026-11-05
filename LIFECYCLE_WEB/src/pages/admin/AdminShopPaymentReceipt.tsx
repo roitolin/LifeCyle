@@ -1,54 +1,29 @@
 import { useState, type ReactNode } from 'react'
-import { formatSubscriptionDate } from '@/utils/subscription'
+import { APP_ICON_TRANSPARENT_URL } from '@/assets/appIconAssets'
 import { PAYOUT_CHANNEL_LOGOS } from '@/assets/paymentLogoAssets'
+import { formatSubscriptionDate } from '@/utils/subscription'
 import type { PaymentSubmission } from './AdminPaymentsPage'
-import '../SellerServiceRequestPage.css'
+import '../../components/XenditShopPaymentCard.css'
 
-function formatPeso(value: number | string | null | undefined) {
-  const amount = Number(String(value ?? '').replace(/[^\d.]/g, ''))
-  if (!Number.isFinite(amount) || amount <= 0) return '—'
-  return `₱${amount.toLocaleString('en-PH', { maximumFractionDigits: 2 })}`
+function peso(value: number) {
+  return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(value || 0)
 }
-
-function formatTimestamp(value: string | null | undefined) {
+function dateTime(value?: string | null) {
   if (!value) return 'Not provided'
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return 'Not provided'
-  return date.toLocaleString('en-PH', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  })
+  return Number.isNaN(date.getTime()) ? 'Not provided' : date.toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
 }
-
-function DetailRow({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="sr-detail-row">
-      <dt>{label}</dt>
-      <dd>{value || 'Not provided'}</dd>
-    </div>
-  )
+function Line({ label, value }: { label: string; value: ReactNode }) {
+  return <div className="pm-receipt-line"><span>{label}</span><strong>{value || 'Not provided'}</strong></div>
 }
-
-function getPaymentMethodInfo(payment: PaymentSubmission) {
-  const rawMethod = payment.providerPaymentMethod?.trim().toUpperCase() || ''
-  const logo = (rawMethod && PAYOUT_CHANNEL_LOGOS[rawMethod])
-    || (payment.gcashNumber || payment.gcashName ? PAYOUT_CHANNEL_LOGOS['PH_GCASH'] : null)
-
-  let label = 'Online payment'
-  if (rawMethod === 'PH_GCASH') label = 'GCash'
-  else if (rawMethod === 'PH_MAYA') label = 'Maya'
-  else if (rawMethod === 'PH_BDO') label = 'BDO'
-  else if (rawMethod === 'PH_BPI') label = 'BPI'
-  else if (rawMethod === 'PH_METROBANK') label = 'Metrobank'
-  else if (rawMethod) label = rawMethod.replace(/^PH_/i, '').replace(/_/g, ' ')
-  else if (payment.gcashNumber || payment.gcashName) label = 'GCash'
-  else if (payment.paymentProvider === 'manual') label = 'Manual transfer'
-
-  return { label, logo }
+function methodInfo(payment: PaymentSubmission) {
+  const code = payment.providerPaymentMethod?.trim().toUpperCase() || ''
+  const logo = PAYOUT_CHANNEL_LOGOS[code] || (payment.gcashNumber ? PAYOUT_CHANNEL_LOGOS.PH_GCASH : null)
+  const labels: Record<string, string> = { PH_GCASH: 'GCash', PH_MAYA: 'Maya', PH_BDO: 'BDO', PH_BPI: 'BPI', PH_METROBANK: 'Metrobank' }
+  return {
+    logo,
+    label: labels[code] || (code ? code.replace(/^PH_/, '').replace(/_/g, ' ') : payment.paymentProvider === 'manual' ? 'Manual transfer' : 'Online payment'),
+  }
 }
 
 type Props = {
@@ -59,174 +34,66 @@ type Props = {
   onReject: () => void
 }
 
-function AdminShopPaymentReceipt({ payment, busy, onClose, onVerify, onReject }: Props) {
+export default function AdminShopPaymentReceipt({ payment, busy, onClose, onVerify, onReject }: Props) {
   const [proofOpen, setProofOpen] = useState(false)
-  const normalizedStatus = String(payment.status || 'pending').toLowerCase()
-  const isHostedCheckout = payment.paymentProvider === 'xendit' || payment.paymentProvider === 'legacy'
-  const methodInfo = getPaymentMethodInfo(payment)
+  const status = String(payment.status || 'pending').toLowerCase()
+  const hosted = payment.paymentProvider === 'xendit' || payment.paymentProvider === 'legacy'
+  const method = methodInfo(payment)
+  const title = status === 'verified' ? 'Payment Verified' : status === 'rejected' ? 'Payment Not Completed' : hosted ? 'Checkout Pending' : 'Payment Under Review'
+  const message = status === 'verified'
+    ? 'LifeCycle confirmed this shop registration payment.'
+    : status === 'rejected'
+      ? 'This submission was returned to the shop for correction.'
+      : hosted
+        ? 'The payment will be confirmed automatically once checkout is completed.'
+        : 'Review the submitted proof before confirming this payment.'
 
-  const receiptMeta = normalizedStatus === 'verified'
-    ? {
-        title: 'Payment Confirmed',
-        message: 'This shop registration payment has been confirmed.',
-        tone: 'verified',
-        amountLabel: 'Received',
-      }
-    : normalizedStatus === 'rejected'
-      ? {
-          title: 'Payment Needs Correction',
-          message: 'The submission was returned to the seller with a review note.',
-          tone: 'review',
-          amountLabel: 'Amount',
-        }
-      : {
-          title: isHostedCheckout ? 'Checkout Pending' : 'Payment Under Review',
-          message: isHostedCheckout
-            ? 'The payment will be confirmed automatically once checkout is completed.'
-            : 'Check the seller information and submitted proof before verifying.',
-          tone: 'review',
-          amountLabel: 'Amount',
-        }
+  return <>
+    <div className="pm-receipt-overlay" role="presentation" onMouseDown={onClose}>
+      <section className="pm-receipt-modal admin-payment-receipt" role="dialog" aria-modal="true" aria-labelledby="admin-payment-receipt-title" onMouseDown={(event) => event.stopPropagation()}>
+        <header className="pm-receipt-hero">
+          <button type="button" className="pm-receipt-x" onClick={onClose} aria-label="Close payment receipt">×</button>
+          <div className={`pm-receipt-status-icon ${status === 'verified' ? 'verified' : status === 'rejected' ? 'rejected' : ''}`} aria-hidden="true">{status === 'verified' ? '✓' : status === 'rejected' ? '!' : '…'}</div>
+          <h3 id="admin-payment-receipt-title">{title}</h3>
+          <p>{message}</p>
+          <div className="admin-receipt-hero-amount"><span>{status === 'verified' ? 'AMOUNT PAID' : 'AMOUNT'}</span><strong>{peso(payment.amount)}</strong></div>
+        </header>
 
-  return (
-    <>
-      <div className="sr-receipt-modal-overlay admin-shop-receipt-overlay" role="presentation" onClick={onClose}>
-        <div
-          className="sr-receipt-modal admin-shop-receipt-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="admin-shop-receipt-title"
-          onClick={(event) => event.stopPropagation()}
-        >
-          <button type="button" className="sr-receipt-modal-close" aria-label="Close payment receipt" onClick={onClose}>×</button>
-
-          <section className="sr-payment-receipt">
-            <div className={`sr-receipt-hero sr-receipt-hero-${receiptMeta.tone}`}>
-              <div className="sr-receipt-status-icon" aria-hidden="true">
-                {normalizedStatus === 'verified'
-                  ? <svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" /></svg>
-                  : <svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" /><path d="M9 8h6M9 12h6" /></svg>}
-              </div>
-              <div className="sr-receipt-hero-copy">
-                <h2 id="admin-shop-receipt-title">{receiptMeta.title}</h2>
-                <p>{receiptMeta.message}</p>
-              </div>
-              <div className="sr-receipt-amount">
-                <span>{receiptMeta.amountLabel}</span>
-                <strong>{formatPeso(payment.amount)}</strong>
-              </div>
-            </div>
-
-            <div className="sr-receipt-body">
-              <section className="sr-receipt-section">
-                <h3>Submission details</h3>
-                <dl className="sr-receipt-order-grid">
-                  <div>
-                    <dt>Submitted</dt>
-                    <dd>{formatTimestamp(payment.createdAt)}</dd>
-                  </div>
-                  <div>
-                    <dt>Payment ID</dt>
-                    <dd>#{payment.id.slice(0, 10).toUpperCase()}</dd>
-                  </div>
-                  <div>
-                    <dt>Funeral shop</dt>
-                    <dd>{payment.shopName || 'Not provided'}</dd>
-                  </div>
-                </dl>
-              </section>
-
-              <section className="sr-receipt-service admin-shop-receipt-service">
-                <div className="sr-receipt-service-image sr-receipt-service-fallback" aria-hidden="true">LC</div>
-                <div>
-                  <strong>{payment.shopName || 'Funeral shop registration'}</strong>
-                  <span>Shop registration payment</span>
-                  <span>{payment.ownerFullName || payment.ownerEmail || 'Seller account'}</span>
-                </div>
-                <b>{formatPeso(payment.amount)}</b>
-              </section>
-
-              <section className="sr-receipt-section sr-receipt-info">
-                <h3>Receipt information</h3>
-                <dl className="sr-detail-list">
-                  <DetailRow
-                    label="Payment method"
-                    value={
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                        {methodInfo.logo ? (
-                          <img
-                            src={methodInfo.logo}
-                            alt=""
-                            style={{ height: 18, width: 'auto', objectFit: 'contain' }}
-                          />
-                        ) : null}
-                        <span>{methodInfo.label}</span>
-                      </span>
-                    }
-                  />
-                  <DetailRow label="Payer" value={payment.payerName || payment.ownerFullName || 'Not provided'} />
-                  {payment.gcashName ? <DetailRow label="Account name" value={payment.gcashName} /> : null}
-                  {payment.gcashNumber ? <DetailRow label="Account number" value={payment.gcashNumber} /> : null}
-                  <DetailRow label="Reference number" value={payment.referenceNumber || payment.providerPaymentId || `#PAY-${payment.id.slice(0, 8).toUpperCase()}`} />
-                  <DetailRow label="Seller email" value={payment.ownerEmail || 'Not provided'} />
-                  <DetailRow label="Status" value={receiptMeta.title} />
-                  {payment.verifiedAt ? <DetailRow label="Verified" value={formatTimestamp(payment.verifiedAt)} /> : null}
-                  {normalizedStatus === 'verified' ? (
-                    <DetailRow label="Live access valid until" value={formatSubscriptionDate(payment.expiresAt)} />
-                  ) : null}
-                </dl>
-              </section>
-
-              {payment.rejectionReason ? (
-                <div className="sr-inline-alert sr-inline-alert-danger">
-                  <strong>Review note</strong>
-                  <p>{payment.rejectionReason}</p>
-                </div>
-              ) : null}
-
-              {!isHostedCheckout ? (
-                <section className="sr-receipt-proof">
-                  <div>
-                    <h3>Submitted receipt</h3>
-                    <span>{payment.proofImageUrl ? 'Select the image to view it full size.' : 'No receipt was attached.'}</span>
-                  </div>
-                  {payment.proofImageUrl ? (
-                    <button type="button" onClick={() => setProofOpen(true)} aria-label="View submitted receipt full size">
-                      <img src={payment.proofImageUrl} alt="Submitted shop payment receipt" />
-                    </button>
-                  ) : (
-                    <div className="sr-receipt-missing">
-                      <strong>Receipt unavailable</strong>
-                      <span>No payment proof is attached to this submission.</span>
-                    </div>
-                  )}
-                </section>
-              ) : null}
-
-              <footer className="admin-shop-receipt-actions">
-                <button type="button" className="ghost-btn" onClick={onClose}>Close</button>
-                {normalizedStatus === 'pending' && !isHostedCheckout ? (
-                  <>
-                    <button type="button" className="ghost-btn admin-shop-receipt-reject" disabled={busy} onClick={onReject}>Reject</button>
-                    <button type="button" className="solid-btn" disabled={busy} onClick={onVerify}>
-                      {busy ? 'Verifying...' : 'Verify payment'}
-                    </button>
-                  </>
-                ) : null}
-              </footer>
-            </div>
-          </section>
+        <div className="pm-receipt-body">
+          <h4>Payment Details</h4>
+          <div className="pm-receipt-lines">
+            <Line label={status === 'verified' ? 'Payment Date' : 'Submitted'} value={dateTime(payment.verifiedAt || payment.createdAt)} />
+            <Line label="Receipt No." value={`LC-${payment.id.replace(/-/g, '').slice(0, 12).toUpperCase()}`} />
+            <Line label="Funeral Shop" value={payment.shopName || 'Funeral shop'} />
+            {status === 'verified' && payment.expiresAt ? <Line label="Access Valid Until" value={formatSubscriptionDate(payment.expiresAt)} /> : null}
+          </div>
+          <div className="pm-receipt-divider" />
+          <div className="pm-receipt-service">
+            <img className="pm-receipt-logo" src={APP_ICON_TRANSPARENT_URL} alt="LifeCycle" />
+            <div><strong>LifeCycle registration</strong><small>Funeral shop subscription payment</small><small>{payment.ownerFullName || payment.ownerEmail || 'Shop account'}</small></div>
+            <b>{peso(payment.amount)}</b>
+          </div>
+          <div className="pm-receipt-divider" />
+          <h4>Receipt Information</h4>
+          <div className="pm-receipt-info">
+            <Line label="Payment Method" value={<span className="admin-receipt-method">{method.logo ? <img src={method.logo} alt="" /> : null}{method.label}</span>} />
+            <Line label="Paid By" value={payment.payerName || payment.ownerFullName || payment.shopName} />
+            {payment.gcashName ? <Line label="Account Name" value={payment.gcashName} /> : null}
+            {payment.gcashNumber ? <Line label="Account Number" value={payment.gcashNumber} /> : null}
+            <Line label="Reference Number" value={payment.referenceNumber || payment.providerPaymentId || `#PAY-${payment.id.slice(0, 8).toUpperCase()}`} />
+            <Line label="Seller Email" value={payment.ownerEmail} />
+            <Line label="Status" value={title} />
+            <Line label="Amount" value={peso(payment.amount)} />
+            {payment.verifiedAt ? <Line label="Confirmed At" value={dateTime(payment.verifiedAt)} /> : null}
+          </div>
+          {hosted && status !== 'rejected' ? <div className={`pm-receipt-provider-note ${status === 'verified' ? 'verified' : 'pending'}`}><strong>{status === 'verified' ? 'Payment verified' : 'Confirmation pending'}</strong><span>{status === 'verified' ? 'Confirmed automatically after checkout.' : 'This receipt updates after the payment is confirmed.'}</span></div> : null}
+          {payment.rejectionReason ? <div className="pm-receipt-error"><strong>Review note</strong><p>{payment.rejectionReason}</p></div> : null}
+          {!hosted ? <div className="admin-receipt-proof"><h4>Submitted Proof</h4>{payment.proofImageUrl ? <button type="button" onClick={() => setProofOpen(true)} aria-label="View submitted payment proof"><img src={payment.proofImageUrl} alt="Submitted payment proof" /><span>View full image</span></button> : <p>No payment proof is attached.</p>}</div> : null}
+          {status === 'pending' && !hosted ? <div className="admin-receipt-review-actions"><button type="button" className="ghost-btn" disabled={busy} onClick={onReject}>Reject</button><button type="button" className="solid-btn" disabled={busy} onClick={onVerify}>{busy ? 'Verifying...' : 'Verify Payment'}</button></div> : null}
+          <button type="button" className="pm-receipt-secondary" onClick={onClose}>Close Receipt</button>
         </div>
-      </div>
-
-      {proofOpen && payment.proofImageUrl ? (
-        <div className="sr-lightbox admin-shop-receipt-lightbox" role="presentation" onClick={() => setProofOpen(false)}>
-          <button type="button" aria-label="Close receipt image" onClick={() => setProofOpen(false)}>×</button>
-          <img src={payment.proofImageUrl} alt="Full-size submitted receipt" onClick={(event) => event.stopPropagation()} />
-        </div>
-      ) : null}
-    </>
-  )
+      </section>
+    </div>
+    {proofOpen && payment.proofImageUrl ? <div className="admin-receipt-lightbox" role="presentation" onClick={() => setProofOpen(false)}><button type="button" onClick={() => setProofOpen(false)} aria-label="Close payment proof">×</button><img src={payment.proofImageUrl} alt="Full-size submitted payment proof" onClick={(event) => event.stopPropagation()} /></div> : null}
+  </>
 }
-
-export default AdminShopPaymentReceipt

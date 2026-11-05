@@ -466,43 +466,50 @@ export default function AdminPaymentsScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.receiptModal}>
             <ScrollView contentContainerStyle={styles.receiptContent} showsVerticalScrollIndicator={false}>
-              <View style={styles.receiptTopBar}>
-                <Text style={styles.receiptTopTitle}>Payment Receipt</Text>
-                <TouchableOpacity onPress={() => setSelected(null)} style={styles.closeButton}>
-                  <Ionicons name="close" size={20} color="#374151" />
-                </TouchableOpacity>
-              </View>
-
               {selected ? (() => {
                 const meta = statusMeta(selected.status);
                 const method = getPaymentMethodInfo(selected);
+                const hosted = selected.paymentProvider === "xendit" || selected.paymentProvider === "legacy";
                 return (
                   <>
-                    <View style={[styles.receiptHero, { backgroundColor: selected.status === "verified" ? "#f4faf6" : selected.status === "rejected" ? "#fef2f2" : "#fbf7ee" }]}>
+                    <View style={styles.receiptHero}>
+                      <TouchableOpacity onPress={() => setSelected(null)} style={styles.closeButton} accessibilityRole="button" accessibilityLabel="Close payment receipt">
+                        <Ionicons name="close" size={22} color="#ffffff" />
+                      </TouchableOpacity>
                       <View style={[styles.receiptStatusIcon, { backgroundColor: selected.status === "verified" ? "#16a34a" : selected.status === "rejected" ? "#dc2626" : "#d97706" }]}>
                         <Ionicons
-                          name={selected.status === "verified" ? "checkmark" : selected.status === "rejected" ? "alert" : "time-outline"}
+                          name={selected.status === "verified" ? "checkmark" : selected.status === "rejected" ? "alert" : "receipt-outline"}
                           size={24}
-                          color="#fff"
+                          color="#18201d"
                         />
                       </View>
-                      <Text style={styles.receiptHeroTitle}>{meta.label}</Text>
+                      <Text style={styles.receiptHeroTitle}>{selected.status === "verified" ? "Payment Verified" : selected.status === "rejected" ? "Payment Not Completed" : hosted ? "Checkout Pending" : "Payment Under Review"}</Text>
                       <Text style={styles.receiptHeroSub}>
                         {selected.status === "verified"
                           ? "This shop registration payment has been confirmed."
                           : selected.status === "rejected"
                             ? "This payment submission needs correction."
-                            : "Payment is pending verification."}
+                            : hosted ? "The payment will be confirmed automatically once checkout is completed." : "Review the submitted proof before confirming this payment."}
                       </Text>
+                      <Text style={styles.receiptHeroAmountLabel}>{selected.status === "verified" ? "AMOUNT PAID" : "AMOUNT"}</Text>
                       <Text style={styles.receiptHeroAmount}>{formatPhilippinePeso(String(selected.amount))}</Text>
                     </View>
 
                     <View style={styles.receiptSection}>
-                      <Text style={styles.receiptSectionHeader}>Submission Details</Text>
-                      <View style={styles.detailRow}><Text style={styles.detailLabel}>Submitted</Text><Text style={styles.detailValue}>{formatDate(selected.createdAt)}</Text></View>
-                      <View style={styles.detailRow}><Text style={styles.detailLabel}>Payment ID</Text><Text style={styles.detailValue}>#{selected.id.slice(0, 10).toUpperCase()}</Text></View>
+                      <Text style={styles.receiptSectionHeader}>Payment Details</Text>
+                      <View style={styles.detailRow}><Text style={styles.detailLabel}>{selected.status === "verified" ? "Payment Date" : "Submitted"}</Text><Text style={styles.detailValue}>{formatDate(selected.verifiedAt || selected.createdAt)}</Text></View>
+                      <View style={styles.detailRow}><Text style={styles.detailLabel}>Receipt No.</Text><Text style={styles.detailValue}>LC-{selected.id.replace(/-/g, "").slice(0, 12).toUpperCase()}</Text></View>
                       <View style={styles.detailRow}><Text style={styles.detailLabel}>Funeral Shop</Text><Text style={styles.detailValue}>{selected.shopName}</Text></View>
+                      {selected.status === "verified" && selected.expiresAt ? <View style={styles.detailRow}><Text style={styles.detailLabel}>Access Valid Until</Text><Text style={styles.detailValue}>{formatDate(selected.expiresAt)}</Text></View> : null}
                     </View>
+
+                    <View style={styles.receiptDivider} />
+                    <View style={styles.receiptService}>
+                      <View style={styles.receiptServiceLogo}><Text style={styles.receiptServiceLogoText}>LC</Text></View>
+                      <View style={styles.receiptServiceCopy}><Text style={styles.receiptServiceTitle}>LifeCycle registration</Text><Text style={styles.receiptServiceMeta}>Funeral shop subscription payment</Text><Text style={styles.receiptServiceMeta}>{selected.ownerName || selected.ownerEmail || "Shop account"}</Text></View>
+                      <Text style={styles.receiptServiceAmount}>{formatPhilippinePeso(String(selected.amount))}</Text>
+                    </View>
+                    <View style={styles.receiptDivider} />
 
                     <View style={styles.receiptSection}>
                       <Text style={styles.receiptSectionHeader}>Receipt Information</Text>
@@ -521,8 +528,11 @@ export default function AdminPaymentsScreen() {
                       <View style={styles.detailRow}><Text style={styles.detailLabel}>Reference No.</Text><Text style={styles.detailValue}>{selected.referenceNumber || selected.providerPaymentId || `#PAY-${selected.id.slice(0, 8).toUpperCase()}`}</Text></View>
                       <View style={styles.detailRow}><Text style={styles.detailLabel}>Seller Email</Text><Text style={styles.detailValue}>{selected.ownerEmail || "—"}</Text></View>
                       {selected.verifiedAt ? <View style={styles.detailRow}><Text style={styles.detailLabel}>Verified</Text><Text style={styles.detailValue}>{formatDate(selected.verifiedAt)}</Text></View> : null}
-                      {selected.expiresAt ? <View style={styles.detailRow}><Text style={styles.detailLabel}>Live Valid Until</Text><Text style={styles.detailValue}>{formatDate(selected.expiresAt)}</Text></View> : null}
+                      <View style={styles.detailRow}><Text style={styles.detailLabel}>Status</Text><Text style={styles.detailValue}>{meta.label}</Text></View>
+                      <View style={styles.detailRow}><Text style={styles.detailLabel}>Amount</Text><Text style={styles.detailValue}>{formatPhilippinePeso(String(selected.amount))}</Text></View>
                     </View>
+
+                    {hosted && selected.status !== "rejected" ? <View style={[styles.receiptProviderNote, selected.status === "verified" && styles.receiptProviderVerified]}><Text style={styles.receiptProviderTitle}>{selected.status === "verified" ? "Payment verified" : "Confirmation pending"}</Text><Text style={styles.receiptProviderText}>{selected.status === "verified" ? "Confirmed automatically after checkout." : "This receipt updates after the payment is confirmed."}</Text></View> : null}
 
                     {selected.rejectionReason ? (
                       <View style={styles.rejectionBox}>
@@ -810,64 +820,69 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     overflow: "hidden",
   },
-  receiptContent: { padding: 18, paddingBottom: 36, gap: 14 },
-  receiptTopBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  receiptTopTitle: { fontSize: 17, fontWeight: "800", color: "#1f2937" },
+  receiptContent: { paddingBottom: 32 },
   closeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#f1f5f9",
+    position: "absolute",
+    top: 14,
+    right: 14,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#303332",
     alignItems: "center",
     justifyContent: "center",
   },
   receiptHero: {
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    padding: 16,
+    minHeight: 245,
+    backgroundColor: "#101312",
+    paddingHorizontal: 24,
+    paddingTop: 35,
+    paddingBottom: 28,
     alignItems: "center",
-    gap: 4,
   },
   receiptStatusIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 64,
+    height: 64,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 4,
   },
-  receiptHeroTitle: { fontSize: 16, fontWeight: "800", color: "#1f2937" },
-  receiptHeroSub: { fontSize: 12, color: "#64748b", textAlign: "center", marginBottom: 6 },
-  receiptHeroAmount: { fontSize: 24, fontWeight: "900", color: "#111827" },
+  receiptHeroTitle: { fontSize: 21, fontWeight: "900", color: "#ffffff", textAlign: "center", marginTop: 17 },
+  receiptHeroSub: { fontSize: 12, color: "#b9bfbc", lineHeight: 18, textAlign: "center", maxWidth: 340, marginTop: 8 },
+  receiptHeroAmountLabel: { color: "#aeb6b2", fontSize: 10, fontWeight: "800", letterSpacing: 1, marginTop: 18 },
+  receiptHeroAmount: { fontSize: 26, fontWeight: "900", color: "#ffffff", marginTop: 3 },
   receiptSection: {
-    backgroundColor: "#f8fafc",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    padding: 14,
-    gap: 8,
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 22,
+    paddingTop: 24,
+    gap: 15,
   },
   receiptSectionHeader: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: "#475569",
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-    marginBottom: 4,
+    fontSize: 15,
+    fontWeight: "900",
+    color: "#191c1b",
+    marginBottom: 2,
   },
   detailRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
-    gap: 8,
+    gap: 16,
   },
-  detailLabel: { fontSize: 12, color: "#64748b" },
-  detailValue: { fontSize: 13, fontWeight: "700", color: "#1f2937", textAlign: "right" },
+  detailLabel: { flex: 1, fontSize: 12, color: "#858c88" },
+  detailValue: { flex: 1.35, fontSize: 12, fontWeight: "700", color: "#303634", textAlign: "right" },
+  receiptDivider: { height: 1, backgroundColor: "#e5e8e6", marginHorizontal: 22, marginTop: 24 },
+  receiptService: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 22, paddingTop: 22 },
+  receiptServiceLogo: { width: 54, height: 64, borderRadius: 10, backgroundColor: "#edf0ee", alignItems: "center", justifyContent: "center" },
+  receiptServiceLogoText: { color: "#7d8782", fontSize: 16, fontWeight: "800" },
+  receiptServiceCopy: { flex: 1, minWidth: 0 },
+  receiptServiceTitle: { color: "#282e2b", fontSize: 13, fontWeight: "800" },
+  receiptServiceMeta: { color: "#868d89", fontSize: 11, marginTop: 3 },
+  receiptServiceAmount: { color: "#222725", fontSize: 13, fontWeight: "800" },
+  receiptProviderNote: { marginHorizontal: 22, marginTop: 18, padding: 14, borderRadius: 13, backgroundColor: "#fffbeb" },
+  receiptProviderVerified: { backgroundColor: "#ecfdf5" },
+  receiptProviderTitle: { color: "#225a3d", fontSize: 12, fontWeight: "800" },
+  receiptProviderText: { color: "#567565", fontSize: 11, marginTop: 3 },
   methodValueWrap: { flexDirection: "row", alignItems: "center", gap: 6 },
   rejectionBox: {
     backgroundColor: "#fef2f2",
@@ -876,6 +891,8 @@ const styles = StyleSheet.create({
     borderColor: "#fecaca",
     padding: 12,
     gap: 2,
+    marginHorizontal: 22,
+    marginTop: 18,
   },
   rejectionBoxTitle: { fontSize: 12, fontWeight: "800", color: "#991b1b" },
   rejectionBoxText: { fontSize: 12, color: "#b91c1c", lineHeight: 17 },
@@ -901,13 +918,13 @@ const styles = StyleSheet.create({
   },
   proofNoticeText: { color: "#fff", fontSize: 11, fontWeight: "700" },
   receiptActions: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: "column-reverse",
+    alignItems: "stretch",
     gap: 10,
-    marginTop: 6,
+    marginTop: 22,
+    marginHorizontal: 22,
   },
   receiptCloseAction: {
-    flex: 1,
     minHeight: 42,
     borderRadius: 10,
     borderWidth: 1,
@@ -929,7 +946,6 @@ const styles = StyleSheet.create({
   },
   receiptRejectActionText: { fontSize: 13, fontWeight: "700", color: "#b91c1c" },
   receiptVerifyAction: {
-    flex: 1.3,
     minHeight: 42,
     borderRadius: 10,
     backgroundColor: "#22312d",
