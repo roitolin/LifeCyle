@@ -6,7 +6,6 @@ import { supabase } from '@/lib/supabase'
 import { ensureOwnUserProfile } from '@/lib/userProfile'
 import { getTermsReturnPath, needsTermsAgreement } from '@/lib/termsAgreement'
 import { termsSections } from '@/data/termsSections'
-import { APP_ICON_TRANSPARENT_URL } from '@/assets/appIconAssets'
 import LoadingBird from '@/components/LoadingBird'
 import './TermsAgreementPage.css'
 
@@ -155,12 +154,6 @@ export default function TermsAgreementPage() {
 
   return (
     <main className="terms-page">
-      <header className="terms-topbar">
-        <img src={APP_ICON_TRANSPARENT_URL} alt="" />
-        <strong>LifeCycle</strong>
-        <span>Account agreement</span>
-      </header>
-
       <div className="terms-shell">
         <div className="terms-hero">
           <span className="terms-eyebrow">ONE MORE STEP</span>

@@ -7,20 +7,6 @@
 
 .terms-page * { box-sizing: border-box; }
 
-.terms-topbar {
-  height: 62px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 0 clamp(16px, 4vw, 48px);
-  background: #fff;
-  border-bottom: 1px solid #dbe3e8;
-}
-
-.terms-topbar img { width: 32px; height: 32px; object-fit: contain; }
-.terms-topbar strong { font-size: 17px; color: #22312d; }
-.terms-topbar span { margin-left: auto; color: #66758a; font-size: 13px; font-weight: 700; }
-
 .terms-shell {
   width: min(900px, 100%);
   margin: 0 auto;
@@ -33,7 +19,7 @@
 .terms-hero p { margin: 0; color: #58677b; font-size: 14px; line-height: 1.5; }
 
 .terms-card {
-  height: min(760px, calc(100dvh - 210px));
+  height: min(760px, calc(100dvh - 148px));
   min-height: 500px;
   display: flex;
   flex-direction: column;
@@ -137,13 +123,11 @@
 .terms-load-error h1, .terms-load-error p { margin: 0; }
 
 @media (max-width: 640px) {
-  .terms-topbar { height: 56px; padding: 0 16px; }
-  .terms-topbar span { font-size: 11px; }
   .terms-shell { padding: 16px 12px 24px; }
   .terms-hero { padding: 0 5px; margin-bottom: 14px; }
   .terms-hero h1 { font-size: 22px; }
   .terms-hero p { font-size: 13px; }
-  .terms-card { height: calc(100dvh - 185px); min-height: 475px; border-radius: 15px; }
+  .terms-card { height: calc(100dvh - 129px); min-height: 475px; border-radius: 15px; }
   .terms-card-header { padding: 15px 16px 12px; }
   .terms-card-header h2 { font-size: 17px; }
   .terms-document { padding: 17px 16px 20px; }
