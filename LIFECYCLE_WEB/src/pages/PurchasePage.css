@@ -527,6 +527,8 @@
   }
   .purchase-topbar {
     min-height: 44px;
+    position: relative;
+    z-index: 100;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   }
   .purchase-topbar-inner,
@@ -541,6 +543,13 @@
   }
   .purchase-topbar-right {
     gap: 4px;
+  }
+  .purchase-topbar .sc-web-notif-btn {
+    color: #ffffff;
+  }
+  .purchase-topbar .sc-web-notif-btn:hover,
+  .purchase-topbar .sc-web-notif-btn.is-active {
+    background: rgba(255, 255, 255, 0.12);
   }
   .purchase-topbar-link {
     min-height: 32px;

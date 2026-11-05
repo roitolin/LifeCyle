@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import BrandLogo from '@/components/BrandLogo'
 import PageBackButton from '@/components/PageBackButton'
+import NotificationDropdown from '@/components/NotificationDropdown'
 import './DevelopersPage.css'
 
 type Developer = {
@@ -81,7 +82,10 @@ export default function DevelopersPage() {
       <header className="developers-page-header">
         <div className="developers-page-header-inner">
           <PageBackButton to="/user/about" label="Back to About" className="developers-back-button" />
-          <BrandLogo compact className="developers-brand" />
+          <div className="developers-header-actions">
+            <NotificationDropdown variant="seller-centre" />
+            <BrandLogo compact className="developers-brand" />
+          </div>
         </div>
       </header>
       <main className="developers-page-main">

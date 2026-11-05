@@ -1,6 +1,7 @@
 import BrandLogo from '@/components/BrandLogo'
 import PageBackButton from '@/components/PageBackButton'
 import AccountMobileHeader from '@/components/AccountMobileHeader'
+import NotificationDropdown from '@/components/NotificationDropdown'
 import './FuneralLandingPage.css'
 
 const sections = [
@@ -41,10 +42,11 @@ const sections = [
 export default function PoliciesPage() {
   return (
     <div className="sp-page policy-page">
-      <AccountMobileHeader />
+      <AccountMobileHeader showNotifications />
       <header className="sp-header">
         <div className="sp-header-inner policy-header-inner">
           <BrandLogo />
+          <div className="policy-header-notification"><NotificationDropdown variant="seller-centre" /></div>
         </div>
       </header>
 

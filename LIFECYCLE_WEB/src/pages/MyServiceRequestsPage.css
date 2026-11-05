@@ -2186,6 +2186,8 @@ body * {
   }
   .requests-shop-page > .requests-topbar {
     min-height: 44px;
+    position: relative;
+    z-index: 100;
     display: flex;
     align-items: center;
     justify-content: flex-end;
@@ -2194,6 +2196,13 @@ body * {
   }
   .requests-shop-page .requests-topbar-right {
     gap: 4px;
+  }
+  .requests-shop-page .requests-topbar .sc-web-notif-btn {
+    color: #ffffff;
+  }
+  .requests-shop-page .requests-topbar .sc-web-notif-btn:hover,
+  .requests-shop-page .requests-topbar .sc-web-notif-btn.is-active {
+    background: rgba(255, 255, 255, 0.12);
   }
   .requests-shop-page .requests-topbar-link {
     min-height: 32px;

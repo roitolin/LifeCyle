@@ -1969,6 +1969,19 @@
 .policy-page > .sp-footer {
   flex: 0 0 auto;
 }
+.policy-page .policy-header-notification {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  color: #ffffff;
+}
+.policy-page .policy-header-notification .sc-web-notif-btn {
+  color: #ffffff;
+}
+.policy-page .policy-header-notification .sc-web-notif-btn:hover,
+.policy-page .policy-header-notification .sc-web-notif-btn.is-active {
+  background: rgba(255, 255, 255, 0.12);
+}
 .policy-page > .sp-body {
   flex: 1 0 auto;
   padding: 32px 0 64px;

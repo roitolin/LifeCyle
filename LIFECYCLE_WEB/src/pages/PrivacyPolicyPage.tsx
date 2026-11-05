@@ -2,6 +2,7 @@ import { useLocation } from 'react-router-dom'
 import BrandLogo from '@/components/BrandLogo'
 import PageBackButton from '@/components/PageBackButton'
 import AccountMobileHeader from '@/components/AccountMobileHeader'
+import NotificationDropdown from '@/components/NotificationDropdown'
 import './FuneralLandingPage.css'
 
 const sections = [
@@ -47,10 +48,11 @@ export default function PrivacyPolicyPage() {
 
   return (
     <div className="sp-page policy-page">
-      <AccountMobileHeader homeTo={returnPath} homeLabel={agreementReturn ? 'agreement' : 'home'} />
+      <AccountMobileHeader homeTo={returnPath} homeLabel={agreementReturn ? 'agreement' : 'home'} showNotifications />
       <header className="sp-header">
         <div className="sp-header-inner policy-header-inner">
           <BrandLogo to={returnPath} ariaLabel={agreementReturn ? 'LifeCycle agreement' : 'LifeCycle home'} />
+          <div className="policy-header-notification"><NotificationDropdown variant="seller-centre" /></div>
         </div>
       </header>
 

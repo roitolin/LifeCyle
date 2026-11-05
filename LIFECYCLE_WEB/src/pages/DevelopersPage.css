@@ -20,6 +20,16 @@
   gap: 20px;
   margin: 0 auto;
 }
+.developers-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+@media (max-width: 768px) {
+  .developers-standalone-page .developers-header-actions .sc-web-notif-wrap.is-seller-centre .sc-web-notif-dropdown--seller-centre {
+    inset: 80px 8px max(12px, env(safe-area-inset-bottom)) 8px !important;
+  }
+}
 
 .developers-back-button {
   min-height: 42px !important;

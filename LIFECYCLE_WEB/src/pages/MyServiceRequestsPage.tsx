@@ -9,6 +9,7 @@ import RemainingBalancePaymentCard from '@/components/RemainingBalancePaymentCar
 import DeathCertificateVaultCard from '@/components/DeathCertificateVaultCard'
 import PageBackButton from '@/components/PageBackButton'
 import AccountMobileHeader from '@/components/AccountMobileHeader'
+import NotificationDropdown from '@/components/NotificationDropdown'
 import { syncServiceXenditCheckout } from '@/utils/serviceXendit'
 import { getProfileAvatar } from '@/utils/profileAvatar'
 import './MyServiceRequestsPage.css'
@@ -608,11 +609,10 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
 
   return (
     <div className={`requests-shop-page${detailRequestId ? ' requests-shop-page-detail' : ''}`}>
-      <AccountMobileHeader />
+      <AccountMobileHeader showNotifications />
       <div className="requests-topbar">
         <div className="requests-topbar-right">
-          <Link to="/user/notifications" className="requests-topbar-link">Notifications</Link>
-          <Link to="/user/help" className="requests-topbar-link">Help Centre</Link>
+          <NotificationDropdown variant="seller-centre" />
           <span className="requests-divider" aria-hidden="true" />
           <div className="requests-user-menu">
             <button type="button" className="requests-user-menu-trigger" aria-label="Open account menu">

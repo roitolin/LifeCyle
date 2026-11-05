@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import BrandLogo from '@/components/BrandLogo'
+import NotificationDropdown from '@/components/NotificationDropdown'
 import { supabase } from '@/lib/supabase'
 import { getProfileAvatar } from '@/utils/profileAvatar'
 import '@/pages/UserProfilePage.css'
@@ -30,9 +31,10 @@ type AccountProfile = {
 type AccountMobileHeaderProps = {
   homeTo?: string
   homeLabel?: string
+  showNotifications?: boolean
 }
 
-export default function AccountMobileHeader({ homeTo = '/funeral', homeLabel = 'home' }: AccountMobileHeaderProps) {
+export default function AccountMobileHeader({ homeTo = '/funeral', homeLabel = 'home', showNotifications = false }: AccountMobileHeaderProps) {
   const [open, setOpen] = useState(false)
   const [profile, setProfile] = useState<AccountProfile | null>(null)
   const [email, setEmail] = useState('')
@@ -146,10 +148,17 @@ export default function AccountMobileHeader({ homeTo = '/funeral', homeLabel = '
             </button>
             <BrandLogo to={homeTo} ariaLabel={`LifeCycle ${homeLabel}`} compact className="profile-brand-logo" />
           </div>
-          <Link to={homeTo} className="profile-mobile-home-link">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
-            <span><span className="profile-mobile-home-prefix">Back to </span>{homeLabel}</span>
-          </Link>
+          <div className="profile-mobile-header-actions">
+            {showNotifications ? (
+              <div className="profile-mobile-header-notification">
+                <NotificationDropdown variant="seller-centre" />
+              </div>
+            ) : null}
+            <Link to={homeTo} className="profile-mobile-home-link">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+              <span><span className="profile-mobile-home-prefix">Back to </span>{homeLabel}</span>
+            </Link>
+          </div>
         </div>
       </header>
     </div>

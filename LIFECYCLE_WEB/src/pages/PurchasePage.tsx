@@ -5,6 +5,7 @@ import BrandLogo from '@/components/BrandLogo'
 import LogoutLink from '@/components/LogoutLink'
 import PageBackButton from '@/components/PageBackButton'
 import AccountMobileHeader from '@/components/AccountMobileHeader'
+import NotificationDropdown from '@/components/NotificationDropdown'
 import { getProfileAvatar } from '@/utils/profileAvatar'
 import './PurchasePage.css'
 
@@ -138,13 +139,12 @@ export default function PurchasePage() {
 
   return (
     <div className="purchase-shop-page">
-      <AccountMobileHeader />
+      <AccountMobileHeader showNotifications />
 
       <div className="purchase-topbar">
         <div className="purchase-topbar-inner">
           <div className="purchase-topbar-right">
-            <Link to="/user/notifications" className="purchase-topbar-link">Notifications</Link>
-            <Link to="/user/help" className="purchase-topbar-link">Help Centre</Link>
+            <NotificationDropdown variant="seller-centre" />
             <span className="purchase-divider" aria-hidden="true" />
             <div className="purchase-user-menu">
               <button type="button" className="purchase-user-menu-trigger" aria-haspopup="menu">
