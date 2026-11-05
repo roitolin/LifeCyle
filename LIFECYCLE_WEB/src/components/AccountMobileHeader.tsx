@@ -29,9 +29,10 @@ type AccountProfile = {
 
 type AccountMobileHeaderProps = {
   homeTo?: string
+  homeLabel?: string
 }
 
-export default function AccountMobileHeader({ homeTo = '/funeral' }: AccountMobileHeaderProps) {
+export default function AccountMobileHeader({ homeTo = '/funeral', homeLabel = 'home' }: AccountMobileHeaderProps) {
   const [open, setOpen] = useState(false)
   const [profile, setProfile] = useState<AccountProfile | null>(null)
   const [email, setEmail] = useState('')
@@ -143,11 +144,11 @@ export default function AccountMobileHeader({ homeTo = '/funeral' }: AccountMobi
             >
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
             </button>
-            <BrandLogo compact className="profile-brand-logo" />
+            <BrandLogo to={homeTo} ariaLabel={`LifeCycle ${homeLabel}`} compact className="profile-brand-logo" />
           </div>
           <Link to={homeTo} className="profile-mobile-home-link">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
-            <span><span className="profile-mobile-home-prefix">Back to </span>home</span>
+            <span><span className="profile-mobile-home-prefix">Back to </span>{homeLabel}</span>
           </Link>
         </div>
       </header>

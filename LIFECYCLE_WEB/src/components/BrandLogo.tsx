@@ -5,9 +5,10 @@ type BrandLogoProps = {
   to?: string
   compact?: boolean
   className?: string
+  ariaLabel?: string
 }
 
-export default function BrandLogo({ to = '/funeral', compact = false, className = '' }: BrandLogoProps) {
+export default function BrandLogo({ to = '/funeral', compact = false, className = '', ariaLabel = 'LifeCycle home' }: BrandLogoProps) {
   const rootClasses = [
     'lc-brand group inline-flex shrink-0 items-center rounded-[14px] text-[var(--lc-brand-ink)] no-underline outline-none',
     '[--lc-brand-ink:#172033] [--lc-brand-soft:#64748b]',
@@ -24,7 +25,7 @@ export default function BrandLogo({ to = '/funeral', compact = false, className 
   ].join(' ')
 
   return (
-    <Link to={to} className={rootClasses} aria-label='LifeCycle home'>
+    <Link to={to} className={rootClasses} aria-label={ariaLabel}>
       <img className={markClasses} src={APP_ICON_TRANSPARENT_URL} alt='' />
 
       <span className='lc-brand__wordmark inline-flex min-w-0 flex-col justify-center' aria-hidden='true'>

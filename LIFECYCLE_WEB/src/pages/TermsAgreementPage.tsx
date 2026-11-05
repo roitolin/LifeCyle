@@ -214,7 +214,11 @@ export default function TermsAgreementPage() {
                 ? accepted ? 'Ready to continue' : 'Confirm your review above'
                 : 'Scroll through every section to continue'}
               {' · '}
-              <Link to="/privacy-policy" target="_blank" rel="noreferrer">Privacy Policy</Link>
+              <Link
+                to={`/privacy-policy?returnTo=${encodeURIComponent(location.pathname + location.search)}`}
+                target="_blank"
+                rel="noreferrer"
+              >Privacy Policy</Link>
             </div>
             {error ? <p className="terms-error" role="alert">{error}</p> : null}
             <div className="terms-actions">

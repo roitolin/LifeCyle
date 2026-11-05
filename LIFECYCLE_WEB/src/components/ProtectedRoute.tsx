@@ -14,12 +14,14 @@ type ProtectedRouteProps = {
   redirectTo?: string
   allowedRoles?: string[]
   redirectUnauthorizedTo?: string
+  allowAnonymous?: boolean
 }
 
 function ProtectedRoute({
   redirectTo = '/login',
   allowedRoles,
   redirectUnauthorizedTo = '/app',
+  allowAnonymous = false,
 }: ProtectedRouteProps) {
   const location = useLocation()
   const [user, setUser] = useState<User | null>(null)
@@ -167,6 +169,7 @@ function ProtectedRoute({
     if (banDialog) {
       return <Navigate to="/login" replace state={{ banDialog }} />
     }
+    if (allowAnonymous) return <Outlet />
     const target =
       redirectTo === '/'
         ? '/'

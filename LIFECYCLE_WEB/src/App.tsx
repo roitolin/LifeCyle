@@ -96,13 +96,15 @@ function App() {
           <Routes>
           <Route path="/" element={<Navigate to="/funeral" replace />} />
           <Route path="/services" element={<Navigate to="/funeral" replace />} />
-          <Route path="/funeral" element={<FuneralLandingPage />} />
-          <Route path="/funeral/shops" element={<FuneralShopsPage />} />
-          <Route path="/funeral/product/:productId" element={<ProductDetailPage />} />
-          <Route path="/shop/:shopId" element={<ShopPage />} />
+          <Route element={<ProtectedRoute allowAnonymous />}>
+            <Route path="/funeral" element={<FuneralLandingPage />} />
+            <Route path="/funeral/shops" element={<FuneralShopsPage />} />
+            <Route path="/funeral/product/:productId" element={<ProductDetailPage />} />
+            <Route path="/shop/:shopId" element={<ShopPage />} />
+            <Route path="/seller" element={<SellerCentrePage />} />
+          </Route>
           <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
           <Route path="/policies" element={<PoliciesPage />} />
-          <Route path="/seller" element={<SellerCentrePage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/auth/logout" element={<Navigate to="/funeral" replace />} />

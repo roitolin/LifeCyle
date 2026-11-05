@@ -1,3 +1,4 @@
+import { useLocation } from 'react-router-dom'
 import BrandLogo from '@/components/BrandLogo'
 import PageBackButton from '@/components/PageBackButton'
 import AccountMobileHeader from '@/components/AccountMobileHeader'
@@ -39,18 +40,23 @@ const sections = [
 ]
 
 export default function PrivacyPolicyPage() {
+  const location = useLocation()
+  const requestedReturn = new URLSearchParams(location.search).get('returnTo') || ''
+  const agreementReturn = /^\/terms-agreement(?:\?|$)/.test(requestedReturn)
+  const returnPath = agreementReturn ? requestedReturn : '/funeral'
+
   return (
     <div className="sp-page policy-page">
-      <AccountMobileHeader />
+      <AccountMobileHeader homeTo={returnPath} homeLabel={agreementReturn ? 'agreement' : 'home'} />
       <header className="sp-header">
         <div className="sp-header-inner policy-header-inner">
-          <BrandLogo />
+          <BrandLogo to={returnPath} ariaLabel={agreementReturn ? 'LifeCycle agreement' : 'LifeCycle home'} />
         </div>
       </header>
 
       <div className="sp-body">
         <div className="sp-body-inner policy-body-inner">
-          <div className="page-back-row"><PageBackButton to="/funeral" label="Back to home" /></div>
+          <div className="page-back-row"><PageBackButton to={returnPath} label={agreementReturn ? 'Back to agreement' : 'Back to home'} /></div>
           <div className="policy-content">
             <span className="policy-kicker">LifeCycle Funeral Services Philippines</span>
             <h1>Privacy Policy</h1>
