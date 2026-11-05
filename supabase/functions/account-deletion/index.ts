@@ -114,17 +114,12 @@ Deno.serve(async (request) => {
     isSelfDeletion = false;
   }
 
-  const [activeServices, activeRefunds, pendingShopPayments] = await Promise.all([
+  const [activeServices, pendingShopPayments] = await Promise.all([
     admin
       .from('funeral_service_requests')
       .select('id', { count: 'exact', head: true })
       .or(`requesterId.eq.${userId},shopId.eq.${userId}`)
       .not('status', 'in', '(completed,declined_by_shop,cancelled_by_requester)'),
-    admin
-      .from('service_refund_requests')
-      .select('id', { count: 'exact', head: true })
-      .or(`requester_id.eq.${userId},shop_id.eq.${userId}`)
-      .in('status', ['pending', 'approved']),
     admin
       .from('shop_payments')
       .select('id', { count: 'exact', head: true })
@@ -132,7 +127,7 @@ Deno.serve(async (request) => {
       .eq('status', 'pending'),
   ]);
 
-  const blockerQueryError = activeServices.error || activeRefunds.error || pendingShopPayments.error;
+  const blockerQueryError = activeServices.error || pendingShopPayments.error;
   if (blockerQueryError) {
     return response(request, {
       error: 'Account safety checks could not be completed. Nothing was deleted.',
@@ -142,12 +137,11 @@ Deno.serve(async (request) => {
 
   const blockers = {
     activeServices: activeServices.count || 0,
-    activeRefunds: activeRefunds.count || 0,
     pendingShopPayments: pendingShopPayments.count || 0,
   };
   if (Object.values(blockers).some((count) => count > 0)) {
     return response(request, {
-      error: 'Resolve active services, refunds, and pending shop payments before deleting this account.',
+      error: 'Resolve active services and pending shop payments before deleting this account.',
       blockers,
     }, 409);
   }

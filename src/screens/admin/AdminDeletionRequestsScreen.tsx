@@ -105,7 +105,7 @@ export default function AdminDeletionRequestsScreen() {
     if (!isRootAdmin || updatingId) return;
     Alert.alert(
       'Permanently Delete Account',
-      `Delete ${request.email_snapshot}? This cannot be undone. The server will refuse while active services, refunds, or payments remain.`,
+      `Delete ${request.email_snapshot}? This cannot be undone. The server will refuse while active services or pending shop payments remain.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {

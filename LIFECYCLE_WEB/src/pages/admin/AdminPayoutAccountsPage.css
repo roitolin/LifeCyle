@@ -93,38 +93,336 @@
   @apply text-[#718096] text-[13px] mt-[6px];
 }
 .payout-modal-form {
-  @apply grid gap-[16px];
+  display: grid;
+  gap: 22px;
+}
+.payout-review-modal {
+  width: min(640px, 100%);
+  max-height: min(90vh, 800px);
+  border: 1px solid #dce5e8;
+  border-radius: 16px;
+  box-shadow: 0 30px 80px rgba(19, 39, 48, 0.22);
+}
+.payout-review-modal .payments-modal-body {
+  overflow-y: auto;
+  max-height: none;
+  padding: 24px;
+}
+.payout-review-header {
+  padding: 24px 24px 20px;
+  border-bottom: 1px solid #e8edf0;
+}
+.payout-review-eyebrow {
+  display: block;
+  margin-bottom: 5px;
+  color: #337460;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+.payout-review-header .payments-modal-heading h3 {
+  margin: 0;
+  color: #1f3333;
+  font-size: 21px;
+  line-height: 1.25;
+}
+.payout-review-header .payments-modal-heading p {
+  margin: 6px 0 0;
+  color: #657786;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.payout-review-close {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+}
+.payout-review-close:focus-visible,
+.payout-review-footer button:focus-visible {
+  outline: 3px solid rgba(40, 91, 78, 0.28);
+  outline-offset: 2px;
 }
 .payout-modal-summary {
-  @apply border [background:#f8fafc] px-[14px] py-[13px] rounded-[10px] border-solid border-[#dbe5ee];
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+  padding: 15px;
+  border: 1px solid #dde8e8;
+  border-radius: 12px;
+  background: #f7faf9;
+ }
+.payout-modal-shop-avatar {
+  display: grid;
+  flex: 0 0 46px;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  overflow: hidden;
+  border: 1px solid #d7e3de;
+  border-radius: 10px;
+  background: #e8f1eb;
+  color: #285b4e;
+  font-size: 13px;
+  font-weight: 800;
+ }
+.payout-modal-shop-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+ }
+.payout-modal-shop-copy {
+  min-width: 0;
+  flex: 1;
+ }
+.payout-modal-shop-copy > span,
+.payout-modal-shop-copy > strong,
+.payout-modal-shop-copy > small {
+  display: block;
+ }
+.payout-modal-shop-copy > span {
+  color: #72857f;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+ }
+.payout-modal-shop-copy > strong {
+  margin-top: 2px;
+  color: #213633;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+ }
+.payout-modal-shop-copy > small {
+  margin-top: 2px;
+  color: #687d85;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+ }
+.payout-modal-status {
+  flex: none;
+  padding: 7px 10px;
+  font-size: 11px;
+ }
+.payout-review-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+ }
+.payout-review-section-heading h4 {
+  margin: 0;
+  color: #243b3b;
+  font-size: 14px;
+  font-weight: 800;
+ }
+.payout-review-section-heading span {
+  color: #83929b;
+  font-size: 11px;
+ }
+.payout-review-details {
+  display: grid;
+  gap: 0;
+  margin: -12px 0 0;
+  border: 1px solid #dce5e8;
+  border-radius: 12px;
+  overflow: hidden;
+ }
+.payout-review-details > div {
+  padding: 14px 16px;
+  background: #fff;
+ }
+.payout-review-details > div + div {
+  border-top: 1px solid #edf1f3;
+ }
+.payout-review-details > .payout-review-number-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 16px;
+  background: #eef7f2;
 }
-.payout-modal-summary strong, .payout-modal-summary span {
-  @apply block;
+.payout-review-details dt {
+  margin-bottom: 6px;
+  color: #667986;
+  font-size: 11px;
+  font-weight: 700;
+ }
+.payout-review-details dd {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: #20313d;
+  font-size: 15px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+ }
+.payout-review-channel-logo {
+  display: grid;
+  flex: 0 0 30px;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 3px;
+  border: 1px solid #e4ebef;
+  border-radius: 7px;
+ }
+.payout-review-channel-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+ }
+.payout-review-details dd.payout-review-number {
+  color: #183f36;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: clamp(18px, 3vw, 23px);
+  font-weight: 800;
+  letter-spacing: 0.035em;
+  line-height: 1.35;
+  user-select: text;
+  word-break: break-all;
 }
-.payout-modal-summary span {
-  @apply text-[#718096] text-[12px] mt-[3px];
+.payout-review-copy {
+  flex: none;
+  min-height: 36px;
+  padding: 0 11px;
+  border: 1px solid #b8d6c7;
+  border-radius: 7px;
+  background: #fff;
+  color: #245b48;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
 }
-.payout-review-modal,
-.payout-review-modal .payments-modal-body {
-  max-height: none;
-  overflow: visible;
+.payout-review-copy:hover {
+  background: #e4f1e9;
 }
-.payout-modal-field {
-  @apply grid gap-[7px];
+.payout-review-copy:focus-visible {
+  outline: 3px solid rgba(40, 91, 78, 0.28);
+  outline-offset: 2px;
 }
-.payout-modal-field label {
-  @apply text-slate-700 text-[12px] font-extrabold;
+.payout-review-metadata {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 20px;
+  margin-top: -5px;
+  padding: 0 2px;
 }
-.payout-modal-field input,
-.payout-modal-field select {
-  @apply w-full min-h-[42px] border [background:#fff] text-[#172033] [font:inherit] px-[12px] py-0 rounded-[9px] border-solid border-[#cfd9e5];
+.payout-review-metadata span,
+.payout-review-metadata strong {
+  display: block;
+  overflow-wrap: anywhere;
 }
-.payout-modal-field input:focus,
-.payout-modal-field select:focus {
-  @apply [outline:2px_solid_rgba(40,91,78,0.15)] border-[#285b4e];
+.payout-review-metadata span {
+  color: #72838a;
+  font-size: 11px;
 }
-.payout-modal-field small {
-  @apply text-[#718096] text-[11px] leading-[1.45];
+.payout-review-metadata strong {
+  margin-top: 3px;
+  color: #2e4147;
+  font-size: 12px;
+  font-weight: 700;
+ }
+.payout-review-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  margin-top: -4px;
+  padding: 13px 14px;
+  border: 1px solid #d7e9e0;
+  border-radius: 10px;
+  background: #f1f8f4;
+ }
+.payout-review-note.is-pending {
+  border-color: #f2dfb6;
+  background: #fffaf0;
+ }
+.payout-review-note-icon {
+  display: grid;
+  flex: 0 0 20px;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #d9eee0;
+  color: #176344;
+  font-size: 12px;
+  font-weight: 800;
+ }
+.is-pending .payout-review-note-icon {
+  background: #fce8b9;
+  color: #855c13;
+ }
+.payout-review-note strong {
+  display: block;
+  color: #253c37;
+  font-size: 12px;
+ }
+.payout-review-note p {
+  margin: 3px 0 0;
+  color: #5d726c;
+  font-size: 12px;
+  line-height: 1.5;
+ }
+.payout-review-empty {
+  padding: 24px;
+  border: 1px dashed #cfdfe0;
+  border-radius: 12px;
+  background: #fafcfc;
+  text-align: center;
+ }
+.payout-review-empty strong {
+  color: #243b3b;
+  font-size: 14px;
+ }
+.payout-review-empty p {
+  margin: 6px 0 0;
+  color: #687d85;
+  font-size: 12px;
+ }
+.payout-review-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #e8edf0;
+  background: #fbfcfc;
+ }
+@media (max-width: 600px) {
+  .payout-review-modal {
+    max-height: calc(100dvh - 24px);
+    border-radius: 14px;
+  }
+  .payout-review-header {
+    padding: 19px 18px 16px;
+  }
+  .payout-review-header .payments-modal-heading h3 {
+    font-size: 18px;
+  }
+  .payout-review-modal .payments-modal-body {
+    padding: 18px;
+  }
+  .payout-modal-summary {
+    flex-wrap: wrap;
+  }
+  .payout-modal-status {
+    margin-left: 59px;
+  }
+  .payout-review-details > .payout-review-number-card {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .payout-review-metadata {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .payout-review-footer {
+    padding: 14px 18px;
+  }
+  .payout-review-footer button {
+    min-height: 42px;
+  }
 }
 @media (max-width: 760px) {
   .payout-header-actions {

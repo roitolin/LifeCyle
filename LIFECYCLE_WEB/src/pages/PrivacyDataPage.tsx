@@ -102,7 +102,7 @@ export default function PrivacyDataPage() {
     openConfirm({
       title: 'Permanently delete your account?',
       message: 'This cannot be undone. Your account and eligible account data will be permanently deleted without admin approval.',
-      details: ['Active services, refunds, or pending shop payments must be resolved first.'],
+      details: ['Active services or pending shop payments must be resolved first.'],
       confirmLabel: 'Delete Permanently',
       cancelLabel: 'Keep My Account',
       pendingLabel: 'Deleting...',

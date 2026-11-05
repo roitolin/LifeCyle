@@ -45,7 +45,6 @@ export default function PrivacyDataScreen() {
         requestsResult,
         blocksResult,
         notificationsResult,
-        refundsResult,
         deletionRequestsResult,
       ] = await Promise.all([
         supabase
@@ -69,11 +68,6 @@ export default function PrivacyDataScreen() {
           .eq('userId', currentUser.uid)
           .order('createdAt', { ascending: false }),
         supabase
-          .from('service_refund_requests')
-          .select('*')
-          .eq('requester_id', currentUser.uid)
-          .order('requested_at', { ascending: false }),
-        supabase
           .from('account_deletion_requests')
           .select('*')
           .eq('user_id', currentUser.uid)
@@ -84,7 +78,6 @@ export default function PrivacyDataScreen() {
         || requestsResult.error
         || blocksResult.error
         || notificationsResult.error
-        || refundsResult.error
         || deletionRequestsResult.error;
       if (firstError) throw firstError;
 
@@ -94,7 +87,6 @@ export default function PrivacyDataScreen() {
         serviceRequests: requestsResult.data || [],
         blockedAccountIds: blocksResult.data || [],
         notifications: notificationsResult.data || [],
-        refundRequests: refundsResult.data || [],
         deletionRequests: deletionRequestsResult.data || [],
       };
       const reportJson = escapeHtml(JSON.stringify(report, null, 2));
@@ -246,7 +238,7 @@ export default function PrivacyDataScreen() {
               </View>
               <Text style={styles.modalTitle}>Delete your account</Text>
               <Text style={styles.modalText}>
-                No admin approval is required. This action is permanent. Active services, refunds, or pending shop payments must be resolved first.
+                No admin approval is required. This action is permanent. Active services or pending shop payments must be resolved first.
               </Text>
               <Text style={styles.modalLabel}>Type DELETE to continue *</Text>
               <TextInput

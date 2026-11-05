@@ -64,6 +64,7 @@ export default function AdminPayoutAccountsPage() {
   const [formNumber, setFormNumber] = useState('')
   const [selectedReceiverId, setSelectedReceiverId] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [copiedAccountNumber, setCopiedAccountNumber] = useState(false)
 
   const loadShops = useCallback(async () => {
     setLoading(true)
@@ -141,6 +142,8 @@ export default function AdminPayoutAccountsPage() {
   const missingCount = rows.filter((row) => receiverStatus(row.receiver) === 'missing').length
   const totalCount = rows.length
   const selectedReceiver = receivers.find((account) => account.id === selectedReceiverId)
+  const selectedReceiverStatus = receiverStatus(selectedReceiver ?? null)
+  const selectedChannel = getChannelInfo(formChannel)
 
   const filteredRows = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
@@ -163,6 +166,7 @@ export default function AdminPayoutAccountsPage() {
 
   const handleOpenManage = (shop: ShopPayoutRecord, account: PayoutReceiver | null) => {
     setModalShop(shop)
+    setCopiedAccountNumber(false)
     setSelectedReceiverId(account?.id || null)
     setFormChannel(account?.channelCode || '')
     setFormName(account?.accountName || '')
@@ -172,6 +176,16 @@ export default function AdminPayoutAccountsPage() {
   const handleCloseModal = () => {
     setModalShop(null)
     setIsSaving(false)
+  }
+
+  const handleCopyAccountNumber = async () => {
+    if (!formNumber) return
+    try {
+      await navigator.clipboard.writeText(formNumber)
+      setCopiedAccountNumber(true)
+    } catch {
+      openAlert({ title: 'Copy failed', message: 'Select and copy the account number shown in the review.', tone: 'danger' })
+    }
   }
 
 
@@ -370,18 +384,58 @@ export default function AdminPayoutAccountsPage() {
       {modalShop ? (
         <div className="payments-modal-overlay" role="presentation" onClick={handleCloseModal}>
           <div className="payments-modal payout-review-modal" role="dialog" aria-modal="true" aria-labelledby="payout-modal-title" onClick={(event) => event.stopPropagation()}>
-            <div className="payments-modal-header"><div className="payments-modal-heading"><h3 id="payout-modal-title">Payout Account Review</h3><p>Check the account submitted by this shop before approval.</p></div><button type="button" className="payments-modal-close" aria-label="Close" onClick={handleCloseModal}>X</button></div>
-            <div className="payments-modal-body payout-modal-form">
-              <div className="payout-modal-summary"><strong>{modalShop.shopName}</strong><span>{modalShop.ownerEmail || modalShop.ownerFullName || 'Owner details unavailable'}</span></div>
-              {!selectedReceiver && <p className="panel-sub">This shop has not submitted a payout account.</p>}
-              {selectedReceiver && <>
-                <span className={`payout-status ${receiverStatus(selectedReceiver) === 'ready' ? 'verified' : receiverStatus(selectedReceiver) === 'attention' ? 'pending' : ''}`}>{receiverStatus(selectedReceiver) === 'attention' ? 'Needs review' : receiverStatus(selectedReceiver) === 'ready' ? 'Ready' : 'Disabled'}</span>
-                <div className="payout-modal-field"><label htmlFor="payout-channel-input">Payout destination</label><input id="payout-channel-input" type="text" value={getChannelInfo(formChannel)?.label || formChannel} readOnly /></div>
-                <div className="payout-modal-field"><label htmlFor="payout-name-input">Account holder name</label><input id="payout-name-input" type="text" value={formName} readOnly /></div>
-                <div className="payout-modal-field"><label htmlFor="payout-number-input">Account or mobile number</label><input id="payout-number-input" type="text" value={formNumber} readOnly /><small>Ask the owner to correct any details that do not match their registered account.</small></div>
-              </>}
+            <div className="payments-modal-header payout-review-header">
+              <div className="payments-modal-heading">
+                <span className="payout-review-eyebrow">SHOP PAYOUTS</span>
+                <h3 id="payout-modal-title">Payout account review</h3>
+                <p>Review the destination submitted by this shop.</p>
+              </div>
+              <button type="button" className="payments-modal-close payout-review-close" aria-label="Close payout account review" onClick={handleCloseModal}>
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" /></svg>
+              </button>
             </div>
-            <div className="payments-modal-footer"><button type="button" className="ghost-btn" onClick={handleCloseModal} disabled={isSaving}>Close</button>{selectedReceiver && !selectedReceiver.verifiedByAdmin ? <button type="button" className="solid-btn" onClick={handleSave} disabled={isSaving}>{isSaving ? 'Approving...' : 'Approve Account'}</button> : null}</div>
+            <div className="payments-modal-body payout-modal-form">
+              <div className="payout-modal-summary">
+                <div className="payout-modal-shop-avatar">{modalShop.shopImageUrl ? <img src={modalShop.shopImageUrl} alt="" /> : <span>{modalShop.shopName.slice(0, 2).toUpperCase()}</span>}</div>
+                <div className="payout-modal-shop-copy"><span>FUNERAL SHOP</span><strong>{modalShop.shopName}</strong><small>{modalShop.ownerEmail || modalShop.ownerFullName || 'Owner details unavailable'}</small></div>
+                <span className={`payout-status payout-modal-status ${selectedReceiverStatus === 'ready' ? 'verified' : selectedReceiverStatus === 'attention' ? 'pending' : ''}`}>
+                  {selectedReceiverStatus === 'attention' ? 'Needs review' : selectedReceiverStatus === 'ready' ? 'Ready' : selectedReceiverStatus === 'disabled' ? 'Disabled' : 'Not submitted'}
+                </span>
+              </div>
+              {!selectedReceiver ? <div className="payout-review-empty"><strong>No payout account submitted</strong><p>The shop owner needs to add a bank or wallet account before it can be reviewed.</p></div> : (
+                <>
+                  <div className="payout-review-section-heading"><h4>Submitted account</h4><span>Read only</span></div>
+                  <dl className="payout-review-details">
+                    <div className="payout-review-number-card">
+                      <div><dt>Account or mobile number</dt><dd className="payout-review-number">{formNumber || 'Not provided'}</dd></div>
+                      {formNumber ? <button type="button" className="payout-review-copy" onClick={() => void handleCopyAccountNumber()} aria-label={copiedAccountNumber ? 'Account number copied' : 'Copy account number'}>{copiedAccountNumber ? 'Copied' : 'Copy number'}</button> : null}
+                    </div>
+                    <div className="payout-review-channel">
+                      <dt>Payout destination</dt>
+                      <dd>
+                        {selectedChannel ? <span className="payout-review-channel-logo"><img src={selectedChannel.logoUrl} alt="" /></span> : null}
+                        <strong>{selectedChannel?.label || formChannel || 'Not provided'}</strong>
+                      </dd>
+                    </div>
+                    <div><dt>Account holder name</dt><dd>{formName || 'Not provided'}</dd></div>
+                  </dl>
+                  <div className="payout-review-metadata" aria-label="Additional account details">
+                    <div><span>Account type</span><strong>{selectedChannel?.type === 'bank' ? 'Bank account' : selectedChannel?.type === 'wallet' ? 'Mobile wallet' : 'Not specified'}</strong></div>
+                    <div><span>Shop owner</span><strong>{modalShop.ownerFullName || 'Not provided'}</strong></div>
+                    <div><span>Owner email</span><strong>{modalShop.ownerEmail || 'Not provided'}</strong></div>
+                    <div><span>Approved on</span><strong>{selectedReceiver.verifiedAt ? new Date(selectedReceiver.verifiedAt).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Not yet approved'}</strong></div>
+                  </div>
+                  <div className={`payout-review-note ${selectedReceiverStatus === 'attention' ? 'is-pending' : ''}`}>
+                    <span className="payout-review-note-icon" aria-hidden="true">{selectedReceiverStatus === 'attention' ? '!' : 'i'}</span>
+                    <div>
+                      <strong>{selectedReceiverStatus === 'attention' ? 'Check before approving' : selectedReceiverStatus === 'ready' ? 'Account is ready' : 'Account is disabled'}</strong>
+                      <p>{selectedReceiverStatus === 'attention' ? 'Compare these details with the owner’s registered account. Ask the owner to correct any mismatch.' : selectedReceiverStatus === 'ready' ? 'This account is approved and available for checkout.' : 'This account was approved but is currently unavailable for checkout.'}</p>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="payments-modal-footer payout-review-footer"><button type="button" className="ghost-btn" onClick={handleCloseModal} disabled={isSaving}>Close</button>{selectedReceiver && !selectedReceiver.verifiedByAdmin ? <button type="button" className="solid-btn" onClick={handleSave} disabled={isSaving}>{isSaving ? 'Approving...' : 'Approve account'}</button> : null}</div>
           </div>
         </div>
       ) : null}
