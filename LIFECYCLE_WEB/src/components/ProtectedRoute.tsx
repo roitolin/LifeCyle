@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { ensureOwnUserProfile } from '@/lib/userProfile'
+import { getTermsAgreementPath, needsTermsAgreement } from '@/lib/termsAgreement'
 import LoadingBird from '@/components/LoadingBird'
 import {
   registerWebAccountSession,
@@ -23,6 +24,8 @@ function ProtectedRoute({
   const location = useLocation()
   const [user, setUser] = useState<User | null>(null)
   const [userRole, setUserRole] = useState('')
+  const [termsRequired, setTermsRequired] = useState(false)
+  const [profileError, setProfileError] = useState(false)
   const [banDialog, setBanDialog] = useState<{ reason: string; banEndsLabel: string } | null>(null)
   const [checking, setChecking] = useState(true)
 
@@ -42,17 +45,21 @@ function ProtectedRoute({
       setUser(nextUser)
       if (!nextUser) {
         setUserRole('')
+        setTermsRequired(false)
+        setProfileError(false)
         setChecking(false)
         return
       }
 
       setChecking(true)
+      setProfileError(false)
       void registerWebAccountSession()
       let data
       try {
         data = await ensureOwnUserProfile(nextUser)
       } catch {
         setUserRole('')
+        setProfileError(true)
         setChecking(false)
         return
       }
@@ -92,6 +99,7 @@ function ProtectedRoute({
 
         setBanDialog(null)
         setUserRole(String(profile?.role || 'user').toLowerCase())
+        setTermsRequired(needsTermsAgreement(data))
         setChecking(false)
     }
 
@@ -169,6 +177,22 @@ function ProtectedRoute({
   if (!user.email_confirmed_at) {
     const verifyTarget = `/verify-email?next=${encodeURIComponent(location.pathname + location.search)}`
     return <Navigate to={verifyTarget} replace />
+  }
+
+  if (profileError) {
+    return (
+      <main className="auth-page" role="alert">
+        <div className="auth-card">
+          <h1>Account unavailable</h1>
+          <p>We could not load your account. Check your connection and retry.</p>
+          <button type="button" className="solid-btn auth-submit" onClick={() => window.location.reload()}>Retry</button>
+        </div>
+      </main>
+    )
+  }
+
+  if (termsRequired) {
+    return <Navigate to={getTermsAgreementPath(location.pathname + location.search)} replace />
   }
 
   if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {

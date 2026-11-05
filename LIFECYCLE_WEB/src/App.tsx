@@ -19,6 +19,7 @@ const RegisterPage = lazy(() => import('./pages/RegisterPage'))
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'))
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'))
 const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage'))
+const TermsAgreementPage = lazy(() => import('./pages/TermsAgreementPage'))
 const UserProfilePage = lazy(() => import('./pages/UserProfilePage'))
 const AccountSettingsPage = lazy(() => import('./pages/AccountSettingsPage'))
 const PrivacyDataPage = lazy(() => import('./pages/PrivacyDataPage'))
@@ -107,6 +108,7 @@ function App() {
           <Route path="/auth/logout" element={<Navigate to="/funeral" replace />} />
           <Route path="/auth/switch-account" element={<SwitchAccountPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/terms-agreement" element={<TermsAgreementPage />} />
 
           <Route path='/forgot-password' element={<ForgotPasswordPage />} />
           <Route path='/reset-password' element={<ResetPasswordPage />} />

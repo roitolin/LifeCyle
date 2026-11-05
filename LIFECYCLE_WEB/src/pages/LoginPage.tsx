@@ -4,6 +4,7 @@ import type { Session, User } from '@supabase/supabase-js'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { ensureOwnUserProfile } from '@/lib/userProfile'
+import { getTermsAgreementPath, needsTermsAgreement } from '@/lib/termsAgreement'
 import { clearLoginAttempts, getLoginBlockState, recordFailedLoginAttempt } from '@/utils/authAttemptGuard'
 import { normalizeEmail } from '@/utils/inputSecurity'
 import { APP_ICON_TRANSPARENT_URL } from '@/assets/appIconAssets'
@@ -175,6 +176,10 @@ function LoginPage() {
     if (session) rememberWebAccount(session, userData)
     await recordWebAccountLoginActivity('login_success')
     await recordWebAdminLoginActivity('login_success', userRole)
+    if (needsTermsAgreement(userData)) {
+      navigate(getTermsAgreementPath(targetAfterLogin), { replace: true })
+      return
+    }
     navigate(targetAfterLogin)
   }, [navigate, redirectAfterLogin])
 

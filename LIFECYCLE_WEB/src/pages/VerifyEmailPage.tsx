@@ -5,6 +5,8 @@ import { supabase } from '@/lib/supabase'
 import { APP_ICON_TRANSPARENT_URL } from '@/assets/appIconAssets'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import { normalizeEmail } from '@/utils/inputSecurity'
+import { getTermsAgreementPath, needsTermsAgreement } from '@/lib/termsAgreement'
+import { ensureOwnUserProfile } from '@/lib/userProfile'
 
 const OTP_LENGTH = 6
 const VERIFICATION_WINDOW_MS = 60 * 60 * 1000
@@ -101,12 +103,16 @@ function VerifyEmailPage() {
   useEffect(() => {
     const autoForwardVerifiedUser = async () => {
       if (!user?.email_confirmed_at) return
-      const { data: profile } = await supabase.from('users').select('role').eq('id', user.id).maybeSingle()
+      const profile = await ensureOwnUserProfile(user)
       const role = String(profile?.role || 'user').toLowerCase()
       if (user.email) window.localStorage.removeItem(getDeadlineKey(user.email))
-      navigate(nextPath || getRoleRedirect(role), { replace: true })
+      const destination = nextPath || getRoleRedirect(role)
+      navigate(needsTermsAgreement(profile) ? getTermsAgreementPath(destination) : destination, { replace: true })
     }
-    void autoForwardVerifiedUser()
+    void autoForwardVerifiedUser().catch(() => {
+      setStatusIsError(true)
+      setStatus('Email verified, but we could not load your account. Refresh this page to retry.')
+    })
   }, [navigate, nextPath, user])
 
   useEffect(() => {
@@ -162,11 +168,12 @@ function VerifyEmailPage() {
       if (error) throw error
       const verifiedUser = data.user
       if (!verifiedUser?.email_confirmed_at) throw new Error('Verification could not be confirmed.')
-      const { data: profile } = await supabase.from('users').select('role').eq('id', verifiedUser.id).maybeSingle()
+      const profile = await ensureOwnUserProfile(verifiedUser)
       const role = String(profile?.role || 'user').toLowerCase()
       window.localStorage.removeItem(getDeadlineKey(verificationEmail))
       setStatus('Email verified. Redirecting...')
-      navigate(nextPath || getRoleRedirect(role), { replace: true })
+      const destination = nextPath || getRoleRedirect(role)
+      navigate(needsTermsAgreement(profile) ? getTermsAgreementPath(destination) : destination, { replace: true })
     } catch (error) {
       setCode('')
       setStatusIsError(true)
