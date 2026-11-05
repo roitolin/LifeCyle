@@ -464,6 +464,37 @@
 .payments-gateway-status p {
   @apply text-[0.82rem] leading-normal text-slate-500 m-0;
 }
+.payments-settlement-card { grid-column: 1 / -1; }
+.payments-settlement-preview {
+  max-width: 440px;
+  display: grid;
+  gap: 7px;
+  padding: 22px;
+  border-radius: 15px;
+  background: linear-gradient(135deg, #243b38, #172a31);
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(18, 42, 45, .14);
+}
+.payments-settlement-preview-top, .payments-settlement-number, .payments-settlement-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.payments-settlement-mark { font-weight: 800; letter-spacing: .08em; }
+.payments-settlement-type { font-size: 11px; letter-spacing: .08em; opacity: .75; }
+.payments-settlement-preview strong { margin-top: 12px; font-size: 19px; }
+.payments-settlement-preview > span, .payments-settlement-preview small { opacity: .8; }
+.payments-settlement-number { margin-top: 10px; font-size: 19px; letter-spacing: .08em; }
+.payments-settlement-number button { border: 0; background: transparent; color: #fff; font-size: 12px; cursor: pointer; text-decoration: underline; }
+.payments-settlement-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; max-width: 700px; }
+.payments-settlement-form label { display: grid; gap: 6px; color: #596578; font-size: 12px; font-weight: 700; }
+.payments-settlement-form input, .payments-settlement-form select { width: 100%; min-height: 42px; border: 1px solid #d7dde5; border-radius: 7px; padding: 0 12px; background: #fff; color: #243247; }
+.payments-settlement-actions { grid-column: 1 / -1; justify-content: flex-end; }
+.payments-settlement-edit { margin-top: 12px; }
+.payments-settlement-note { max-width: 720px; margin: 18px 0 0; color: #596578; font-size: 12px; line-height: 1.5; }
+.payments-settlement-note a { color: #1b6d62; text-decoration: underline; }
+@media (max-width: 600px) { .payments-settlement-form { grid-template-columns: 1fr; } }
 
 /* ── Responsive ─────────────────────────────────────── */
 @media (max-width: 1180px) {

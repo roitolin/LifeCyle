@@ -17,6 +17,7 @@ import { supabase } from "@/services/supabaseClient";
 import { createNotification } from "@/utils/supabaseNotifications";
 import { formatPhilippinePeso } from "@/utils/funeralCatalog";
 import { useResponsive } from "@/utils/responsive";
+import AdminSettlementCard from "./AdminSettlementCard";
 
 type PaymentStatus = "pending" | "verified" | "rejected";
 
@@ -364,6 +365,7 @@ export default function AdminPaymentsScreen() {
         />
 
         {tab === "setup" ? (
+          <>
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <Text style={styles.cardTitle}>Registration Fee</Text>
@@ -402,6 +404,8 @@ export default function AdminPaymentsScreen() {
               </Button>
             </View>
           </View>
+          <AdminSettlementCard />
+          </>
         ) : shownPayments.length === 0 ? (
           <View style={[styles.card, styles.emptyCard]}>
             <Ionicons name="receipt-outline" size={38} color="#9ca3af" />

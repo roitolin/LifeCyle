@@ -10,6 +10,7 @@ import { createNotification } from '@/utils/supabaseNotifications'
 import { PAYOUT_CHANNEL_LOGOS } from '@/assets/paymentLogoAssets'
 import AdminShopPaymentReceipt from './AdminShopPaymentReceipt'
 import AdminCommissionsPanel from './AdminCommissionsPanel'
+import AdminSettlementCard from './AdminSettlementCard'
 import './AdminPaymentsPage.css'
 
 function formatUpdatedAt(value: string | null): string {
@@ -470,6 +471,7 @@ export default function AdminPaymentsPage() {
                 <p>Partners pay registration and renewal fees through secure online checkout. Payments and subscription terms are verified automatically.</p>
               </div>
             </section>
+            <AdminSettlementCard />
           </div>
 
           <footer className="payments-actions">
