@@ -15,7 +15,7 @@ type ProfileData = {
   gender: string
 }
 
-type AdminRole = 'super_admin' | 'admin' | 'funeral_admin' | 'user'
+type AdminRole = 'super_admin' | 'admin' | 'user'
 
 function getDefaultAvatar(gender: string) {
   return getDefaultProfileAvatar(gender)
@@ -90,13 +90,10 @@ function AdminLayout() {
 
   const avatarSrc = profile.photoURL || getDefaultAvatar(profile.gender)
   const isRootAdmin = userRole === 'super_admin' || userRole === 'admin'
-  const isFuneralAdmin = isRootAdmin || userRole === 'funeral_admin'
   const adminTitle =
     userRole === 'super_admin'
       ? 'Super Admin Console'
-      : userRole === 'funeral_admin'
-        ? 'Funeral Admin Console'
-        : 'Admin Console'
+      : 'Admin Console'
   const homePath = '/admin/dashboard'
   const homeLabel = 'Dashboard'
   const handleLogout = async () => {
@@ -129,7 +126,7 @@ function AdminLayout() {
   }
 
   useEffect(() => {
-    if (!user || !['admin', 'super_admin', 'funeral_admin'].includes(userRole)) return
+    if (!user || !['admin', 'super_admin'].includes(userRole)) return
     void logWebAdminActivity({
       adminId: user.id,
       action: 'screen_viewed',
@@ -141,7 +138,7 @@ function AdminLayout() {
   }, [location.pathname, user, userRole])
 
   const handleAdminClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (!user || !['admin', 'super_admin', 'funeral_admin'].includes(userRole)) return
+    if (!user || !['admin', 'super_admin'].includes(userRole)) return
     const element = (event.target as Element).closest<HTMLElement>('button, a, [role=button]')
     if (!element || element.dataset.noActivity === 'true') return
     const label = String(element.getAttribute('aria-label') || element.getAttribute('title') || element.textContent || '')
@@ -259,7 +256,7 @@ function AdminLayout() {
             </span>
             <span className="sidebar-label">Analytics</span>
           </NavLink> : null}
-          {isFuneralAdmin ? <NavLink to="/admin/funeral-shops" className={({ isActive }) => `user-nav-link${isActive ? ' active' : ''}`}>
+          {isRootAdmin ? <NavLink to="/admin/funeral-shops" className={({ isActive }) => `user-nav-link${isActive ? ' active' : ''}`}>
             <span className="nav-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none">
                 <path d="M5 20V10L12 4L19 10V20" strokeWidth="1.8" strokeLinejoin="round" />
@@ -268,7 +265,7 @@ function AdminLayout() {
             </span>
             <span className="sidebar-label">Funeral Shops</span>
           </NavLink> : null}
-          {isFuneralAdmin ? <NavLink to="/admin/funeral-items" className={({ isActive }) => `user-nav-link${isActive ? ' active' : ''}`}>
+          {isRootAdmin ? <NavLink to="/admin/funeral-items" className={({ isActive }) => `user-nav-link${isActive ? ' active' : ''}`}>
             <span className="nav-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none">
                 <path d="M6 7H18" strokeWidth="1.8" strokeLinecap="round" />
@@ -279,7 +276,7 @@ function AdminLayout() {
             </span>
             <span className="sidebar-label">Products</span>
           </NavLink> : null}
-          {isFuneralAdmin ? <NavLink to="/admin/orders" className={({ isActive }) => `user-nav-link${isActive ? ' active' : ''}`}>
+          {isRootAdmin ? <NavLink to="/admin/orders" className={({ isActive }) => `user-nav-link${isActive ? ' active' : ''}`}>
             <span className="nav-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none">
                 <path d="M7 5H17L21 10V19H3V10L7 5Z" strokeWidth="1.8" strokeLinejoin="round" />
@@ -290,7 +287,7 @@ function AdminLayout() {
             </span>
             <span className="sidebar-label">Service Requests</span>
           </NavLink> : null}
-          {isFuneralAdmin ? <NavLink to="/admin/payments" className={({ isActive }) => `user-nav-link${isActive ? ' active' : ''}`}>
+          {isRootAdmin ? <NavLink to="/admin/payments" className={({ isActive }) => `user-nav-link${isActive ? ' active' : ''}`}>
             <span className="nav-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none">
                 <rect x="3" y="3" width="7" height="7" rx="1" strokeWidth="1.8" />
@@ -301,7 +298,7 @@ function AdminLayout() {
             </span>
             <span className="sidebar-label">Payments</span>
           </NavLink> : null}
-          {isFuneralAdmin ? <NavLink to="/admin/payout-accounts" className={({ isActive }) => `user-nav-link${isActive ? ' active' : ''}`}>
+          {isRootAdmin ? <NavLink to="/admin/payout-accounts" className={({ isActive }) => `user-nav-link${isActive ? ' active' : ''}`}>
             <span className="nav-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none">
                 <rect x="2" y="5" width="20" height="14" rx="2" strokeWidth="1.8" />

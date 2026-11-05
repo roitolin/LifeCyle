@@ -49,14 +49,10 @@ export default function AdminDashboard({ navigation }: any) {
   const [loadingSales, setLoadingSales] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const isRootAdmin = role === "super_admin" || role === "admin";
-  const isFuneralAdmin = isRootAdmin || role === "funeral_admin";
-  const canSeeCommsAndInsights = isRootAdmin || isFuneralAdmin;
+  const canSeeCommsAndInsights = isRootAdmin;
   const canSeeSales = isSalesVisible(role);
-  const title = role === "funeral_admin" ? "Funeral Admin" : "Admin Dashboard";
-  const subtitle =
-    role === "funeral_admin"
-      ? "Monitor funeral shop approvals, users, and support tools."
-      : "Monitor funeral shop approvals, users, and support channels.";
+  const title = "Admin Dashboard";
+  const subtitle = "Monitor funeral shop approvals, users, and support channels.";
 
   const loadMetrics = useCallback(async () => {
     setLoadingMetrics(true);
@@ -150,13 +146,13 @@ export default function AdminDashboard({ navigation }: any) {
       ) : (
         <View style={styles.metricsGrid}>
           <MetricTile value={metrics.totalUsers} label="Total users" />
-          {isFuneralAdmin ? (
+          {isRootAdmin ? (
             <MetricTile value={metrics.pendingFuneralShops} label="Pending shop verifications" />
           ) : null}
-          {isFuneralAdmin ? (
+          {isRootAdmin ? (
             <MetricTile value={metrics.totalProducts} label="Total products" />
           ) : null}
-          {isFuneralAdmin ? (
+          {isRootAdmin ? (
             <MetricTile value={metrics.totalOrders} label="Service requests" />
           ) : null}
         </View>
@@ -234,7 +230,7 @@ export default function AdminDashboard({ navigation }: any) {
           </>
         ) : null}
 
-      {isFuneralAdmin ? (
+      {isRootAdmin ? (
         <Card style={styles.actionCard} mode="outlined">
           <Card.Title title="Admin Funeral Shop Verification Queue" />
           <Card.Content>
@@ -250,7 +246,7 @@ export default function AdminDashboard({ navigation }: any) {
         </Card>
       ) : null}
 
-      {isFuneralAdmin ? (
+      {isRootAdmin ? (
         <Card style={styles.actionCard} mode="outlined">
           <Card.Title title="Shop Products & Service Requests" />
           <Card.Content>

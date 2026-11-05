@@ -5,8 +5,8 @@
 
 begin;
 
--- users_password_column_reorder.sql previously omitted these public profile
--- fields while rebuilding the users table. Restore them before compiling the
+-- A legacy users-table rebuild omitted these public profile
+-- fields. Restore them before compiling the
 -- chat profile function. Both statements are safe to run more than once.
 alter table public.users
   add column if not exists "photoURL" text;

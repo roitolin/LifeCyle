@@ -62,7 +62,7 @@ create policy "Admins can read payments"
     exists (
       select 1 from public.users u
       where u.id = auth.uid()
-        and u.role in ('super_admin', 'admin', 'funeral_admin')
+        and u.role in ('super_admin', 'admin')
     )
   );
 
@@ -76,6 +76,6 @@ create policy "Admins can update payments"
     exists (
       select 1 from public.users u
       where u.id = auth.uid()
-        and u.role in ('super_admin', 'admin', 'funeral_admin')
+        and u.role in ('super_admin', 'admin')
     )
   );

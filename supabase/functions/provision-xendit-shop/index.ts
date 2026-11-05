@@ -2,7 +2,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { consumeUserRateLimit } from '../_shared/security.ts';
 
-const ADMIN_ROLES = new Set(['admin', 'super_admin', 'funeral_admin']);
+const ADMIN_ROLES = new Set(['admin', 'super_admin']);
 const PAYOUT_READY_SHOP_STATUSES = new Set(['verified', 'live', 'offline']);
 const MAX_BODY_BYTES = 16 * 1024;
 const PAYOUT_CHANGE_TTL_MS = 10 * 60 * 1000;

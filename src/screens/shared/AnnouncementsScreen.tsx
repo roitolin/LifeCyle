@@ -37,7 +37,7 @@ function getAnnouncementDate(timestamp: string) {
 }
 export default function AnnouncementsScreen({ navigation, route }: any) {
   const insets = useSafeAreaInsets();
-  const { role } = useAuth();
+  const { user } = useAuth();
   const { isDesktop } = useResponsive();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,7 +46,19 @@ export default function AnnouncementsScreen({ navigation, route }: any) {
   const characterProgress = useRef(new Animated.Value(0)).current;
   const messageSheetProgress = useRef(new Animated.Value(0)).current;
   const selectedAnnouncementId = String(route?.params?.announcementId || '').trim();
-  const audience = role === 'funeral_admin' ? 'funeral_shops' : 'users';
+  const [audience, setAudience] = useState<'users' | 'funeral_shops'>('users');
+
+  useEffect(() => {
+    let active = true;
+    setAudience('users');
+    if (user?.id) {
+      void supabase.from('funeral_shops').select('id').eq('id', user.id).maybeSingle()
+        .then(({ data }) => {
+          if (active) setAudience(data ? 'funeral_shops' : 'users');
+        });
+    }
+    return () => { active = false; };
+  }, [user?.id]);
 
   useEffect(() => {
     characterProgress.setValue(0);

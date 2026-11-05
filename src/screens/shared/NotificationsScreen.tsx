@@ -490,7 +490,7 @@ export default function NotificationsScreen({ navigation, route }: any) {
   };
 
   const isAdminRole =
-    role === "admin" || role === "super_admin" || role === "funeral_admin";
+    role === "admin" || role === "super_admin";
 
   const openNotification = async (notification: Notification) => {
     if (!notification.read) {

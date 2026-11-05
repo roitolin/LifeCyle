@@ -498,7 +498,9 @@ export default function FuneralCheckoutScreen({ navigation, route }: any) {
               value={dateOfBirth || new Date()}
               mode="date"
               display="default"
+              minimumDate={new Date(1800, 0, 1)}
               maximumDate={new Date()}
+              startOnYearSelection
               onValueChange={onDateChange}
               onDismiss={() => setShowDatePicker(false)}
             />

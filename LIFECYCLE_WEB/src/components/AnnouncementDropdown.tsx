@@ -108,9 +108,9 @@ export default function AnnouncementDropdown({ menuItem = false }: AnnouncementD
         setIsOpen(false)
         return
       }
-      const { data } = await supabase.from('users').select('role').eq('id', id).maybeSingle()
+      const { data } = await supabase.from('funeral_shops').select('id').eq('id', id).maybeSingle()
       if (active) {
-        setAudience(data?.role === 'funeral_admin' ? 'funeral_shops' : 'users')
+        setAudience(data ? 'funeral_shops' : 'users')
         setUserId(id)
       }
     }

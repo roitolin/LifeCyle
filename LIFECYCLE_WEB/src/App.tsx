@@ -135,11 +135,11 @@ function App() {
             <Route path="/user/feedback" element={<FeedbackPage />} />
           </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={['super_admin', 'admin', 'funeral_admin']} redirectUnauthorizedTo="/funeral" />}>
+          <Route element={<ProtectedRoute allowedRoles={['super_admin', 'admin']} redirectUnauthorizedTo="/funeral" />}>
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<AdminRoleRedirectPage />} />
               <Route path="dashboard" element={<AdminDashboardPage />} />
-              <Route element={<AdminRoleGuard allowedRoles={['super_admin', 'admin', 'funeral_admin']} />}>
+              <Route element={<AdminRoleGuard allowedRoles={['super_admin', 'admin']} />}>
                 <Route path="funeral-shops" element={<AdminFuneralShopsPage />} />
                 <Route path="funeral-shops/:id/details" element={<AdminShopDetailsPage />} />
                 <Route path="funeral-shops/:id" element={<AdminShopCentrePage />} />

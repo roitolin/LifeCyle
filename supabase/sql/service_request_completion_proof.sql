@@ -62,7 +62,7 @@ begin
       select 1
       from public.users
       where id = actor_id
-        and role in ('admin', 'super_admin', 'funeral_admin')
+        and role in ('admin', 'super_admin')
     ) into actor_is_admin;
 
     actor_is_shop := actor_id = old."shopId";

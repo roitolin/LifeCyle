@@ -523,6 +523,7 @@ export default function CustomCasketRequestPage() {
               id="checkout-dob"
               className="checkout-input"
               type="date"
+              min="1800-01-01"
               max={new Date().toISOString().split('T')[0]}
               value={dateOfBirth}
               onChange={(e) => setDateOfBirth(e.target.value)}

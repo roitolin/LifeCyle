@@ -118,7 +118,7 @@ function dataString(data: Record<string, unknown> | null | undefined, key: strin
 function notificationDestination(notification: Notification, role?: string | null) {
   const type = String(notification.type || '').toLowerCase()
   const data = notification.data
-  const isAdmin = ['admin', 'super_admin', 'funeral_admin'].includes(String(role || '').toLowerCase())
+  const isAdmin = ['admin', 'super_admin'].includes(String(role || '').toLowerCase())
   if (isAdmin) {
     if (type === 'shop_payment_account_registered') return '/admin/payments'
     if (type.includes('request') || type.includes('order') || type.includes('payment')) return '/admin/orders'
@@ -222,7 +222,7 @@ export default function NotificationPage() {
   const allVisibleSelected = filteredNotifications.length > 0 && filteredNotifications.every(item => selectedIds.has(item.id))
   const notificationReturnPath = isShopOwner
     ? '/seller'
-    : ['admin', 'super_admin', 'funeral_admin'].includes(String(profile?.role || '').toLowerCase())
+    : ['admin', 'super_admin'].includes(String(profile?.role || '').toLowerCase())
       ? '/admin/dashboard'
       : '/funeral'
 

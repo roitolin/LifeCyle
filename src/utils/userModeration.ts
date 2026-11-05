@@ -52,7 +52,7 @@ export const blockUser = async (blockerId: string, blockedId: string) => {
   if (blockedUserError) throw blockedUserError;
 
   const blockedUserRole = String(blockedUser?.role || "").toLowerCase();
-  if (["admin", "super_admin", "funeral_admin"].includes(blockedUserRole)) {
+  if (["admin", "super_admin"].includes(blockedUserRole)) {
     throw new Error("You cannot block admin accounts.");
   }
 

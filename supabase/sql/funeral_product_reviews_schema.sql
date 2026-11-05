@@ -104,7 +104,7 @@ create policy "Admins can moderate product ratings"
     exists (
       select 1 from public.users u
       where u.id = auth.uid()
-      and u.role in ('admin', 'super_admin', 'funeral_admin')
+      and u.role in ('admin', 'super_admin')
     )
   );
 
@@ -166,7 +166,7 @@ create policy "Admins can moderate product feedback"
     exists (
       select 1 from public.users u
       where u.id = auth.uid()
-      and u.role in ('admin', 'super_admin', 'funeral_admin')
+      and u.role in ('admin', 'super_admin')
     )
   );
 

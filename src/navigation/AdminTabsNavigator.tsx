@@ -90,7 +90,6 @@ function CountBadge({ count }: { count: number }) {
 export default function AdminTabsNavigator() {
   const { role, user } = useAuth();
   const isRootAdmin = role === 'super_admin' || role === 'admin';
-  const isFuneralAdmin = isRootAdmin || role === 'funeral_admin';
 
   return (
     <Drawer.Navigator
@@ -125,9 +124,9 @@ export default function AdminTabsNavigator() {
     >
       <Drawer.Screen name="Dashboard" component={AdminDashboard} options={{ title: 'Dashboard' }} />
       {isRootAdmin ? <Drawer.Screen name="Analytics" component={AdminDashboard} options={{ title: 'Analytics' }} /> : null}
-      {isFuneralAdmin ? <Drawer.Screen name="Products" component={AdminProductsScreen} options={{ title: 'Products' }} /> : null}
-      {isFuneralAdmin ? <Drawer.Screen name="Orders" component={AdminOrdersScreen} options={{ title: 'Service Requests' }} /> : null}
-      {isFuneralAdmin ? <Drawer.Screen name="Funeral" component={AdminFuneralShopVerificationsScreen} options={{ title: 'Funeral Shops' }} /> : null}
+      {isRootAdmin ? <Drawer.Screen name="Products" component={AdminProductsScreen} options={{ title: 'Products' }} /> : null}
+      {isRootAdmin ? <Drawer.Screen name="Orders" component={AdminOrdersScreen} options={{ title: 'Service Requests' }} /> : null}
+      {isRootAdmin ? <Drawer.Screen name="Funeral" component={AdminFuneralShopVerificationsScreen} options={{ title: 'Funeral Shops' }} /> : null}
       <Drawer.Screen name="Users" component={AdminUsersScreen} options={{ title: 'Users' }} />
       <Drawer.Screen name="Payments" component={AdminPaymentsScreen} options={{ title: 'Shop Payments' }} />
       <Drawer.Screen name="Moderation" component={AdminModerationScreen} options={{ title: 'Moderation' }} />
@@ -136,7 +135,7 @@ export default function AdminTabsNavigator() {
       <Drawer.Screen name="ActivityLogs" component={AdminAuditLogsScreen} options={{ title: 'Activity Logs' }} />
       <Drawer.Screen name="LoginSecurity" component={AdminLoginSecurityScreen} options={{ title: 'Login & Security' }} />
       {isRootAdmin ? <Drawer.Screen name="HomeContent" component={AdminHomeContentScreen} options={{ title: 'Mobile Home Feature' }} /> : null}
-      {isFuneralAdmin ? <Drawer.Screen name="PayoutAccounts" component={AdminPayoutAccountsScreen} options={{ title: 'Payout Accounts' }} /> : null}
+      {isRootAdmin ? <Drawer.Screen name="PayoutAccounts" component={AdminPayoutAccountsScreen} options={{ title: 'Payout Accounts' }} /> : null}
       {isRootAdmin ? <Drawer.Screen name="Announcements" component={AdminAnnouncementsScreen} options={{ title: 'Announcements' }} /> : null}
     </Drawer.Navigator>
   );

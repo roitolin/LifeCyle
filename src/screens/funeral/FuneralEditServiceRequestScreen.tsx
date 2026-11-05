@@ -419,7 +419,9 @@ export default function FuneralEditServiceRequestScreen({ navigation, route }: a
               value={form.deceasedDateOfBirth || new Date()}
               mode="date"
               display="default"
+              minimumDate={new Date(1800, 0, 1)}
               maximumDate={form.deceasedDateOfPassing || new Date()}
+              startOnYearSelection
               onValueChange={(_event, selectedDate) => {
                 if (Platform.OS !== "ios") setShowDateOfBirthPicker(false);
                 setField("deceasedDateOfBirth", selectedDate);

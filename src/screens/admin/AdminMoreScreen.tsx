@@ -11,7 +11,6 @@ export default function AdminMoreScreen({ navigation }: any) {
   const unreadSupportCount = useUnreadSupportCount();
   const adminNotificationCount = useAdminNotificationCount();
   const isRootAdmin = role === "super_admin" || role === "admin";
-  const isFuneralAdmin = isRootAdmin || role === "funeral_admin";
   return (
     <ScrollView contentContainerStyle={[styles.container, isDesktop && styles.containerDesktop]}>
       <View style={styles.header}>
@@ -41,27 +40,27 @@ export default function AdminMoreScreen({ navigation }: any) {
           </Text>
         </Card.Content>
         <Card.Actions style={styles.multiActions}>
-          {isFuneralAdmin ? (
+          {isRootAdmin ? (
             <Button mode="contained-tonal" onPress={() => navigation.navigate("Funeral")}>
               Shops
             </Button>
           ) : null}
-          {isFuneralAdmin ? (
+          {isRootAdmin ? (
             <Button mode="contained-tonal" onPress={() => navigation.navigate("Products")}>
               Products
             </Button>
           ) : null}
-          {isFuneralAdmin ? (
+          {isRootAdmin ? (
             <Button mode="outlined" onPress={() => navigation.navigate("Orders")}>
               Service Requests
             </Button>
           ) : null}
-          {isFuneralAdmin ? (
+          {isRootAdmin ? (
             <Button mode="contained-tonal" icon="wallet" onPress={() => navigation.navigate("Payments")}>
               Shop Payments
             </Button>
           ) : null}
-          {isFuneralAdmin ? (
+          {isRootAdmin ? (
             <Button mode="contained" icon="bank-check" buttonColor="#2563eb" textColor="#fff" onPress={() => navigation.navigate("PayoutAccounts")}>
               Payout Accounts
             </Button>

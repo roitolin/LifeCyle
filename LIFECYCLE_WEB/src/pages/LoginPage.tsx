@@ -133,13 +133,9 @@ function LoginPage() {
 
     const userRole = String(userData.role || 'user').toLowerCase()
     const defaultRedirect =
-      userRole === 'super_admin'
+      userRole === 'super_admin' || userRole === 'admin'
         ? '/admin/dashboard'
-        : userRole === 'funeral_admin'
-          ? '/admin/funeral-shops'
-          : userRole === 'admin'
-            ? '/admin'
-            : '/app'
+        : '/app'
     const targetAfterLogin = redirectAfterLogin || defaultRedirect
     const disabled = Boolean(userData.disabled)
     const banReason = userData.banReason?.trim() || 'No reason provided by admin.'

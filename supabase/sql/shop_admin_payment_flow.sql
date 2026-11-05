@@ -42,7 +42,7 @@ begin
       select 1
       from public.users
       where id = actor_id
-        and role in ('super_admin', 'admin', 'funeral_admin')
+        and role in ('super_admin', 'admin')
     ) into actor_is_admin;
   end if;
 

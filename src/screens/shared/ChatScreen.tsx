@@ -98,7 +98,7 @@ type ChatProfile = {
 
 const APP_LOGO = require("../../../assets/Icon/IconTraparent.png");
 const MESSAGE_LIMIT = 200;
-const ADMIN_ROLES = new Set(["admin", "super_admin", "funeral_admin"]);
+const ADMIN_ROLES = new Set(["admin", "super_admin"]);
 const MESSAGE_COLUMNS = "id, conversationId, senderId, text, timestamp, readBy";
 const MESSAGE_COLUMNS_WITH_DELIVERY = `${MESSAGE_COLUMNS}, deliveredTo`;
 const MESSAGE_COLUMNS_WITH_ACTIONS = `${MESSAGE_COLUMNS_WITH_DELIVERY}, reactions, replyToId, editedAt`;

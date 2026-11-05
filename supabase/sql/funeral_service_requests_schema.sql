@@ -118,7 +118,7 @@ create policy "Admins can view all requests"
     exists (
       select 1 from public.users u
       where u.id = auth.uid()
-      and u.role in ('admin', 'super_admin', 'funeral_admin')
+      and u.role in ('admin', 'super_admin')
     )
   );
 
@@ -130,7 +130,7 @@ create policy "Admins can update all requests"
     exists (
       select 1 from public.users u
       where u.id = auth.uid()
-      and u.role in ('admin', 'super_admin', 'funeral_admin')
+      and u.role in ('admin', 'super_admin')
     )
   );
 

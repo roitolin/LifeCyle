@@ -541,7 +541,7 @@ Deno.serve(async (request) => {
             const { data: admins } = await admin
               .from('users')
               .select('id')
-              .in('role', ['admin', 'super_admin', 'funeral_admin']);
+              .in('role', ['admin', 'super_admin']);
 
             if (admins && admins.length > 0) {
               await admin.from('notifications').insert(

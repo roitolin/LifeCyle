@@ -48,7 +48,7 @@ create policy "Admins can read all user profiles"
     exists (
       select 1 from public.users admin_check
       where admin_check.id = auth.uid()
-      and admin_check.role in ('admin', 'super_admin', 'funeral_admin')
+      and admin_check.role in ('admin', 'super_admin')
     )
   );
 
@@ -107,7 +107,7 @@ create policy "Admins can view all shops"
     exists (
       select 1 from public.users u
       where u.id = auth.uid()
-      and u.role in ('admin', 'super_admin', 'funeral_admin')
+      and u.role in ('admin', 'super_admin')
     )
   );
 
@@ -118,7 +118,7 @@ create policy "Admins can update shop status"
     exists (
       select 1 from public.users u
       where u.id = auth.uid()
-      and u.role in ('admin', 'super_admin', 'funeral_admin')
+      and u.role in ('admin', 'super_admin')
     )
   );
 

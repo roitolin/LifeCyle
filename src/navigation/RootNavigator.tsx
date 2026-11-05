@@ -42,7 +42,7 @@ export default function RootNavigator() {
     ? `auth-${user.id}-${role || "user"}-${termsAccepted ? "terms-ok" : "terms-required"}`
     : "guest";
   const emailVerified = Boolean(user?.email_confirmed_at);
-  const isAdminRole = role === "super_admin" || role === "admin" || role === "funeral_admin";
+  const isAdminRole = role === "super_admin" || role === "admin";
   const canNavigateFromPush = Boolean(user && emailVerified && termsAccepted);
 
   const revealApp = useCallback(() => {

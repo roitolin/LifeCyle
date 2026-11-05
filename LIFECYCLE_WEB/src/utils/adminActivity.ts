@@ -23,7 +23,7 @@ type ActivityPayload = {
 }
 
 const DEVICE_ID_KEY = 'lifecycle_admin_device_id'
-const ADMIN_ROLES = new Set(['admin', 'super_admin', 'funeral_admin'])
+const ADMIN_ROLES = new Set(['admin', 'super_admin'])
 
 function getBrowserName(userAgent: string) {
   if (/Edg\//i.test(userAgent)) return 'Microsoft Edge'

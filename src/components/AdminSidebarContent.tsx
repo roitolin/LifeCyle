@@ -21,7 +21,6 @@ type SidebarItemConfig = {
 
 function formatRole(role: string | null) {
   if (role === 'super_admin') return 'Super admin';
-  if (role === 'funeral_admin') return 'Funeral admin';
   return 'Administrator';
 }
 
@@ -77,7 +76,6 @@ export default function AdminSidebarContent(props: DrawerContentComponentProps) 
   const unreadNotifications = useAdminNotificationCount();
   const unreadSupport = useUnreadSupportCount();
   const isRootAdmin = role === 'super_admin' || role === 'admin';
-  const isFuneralAdmin = isRootAdmin || role === 'funeral_admin';
   const currentRoute = props.state.routeNames[props.state.index];
 
   const navigateTo = (route: string) => {
@@ -99,7 +97,7 @@ export default function AdminSidebarContent(props: DrawerContentComponentProps) 
     ...(isRootAdmin
       ? [{ label: 'Analytics', route: 'Analytics', icon: 'bar-chart-outline' as const }]
       : []),
-    ...(isFuneralAdmin
+    ...(isRootAdmin
       ? [
           { label: 'Funeral Shops', route: 'Funeral', icon: 'business-outline' as const },
           { label: 'Products', route: 'Products', icon: 'cube-outline' as const },

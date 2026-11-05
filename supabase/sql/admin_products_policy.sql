@@ -12,6 +12,6 @@ create policy "Admins can view all products"
     exists (
       select 1 from public.users u
       where u.id = auth.uid()
-      and u.role in ('admin', 'super_admin', 'funeral_admin')
+      and u.role in ('admin', 'super_admin')
     )
   );

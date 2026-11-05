@@ -48,7 +48,7 @@ const isPaid = (request: SalesRequest) =>
   PAID_STATUSES.has(String(request.status || "").toLowerCase());
 
 export function isSalesVisible(role: string | null | undefined) {
-  return role === "super_admin" || role === "admin" || role === "funeral_admin";
+  return role === "super_admin" || role === "admin";
 }
 
 export function computeSalesOverview(requests: SalesRequest[]) {

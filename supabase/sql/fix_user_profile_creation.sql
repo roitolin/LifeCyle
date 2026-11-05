@@ -18,7 +18,7 @@ as $function$
     select 1
     from public.users as profile
     where profile.id = (select auth.uid())
-      and profile.role in ('admin', 'super_admin', 'funeral_admin')
+      and profile.role in ('admin', 'super_admin')
   );
 $function$;
 

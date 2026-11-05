@@ -12,7 +12,6 @@ const RESEND_COOLDOWN_SECONDS = 60
 
 function getRoleRedirect(role: string) {
   if (role === 'super_admin') return '/admin/dashboard'
-  if (role === 'funeral_admin') return '/admin/funeral-shops'
   return role === 'admin' ? '/admin' : '/app'
 }
 

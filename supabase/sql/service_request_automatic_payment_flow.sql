@@ -97,7 +97,7 @@ begin
       select 1
       from public.users
       where id = actor_id
-        and role in ('admin', 'super_admin', 'funeral_admin')
+        and role in ('admin', 'super_admin')
     ) into actor_is_admin;
 
     actor_is_shop := actor_id = old."shopId";
@@ -285,7 +285,7 @@ begin
   select exists (
     select 1 from public.users
     where id = auth.uid()
-      and role in ('admin', 'super_admin', 'funeral_admin')
+      and role in ('admin', 'super_admin')
   ) into actor_is_admin;
 
   if auth.uid() is distinct from request_row."shopId" and not actor_is_admin then

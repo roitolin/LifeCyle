@@ -1106,14 +1106,20 @@ export default function SellerCentrePage() {
         shopPhoneNumber: phone,
         updatedAt: new Date().toISOString(),
       }
-      const { error: updateError } = await supabase
+      const { data: savedShop, error: updateError } = await supabase
         .from('funeral_shops')
         .update(update)
-        .eq('id', shop.id)
+        .eq('id', user.id)
+        .select('shopName, shopAddress, shopPhoneNumber')
+        .single()
       if (updateError) throw updateError
 
-      setShop(current => current ? { ...current, ...update } : current)
-      setShopProfileDraft({ name, address, phone })
+      setShop(current => current ? { ...current, ...savedShop, updatedAt: update.updatedAt } : current)
+      setShopProfileDraft({
+        name: savedShop.shopName,
+        address: savedShop.shopAddress,
+        phone: savedShop.shopPhoneNumber,
+      })
       setEditingShopProfile(false)
       openAlert({
         title: 'Shop Profile Updated',
@@ -1659,9 +1665,6 @@ export default function SellerCentrePage() {
   const loadData = useCallback(async () => {
     const userId = user?.id
     if (!userId) return
-    if (!shop) {
-      setLoading(true)
-    }
     setError(null)
     try {
       const { data: shopData, error: shopErr } = await supabase
@@ -1672,13 +1675,6 @@ export default function SellerCentrePage() {
       if (shopErr) throw shopErr
 
       setShop(shopData ?? null)
-      if (shopData) {
-        setShopProfileDraft({
-          name: String(shopData.shopName || ''),
-          address: String(shopData.shopAddress || ''),
-          phone: String(shopData.shopPhoneNumber || ''),
-        })
-      }
       setPayoutDraft({
         channel: String(shopData?.payoutChannelCode || ''),
         name: String(shopData?.payoutAccountName || ''),
@@ -1785,7 +1781,7 @@ export default function SellerCentrePage() {
     } finally {
       setLoading(false)
     }
-  }, [shop, user?.id])
+  }, [user?.id])
 
   useEffect(() => { if (user?.id) void loadData() }, [user?.id, loadData])
 

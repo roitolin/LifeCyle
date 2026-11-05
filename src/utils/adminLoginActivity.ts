@@ -18,7 +18,7 @@ export type AdminDeviceInfo = {
 };
 
 const DEVICE_ID_KEY = '@lifecycle/admin-device-id';
-const ADMIN_ROLES = new Set(['admin', 'super_admin', 'funeral_admin']);
+const ADMIN_ROLES = new Set(['admin', 'super_admin']);
 
 const readBrowserName = (userAgent: string) => {
   if (/edg/i.test(userAgent)) return 'Microsoft Edge';

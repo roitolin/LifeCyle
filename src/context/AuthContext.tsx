@@ -20,7 +20,7 @@ import {
   verifyCurrentAccountSession,
 } from '../utils/accountSessions';
 
-type Role = "super_admin" | "admin" | "funeral_admin" | "user" | null;
+type Role = "super_admin" | "admin" | "user" | null;
 type BanNotice = { reason: string; banEndsLabel: string } | null;
 const TERMS_ACCEPTANCE_VERSION = '2026-04-02';
 
@@ -414,7 +414,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       markCurrentAccountSessionSignedOut('signed_out'),
       recordAccountLoginActivity('logout'),
     ];
-    if (role === "admin" || role === "super_admin" || role === "funeral_admin") {
+    if (role === "admin" || role === "super_admin") {
       cleanupTasks.push(recordAdminLoginActivity("logout", role));
     }
     await Promise.allSettled(cleanupTasks);
@@ -443,7 +443,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await rememberAccountSession(currentSession);
     await markCurrentAccountSessionSignedOut('account_switched');
     await recordAccountLoginActivity('logout');
-    if (role === 'admin' || role === 'super_admin' || role === 'funeral_admin') {
+    if (role === 'admin' || role === 'super_admin') {
       await recordAdminLoginActivity('logout', role);
     }
 
@@ -476,7 +476,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await recordAccountActivity('all_sessions_signed_out');
     await markCurrentAccountSessionSignedOut('all_sessions_signed_out');
     await recordAccountLoginActivity('logout');
-    if (role === "admin" || role === "super_admin" || role === "funeral_admin") {
+    if (role === "admin" || role === "super_admin") {
       await recordAdminLoginActivity("logout", role);
     }
     const { error } = await supabase.auth.signOut({ scope: 'global' });

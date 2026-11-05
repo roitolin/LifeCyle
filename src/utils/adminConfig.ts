@@ -57,7 +57,7 @@ const discoverAdminIds = async (): Promise<string[]> => {
     const { data } = await supabase
       .from("users")
       .select("id")
-      .in("role", ["super_admin", "admin", "funeral_admin"])
+      .in("role", ["super_admin", "admin"])
       .limit(10);
     discoveredAdminIds.push(...(data || []).map((item: any) => item.id));
   } catch {

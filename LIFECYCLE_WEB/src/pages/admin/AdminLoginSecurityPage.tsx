@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { getWebAdminDeviceInfo, logWebAdminActivity, recordWebAdminLoginActivity, type WebAdminDeviceInfo } from '@/utils/adminActivity'
 import './AdminActivityPages.css'
 
-type AdminRole = 'super_admin' | 'admin' | 'funeral_admin' | 'user'
+type AdminRole = 'super_admin' | 'admin' | 'user'
 type LoginActivity = {
   id: string
   adminId: string

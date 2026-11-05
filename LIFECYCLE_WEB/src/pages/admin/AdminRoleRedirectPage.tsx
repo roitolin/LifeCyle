@@ -4,7 +4,6 @@ import { supabase } from '@/lib/supabase'
 
 function getAdminTarget(role: string) {
   if (role === 'super_admin' || role === 'admin') return '/admin/dashboard'
-  if (role === 'funeral_admin') return '/admin/funeral-shops'
   return '/admin/dashboard'
 }
 

@@ -46,7 +46,7 @@ create policy "Admins can insert audit logs"
     and exists (
       select 1 from public.users actor
       where actor.id = auth.uid()
-        and actor.role in ('admin', 'super_admin', 'funeral_admin')
+        and actor.role in ('admin', 'super_admin')
     )
   );
 
@@ -111,7 +111,7 @@ begin
   select email into v_admin_email
   from public.users
   where id = v_admin_id
-    and role in ('admin', 'super_admin', 'funeral_admin');
+    and role in ('admin', 'super_admin');
 
   if not found then
     raise exception 'Only administrators can record login activity' using errcode = '42501';
