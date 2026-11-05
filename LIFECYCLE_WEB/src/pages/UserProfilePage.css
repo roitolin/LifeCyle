@@ -915,6 +915,9 @@
 .profile-page .profile-mobile-home-link {
   display: none;
 }
+.profile-page .profile-mobile-header-actions {
+  display: none;
+}
 .profile-page.profile-mobile-account-header {
   display: none;
   min-height: 0;
@@ -946,6 +949,34 @@
   .profile-page .profile-mobile-brand-row {
     min-width: 0;
     gap: 9px;
+  }
+  .profile-page .profile-mobile-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+  }
+  .profile-page .profile-mobile-header-notification {
+    display: flex;
+    align-items: center;
+    color: #ffffff;
+  }
+  .profile-page .profile-mobile-header-notification .sc-web-notif-btn,
+  .profile-page .profile-mobile-header-notification .sc-web-notif-btn:hover,
+  .profile-page .profile-mobile-header-notification .sc-web-notif-btn.is-active {
+    width: 42px;
+    height: 42px;
+    color: #ffffff;
+    background: transparent;
+    border: 0;
+  }
+  .profile-page .profile-mobile-header-notification .sc-web-notif-badge {
+    color: #22312d;
+    background: #ffffff;
+    box-shadow: 0 0 0 2px #22312d;
+  }
+  .profile-page .profile-mobile-header-notification .sc-web-notif-wrap.is-seller-centre .sc-web-notif-dropdown--seller-centre {
+    inset: 68px 8px max(12px, env(safe-area-inset-bottom)) 8px !important;
   }
   .profile-page .profile-mobile-menu-trigger {
     width: 34px;
@@ -1011,7 +1042,7 @@
     justify-content: center;
     flex: 0 0 auto;
     gap: 5px;
-    margin-left: 10px;
+    margin-left: 0;
     padding: 0 11px;
     color: #ffffff;
     background: rgba(255, 255, 255, 0.08);
@@ -1304,22 +1335,6 @@
   }
   .profile-page .sp-topbar-right {
     gap: 4px;
-  }
-  .profile-page .profile-topbar-link {
-    min-height: 32px;
-    display: inline-flex;
-    align-items: center;
-    padding: 0 10px;
-    border-radius: 8px;
-    color: rgba(255, 255, 255, 0.86);
-    font-size: 12px;
-    font-weight: 650;
-  }
-  .profile-page .profile-topbar-link:hover,
-  .profile-page .profile-topbar-link:focus-visible {
-    background: rgba(255, 255, 255, 0.09);
-    color: #ffffff;
-    opacity: 1;
   }
   .profile-page .profile-topbar-divider {
     width: 1px;

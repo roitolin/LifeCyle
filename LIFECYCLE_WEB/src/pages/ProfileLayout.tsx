@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import type { User } from '@supabase/supabase-js'
 import BrandLogo from '@/components/BrandLogo'
 import LogoutLink from '@/components/LogoutLink'
+import NotificationDropdown from '@/components/NotificationDropdown'
 import { supabase } from '@/lib/supabase'
 import { getProfileAvatar } from '@/utils/profileAvatar'
 import './UserProfilePage.css'
@@ -126,8 +127,7 @@ export default function ProfileLayout({ children, title, subtitle }: { children:
       <div className="sp-topbar">
         <div className="sp-topbar-inner">
           <div className="sp-topbar-right">
-            <Link to="/user/notifications" className="profile-topbar-link">Notifications</Link>
-            <Link to="/user/help" className="profile-topbar-link">Help Centre</Link>
+            <NotificationDropdown variant="seller-centre" />
             <span className="profile-topbar-divider" aria-hidden="true" />
             <div className="sp-user-menu">
               <button type="button" className="sp-user-menu-trigger" aria-haspopup="menu">
@@ -160,10 +160,15 @@ export default function ProfileLayout({ children, title, subtitle }: { children:
             </button>
             <BrandLogo compact className="profile-brand-logo" />
           </div>
-          <Link to="/funeral" className="profile-mobile-home-link">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
-            <span><span className="profile-mobile-home-prefix">Back to </span>home</span>
-          </Link>
+          <div className="profile-mobile-header-actions">
+            <div className="profile-mobile-header-notification">
+              <NotificationDropdown variant="seller-centre" />
+            </div>
+            <Link to="/funeral" className="profile-mobile-home-link">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+              <span><span className="profile-mobile-home-prefix">Back to </span>home</span>
+            </Link>
+          </div>
           <Link to="/funeral" className="profile-browse-link">Browse services</Link>
         </div>
       </header>
