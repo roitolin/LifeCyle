@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import XenditShopPaymentCard from '@/components/XenditShopPaymentCard'
 import PageBackButton from '@/components/PageBackButton'
 import './SellerCentrePage.css'
 
 export default function SellerPaymentPage() {
-  const navigate = useNavigate()
   const [authReady, setAuthReady] = useState(false)
   const [loading, setLoading] = useState(true)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -81,7 +80,7 @@ export default function SellerPaymentPage() {
             </div>
           ) : (
             <div className="sc-payment-layout">
-              <XenditShopPaymentCard onSuccess={() => navigate('/seller')} />
+              <XenditShopPaymentCard />
             </div>
           )}
         </main>

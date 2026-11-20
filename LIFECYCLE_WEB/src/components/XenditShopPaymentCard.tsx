@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 import { APP_ICON_TRANSPARENT_URL } from '@/assets/appIconAssets'
@@ -91,6 +91,13 @@ export default function XenditShopPaymentCard({
   const [paidUntil, setPaidUntil] = useState<string | null>(null)
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null)
   const [purchaseConfirmOpen, setPurchaseConfirmOpen] = useState(false)
+  const onSuccessRef = useRef(onSuccess)
+  const paymentCompleteRef = useRef(false)
+  const paymentStateReadyRef = useRef(false)
+
+  useEffect(() => {
+    onSuccessRef.current = onSuccess
+  }, [onSuccess])
 
   const load = useCallback(async () => {
     const [{ data: { user } }, setting] = await Promise.all([
@@ -101,7 +108,7 @@ export default function XenditShopPaymentCard({
     if (!user) {
       setPayments([])
       setPaidUntil(null)
-      return
+      return false
     }
     await syncXenditShopPayment().catch(() => undefined)
     const [paymentResult, shopResult] = await Promise.all([
@@ -121,7 +128,7 @@ export default function XenditShopPaymentCard({
     const resolvedShopName = shopResult.data?.shopName || 'Funeral shop'
     setShopName(resolvedShopName)
     setPaidUntil(shopResult.data?.paidUntil || null)
-    setPayments((paymentResult.data || []).map((row: any) => ({
+    const nextPayments: Payment[] = (paymentResult.data || []).map((row: any) => ({
       id: row.id,
       status: row.status || 'pending',
       amount: Number(row.amount) || 0,
@@ -139,18 +146,46 @@ export default function XenditShopPaymentCard({
       providerCheckoutUrl: row.providerCheckoutUrl || null,
       providerPaymentId: row.providerPaymentId || null,
       providerPaymentMethod: row.providerPaymentMethod || null,
-    })))
+    }))
+    setPayments(nextPayments)
+
+    const paidUntilTime = shopResult.data?.paidUntil
+      ? new Date(shopResult.data.paidUntil).getTime()
+      : Number.NaN
+    const subscriptionActive = Number.isFinite(paidUntilTime) && paidUntilTime > Date.now()
+    const latestVerified = nextPayments.find((payment) => payment.status === 'verified') || null
+    const verifiedAtTime = latestVerified?.verifiedAt
+      ? new Date(latestVerified.verifiedAt).getTime()
+      : Number.NaN
+    const renewalPaymentReady = Boolean(
+      latestVerified
+      && !subscriptionActive
+      && (!Number.isFinite(paidUntilTime) || (Number.isFinite(verifiedAtTime) && verifiedAtTime > paidUntilTime)),
+    )
+    return subscriptionActive || renewalPaymentReady
   }, [])
 
   useEffect(() => {
     let active = true
-    load().catch(() => undefined).finally(() => active && setReady(true))
+    const refreshPaymentState = async (notifyOnPaid = true) => {
+      const paymentComplete = await load()
+      if (!active) return
+
+      const becamePaid = paymentStateReadyRef.current
+        && !paymentCompleteRef.current
+        && paymentComplete
+      paymentCompleteRef.current = paymentComplete
+      paymentStateReadyRef.current = true
+      if (notifyOnPaid && becamePaid) onSuccessRef.current?.()
+    }
+
+    void refreshPaymentState(false).catch(() => undefined).finally(() => active && setReady(true))
     const channel = supabase.channel('shop-xendit-web')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_payments' }, () => {
-        void load().then(onSuccess).catch(() => undefined)
+        void refreshPaymentState().catch(() => undefined)
       }).subscribe()
     const refresh = () => {
-      if (document.visibilityState === 'visible') void load().then(onSuccess).catch(() => undefined)
+      if (document.visibilityState === 'visible') void refreshPaymentState().catch(() => undefined)
     }
     document.addEventListener('visibilitychange', refresh)
     return () => {
@@ -158,7 +193,7 @@ export default function XenditShopPaymentCard({
       document.removeEventListener('visibilitychange', refresh)
       void supabase.removeChannel(channel)
     }
-  }, [load, onSuccess])
+  }, [load])
 
   const latestPending = useMemo(
     () => payments.find((payment) => payment.status === 'pending') || null,
@@ -212,7 +247,9 @@ export default function XenditShopPaymentCard({
       if (result.paid) {
         setPurchaseConfirmOpen(false)
         await load()
-        onSuccess?.()
+        paymentCompleteRef.current = true
+        paymentStateReadyRef.current = true
+        onSuccessRef.current?.()
         openAlert({ title: 'Payment received', message: 'Your payment has been confirmed.', tone: 'info', okLabel: 'Done' })
         return
       }
