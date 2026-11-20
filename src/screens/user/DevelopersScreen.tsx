@@ -4,8 +4,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import {
   Alert,
   Animated,
-  Image,
-  type ImageSourcePropType,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   Modal,
@@ -17,22 +15,23 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme';
+import ImageWithSkeleton from '@/components/ImageWithSkeleton';
 
 type Developer = {
   name: string;
-  image: ImageSourcePropType;
+  image: number;
   color: string;
 };
 
 const CARD_GAP = 16;
 
 const developers: Developer[] = [
-  { name: 'Ezra M. Baguhin', image: require('../../../assets/Members/BAGUHIN, EZRA M.png'), color: '#ffe7ad' },
-  { name: 'Jared M. Cuerbo', image: require('../../../assets/Members/CUERBO, JARED M.png'), color: '#f8edf1' },
-  { name: 'Daisy Y. Derial', image: require('../../../assets/Members/DERIAL, DAISY Y.png'), color: '#dfe8f8' },
-  { name: 'Elenne Antonette P. Garbo', image: require('../../../assets/Members/GARBO, ELENNE ANTONETTE P.png'), color: '#f8d9c5' },
-  { name: 'Princess Mecca P. Quijano', image: require('../../../assets/Members/QUIJANO, PRINCESS MECCA P.png'), color: '#dcefdc' },
-  { name: 'Roi Veinze A. Tolin', image: require('../../../assets/Members/TOLIN, ROI VEINZE A.png'), color: '#e6dcf4' },
+  { name: 'Ezra M. Baguhin', image: require('../../../assets/Members/ezra-baguhin.jpg'), color: '#ffe7ad' },
+  { name: 'Jared M. Cuerbo', image: require('../../../assets/Members/jared-cuerbo.jpg'), color: '#f8edf1' },
+  { name: 'Daisy Y. Derial', image: require('../../../assets/Members/daisy-derial.jpg'), color: '#dfe8f8' },
+  { name: 'Elenne Antonette P. Garbo', image: require('../../../assets/Members/elenne-garbo.jpg'), color: '#f8d9c5' },
+  { name: 'Princess Mecca P. Quijano', image: require('../../../assets/Members/princess-quijano.jpg'), color: '#dcefdc' },
+  { name: 'Roi Veinze A. Tolin', image: require('../../../assets/Members/roi-tolin.jpg'), color: '#e6dcf4' },
 ];
 
 export default function DevelopersScreen() {
@@ -75,6 +74,7 @@ export default function DevelopersScreen() {
         style={styles.carousel}
         horizontal
         data={developers}
+        initialNumToRender={2}
         accessibilityLabel='Developer carousel. Swipe left or right to browse the team.'
         keyExtractor={(item) => item.name}
         showsHorizontalScrollIndicator={false}
@@ -136,11 +136,9 @@ export default function DevelopersScreen() {
                   <Text style={styles.developerName} numberOfLines={2}>{item.name}</Text>
                   <Text style={styles.developerRole}>LifeCycle developer</Text>
                 </View>
-                <Image
+                <ImageWithSkeleton
                   source={item.image}
-                  resizeMode='cover'
                   style={[styles.developerImage, { height: imageHeight }]}
-                  accessibilityIgnoresInvertColors
                 />
                 <View style={styles.openProfileHint}>
                   <Ionicons name='expand-outline' size={14} color='#ffffff' />
@@ -171,12 +169,11 @@ export default function DevelopersScreen() {
         <View style={styles.profileScreen}>
           {selectedDeveloper ? (
             <>
-              <Image
+              <ImageWithSkeleton
+                key={selectedDeveloper.name}
                 source={selectedDeveloper.image}
-                resizeMode='cover'
                 style={[styles.profileImage, { width, height }]}
                 accessibilityLabel={`${selectedDeveloper.name}, LifeCycle developer`}
-                accessibilityIgnoresInvertColors
               />
               <LinearGradient
                 pointerEvents='none'

@@ -1,7 +1,11 @@
 import { supabase } from '@/lib/supabase'
 
 const STORAGE_BUCKET = 'avatars'
+const CHAT_MEDIA_BUCKET = 'chat-media'
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+const MAX_CHAT_IMAGE_BYTES = 15 * 1024 * 1024
+const MAX_CHAT_AUDIO_BYTES = 25 * 1024 * 1024
+const MAX_CHAT_VIDEO_BYTES = 50 * 1024 * 1024
 const ALLOWED_IMAGE_TYPES = new Set([
   'image/jpeg',
   'image/png',
@@ -9,6 +13,16 @@ const ALLOWED_IMAGE_TYPES = new Set([
   'image/heic',
   'image/heif',
 ])
+
+export type ChatMediaType = 'image' | 'video' | 'audio' | 'file'
+
+export type UploadedChatMedia = {
+  mediaUrl: string
+  mediaType: ChatMediaType
+  mediaName: string
+  mediaDuration?: number | null
+}
+
 
 function imageExtension(file: File) {
   const extension = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '')
@@ -55,6 +69,136 @@ async function uploadImageWeb(file: File, folder: 'service-media' | 'home-conten
 export const uploadCertificateWeb = (file: File) => uploadImageWeb(file, 'service-media')
 
 export const uploadHomeHeroImageWeb = (file: File) => uploadImageWeb(file, 'home-content')
+
+function detectChatMediaType(mimeType: string, fileName: string): ChatMediaType {
+  const normalizedMime = mimeType.toLowerCase().split(';')[0].trim()
+  const ext = fileName.split('.').pop()?.toLowerCase() || ''
+  if (normalizedMime.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif'].includes(ext)) {
+    return 'image'
+  }
+  if (normalizedMime.startsWith('video/') || ['mp4', 'mov', 'webm', 'm4v', '3gp', 'mkv'].includes(ext)) {
+    return 'video'
+  }
+  if (normalizedMime.startsWith('audio/') || ['m4a', 'mp3', 'wav', 'ogg', 'aac', 'amr', 'opus', 'weba'].includes(ext)) {
+    return 'audio'
+  }
+  return 'file'
+}
+
+function getChatMediaExtension(mimeType: string, fileName: string, mediaType: ChatMediaType): string {
+  const fromName = fileName.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '')
+  if (fromName && fromName.length >= 2 && fromName.length <= 5) return fromName
+  const normalizedMime = mimeType.toLowerCase().split(';')[0].trim()
+  const mimeMap: Record<string, string> = {
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+    'image/gif': 'gif',
+    'image/heic': 'heic',
+    'image/heif': 'heif',
+    'video/mp4': 'mp4',
+    'video/quicktime': 'mov',
+    'video/webm': 'webm',
+    'video/3gpp': '3gp',
+    'audio/webm': 'webm',
+    'audio/mp4': 'm4a',
+    'audio/x-m4a': 'm4a',
+    'audio/m4a': 'm4a',
+    'audio/aac': 'aac',
+    'audio/mpeg': 'mp3',
+    'audio/wav': 'wav',
+    'audio/ogg': 'ogg',
+  }
+  if (mimeMap[normalizedMime]) return mimeMap[normalizedMime]
+  if (mediaType === 'image') return 'jpg'
+  if (mediaType === 'video') return 'mp4'
+  if (mediaType === 'audio') return 'webm'
+  return 'bin'
+}
+
+export async function uploadChatMediaWeb(
+  file: File | Blob,
+  options?: {
+    mediaType?: ChatMediaType
+    fileName?: string
+    mimeType?: string
+    durationSeconds?: number | null
+  },
+): Promise<UploadedChatMedia> {
+  const rawName = options?.fileName || (file instanceof File ? file.name : '') || 'attachment'
+  const rawMime = options?.mimeType || file.type || 'application/octet-stream'
+  const mediaType = options?.mediaType || detectChatMediaType(rawMime, rawName)
+
+  const maxBytes =
+    mediaType === 'video'
+      ? MAX_CHAT_VIDEO_BYTES
+      : mediaType === 'audio'
+        ? MAX_CHAT_AUDIO_BYTES
+        : MAX_CHAT_IMAGE_BYTES
+
+  if (file.size < 1) {
+    throw new Error('The selected file is empty.')
+  }
+  if (file.size > maxBytes) {
+    const maxMb = Math.round(maxBytes / (1024 * 1024))
+    throw new Error(`This ${mediaType} is too large. Maximum size is ${maxMb} MB.`)
+  }
+
+  const { data: userData, error: userError } = await supabase.auth.getUser()
+  if (userError) throw userError
+  if (!userData.user) throw new Error('You must be signed in to send attachments.')
+
+  const ext = getChatMediaExtension(rawMime, rawName, mediaType)
+  const cleanMime = rawMime.split(';')[0].trim() || 'application/octet-stream'
+  const objectName = `${Date.now()}-${globalThis.crypto.randomUUID()}.${ext}`
+  const objectPath = `${userData.user.id}/${mediaType}/${objectName}`
+
+  let targetBucket = CHAT_MEDIA_BUCKET
+  let { error: uploadError } = await supabase.storage
+    .from(targetBucket)
+    .upload(objectPath, file, {
+      contentType: cleanMime,
+      cacheControl: '3600',
+      upsert: false,
+    })
+
+  // Fallback to avatars bucket for images if chat-media bucket is not yet created
+  if (uploadError && mediaType === 'image' && /bucket.*not found/i.test(uploadError.message)) {
+    targetBucket = STORAGE_BUCKET
+    const fallbackPath = `service-media/${userData.user.id}/${objectName}`
+    const retry = await supabase.storage
+      .from(targetBucket)
+      .upload(fallbackPath, file, {
+        contentType: cleanMime,
+        cacheControl: '3600',
+        upsert: false,
+      })
+    uploadError = retry.error
+    if (!uploadError) {
+      const { data } = supabase.storage.from(targetBucket).getPublicUrl(fallbackPath)
+      return {
+        mediaUrl: data.publicUrl,
+        mediaType,
+        mediaName: rawName,
+        mediaDuration: options?.durationSeconds ?? null,
+      }
+    }
+  }
+
+  if (uploadError) {
+    throw new Error('Upload failed: ' + uploadError.message)
+  }
+
+  const { data } = supabase.storage.from(targetBucket).getPublicUrl(objectPath)
+  if (!data.publicUrl) throw new Error('Could not generate attachment URL.')
+
+  return {
+    mediaUrl: data.publicUrl,
+    mediaType,
+    mediaName: rawName,
+    mediaDuration: options?.durationSeconds ?? null,
+  }
+}
 
 // The shared balance-receipt bucket only accepts JPEGs. Normalize browser
 // uploads (including PNG/WebP screenshots) to the same format as the app.

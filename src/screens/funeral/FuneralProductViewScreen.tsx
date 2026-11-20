@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import LoadingBird from '@/components/LoadingBird';
+import ContentSkeleton, { ContentReveal, SkeletonBlock } from '@/components/ContentSkeleton';
 import ProductCardMeta from '@/components/ProductCardMeta';
 import ProductDownpaymentBadge from '@/components/ProductDownpaymentBadge';
 import {
@@ -11,6 +11,7 @@ import {
   Modal,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  Platform,
   ScrollView,
   Share,
   StyleSheet,
@@ -22,6 +23,8 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { AppBackButton, KeyboardAwareScrollView } from "@/components";
 import { formatPhilippinePeso } from "@/utils/funeralCatalog";
 import { summarizeProductRatings } from "@/utils/productRatings";
@@ -214,6 +217,11 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
   const [variationSheetMode, setVariationSheetMode] = useState<VariationSheetMode>("browse");
   const [cartConfirmVisible, setCartConfirmVisible] = useState(false);
   const [addedToCartVisible, setAddedToCartVisible] = useState(false);
+  const [savingCart, setSavingCart] = useState(false);
+  const cartSavingRef = useRef(false);
+  const productFocusedRef = useRef(false);
+  const reducedMotion = useReducedMotion();
+  const [cartNoticeProgress] = useState(() => new Animated.Value(0));
   const [variationPreviewVisible, setVariationPreviewVisible] = useState(false);
   const [previewVariation, setPreviewVariation] = useState<VariationPreviewState>(null);
   const [reviewsVisible, setReviewsVisible] = useState(false);
@@ -246,6 +254,36 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
   const cartConfirmSheetProgress = useRef(new Animated.Value(0)).current;
 
   const product = (route?.params?.product || null) as ProductViewItem | null;
+
+  useFocusEffect(useCallback(() => {
+    productFocusedRef.current = true;
+    return () => {
+      productFocusedRef.current = false;
+      setAddedToCartVisible(false);
+    };
+  }, []));
+
+  useEffect(() => {
+    if (!addedToCartVisible) return;
+    const continueToCart = () => {
+      if (!productFocusedRef.current) return;
+      setAddedToCartVisible(false);
+      navigation.navigate("FuneralTabs", { screen: "Carts" });
+    };
+    cartNoticeProgress.setValue(reducedMotion ? 1 : 0);
+    if (reducedMotion) {
+      const timer = setTimeout(continueToCart, 1600);
+      return () => clearTimeout(timer);
+    }
+    const useNativeDriver = Platform.OS !== "web";
+    const animation = Animated.sequence([
+      Animated.timing(cartNoticeProgress, { toValue: 1, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver }),
+      Animated.delay(1200),
+      Animated.timing(cartNoticeProgress, { toValue: 0, duration: 180, easing: Easing.in(Easing.quad), useNativeDriver }),
+    ]);
+    animation.start(({ finished }) => { if (finished) continueToCart(); });
+    return () => animation.stop();
+  }, [addedToCartVisible, cartNoticeProgress, navigation, reducedMotion]);
 
   useEffect(() => {
     if (!product?.id) return;
@@ -789,6 +827,12 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
   };
 
   const confirmAddToCart = () => {
+    if (reducedMotion) {
+      cartConfirmBackdropOpacity.setValue(1);
+      cartConfirmSheetProgress.setValue(1);
+      setCartConfirmVisible(true);
+      return;
+    }
     cartConfirmBackdropOpacity.stopAnimation();
     cartConfirmSheetProgress.stopAnimation();
     cartConfirmBackdropOpacity.setValue(0);
@@ -815,6 +859,11 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
   };
 
   const closeCartConfirm = (onClosed?: () => void) => {
+    if (reducedMotion) {
+      setCartConfirmVisible(false);
+      onClosed?.();
+      return;
+    }
     cartConfirmBackdropOpacity.stopAnimation();
     cartConfirmSheetProgress.stopAnimation();
     Animated.parallel([
@@ -877,6 +926,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
   };
 
   const addToCart = async () => {
+    if (cartSavingRef.current || addedToCartVisible) return;
     if (isSoldOut) {
       Alert.alert("Sold Out", "This product is sold out and can no longer be added to your cart.");
       return;
@@ -892,6 +942,8 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
       return;
     }
 
+    cartSavingRef.current = true;
+    setSavingCart(true);
     try {
       await addFuneralCartItem({
         productId: product.id,
@@ -911,13 +963,15 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
         packageItems: includedPackageItems,
       });
 
-      setAddedToCartVisible(true);
-      setTimeout(() => {
-        setAddedToCartVisible(false);
-        navigation.navigate("FuneralTabs", { screen: "Carts" });
-      }, 1600);
+      if (productFocusedRef.current) {
+        cartNoticeProgress.setValue(reducedMotion ? 1 : 0);
+        setAddedToCartVisible(true);
+      }
     } catch (error: any) {
-      Alert.alert("Error", error?.message || "Failed to add this item to your cart.");
+      if (productFocusedRef.current) Alert.alert("Error", error?.message || "Failed to add this item to your cart.");
+    } finally {
+      cartSavingRef.current = false;
+      setSavingCart(false);
     }
   };
 
@@ -1120,12 +1174,21 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
             <Text style={styles.reviewSummaryText}>Rated {averageRating.toFixed(1)} out of 5 by verified customers.</Text>
           ) : null}
           {loadingReviews ? (
-            <LoadingBird compact />
+            <ContentSkeleton label="Loading reviews">
+              <View style={styles.marketReviewCard}>
+                <View style={styles.marketReviewerRow}>
+                  <SkeletonBlock style={styles.marketReviewerAvatar} />
+                  <SkeletonBlock style={{ width: "48%", height: 12 }} />
+                </View>
+                <SkeletonBlock style={{ width: "38%", marginTop: 5 }} />
+                <SkeletonBlock style={{ width: "85%", marginTop: 8 }} />
+              </View>
+            </ContentSkeleton>
           ) : visibleReviews.length === 0 ? (
             <Text style={styles.reviewEmptyText}>No customer reviews yet. Be the first to rate and comment.</Text>
           ) : (
             visibleReviews.map((review, index) => (
-              <View key={review.id || `preview_review_${index}`} style={styles.marketReviewCard}>
+              <ContentReveal key={review.id || `preview_review_${index}`} style={styles.marketReviewCard}>
                 <View style={styles.marketReviewerRow}>
                   <View style={styles.marketReviewerAvatar}><Ionicons name="person" size={16} color={colors.textMuted} /></View>
                   <Text style={styles.reviewAuthor}>{review.reviewerName || `Buyer ${index + 1}`}</Text>
@@ -1134,7 +1197,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
                 <Text style={styles.reviewItemLabel}>{review.itemLabel || "Variation: Standard"}</Text>
                 <Text style={styles.reviewComment}>{review.comment || "No written feedback yet."}</Text>
                 {review.imageUrl ? <Image source={{ uri: review.imageUrl }} style={styles.reviewImage} resizeMode="cover" /> : null}
-              </View>
+              </ContentReveal>
             ))
           )}
           {reviewCount > visibleReviews.length ? (
@@ -1284,7 +1347,14 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
           </TouchableOpacity>
         ) : (
           <>
-            <TouchableOpacity style={styles.bottomCartButton} onPress={() => void handleAddToCart()}>
+            <TouchableOpacity
+              style={[styles.bottomCartButton, (savingCart || addedToCartVisible) && styles.bottomCartButtonBusy]}
+              accessibilityRole="button"
+              accessibilityLabel="Add to cart"
+              accessibilityState={{ busy: savingCart, disabled: savingCart || addedToCartVisible }}
+              disabled={savingCart || addedToCartVisible}
+              onPress={handleAddToCart}
+            >
               <Ionicons name="cart-outline" size={24} color="#5a6b64" />
               <View style={styles.bottomCartPlusBadge}>
                 <Ionicons name="add" size={10} color="#ffffff" />
@@ -1621,6 +1691,7 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.confirmPrimaryButton}
+                accessibilityRole="button"
                 onPress={() => {
                   hapticMedium();
                   closeCartConfirm(() => void addToCart());
@@ -1633,24 +1704,29 @@ export default function FuneralProductViewScreen({ navigation, route }: any) {
         </View>
       </Modal>
 
-      <Modal
-        visible={addedToCartVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setAddedToCartVisible(false)}
-      >
-        <View style={styles.addedOverlay}>
-          <View style={styles.addedCard}>
-            <View style={styles.addedIconRing}>
-              <Ionicons name="checkmark" size={34} color="#ffffff" />
-            </View>
-            <Text style={styles.addedTitle}>Added to Cart</Text>
-            <Text style={styles.addedText}>
-              {product.name}{selectedVariationName ? ` (${selectedVariationName})` : ""} was added to your shopping cart.
-            </Text>
-          </View>
+      {addedToCartVisible && (
+        <View pointerEvents="none" style={[styles.addedNoticePosition, { bottom: insets.bottom + 76 }]}>
+          <Animated.View
+            accessible
+            accessibilityRole="alert"
+            accessibilityLiveRegion="polite"
+            accessibilityLabel="Added to cart"
+            style={[
+              styles.addedNotice,
+              !reducedMotion && {
+                opacity: cartNoticeProgress,
+                transform: [
+                  { translateY: cartNoticeProgress.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) },
+                  { scale: cartNoticeProgress.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) },
+                ],
+              },
+            ]}
+          >
+            <Ionicons name="checkmark-circle" size={23} color={colors.primary} />
+            <Text style={styles.addedTitle}>Added to cart</Text>
+          </Animated.View>
         </View>
-      </Modal>
+      )}
 
       <Modal
         visible={variationPreviewVisible}
@@ -2445,43 +2521,27 @@ const styles = StyleSheet.create({
   confirmBackdropPressable: {
     ...StyleSheet.absoluteFill,
   },
-  addedOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(15,23,42,0.35)",
-    justifyContent: "center",
+  addedNoticePosition: {
+    position: "absolute",
+    left: 14,
+    right: 14,
     alignItems: "center",
-    paddingHorizontal: 24,
+    zIndex: 12,
   },
-  addedCard: {
-    minWidth: 280,
-    maxWidth: 340,
-    backgroundColor: "#ffffff",
-    borderRadius: 22,
+  addedNotice: {
+    minHeight: 46,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: "#b8cec2",
+    backgroundColor: "#f0f7f3",
+    flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 32,
-    paddingHorizontal: 28,
     gap: 8,
   },
-  addedIconRing: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: "#16a34a",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 8,
-  },
-  addedTitle: {
-    color: "#22312d",
-    fontSize: 18,
-    fontWeight: "900",
-  },
-  addedText: {
-    color: "#75807b",
-    fontSize: 13,
-    lineHeight: 19,
-    textAlign: "center",
-  },
+  addedTitle: { color: colors.primaryDark, fontSize: 14, fontWeight: "700" },
+  bottomCartButtonBusy: { opacity: 0.65 },
   confirmCard: {
     width: "100%",
     maxWidth: 560,

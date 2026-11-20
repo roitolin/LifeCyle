@@ -1,0 +1,7 @@
+.lc-brand {
+  color: var(--lc-brand-ink, #172033);
+}
+
+.lc-brand__tagline {
+  color: var(--lc-brand-soft, #64748b);
+}

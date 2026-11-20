@@ -228,11 +228,72 @@
 .admin-console-shell .admin-notification-badge {
   @apply min-w-[17px] h-[17px] [background:#ef4444] text-[10px] leading-[17px] shadow-[0_0_0_2px_#ffffff] px-[4px] py-0 rounded-[9px] right-0 top-[2px];
 }
+.admin-console-shell .user-menu-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+.admin-console-shell .user-menu-wrap::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  height: 14px;
+}
 .admin-console-shell .user-profile-trigger {
-  @apply min-h-[38px] border-[color:var(--admin-border)] pl-[4px] pr-[10px] py-0 rounded-[4px];
+  min-height: 32px;
+  height: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 6px;
+  border: 0 !important;
+  border-radius: 6px;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--admin-text);
+  font: inherit;
+  cursor: pointer;
+  transition: opacity 150ms ease;
+}
+.admin-console-shell .user-profile-trigger:hover,
+.admin-console-shell .user-profile-trigger:focus-visible {
+  opacity: 0.8;
+  background: transparent !important;
+  border: 0 !important;
+  outline: none;
 }
 .admin-console-shell .user-avatar {
-  @apply w-[30px] h-[30px];
+  display: block;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.admin-console-shell .user-profile-name {
+  max-width: 190px;
+  color: var(--admin-text);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.admin-console-shell .user-arrow {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
+  margin-top: 1px;
+  stroke: currentColor;
+  transition: transform 200ms ease;
+}
+.admin-console-shell .user-menu-wrap:hover .user-arrow,
+.admin-console-shell .user-arrow.open {
+  transform: rotate(180deg);
 }
 .admin-console-shell .admin-header {
   @apply w-[min(100%,1248px)] [background:transparent] mx-auto my-0 pt-[24px] pb-0 px-[24px] border-0;
@@ -309,9 +370,18 @@
 .admin-console-shell select {
   @apply rounded-[4px];
 }
-.admin-console-shell .user-dropdown,
 .admin-console-shell .admin-notification-dropdown {
   @apply border-[color:var(--admin-border)] shadow-[0_12px_28px_rgba(15,23,42,0.14)] rounded-[4px];
+}
+.admin-console-shell .user-dropdown {
+  @apply absolute [background:#ffffff] border border-[color:var(--admin-border)] shadow-[0_2px_8px_rgba(0,0,0,0.1)] min-w-[150px] hidden flex-col z-[100] mt-[4px] px-0 py-[8px] rounded-[2px] border-solid right-0 top-full before:content-[''] before:absolute before:top-[-6px] before:border-b-[#ffffff] before:border-b-[6px] before:border-x-[6px] before:border-x-transparent before:border-solid before:right-[20px];
+}
+.admin-console-shell .user-dropdown.is-open {
+  @apply flex;
+}
+.admin-console-shell .user-dropdown-item,
+.admin-console-shell .user-dropdown a {
+  @apply block w-full min-h-0 [background:transparent] text-[color:var(--admin-text)] [font:inherit] text-[14px] font-normal leading-[1.4] text-left no-underline whitespace-nowrap cursor-pointer px-[16px] py-[10px] rounded-none border-0 hover:[background:#f8f9fa] hover:text-[color:var(--admin-brand)] focus-visible:[background:#f8f9fa] focus-visible:text-[color:var(--admin-brand)] focus-visible:[outline:none];
 }
 @media (max-width: 1020px) {
   .admin-console-shell,
@@ -429,6 +499,10 @@
 .admin-console-shell .utility-actions {
   @apply mt-auto mb-0 mx-[2px] pt-[14px] pb-0 px-[10px];
 }
+.admin-console-shell.sidebar-collapsed:not(.mobile-sidebar-open) .admin-nav-section,
+.admin-console-shell.sidebar-collapsed:not(.mobile-sidebar-open) .utility-actions {
+  display: none;
+}
 .admin-console-shell .user-main {
   @apply pt-[64px];
 }
@@ -443,9 +517,6 @@
 }
 .admin-console-shell .admin-notification-btn {
   @apply rounded-[8px];
-}
-.admin-console-shell .user-profile-trigger {
-  @apply rounded-[7px];
 }
 .admin-console-shell .user-content.admin-content-full-bleed {
   @apply min-h-[calc(100vh_-_64px)] [background:var(--admin-bg)] p-[28px];
@@ -555,7 +626,7 @@
   @apply flex-none text-[#7b8594] text-[11px] pt-[5px];
 }
 .admin-console-shell .dashboard-metrics {
-  @apply grid grid-cols-4 border border-[color:var(--admin-border)] [background:#fff] rounded-[4px] border-solid;
+  @apply grid grid-cols-5 border border-[color:var(--admin-border)] [background:#fff] rounded-[4px] border-solid;
 }
 .admin-console-shell .dashboard-metric {
   @apply min-w-0 grid gap-[5px] border-r-[color:var(--admin-border)] p-[20px] border-r border-solid last:border-r-0;
@@ -685,6 +756,14 @@
   @apply text-[color:var(--admin-text)] text-[13px] mt-[5px];
 }
 @media (max-width: 1180px) {
+  .admin-console-shell .dashboard-metric {
+    @apply px-[14px];
+  }
+  .admin-console-shell .dashboard-operational-grid {
+    @apply grid-cols-[1fr];
+  }
+}
+@media (max-width: 1020px) {
   .admin-console-shell .dashboard-metrics {
     @apply grid-cols-2;
   }
@@ -694,11 +773,6 @@
   .admin-console-shell .dashboard-metric:nth-child(-n + 2) {
     @apply border-b-[color:var(--admin-border)] border-b border-solid;
   }
-  .admin-console-shell .dashboard-operational-grid {
-    @apply grid-cols-[1fr];
-  }
-}
-@media (max-width: 1020px) {
   .admin-console-shell,
   .admin-console-shell.sidebar-collapsed {
     @apply pt-[60px];
@@ -1918,8 +1992,16 @@
   }
 }
 
+.admin-console-shell .user-nav .admin-mobile-notifications {
+  display: none;
+}
+
 /* Mobile administration refinements for users, moderation, and security. */
 @media (max-width: 700px) {
+  .admin-console-shell .user-nav .admin-mobile-notifications {
+    display: flex;
+  }
+
   .admin-console-shell .user-header .user-menu-wrap,
   .admin-console-shell .user-header .user-dropdown {
     display: none;

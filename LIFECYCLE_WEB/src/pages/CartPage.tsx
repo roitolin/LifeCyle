@@ -1,326 +1,219 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
-import { loadFuneralCart, removeFuneralCartItem, type WebFuneralCartItem } from '@/utils/funeralCart'
+import { loadFuneralCart, saveFuneralCart, type WebFuneralCartItem } from '@/utils/funeralCart'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
-import BrandLogo from '@/components/BrandLogo'
-import LogoutLink from '@/components/LogoutLink'
+import AccountTaskHeader, { type AccountHeaderProfile } from '@/components/AccountTaskHeader'
+import ImageWithSkeleton from '@/components/ImageWithSkeleton'
 import PageBackButton from '@/components/PageBackButton'
-import { getProfileAvatar } from '@/utils/profileAvatar'
 import './CartPage.css'
 
-type ViewerProfile = {
-  fullName?: string | null
-  photoURL?: string | null
-  gender?: string | null
-}
+const peso = new Intl.NumberFormat('en-PH', {
+  style: 'currency',
+  currency: 'PHP',
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+})
 
-function formatPeso(value: number) {
-  return new Intl.NumberFormat('en-PH', {
-    style: 'currency',
-    currency: 'PHP',
-    maximumFractionDigits: 0,
-  }).format(value)
+function SelectionCheckbox({ checked, partial, label, onChange }: {
+  checked: boolean
+  partial?: boolean
+  label: string
+  onChange: (checked: boolean) => void
+}) {
+  return (
+    <input
+      className="cart-checkbox"
+      type="checkbox"
+      checked={checked}
+      aria-label={label}
+      ref={input => { if (input) input.indeterminate = Boolean(partial) }}
+      onChange={event => onChange(event.target.checked)}
+    />
+  )
 }
 
 export default function CartPage() {
   const navigate = useNavigate()
   const { openAlert, alertDialog } = useAlertDialog()
   const { openConfirm, confirmDialog } = useConfirmDialog()
-  const [items, setItems] = useState<WebFuneralCartItem[]>(() => loadFuneralCart())
+  const [items, setItems] = useState<WebFuneralCartItem[]>(loadFuneralCart)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [profile, setProfile] = useState<ViewerProfile | null>(null)
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [viewerId, setViewerId] = useState<string | null>(null)
+  const [account, setAccount] = useState<{ id: string; profile: AccountHeaderProfile } | null>(null)
 
-  // Load cart and profile
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setIsLoggedIn(!!data.session?.user)
-      if (data.session?.user) {
-        supabase.from('users').select('fullName, photoURL, gender').eq('id', data.session.user.id).single()
-          .then(({ data: ud }) => setProfile(ud))
-      }
-    })
-    
-    const { data: listener } = supabase.auth.onAuthStateChange((_, session) => {
-      setIsLoggedIn(!!session?.user)
-    })
-    return () => listener.subscription.unsubscribe()
+    const { data } = supabase.auth.onAuthStateChange((_, session) => setViewerId(session?.user.id ?? null))
+    return () => data.subscription.unsubscribe()
   }, [])
 
-  // Group items by shop
-  const groupedItems = items.reduce((acc, item) => {
-    if (!acc[item.shopId]) {
-      acc[item.shopId] = { shopName: item.shopName, items: [] }
+  useEffect(() => {
+    if (!viewerId) return
+    let active = true
+    void supabase.from('users').select('fullName, photoURL, gender').eq('id', viewerId).maybeSingle()
+      .then(({ data }) => { if (active && data) setAccount({ id: viewerId, profile: data }) })
+    return () => { active = false }
+  }, [viewerId])
+
+  useEffect(() => {
+    const refreshCart = () => {
+      const next = loadFuneralCart()
+      const available = new Set(next.map(item => item.cartId))
+      setItems(next)
+      setSelectedIds(previous => new Set([...previous].filter(id => available.has(id))))
     }
-    acc[item.shopId].items.push(item)
-    return acc
-  }, {} as Record<string, { shopName: string, items: WebFuneralCartItem[] }>)
+    window.addEventListener('storage', refreshCart)
+    window.addEventListener('funeral-cart-updated', refreshCart)
+    return () => {
+      window.removeEventListener('storage', refreshCart)
+      window.removeEventListener('funeral-cart-updated', refreshCart)
+    }
+  }, [])
 
-  const handleSelect = (cartId: string) => {
-    const next = new Set(selectedIds)
-    if (next.has(cartId)) next.delete(cartId)
-    else next.add(cartId)
-    setSelectedIds(next)
+  const shops = new Map<string, WebFuneralCartItem[]>()
+  for (const item of [...items].reverse()) {
+    const shopItems = shops.get(item.shopId) ?? []
+    shopItems.push(item)
+    shops.set(item.shopId, shopItems)
   }
 
-  const handleSelectShop = (shopId: string, isSelected: boolean) => {
-    const next = new Set(selectedIds)
-    groupedItems[shopId].items.forEach(item => {
-      if (isSelected) next.add(item.cartId)
-      else next.delete(item.cartId)
+  const selectedItems = items.filter(item => selectedIds.has(item.cartId))
+  const selectedCount = selectedItems.length
+  const total = selectedItems.reduce((sum, item) => sum + item.price, 0)
+
+  const selectItems = (rows: WebFuneralCartItem[], checked: boolean) => {
+    setSelectedIds(previous => {
+      const next = new Set(previous)
+      for (const item of rows) {
+        if (checked) next.add(item.cartId)
+        else next.delete(item.cartId)
+      }
+      return next
     })
-    setSelectedIds(next)
   }
 
-  const handleSelectAll = (isSelected: boolean) => {
-    if (isSelected) setSelectedIds(new Set(items.map(i => i.cartId)))
-    else setSelectedIds(new Set())
-  }
-
-  const handleDelete = (cartId: string) => {
+  const confirmRemoval = (rows: WebFuneralCartItem[]) => {
+    const ids = new Set(rows.map(item => item.cartId))
+    if (!ids.size) return
     openConfirm({
-      title: 'Remove Item',
-      message: 'Remove this item from your cart?',
-      confirmLabel: 'Delete',
+      title: ids.size === 1 ? 'Remove item?' : 'Remove selected items?',
+      message: ids.size === 1 ? 'Remove this item from your cart?' : `Remove ${ids.size} items from your cart?`,
+      confirmLabel: 'Remove',
       cancelLabel: 'Cancel',
       tone: 'danger',
       onConfirm: () => {
-        setItems(removeFuneralCartItem(cartId))
-        const next = new Set(selectedIds)
-        next.delete(cartId)
-        setSelectedIds(next)
-      },
-    })
-  }
-
-  const handleDeleteSelected = () => {
-    if (selectedIds.size === 0) {
-      openAlert({
-        title: 'No Item Selected',
-        message: 'Please select at least one item from your cart before deleting. Tick the box beside the item you wish to remove, then click Delete.',
-        tone: 'warning',
-        okLabel: 'Got It',
-      })
-      return
-    }
-    openConfirm({
-      title: 'Remove Items',
-      message: 'Remove selected items from your cart?',
-      confirmLabel: 'Delete',
-      cancelLabel: 'Cancel',
-      tone: 'danger',
-      onConfirm: () => {
-        let currentItems = [...items]
-        selectedIds.forEach(id => {
-          currentItems = removeFuneralCartItem(id)
-        })
-        setItems(currentItems)
-        setSelectedIds(new Set())
+        try {
+          saveFuneralCart(loadFuneralCart().filter(item => !ids.has(item.cartId)))
+        } catch {
+          openAlert({
+            title: 'Cart could not be updated',
+            message: 'Please try removing the items again.',
+            tone: 'danger',
+          })
+        }
       },
     })
   }
 
   const checkout = () => {
-    if (!isLoggedIn) {
+    if (selectedItems.length !== 1) return
+    if (!viewerId) {
       navigate('/login?next=/user/cart')
       return
     }
-    if (selectedIds.size === 0) {
-      openAlert({
-        title: 'No Item Selected',
-        message: 'Please select at least one item from your cart before proceeding to checkout. Tick the box beside the item you wish to order, then click Check Out to continue.',
-        tone: 'warning',
-        okLabel: 'Got It',
-      })
-      return
-    }
-    // Funeral service requests are 1:1. We only support checking out one item at a time.
-    if (selectedIds.size > 1) {
-      openAlert({
-        title: 'One Request at a Time',
-        message: 'Only one funeral service request can be checked out at a time. Please deselect the remaining items and try again.',
-        tone: 'warning',
-        okLabel: 'Got It',
-      })
-      return
-    }
-    
-    const selectedItem = items.find(i => selectedIds.has(i.cartId))
-    if (selectedItem) {
-      navigate('/user/checkout', { state: { cartItem: selectedItem } })
-    }
+    navigate('/user/checkout', { state: { cartItem: selectedItems[0] } })
   }
 
-  const selectedItems = items.filter(i => selectedIds.has(i.cartId))
-  const totalPrice = selectedItems.reduce((acc, curr) => acc + curr.price, 0)
-
   return (
-    <div className="cart-shop-page">
-      <TopBar profile={profile} />
-      <Header />
-
-      <div className="cart-main">
-        <div className="page-back-row cart-page-nav">
-          <PageBackButton />
-        </div>
+    <div className="web-cart">
+      <AccountTaskHeader title="Shopping Cart" profile={account?.id === viewerId ? account.profile : null} showShopCenter />
+      <main className="web-cart-main">
+        <PageBackButton />
 
         {items.length === 0 ? (
-          <div className="cart-empty">
-            <h2>Your Cart is Empty</h2>
-            <p>Looks like you haven't added anything to your cart yet.</p>
-            <Link to="/funeral" className="shopee-btn-primary">Browse Services</Link>
-          </div>
+          <section className="web-cart-empty">
+            <h2>Your cart is empty</h2>
+            <Link to="/funeral" className="web-cart-primary">Browse services</Link>
+          </section>
         ) : (
-          <>
-            {/* Table Header */}
-            <div className="cart-table-header">
-              <div className="header-col-product">
-                <input 
-                  type="checkbox" 
-                  className="shopee-checkbox" 
-                  checked={selectedIds.size === items.length && items.length > 0} 
-                  onChange={(e) => handleSelectAll(e.target.checked)} 
-                />
-                Product
+          <div className="web-cart-layout">
+            <section className="web-cart-items" aria-labelledby="cart-items-title">
+              <div className="web-cart-items-heading">
+                <h2 id="cart-items-title">Cart items</h2>
+                <span>{items.length} {items.length === 1 ? 'item' : 'items'}</span>
               </div>
-              <div>Price</div>
-              <div>Actions</div>
-            </div>
-
-            {/* Shop Blocks */}
-            {Object.entries(groupedItems).map(([shopId, { shopName, items: shopItems }]) => {
-              const allShopItemsSelected = shopItems.every(i => selectedIds.has(i.cartId))
-              
-              return (
-                <div key={shopId} className="cart-shop-block">
-                  <div className="cart-shop-header">
-                    <input 
-                      type="checkbox" 
-                      className="shopee-checkbox" 
-                      checked={allShopItemsSelected} 
-                      onChange={(e) => handleSelectShop(shopId, e.target.checked)} 
-                    />
-                    <span className="chat-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M14 2H2C.9 2 0 2.9 0 4v7c0 1.1.9 2 2 2h9l3 3v-3c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM4 9H3V8h1v1zm0-3H3V5h1v1zm3 3H6V8h1v1zm0-3H6V5h1v1zm3 3H9V8h1v1zm0-3H9V5h1v1z"></path></svg></span>
-                    {shopName}
-                  </div>
-                  
-                  {shopItems.map(item => (
-                    <div key={item.cartId} className="cart-item-row">
-                      <div className="item-col-product">
-                        <input 
-                          type="checkbox" 
-                          className="shopee-checkbox" 
-                          checked={selectedIds.has(item.cartId)} 
-                          onChange={() => handleSelect(item.cartId)} 
-                        />
-                        {item.imageUrl ? <img src={item.imageUrl} className="item-image" alt={item.name} /> : <div className="item-fallback-image" aria-hidden="true">LC</div>}
-                        <div className="item-details">
-                          <div className="item-name">{item.name}</div>
-                          {item.variationName && <div className="item-variation">Variation: {item.variationName}</div>}
-                          {item.packageItems?.length ? (
-                            <div className="item-variation">Packages: {item.packageItems.join(', ')}</div>
-                          ) : null}
-                          {item.downpaymentAmount && item.downpaymentPercentage ? (
-                            <div className="item-payment-option">Down payment available after shop approval</div>
-                          ) : null}
-                        </div>
-                      </div>
-                      <div className="item-col-price">
-                        <strong>{formatPeso(item.fullPrice || item.price)}</strong>
-                      </div>
-                      <div className="item-col-actions">
-                        <button
-                          type="button"
-                          className="item-delete-btn"
-                          onClick={() => handleDelete(item.cartId)}
-                          aria-label={`Delete ${item.name} from cart`}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )
-            })}
-
-            {/* Sticky Footer */}
-            <div className="cart-footer" aria-label="Cart checkout summary">
-              <div className="footer-left">
-                <div className="footer-selection-actions">
-                  <label className="footer-select-all">
-                    <input
-                      type="checkbox"
-                      className="shopee-checkbox"
-                      checked={selectedIds.size === items.length && items.length > 0}
-                      onChange={(e) => handleSelectAll(e.target.checked)}
-                    />
-                    Select All
-                  </label>
-                  <button type="button" className="footer-delete-btn" onClick={handleDeleteSelected}>Delete selected</button>
-                </div>
-                <button type="button" className="footer-mobile-checkout" onClick={checkout}>
-                  <span>{formatPeso(totalPrice)}</span>
-                  <strong>Check Out</strong>
+              <div className="web-cart-selection">
+                <label>
+                  <SelectionCheckbox checked={selectedCount === items.length} partial={selectedCount > 0 && selectedCount < items.length} label="Select all cart items" onChange={checked => selectItems(items, checked)} />
+                  Select all
+                </label>
+                <button type="button" className="web-cart-remove" disabled={selectedCount === 0} onClick={() => confirmRemoval(selectedItems)}>
+                  Remove selected
                 </button>
               </div>
-              <div className="footer-right">
-                <div className="footer-total-text" aria-live="polite">
-                  Total ({selectedItems.length} item{selectedItems.length !== 1 && 's'}): 
-                  <span className="footer-total-price">{formatPeso(totalPrice)}</span>
-                </div>
-                <button type="button" className="footer-checkout-btn" onClick={checkout}>Check Out</button>
-              </div>
-            </div>
-          </>
+              {[...shops].map(([shopId, shopItems]) => {
+                const shopName = shopItems[0].shopName
+                const shopSelected = shopItems.reduce((count, item) => count + Number(selectedIds.has(item.cartId)), 0)
+                return (
+                  <section key={shopId} aria-label={shopName} className="web-cart-shop">
+                    <div className="web-cart-shop-heading">
+                      <label className="web-cart-pick" title={`Select all items from ${shopName}`}>
+                        <SelectionCheckbox checked={shopSelected === shopItems.length} partial={shopSelected > 0 && shopSelected < shopItems.length} label={`Select all items from ${shopName}`} onChange={checked => selectItems(shopItems, checked)} />
+                      </label>
+                      <h3><Link to={`/shop/${encodeURIComponent(shopId)}`}>{shopName}</Link></h3>
+                    </div>
+                    <ul>
+                      {shopItems.map(item => (
+                        <li className="web-cart-item" key={item.cartId} data-selected={selectedIds.has(item.cartId)}>
+                          <label className="web-cart-pick">
+                            <SelectionCheckbox checked={selectedIds.has(item.cartId)} label={`Select ${item.name}${item.variationName ? ' · ' + item.variationName : ''}`} onChange={checked => selectItems([item], checked)} />
+                          </label>
+                          {item.imageUrl ? (
+                            <ImageWithSkeleton src={item.imageUrl} className="web-cart-image" alt="" loading="lazy" />
+                          ) : <span className="web-cart-image web-cart-image-empty" aria-hidden="true">No image</span>}
+                          <div className="web-cart-item-details">
+                            <Link className="web-cart-item-name" to={`/funeral/product/${encodeURIComponent(item.productId)}`}>{item.name}</Link>
+                            {item.variationName && <p>Variation: {item.variationName}</p>}
+                            {Boolean(item.packageItems?.length) && <p>Packages: {item.packageItems?.join(', ')}</p>}
+                            {Boolean(item.downpaymentAmount && item.downpaymentPercentage) && <p>Down payment available after shop approval</p>}
+                          </div>
+                          <div className="web-cart-item-actions">
+                            <strong>{peso.format(item.price)}</strong>
+                            <button type="button" className="web-cart-remove" onClick={() => confirmRemoval([item])} aria-label={`Remove ${item.name}${item.variationName ? ' · ' + item.variationName : ''} from cart`}>Remove</button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )
+              })}
+            </section>
+
+            <aside className="web-cart-summary" aria-labelledby="cart-summary-title">
+              <h2 id="cart-summary-title">Order summary</h2>
+              <dl className="web-cart-total" aria-live="polite">
+                <div><dt>Selected items</dt><dd>{selectedCount}</dd></div>
+                <div><dt>Total</dt><dd>{peso.format(total)}</dd></div>
+              </dl>
+              {selectedCount !== 1 && (
+                <p id="cart-checkout-hint">
+                  {selectedCount === 0 ? 'Select an item to continue.' : 'Select one item per service request.'}
+                </p>
+              )}
+              <button
+                className="web-cart-primary"
+                type="button"
+                disabled={selectedCount !== 1}
+                aria-describedby={selectedCount === 1 ? undefined : 'cart-checkout-hint'}
+                onClick={checkout}
+              >Check out</button>
+            </aside>
+          </div>
         )}
-      </div>
+      </main>
       {alertDialog}
       {confirmDialog}
     </div>
-  )
-}
-
-function TopBar({ profile }: { profile: ViewerProfile | null }) {
-  return (
-    <div className="cart-topbar">
-      <div className="cart-topbar-inner">
-        <div className="cart-topbar-left">
-          <Link to="/seller">Shop Center</Link>
-        </div>
-        <div className="cart-topbar-right">
-          <Link to="/user/notifications">Notifications</Link>
-          <Link to="/user/help">Help Centre</Link>
-          <span className="cart-divider">|</span>
-          <div className="cart-user-menu">
-            <div className="cart-user-menu-trigger">
-              <img src={getProfileAvatar(profile?.photoURL, profile?.gender)} alt="Avatar" className="cart-user-avatar" />
-              <span className="cart-user-name">{profile?.fullName || 'User'}</span>
-              <svg className="cart-user-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-            </div>
-            <div className="cart-user-dropdown">
-              <Link to="/user/profile">My Account</Link>
-              <Link to="/user/requests">My service request</Link>
-              <Link to="/auth/switch-account" className="cart-dropdown-switch">Switch Account</Link>
-              <LogoutLink>Log out</LogoutLink>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function Header() {
-  return (
-    <header className="cart-header">
-      <div className="cart-header-inner">
-        <BrandLogo to="/funeral" compact className="cart-brand-logo" />
-        <div className="cart-header-divider" />
-        <h1>Shopping Cart</h1>
-      </div>
-    </header>
   )
 }

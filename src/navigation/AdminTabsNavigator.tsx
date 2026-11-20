@@ -40,7 +40,7 @@ const routeLabels: Record<string, string> = {
   ActivityLogs: 'Activity Logs',
   LoginSecurity: 'Login & Security',
   HomeContent: 'Mobile Home Feature',
-  PayoutAccounts: 'Payout Accounts',
+  PayoutAccounts: 'Withdrawal Accounts',
   Announcements: 'Announcements',
 };
 
@@ -107,11 +107,11 @@ export default function AdminTabsNavigator() {
           });
         },
       })}
-      screenOptions={({ navigation }) => ({
+      screenOptions={({ navigation, route }) => ({
         drawerType: 'front',
         drawerStyle: styles.drawer,
         headerLeft: () => <HeaderMenuButton navigation={navigation} />,
-        headerRight: () => <NotificationBell />,
+        headerRight: route.name === "Dashboard" || route.name === "Analytics" ? () => <NotificationBell /> : undefined,
         headerStyle: styles.header,
         headerTintColor: colors.surface,
         headerTitleStyle: styles.headerTitle,
@@ -135,7 +135,7 @@ export default function AdminTabsNavigator() {
       <Drawer.Screen name="ActivityLogs" component={AdminAuditLogsScreen} options={{ title: 'Activity Logs' }} />
       <Drawer.Screen name="LoginSecurity" component={AdminLoginSecurityScreen} options={{ title: 'Login & Security' }} />
       {isRootAdmin ? <Drawer.Screen name="HomeContent" component={AdminHomeContentScreen} options={{ title: 'Mobile Home Feature' }} /> : null}
-      {isRootAdmin ? <Drawer.Screen name="PayoutAccounts" component={AdminPayoutAccountsScreen} options={{ title: 'Payout Accounts' }} /> : null}
+      {isRootAdmin ? <Drawer.Screen name="PayoutAccounts" component={AdminPayoutAccountsScreen} options={{ title: 'Withdrawal Accounts' }} /> : null}
       {isRootAdmin ? <Drawer.Screen name="Announcements" component={AdminAnnouncementsScreen} options={{ title: 'Announcements' }} /> : null}
     </Drawer.Navigator>
   );

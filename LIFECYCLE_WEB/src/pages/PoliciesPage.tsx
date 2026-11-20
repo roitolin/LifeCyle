@@ -1,7 +1,7 @@
 import BrandLogo from '@/components/BrandLogo'
 import PageBackButton from '@/components/PageBackButton'
 import AccountMobileHeader from '@/components/AccountMobileHeader'
-import NotificationDropdown from '@/components/NotificationDropdown'
+import MarketplaceFooter from '@/components/MarketplaceFooter'
 import './FuneralLandingPage.css'
 
 const sections = [
@@ -42,17 +42,16 @@ const sections = [
 export default function PoliciesPage() {
   return (
     <div className="sp-page policy-page">
-      <AccountMobileHeader showNotifications />
+      <AccountMobileHeader showAccountMenu={false} />
       <header className="sp-header">
         <div className="sp-header-inner policy-header-inner">
-          <BrandLogo />
-          <div className="policy-header-notification"><NotificationDropdown variant="seller-centre" /></div>
+          <BrandLogo compact />
         </div>
       </header>
 
       <div className="sp-body">
         <div className="sp-body-inner policy-body-inner">
-          <div className="page-back-row"><PageBackButton to="/funeral" label="Back to home" /></div>
+          <div className="page-back-row"><PageBackButton /></div>
           <div className="policy-content">
             <span className="policy-kicker">LifeCycle Funeral Services Philippines</span>
             <h1>Policies</h1>
@@ -70,11 +69,7 @@ export default function PoliciesPage() {
         </div>
       </div>
 
-      <footer className="sp-footer">
-        <div className="sp-footer-bottom">
-          <span>© {new Date().getFullYear()} LifeCycle Funeral Services Philippines.</span>
-        </div>
-      </footer>
+      <MarketplaceFooter compact />
     </div>
   )
 }

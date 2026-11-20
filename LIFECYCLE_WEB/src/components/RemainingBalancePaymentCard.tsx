@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import {
   approveShopCashBalancePayment, balanceChannelLabel, canPayRemainingBalance, getBalanceReceiptUrl,
@@ -43,6 +44,7 @@ function BalancePanel({ request, role = 'customer' }: Props) {
   const [receiverId, setReceiverId] = useState('')
   const [busy, setBusy] = useState(false)
   const busyRef = useRef(false)
+  const loadLiveBalance = useRef<(() => Promise<void>) | null>(null)
   const checkoutOpenedRef = useRef(false)
   const [reason, setReason] = useState('')
   const [rejecting, setRejecting] = useState(false)
@@ -57,17 +59,20 @@ function BalancePanel({ request, role = 'customer' }: Props) {
   useEffect(() => {
     let active = true
     let sequence = 0
-    const load = async () => {
+    const load = async (background = false) => {
       if (busyRef.current) return
       const version = ++sequence
-      setLoading(true)
-      setLoadError('')
+      if (!background) {
+        setLoading(true)
+        setLoadError('')
+      }
       try {
         const data = await loadBalancePayments({ id: requestId, shopId })
         if (active && sequence === version) { setPayments(data.payments); setReceivers(data.receivers) }
       } catch (error) { if (active && sequence === version) setLoadError(message(error)) }
       finally { if (active && sequence === version) setLoading(false) }
     }
+    loadLiveBalance.current = () => load(true)
     const synchronizeAfterCheckout = async () => {
       const checkoutWasOpened = checkoutOpenedRef.current
         || window.sessionStorage.getItem(checkoutStorageKey) === '1'
@@ -91,10 +96,13 @@ function BalancePanel({ request, role = 'customer' }: Props) {
     document.addEventListener('visibilitychange', onFocus)
     return () => {
       active = false
+      loadLiveBalance.current = null
       window.removeEventListener('focus', onFocus)
       document.removeEventListener('visibilitychange', onFocus)
     }
   }, [checkoutStorageKey, requestId, shopId, refreshKey])
+
+  useRealtimeRefresh([{ table: 'funeral_balance_payments', filter: `request_id=eq.${requestId}` }], () => loadLiveBalance.current?.(), Boolean(requestId) && !loading)
 
   useEffect(() => {
     const dialog = dialogRef.current

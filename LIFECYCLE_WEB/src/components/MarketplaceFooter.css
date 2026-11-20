@@ -4,7 +4,7 @@
   flex-direction: column;
 }
 
-.marketplace-page-shell > main {
+.marketplace-page-shell > :is(main, .sp-body) {
   width: 100%;
   flex: 1 0 auto;
 }
@@ -23,10 +23,10 @@
   font-size: 12px;
 }
 
-.marketplace-footer .sp-footer-top {
+.marketplace-footer__sections {
   width: min(1200px, 100%);
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 20px;
   margin: 0 auto 40px;
 }
@@ -49,6 +49,8 @@
 
 .marketplace-footer a:hover {
   color: #ffffff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .marketplace-footer a:focus-visible {
@@ -57,13 +59,13 @@
   outline-offset: 3px;
 }
 
-.marketplace-footer .sp-footer-badges {
+.marketplace-footer__badges {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.marketplace-footer .sp-payment-logo {
+.marketplace-footer__badges img {
   width: 88px;
   height: 40px;
   padding: 5px 8px;
@@ -73,7 +75,7 @@
   border-radius: 4px;
 }
 
-.marketplace-footer .sp-footer-bottom {
+.marketplace-footer__bottom {
   width: min(1200px, 100%);
   display: flex;
   justify-content: space-between;
@@ -84,24 +86,18 @@
   line-height: 1.5;
 }
 
-@media (max-width: 1024px) {
-  .marketplace-footer .sp-footer-top {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
 @media (max-width: 768px) {
   .marketplace-footer {
     padding: 32px 14px 24px;
   }
 
-  .marketplace-footer .sp-footer-top {
+  .marketplace-footer__sections {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 28px 18px;
     margin-bottom: 28px;
   }
 
-  .marketplace-footer .sp-footer-bottom {
+  .marketplace-footer__bottom {
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
@@ -109,21 +105,31 @@
 }
 
 @media (max-width: 560px) {
-  .marketplace-footer .sp-footer-top {
-    grid-template-columns: minmax(0, 1fr);
-    text-align: center;
+  .marketplace-footer__sections {
+    gap: 20px 12px;
   }
 
-  .marketplace-footer .sp-footer-badges {
-    justify-content: center;
+  .marketplace-footer__payments {
+    grid-column: 1 / -1;
   }
+}
 
-  .marketplace-footer .sp-footer-bottom {
-    align-items: center;
-    text-align: center;
-  }
+.marketplace-footer-compact {
+  padding: 20px 16px;
+  border-top-width: 1px;
+}
 
-  .marketplace-footer .sp-footer-bottom span {
-    width: 100%;
-  }
+.marketplace-footer-compact .marketplace-footer__bottom {
+  padding-top: 0;
+  border: 0;
+}
+
+.marketplace-footer-compact nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.marketplace-footer-compact nav a {
+  margin: 0;
 }

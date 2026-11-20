@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type DragEvent, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { uploadHomeHeroImageWeb } from '@/lib/supabaseStorage'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
@@ -162,7 +163,10 @@ export default function AdminHomeContentPage() {
       <header className='home-content-header'>
         <div>
           <h2>Mobile home feature</h2>
-          <p className='panel-sub'>Control the editorial banner above the mobile casket catalog.</p>
+          <p className='panel-sub'>
+            Control the editorial banner above the mobile casket catalog.{' '}
+            <Link to='/admin/app-link'>Manage Install Our App link &rarr;</Link>
+          </p>
         </div>
         <span className={`home-content-status${isActive ? ' active' : ''}`}>{isActive ? 'Visible' : 'Draft'}</span>
       </header>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import LoadingBird from '@/components/LoadingBird';
+import LoadingStatus from '@/components/LoadingStatus';
 import {
   ActivityIndicator,
   Alert,
@@ -443,7 +443,7 @@ export default function FuneralProductEditorScreen({ navigation, route }: any) {
   if (loading) {
     return (
       <SafeAreaView style={styles.screen}>
-        <LoadingBird fullScreen />
+        <LoadingStatus label="Loading product editor…" fullScreen />
       </SafeAreaView>
     );
   }

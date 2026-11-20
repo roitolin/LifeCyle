@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import LoadingBird from '@/components/LoadingBird';
+import ContentSkeleton, { SkeletonBlock, contentFade } from '@/components/ContentSkeleton';
 import {
   Alert,
   ScrollView,
@@ -8,12 +8,17 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import Reanimated from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "@/services/supabaseClient";
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import { useAuth } from '@/context/AuthContext';
 import { auth } from "@/services";
 import { formatServiceDate, formatServiceTime } from "@/utils/serviceRequestSchedule";
+
+const RequestCard = Reanimated.createAnimatedComponent(TouchableOpacity);
 
 type FuneralServiceRequest = {
   id: string;
@@ -80,7 +85,7 @@ const getStatusMeta = (status: string, paymentOption?: string | null) => {
     };
   }
   if (normalized === "paid_waiting_for_split") {
-    return { label: "Processing Payout", background: "#fef3c7", text: "#86654a" };
+    return { label: "Payment Confirmed", background: "#e7f5ec", text: "#166534" };
   }
   if (normalized === "commission_failed") {
     return { label: "Payout Review", background: "#fde8e8", text: "#991b1b" };
@@ -147,25 +152,28 @@ const dedupeServiceRequests = (requests: FuneralServiceRequest[]) => {
 
 export default function FuneralServiceRequestsInboxScreen() {
   const navigation = useNavigation<any>();
+  const { user: account } = useAuth();
+  const accountId = account?.id;
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<FuneralServiceRequest[]>([]);
 
-  const loadRequests = useCallback(async () => {
+  const loadRequests = useCallback(async (background = false) => {
     const user = auth.currentUser;
     if (!user) return;
 
-    setLoading(true);
+    if (!background) setLoading(true);
     try {
-      const { data: rows } = await supabase
+      const { data: rows, error } = await supabase
         .from("funeral_service_requests")
         .select("*")
         .eq("shopId", user.uid)
         .order("createdAt", { ascending: false });
 
+      if (error) throw error;
       const nextRequests = dedupeServiceRequests((rows || []) as FuneralServiceRequest[]);
       setRequests(nextRequests);
     } catch (error: any) {
-      Alert.alert("Error", error?.message || "Failed to load service requests.");
+      if (!background) Alert.alert("Error", error?.message || "Failed to load service requests.");
     } finally {
       setLoading(false);
     }
@@ -176,6 +184,8 @@ export default function FuneralServiceRequestsInboxScreen() {
       void loadRequests();
     }, [loadRequests])
   );
+
+  useRealtimeRefresh([{ table: 'funeral_service_requests', filter: `shopId=eq.${accountId}` }], () => loadRequests(true), Boolean(accountId) && !loading);
 
   const pendingCount = useMemo(
     () => requests.filter((item: any) => String(item.status || "").toLowerCase() === "pending_shop_acceptance").length,
@@ -210,7 +220,21 @@ export default function FuneralServiceRequestsInboxScreen() {
 
         {loading ? (
           <View style={styles.loadingWrap}>
-            <LoadingBird />
+            <ContentSkeleton label="Loading incoming requests" style={{ alignSelf: "stretch" }}>
+              {[0, 1].map(index => (
+                <View key={index} style={styles.requestCard}>
+                  <View style={styles.requestTopRow}>
+                    <View style={styles.requestTextBlock}>
+                      <SkeletonBlock style={{ width: "86%", height: 14, marginBottom: 6 }} />
+                      <SkeletonBlock style={{ width: "65%" }} />
+                    </View>
+                    <SkeletonBlock style={{ width: "27%", height: 18, borderRadius: 12 }} />
+                  </View>
+                  <SkeletonBlock style={{ width: "66%", marginTop: 8 }} />
+                  <SkeletonBlock style={{ width: "48%", marginTop: 6 }} />
+                </View>
+              ))}
+            </ContentSkeleton>
           </View>
         ) : requests.length === 0 ? (
           <View style={styles.emptyCard}>
@@ -227,7 +251,7 @@ export default function FuneralServiceRequestsInboxScreen() {
               String(item.status || "").toLowerCase() !== "payment_verified";
 
             return (
-              <TouchableOpacity key={item.id} style={styles.requestCard} activeOpacity={0.92} onPress={() => openDetails(item)}>
+              <RequestCard entering={contentFade} key={item.id} style={styles.requestCard} activeOpacity={0.92} onPress={() => openDetails(item)}>
                 <View style={styles.requestTopRow}>
                   <View style={styles.requestTextBlock}>
                     <Text style={styles.requestName}>{item.deceasedFullName}</Text>
@@ -266,7 +290,7 @@ export default function FuneralServiceRequestsInboxScreen() {
                   <Text style={styles.viewDetailsText}>View Details</Text>
                   <Ionicons name="chevron-forward" size={16} color="#8b7255" />
                 </View>
-              </TouchableOpacity>
+              </RequestCard>
             );
           })
         )}
@@ -345,8 +369,7 @@ const styles = StyleSheet.create({
   },
   loadingWrap: {
     alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 42,
+    paddingVertical: 12,
   },
   loadingText: {
     color: "#62706b",

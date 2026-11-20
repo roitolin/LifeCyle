@@ -42,18 +42,7 @@
 }
 
 @theme {
-  --animate-brand-loader-dot: brand-loader-dot 1s ease-in-out infinite;
   --animate-announcement-in: web-announcement-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
-  @keyframes brand-loader-dot {
-    0%, 60%, 100% {
-      opacity: 0.35;
-      transform: translateY(0) scale(0.8);
-    }
-    30% {
-      opacity: 1;
-      transform: translateY(-5px) scale(1);
-    }
-  }
   @keyframes web-announcement-in {
     from {
       opacity: 0;
@@ -967,9 +956,7 @@ textarea {
 
   .sp-topbar-inner,
   .sp-header-inner,
-  .sp-body-inner,
-  .sp-footer-top,
-  .sp-footer-bottom {
+  .sp-body-inner {
     max-width: 1360px;
   }
 

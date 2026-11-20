@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { uploadChatMediaWeb, type ChatMediaType } from '@/lib/supabaseStorage'
 import { getDefaultProfileAvatar } from '@/utils/profileAvatar'
+import { SkeletonBlock, SkeletonRegion } from './ContentSkeleton'
 import './ChatWidget.css'
 
 type Conversation = {
@@ -12,22 +14,37 @@ type Conversation = {
   lastMessage?: {
     id?: string
     text?: string
+    mediaType?: ChatMediaType | null
     senderId?: string
     timestamp?: string
     readBy?: string[]
   }
 }
 
+let nextChatChannelId = 0
+
 type ChatMessage = {
   id: string
   conversationId?: string
   text?: string
   imageUrl?: string
+  mediaUrl?: string | null
+  mediaType?: ChatMediaType | null
+  mediaDuration?: number | null
+  mediaName?: string | null
   senderId?: string
   replyToId?: string | null
   timestamp?: string
   readBy?: string[]
   deliveredTo?: string[]
+}
+
+type PendingMediaAttachment = {
+  file: File
+  previewUrl: string
+  mediaType: ChatMediaType
+  fileName: string
+  durationSeconds?: number | null
 }
 
 type UserInfo = {
@@ -42,6 +59,24 @@ type UserInfo = {
 type ChatPartnerProfile = UserInfo & {
   id: string
 }
+
+const QUICK_EMOJIS = [
+  '😊', '🙏', '❤️', '🕊️', '🌹', '👍', '😢', '🤍',
+  '😔', '✨', '🌸', '💐', '🕯️', '🤝', '🙌', '😌',
+]
+
+const QUICK_STICKERS = [
+  { emoji: '🙏', label: 'Thank you' },
+  { emoji: '🕊️', label: 'Peace' },
+  { emoji: '🤍', label: 'Condolences' },
+  { emoji: '💐', label: 'Sympathy' },
+  { emoji: '🕯️', label: 'In memory' },
+  { emoji: '👍', label: 'Okay' },
+  { emoji: '🤝', label: 'Confirmed' },
+  { emoji: '🌸', label: 'Blessings' },
+]
+
+const VOICE_WAVE_BARS = [0.35, 0.62, 0.45, 0.88, 0.55, 0.95, 0.4, 0.75, 0.9, 0.5, 0.82, 0.6, 0.92, 0.48, 0.7, 0.52, 0.65, 0.4]
 
 function getDefaultAvatar(gender?: string) {
   return getDefaultProfileAvatar(gender)
@@ -77,6 +112,24 @@ function formatMsgTime(value: string | undefined) {
   const d = new Date(value)
   if (isNaN(d.getTime())) return ''
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
+}
+
+function formatDuration(seconds: number | null | undefined) {
+  const total = Math.max(0, Math.round(Number(seconds) || 0))
+  const mins = Math.floor(total / 60)
+  const secs = total % 60
+  return `${mins}:${secs < 10 ? '0' : ''}${secs}`
+}
+
+function getMessagePreviewLabel(msg?: Partial<ChatMessage> | null) {
+  if (!msg) return ''
+  if (msg.text && msg.text.trim()) return msg.text.trim()
+  const type = msg.mediaType || (msg.imageUrl ? 'image' : null)
+  if (type === 'image') return 'Photo'
+  if (type === 'video') return 'Video'
+  if (type === 'audio') return 'Voice message'
+  if (type === 'file') return msg.mediaName || 'File'
+  return ''
 }
 
 function isMissingDeliveryReceipts(error: { code?: string; message?: string } | null) {
@@ -191,6 +244,120 @@ async function markChatMessagesSeen(
   }
 }
 
+function VoiceMessagePlayer({
+  src,
+  durationSeconds,
+  mine,
+}: {
+  src: string
+  durationSeconds?: number | null
+  mine: boolean
+}) {
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [playing, setPlaying] = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState<number>(durationSeconds && durationSeconds > 0 ? durationSeconds : 0)
+
+  useEffect(() => {
+    const audio = new Audio(src)
+    audio.preload = 'metadata'
+    audioRef.current = audio
+
+    const onLoadedMetadata = () => {
+      if (Number.isFinite(audio.duration) && audio.duration > 0) {
+        setDuration(audio.duration)
+      }
+    }
+    const onTimeUpdate = () => {
+      setCurrentTime(audio.currentTime || 0)
+      if (Number.isFinite(audio.duration) && audio.duration > 0) {
+        setDuration(audio.duration)
+      }
+    }
+    const onEnded = () => {
+      setPlaying(false)
+      setCurrentTime(0)
+    }
+    const onPause = () => setPlaying(false)
+    const onPlay = () => setPlaying(true)
+
+    audio.addEventListener('loadedmetadata', onLoadedMetadata)
+    audio.addEventListener('timeupdate', onTimeUpdate)
+    audio.addEventListener('ended', onEnded)
+    audio.addEventListener('pause', onPause)
+    audio.addEventListener('play', onPlay)
+
+    return () => {
+      audio.pause()
+      audio.removeEventListener('loadedmetadata', onLoadedMetadata)
+      audio.removeEventListener('timeupdate', onTimeUpdate)
+      audio.removeEventListener('ended', onEnded)
+      audio.removeEventListener('pause', onPause)
+      audio.removeEventListener('play', onPlay)
+      audioRef.current = null
+    }
+  }, [src])
+
+  const togglePlay = () => {
+    const audio = audioRef.current
+    if (!audio) return
+    if (playing) {
+      audio.pause()
+    } else {
+      void audio.play().catch(() => setPlaying(false))
+    }
+  }
+
+  const totalDuration = duration > 0 ? duration : (durationSeconds || 0)
+  const progress = totalDuration > 0 ? Math.min(1, currentTime / totalDuration) : 0
+  const displayedTime = playing || currentTime > 0 ? currentTime : totalDuration
+
+  return (
+    <div className={`cw-voice-player ${mine ? 'cw-voice-mine' : 'cw-voice-other'}`}>
+      <button
+        type="button"
+        className="cw-voice-play-btn"
+        onClick={togglePlay}
+        aria-label={playing ? 'Pause voice message' : 'Play voice message'}
+      >
+        {playing ? (
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="6" y="5" width="4" height="14" rx="1.2" fill="currentColor" />
+            <rect x="14" y="5" width="4" height="14" rx="1.2" fill="currentColor" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8 5.5v13l10.5-6.5L8 5.5z" fill="currentColor" />
+          </svg>
+        )}
+      </button>
+      <div
+        className="cw-voice-waveform"
+        onClick={(event) => {
+          const audio = audioRef.current
+          if (!audio || !totalDuration) return
+          const rect = event.currentTarget.getBoundingClientRect()
+          const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width))
+          audio.currentTime = ratio * totalDuration
+          setCurrentTime(audio.currentTime)
+        }}
+      >
+        {VOICE_WAVE_BARS.map((height, index) => {
+          const filled = index / VOICE_WAVE_BARS.length <= progress
+          return (
+            <span
+              key={index}
+              className={`cw-voice-bar ${filled ? 'filled' : ''}`}
+              style={{ height: `${Math.round(height * 22)}px` }}
+            />
+          )
+        })}
+      </div>
+      <span className="cw-voice-duration">{formatDuration(displayedTime)}</span>
+    </div>
+  )
+}
+
 type ChatWidgetProps = {
   embedded?: boolean
   onClose?: () => void
@@ -207,6 +374,12 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = useState('')
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null)
+  const [pendingMedia, setPendingMedia] = useState<PendingMediaAttachment | null>(null)
+  const [emojiTrayOpen, setEmojiTrayOpen] = useState(false)
+  const [stickerTrayOpen, setStickerTrayOpen] = useState(false)
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false)
+  const [recordingSeconds, setRecordingSeconds] = useState(0)
+  const [lightboxImageUrl, setLightboxImageUrl] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadingMessages, setLoadingMessages] = useState(false)
@@ -215,9 +388,18 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
   const [headerDropdownOpen, setHeaderDropdownOpen] = useState(false)
+
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const mediaInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const mediaStreamRef = useRef<MediaStream | null>(null)
+  const recordedChunksRef = useRef<Blob[]>([])
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const recordingStartMsRef = useRef<number>(0)
+  const discardRecordingRef = useRef(false)
   const loadConversationsRef = useRef<((showLoader?: boolean) => Promise<void>) | null>(null)
   const conversationsRef = useRef<Conversation[]>([])
   const userInfoMapRef = useRef<Record<string, UserInfo>>({})
@@ -238,6 +420,27 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
       })
       scrollFrameRef.current = null
     })
+  }, [])
+
+  const clearPendingMedia = useCallback(() => {
+    setPendingMedia(prev => {
+      if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl)
+      return null
+    })
+  }, [])
+
+  const cleanupRecordingResources = useCallback(() => {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current)
+      recordingTimerRef.current = null
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop())
+      mediaStreamRef.current = null
+    }
+    mediaRecorderRef.current = null
+    setIsRecordingVoice(false)
+    setRecordingSeconds(0)
   }, [])
 
   // Auth listener
@@ -278,9 +481,7 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
     return () => { active = false }
   }, [userId])
 
-  // Acknowledge incoming messages even while the widget is minimized. This is
-  // what lets the sender distinguish a stored message from one delivered to an
-  // active recipient client.
+  // Acknowledge incoming messages even while the widget is minimized.
   useEffect(() => {
     if (!userId) return
 
@@ -379,8 +580,7 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
           setChatError('Chat could not be opened. Check your connection and try again.')
           return
         }
-        
-        // Ensure user info exists
+
         if (!userInfoMapRef.current[otherId]) {
           Promise.all([
             supabase.rpc('get_chat_partner_profiles', { target_ids: [otherId] }).maybeSingle(),
@@ -392,12 +592,12 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
                 const next = {
                   ...prev,
                   [otherId]: {
-                  fullName: profile.fullName,
-                  email: profile.email,
-                  photoURL: profile.photoURL,
-                  gender: profile.gender,
-                  shopName: shopData?.shopName,
-                  shopImageUrl: shopData?.shopImageUrl
+                    fullName: profile.fullName,
+                    email: profile.email,
+                    photoURL: profile.photoURL,
+                    gender: profile.gender,
+                    shopName: shopData?.shopName,
+                    shopImageUrl: shopData?.shopImageUrl
                   }
                 }
                 userInfoMapRef.current = next
@@ -412,14 +612,16 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
         setChatError('')
       }
     }
-    
+
     window.addEventListener('open-chat', handleOpenChat)
     return () => window.removeEventListener('open-chat', handleOpenChat)
   }, [userId])
 
   useEffect(() => () => {
     if (scrollFrameRef.current !== null) cancelAnimationFrame(scrollFrameRef.current)
-  }, [])
+    cleanupRecordingResources()
+    clearPendingMedia()
+  }, [cleanupRecordingResources, clearPendingMedia])
 
   // Load conversations
   const loadConversations = useCallback(async (showLoader = false) => {
@@ -441,7 +643,6 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
       setConversations(convs)
       setChatError('')
 
-      // Hydrate user info
       const otherIds = Array.from(
         new Set(convs.flatMap(c => c.participants.filter(p => p !== userId)))
       )
@@ -471,7 +672,6 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
         }
       }
 
-      // Unread counts
       const counts: Record<string, number> = {}
       convs.forEach(c => {
         const last = c.lastMessage
@@ -510,11 +710,13 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
   useEffect(() => {
     if (!userId || !open) return
     const channel = supabase
-      .channel('chat-widget-convs')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => {
+      .channel(`chat-widget-convs-${++nextChatChannelId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations', select: ['id'] }, () => {
         void loadConversations()
       })
-      .subscribe()
+      .subscribe(status => {
+        if (status === 'SUBSCRIBED') void loadConversations()
+      })
     return () => { void supabase.removeChannel(channel) }
   }, [userId, open, loadConversations])
 
@@ -546,11 +748,7 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
             deliveredTo: mergeReceiptIds(message.deliveredTo, newerReceipt.deliveredTo),
           }
         })
-        const loadedIds = new Set(mergedLoaded.map(message => message.id))
-        const realtimeOnly = current.filter(message =>
-          message.conversationId === conversationToLoad && !loadedIds.has(message.id)
-        )
-        return sortMessagesChronologically([...mergedLoaded, ...realtimeOnly]).slice(-100)
+        return sortMessagesChronologically(mergedLoaded).slice(-100)
       })
     } catch (error) {
       if (generation === messageLoadGenerationRef.current) {
@@ -567,12 +765,21 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
     pinToLatestRef.current = true
     setMessages([])
     setReplyingTo(null)
+    setEmojiTrayOpen(false)
+    setStickerTrayOpen(false)
+    clearPendingMedia()
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      discardRecordingRef.current = true
+      mediaRecorderRef.current.stop()
+    } else {
+      cleanupRecordingResources()
+    }
     if (activeConvId) void loadMessages()
     else setLoadingMessages(false)
     return () => {
       messageLoadGenerationRef.current += 1
     }
-  }, [activeConvId, loadMessages])
+  }, [activeConvId, cleanupRecordingResources, clearPendingMedia, loadMessages])
 
   // Mark message rows as seen only while the conversation is actually visible.
   useEffect(() => {
@@ -622,14 +829,15 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
 
   // Subscribe to inserts and receipt updates for the active conversation.
   useEffect(() => {
-    if (!activeConvId) return
+    if (!open || !userId || !activeConvId) return
     const channel = supabase
-      .channel(`chat-widget-msgs-${activeConvId}`)
+      .channel(`chat-widget-msgs-${activeConvId}-${++nextChatChannelId}`)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'messages',
-        filter: `conversationId=eq.${activeConvId}`
+        filter: `conversationId=eq.${activeConvId}`,
+        select: ['id', 'conversationId', 'senderId']
       }, (payload) => {
         const eventType = String(payload.eventType || '')
         if (eventType === 'DELETE') {
@@ -646,15 +854,13 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
         if (eventType === 'INSERT' && (changedMessage.senderId === userId || pinToLatestRef.current)) {
           pinToLatestRef.current = true
         }
-        // Realtime observes ciphertext from the protected base table. Only add
-        // message text after refetching it through the secure decrypted view.
         void loadMessages(false)
       })
       .subscribe(status => {
         if (status === 'SUBSCRIBED') void loadMessages(false)
       })
     return () => { void supabase.removeChannel(channel) }
-  }, [activeConvId, loadMessages, userId])
+  }, [activeConvId, loadMessages, open, userId])
 
   // Auto-scroll to bottom
   useLayoutEffect(() => {
@@ -675,7 +881,6 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
-  // Helper: group messages by date and insert separators
   const getDateLabel = (ts: string | undefined) => {
     if (!ts) return ''
     const d = new Date(ts)
@@ -689,44 +894,282 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
     return d.toLocaleDateString([], { month: '2-digit', day: '2-digit', year: 'numeric' })
   }
 
-  // Send message
-  const sendMessage = async () => {
-    if (!userId || !activeConvId || !chatInput.trim() || sending) return
+  const dispatchMessagePayload = useCallback(async (payload: {
+    text?: string
+    mediaFile?: File | Blob | null
+    mediaType?: ChatMediaType
+    mediaName?: string
+    mediaDuration?: number | null
+  }) => {
+    if (!userId || !activeConvId || sending) return
+    const cleanText = (payload.text ?? '').trim()
+    if (!cleanText && !payload.mediaFile) return
+
     setSending(true)
-    const text = chatInput.trim()
-    setChatInput('')
+    setChatError('')
     try {
-      const { data: insertedMessage, error } = await supabase.from('messages').insert({
+      let uploaded: {
+        mediaUrl: string
+        mediaType: ChatMediaType
+        mediaName: string
+        mediaDuration?: number | null
+      } | null = null
+
+      if (payload.mediaFile) {
+        uploaded = await uploadChatMediaWeb(payload.mediaFile, {
+          mediaType: payload.mediaType,
+          fileName: payload.mediaName,
+          durationSeconds: payload.mediaDuration,
+        })
+      }
+
+      const insertRow: Record<string, unknown> = {
         conversationId: activeConvId,
         senderId: userId,
-        text,
+        text: cleanText,
         readBy: [userId],
         replyToId: replyingTo?.id ?? null,
-      }).select('*').single()
+      }
+      if (uploaded) {
+        insertRow.mediaUrl = uploaded.mediaUrl
+        insertRow.mediaType = uploaded.mediaType
+        insertRow.mediaName = uploaded.mediaName
+        if (uploaded.mediaDuration && uploaded.mediaDuration > 0) {
+          insertRow.mediaDuration = Math.round(uploaded.mediaDuration * 10) / 10
+        }
+      }
+
+      const { data: insertedMessage, error } = await supabase
+        .from('messages')
+        .insert(insertRow)
+        .select('*')
+        .single()
       if (error) throw error
       if (!insertedMessage) throw new Error('The sent message was not returned by the server.')
 
-      const sentMessage = { ...insertedMessage, text } as ChatMessage
+      const sentMessage: ChatMessage = {
+        ...(insertedMessage as ChatMessage),
+        text: cleanText,
+        mediaUrl: uploaded?.mediaUrl ?? (insertedMessage as ChatMessage).mediaUrl ?? null,
+        mediaType: uploaded?.mediaType ?? (insertedMessage as ChatMessage).mediaType ?? null,
+        mediaName: uploaded?.mediaName ?? (insertedMessage as ChatMessage).mediaName ?? null,
+        mediaDuration: uploaded?.mediaDuration ?? (insertedMessage as ChatMessage).mediaDuration ?? null,
+      }
       const sentAt = sentMessage.timestamp || new Date().toISOString()
       pinToLatestRef.current = true
       initialConversationScrollRef.current = false
       setMessages(current => upsertChatMessage(current, sentMessage))
       setReplyingTo(null)
 
+      const previewLabel = getMessagePreviewLabel(sentMessage) || 'Encrypted message'
       await supabase.from('conversations').update({
-        lastMessage: { id: sentMessage.id, text, senderId: userId, timestamp: sentAt, readBy: [userId] },
+        lastMessage: {
+          id: sentMessage.id,
+          text: previewLabel,
+          mediaType: sentMessage.mediaType ?? null,
+          senderId: userId,
+          timestamp: sentAt,
+          readBy: [userId],
+        },
         updatedAt: sentAt,
       }).eq('id', activeConvId).lte('updatedAt', sentAt)
 
       void loadMessages(false)
       void loadConversations(false)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending message:', error)
-      setChatInput(current => current || text)
-      setChatError('Your message was not sent. Please try again.')
+      setChatError(error?.message || 'Your message was not sent. Please try again.')
+      throw error
     } finally {
       setSending(false)
       inputRef.current?.focus()
+    }
+  }, [activeConvId, loadConversations, loadMessages, replyingTo, sending, userId])
+
+  const sendMessage = async () => {
+    if (!userId || !activeConvId || sending) return
+    const text = chatInput.trim()
+    const attachment = pendingMedia
+    if (!text && !attachment) return
+
+    setChatInput('')
+    setEmojiTrayOpen(false)
+    setStickerTrayOpen(false)
+    if (attachment) setPendingMedia(null)
+
+    try {
+      await dispatchMessagePayload({
+        text,
+        mediaFile: attachment?.file ?? null,
+        mediaType: attachment?.mediaType,
+        mediaName: attachment?.fileName,
+        mediaDuration: attachment?.durationSeconds ?? null,
+      })
+      if (attachment?.previewUrl) URL.revokeObjectURL(attachment.previewUrl)
+    } catch {
+      if (text) setChatInput(current => current || text)
+      if (attachment) setPendingMedia(attachment)
+    }
+  }
+
+  const sendQuickText = async (quickText: string) => {
+    if (!userId || !activeConvId || sending) return
+    setEmojiTrayOpen(false)
+    setStickerTrayOpen(false)
+    try {
+      await dispatchMessagePayload({ text: quickText })
+    } catch {
+      // Error banner already updated in dispatchMessagePayload
+    }
+  }
+
+  const handleSelectMediaFile = (event: React.ChangeEvent<HTMLInputElement>, forceType?: ChatMediaType) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+
+    const mime = file.type.toLowerCase()
+    const ext = file.name.split('.').pop()?.toLowerCase() || ''
+    let mediaType: ChatMediaType = forceType || 'file'
+    if (!forceType) {
+      if (mime.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif'].includes(ext)) {
+        mediaType = 'image'
+      } else if (mime.startsWith('video/') || ['mp4', 'mov', 'webm', 'm4v', '3gp'].includes(ext)) {
+        mediaType = 'video'
+      } else if (mime.startsWith('audio/') || ['m4a', 'mp3', 'wav', 'ogg', 'aac'].includes(ext)) {
+        mediaType = 'audio'
+      }
+    }
+
+    clearPendingMedia()
+    const previewUrl = URL.createObjectURL(file)
+    setEmojiTrayOpen(false)
+    setStickerTrayOpen(false)
+
+    if (mediaType === 'video' || mediaType === 'audio') {
+      const mediaEl = document.createElement(mediaType)
+      mediaEl.preload = 'metadata'
+      mediaEl.onloadedmetadata = () => {
+        const dur = Number.isFinite(mediaEl.duration) && mediaEl.duration > 0 ? mediaEl.duration : null
+        setPendingMedia(prev => prev ? { ...prev, durationSeconds: dur } : prev)
+      }
+      mediaEl.src = previewUrl
+    }
+
+    setPendingMedia({
+      file,
+      previewUrl,
+      mediaType,
+      fileName: file.name,
+      durationSeconds: null,
+    })
+    inputRef.current?.focus()
+  }
+
+  const startVoiceRecording = async () => {
+    if (sending || isRecordingVoice) return
+    setEmojiTrayOpen(false)
+    setStickerTrayOpen(false)
+    setChatError('')
+
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setChatError('Voice recording is not supported in this browser.')
+      return
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      mediaStreamRef.current = stream
+      recordedChunksRef.current = []
+      discardRecordingRef.current = false
+
+      const preferredTypes = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4',
+        'audio/ogg;codecs=opus',
+      ]
+      const supportedMimeType = preferredTypes.find(type => {
+        try {
+          return MediaRecorder.isTypeSupported(type)
+        } catch {
+          return false
+        }
+      }) || ''
+
+      const recorder = supportedMimeType
+        ? new MediaRecorder(stream, { mimeType: supportedMimeType })
+        : new MediaRecorder(stream)
+
+      mediaRecorderRef.current = recorder
+      recordingStartMsRef.current = Date.now()
+      setRecordingSeconds(0)
+      setIsRecordingVoice(true)
+
+      recordingTimerRef.current = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - recordingStartMsRef.current) / 1000)
+        setRecordingSeconds(elapsed)
+      }, 250)
+
+      recorder.ondataavailable = (e: BlobEvent) => {
+        if (e.data && e.data.size > 0) {
+          recordedChunksRef.current.push(e.data)
+        }
+      }
+
+      recorder.onstop = () => {
+        const wasDiscarded = discardRecordingRef.current
+        const durationSec = Math.max(1, Math.round((Date.now() - recordingStartMsRef.current) / 1000))
+        const mimeType = recorder.mimeType || supportedMimeType || 'audio/webm'
+        const chunks = [...recordedChunksRef.current]
+        recordedChunksRef.current = []
+        cleanupRecordingResources()
+
+        if (wasDiscarded || chunks.length === 0) return
+
+        const ext = mimeType.includes('mp4') || mimeType.includes('m4a')
+          ? 'm4a'
+          : mimeType.includes('ogg')
+            ? 'ogg'
+            : 'webm'
+        const audioBlob = new Blob(chunks, { type: mimeType.split(';')[0] || 'audio/webm' })
+        if (audioBlob.size < 100) return
+
+        void dispatchMessagePayload({
+          text: '',
+          mediaFile: audioBlob,
+          mediaType: 'audio',
+          mediaName: `voice-${Date.now()}.${ext}`,
+          mediaDuration: durationSec,
+        }).catch(() => {
+          // Error banner already shown
+        })
+      }
+
+      recorder.start(200)
+    } catch (error: any) {
+      cleanupRecordingResources()
+      setChatError(
+        error?.name === 'NotAllowedError'
+          ? 'Microphone permission was denied. Allow microphone access in your browser settings to send voice messages.'
+          : 'Unable to access microphone for voice recording.'
+      )
+    }
+  }
+
+  const cancelVoiceRecording = () => {
+    discardRecordingRef.current = true
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop()
+    } else {
+      cleanupRecordingResources()
+    }
+  }
+
+  const finishAndSendVoiceRecording = () => {
+    discardRecordingRef.current = false
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop()
     }
   }
 
@@ -778,6 +1221,8 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
     setHeaderDropdownOpen(false)
   }
 
+  const hasSendableDraft = Boolean(chatInput.trim() || pendingMedia)
+
   if (!userId) return null
 
   return (
@@ -796,7 +1241,6 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
       {/* Chat Panel Split View */}
       {open && (
         <div className={`cw-panel${embedded ? ' cw-panel-embedded' : ''} ${isCollapsed ? 'collapsed' : ''} ${activeConvId ? 'has-active-conversation' : ''} ${replyingTo ? 'has-reply' : ''}`}>
-          
           {/* Sidebar (Left) */}
           <div className="cw-sidebar">
             <div className="cw-sidebar-header">
@@ -804,10 +1248,10 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
                 {isShopAccount && inboxMode === 'shop' ? 'Shop inbox' : 'Chat'} <span className="cw-sidebar-count">({visibleConversations.length})</span>
               </span>
               <div className="cw-sidebar-actions">
-                <button 
-                  className="cw-icon-btn cw-icon-dark" 
+                <button
+                  className="cw-icon-btn cw-icon-dark"
                   onClick={() => setIsCollapsed(!isCollapsed)}
-                  title={isCollapsed ? "Show chat window" : "Show chat list only"}
+                  title={isCollapsed ? 'Show chat window' : 'Show chat list only'}
                 >
                   {isCollapsed ? (
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -832,8 +1276,8 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
                     if (embedded) onClose?.()
                     else setOpen(false)
                   }}
-                  aria-label={embedded ? "Close messages" : "Minimize"}
-                  title={embedded ? "Close messages" : "Minimize"}
+                  aria-label={embedded ? 'Close messages' : 'Minimize'}
+                  title={embedded ? 'Close messages' : 'Minimize'}
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
@@ -853,7 +1297,7 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
                     void loadConversations(true)
                   }}
                 >
-                  Retry
+                  Dismiss
                 </button>
               </div>
             )}
@@ -898,9 +1342,21 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
             </div>
 
             <div className="cw-conv-list">
-              {loading && conversations.length === 0 && <div className="cw-empty">Loading conversations...</div>}
+              {loading && conversations.length === 0 && (
+                <SkeletonRegion label="Loading conversations">
+                  {[0, 1, 2].map(index => (
+                    <div className="cw-conv-item cw-conv-placeholder" key={index}>
+                      <div className="cw-conv-avatar-wrap"><SkeletonBlock className="cw-conv-avatar" /></div>
+                      <div className="cw-conv-info">
+                        <div className="cw-conv-top"><SkeletonBlock className="lc-skeleton-short" /><SkeletonBlock className="cw-skeleton-time" /></div>
+                        <div className="cw-conv-bottom"><SkeletonBlock /></div>
+                      </div>
+                    </div>
+                  ))}
+                </SkeletonRegion>
+              )}
               {!loading && filteredConvs.length === 0 && (
-                <div className="cw-empty" style={{marginTop: '20px'}}>
+                <div className="cw-empty" style={{ marginTop: '20px' }}>
                   {isShopAccount && inboxMode === 'shop' ? 'No customer messages yet' : 'No conversations yet'}
                 </div>
               )}
@@ -917,7 +1373,7 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
                 return (
                   <div
                     key={conv.id}
-                    className={`cw-conv-item ${unread > 0 ? 'unread' : ''} ${isActive ? 'active' : ''}`}
+                    className={`cw-conv-item lc-content-reveal ${unread > 0 ? 'unread' : ''} ${isActive ? 'active' : ''}`}
                     onClick={() => setActiveConvId(conv.id)}
                   >
                     <div className="cw-conv-avatar-wrap">
@@ -1011,17 +1467,31 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
                 >
                   <div className="cw-messages-spacer" />
                   <div className="cw-safety-tip">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#eab308" strokeWidth="2" style={{flexShrink: 0, marginTop: 2}}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#eab308" strokeWidth="2" style={{ flexShrink: 0, marginTop: 2 }}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
                     <div className="cw-safety-text">
                       Safety tip: Always chat and complete transactions inside LifeCycle to protect yourself from scams. Do not share your personal information or contact unless it is necessary.
                     </div>
                   </div>
 
-                  {loadingMessages && <div className="cw-empty">Loading...</div>}
+                  {loadingMessages && messages.length === 0 && (
+                    <SkeletonRegion label="Loading messages">
+                      <div className="cw-message-placeholders">
+                        <div className="cw-msg cw-skeleton-incoming">
+                          <SkeletonBlock className="cw-msg-avatar" />
+                          <SkeletonBlock className="cw-skeleton-bubble" />
+                        </div>
+                        <div className="cw-msg cw-skeleton-outgoing"><SkeletonBlock className="cw-skeleton-bubble" /></div>
+                        <div className="cw-msg cw-skeleton-incoming">
+                          <SkeletonBlock className="cw-msg-avatar" />
+                          <SkeletonBlock className="cw-skeleton-bubble" />
+                        </div>
+                      </div>
+                    </SkeletonRegion>
+                  )}
                   {!loadingMessages && messages.length === 0 && (
                     <div className="cw-empty" style={{ marginTop: '20px' }}>No messages yet. Say hello!</div>
                   )}
-                  
+
                   {messages.map((msg, idx) => {
                     const mine = msg.senderId === userId
                     const repliedMessage = msg.replyToId ? messageById.get(msg.replyToId) : null
@@ -1039,8 +1509,13 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
                     const dateLabel = getDateLabel(msg.timestamp)
                     const prevDateLabel = idx > 0 ? getDateLabel(messages[idx - 1].timestamp) : ''
                     const showDateSep = dateLabel && dateLabel !== prevDateLabel
+
+                    const resolvedMediaUrl = msg.mediaUrl || msg.imageUrl || null
+                    const resolvedMediaType: ChatMediaType | null = msg.mediaType
+                      || (msg.imageUrl ? 'image' : null)
+
                     return (
-                      <div key={msg.id} className={`cw-msg-row ${mine ? 'cw-msg-row-mine' : 'cw-msg-row-other'}`}>
+                      <div key={msg.id} className={`cw-msg-row lc-content-reveal ${mine ? 'cw-msg-row-mine' : 'cw-msg-row-other'}`}>
                         {showDateSep && (
                           <div className="cw-date-separator">
                             <span>{dateLabel}</span>
@@ -1056,20 +1531,60 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
                                   <span>{replyContextLabel}</span>
                                 </div>
                                 <div className="cw-reply-quote">
-                                  {repliedMessage?.text || (repliedMessage?.imageUrl ? 'Photo' : 'Message is no longer available')}
+                                  {getMessagePreviewLabel(repliedMessage) || 'Message is no longer available'}
                                 </div>
                               </div>
                             ) : null}
                             <div className={`cw-msg-bubble ${mine ? 'cw-bubble-mine' : 'cw-bubble-other'}`}>
-                              {msg.imageUrl && (
-                                <img
-                                  src={msg.imageUrl}
-                                  alt=""
-                                  className="cw-msg-image"
-                                  onLoad={() => {
+                              {resolvedMediaUrl && resolvedMediaType === 'image' && (
+                                <button
+                                  type="button"
+                                  className="cw-msg-image-btn"
+                                  onClick={() => setLightboxImageUrl(resolvedMediaUrl)}
+                                  aria-label="View full photo"
+                                >
+                                  <img
+                                    src={resolvedMediaUrl}
+                                    alt={msg.mediaName || 'Shared photo'}
+                                    className="cw-msg-image"
+                                    onLoad={() => {
+                                      if (pinToLatestRef.current) scrollToLatest('auto')
+                                    }}
+                                  />
+                                </button>
+                              )}
+                              {resolvedMediaUrl && resolvedMediaType === 'video' && (
+                                <video
+                                  src={resolvedMediaUrl}
+                                  controls
+                                  playsInline
+                                  preload="metadata"
+                                  className="cw-msg-video"
+                                  onLoadedMetadata={() => {
                                     if (pinToLatestRef.current) scrollToLatest('auto')
                                   }}
                                 />
+                              )}
+                              {resolvedMediaUrl && resolvedMediaType === 'audio' && (
+                                <VoiceMessagePlayer
+                                  src={resolvedMediaUrl}
+                                  durationSeconds={msg.mediaDuration}
+                                  mine={mine}
+                                />
+                              )}
+                              {resolvedMediaUrl && resolvedMediaType === 'file' && (
+                                <a
+                                  href={resolvedMediaUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="cw-msg-file"
+                                >
+                                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                    <polyline points="14 2 14 8 20 8" />
+                                  </svg>
+                                  <span>{msg.mediaName || 'Attachment'}</span>
+                                </a>
                               )}
                               {msg.text && <p className="cw-msg-text">{msg.text}</p>}
                               <span className="cw-msg-time">{formatMsgTime(msg.timestamp)}</span>
@@ -1103,53 +1618,307 @@ export default function ChatWidget({ embedded = false, onClose }: ChatWidgetProp
                   })}
                 </div>
 
+                {/* Hidden File Pickers */}
+                <input
+                  ref={mediaInputRef}
+                  type="file"
+                  accept="image/*,video/*"
+                  className="cw-hidden-file-input"
+                  onChange={e => handleSelectMediaFile(e)}
+                />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
+                  className="cw-hidden-file-input"
+                  onChange={e => handleSelectMediaFile(e)}
+                />
+
                 <div className="cw-input-area">
                   {replyingTo ? (
                     <div className="cw-reply-composer">
                       <svg className="cw-reply-composer-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 14-5-5 5-5" /><path d="M4 9h9a7 7 0 0 1 7 7v4" /></svg>
                       <div className="cw-reply-composer-copy">
                         <strong>Replying to {replyingTo.senderId === userId ? 'yourself' : otherName}</strong>
-                        <span>{replyingTo.text || (replyingTo.imageUrl ? 'Photo' : 'Message')}</span>
+                        <span>{getMessagePreviewLabel(replyingTo) || 'Message'}</span>
                       </div>
                       <button type="button" className="cw-reply-cancel" onClick={() => setReplyingTo(null)} aria-label="Cancel reply">×</button>
                     </div>
                   ) : null}
-                  <div className="cw-input-bar">
-                    <input
-                      ref={inputRef}
-                      type="text"
-                      placeholder={`Message ${otherName}`}
-                      value={chatInput}
-                      onChange={e => setChatInput(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') void sendMessage() }}
-                      className="cw-input"
-                    />
-                  </div>
-                  <div className="cw-input-tools">
-                    {/* Emoji */}
-                    <button className="cw-tool-btn" title="Emoji"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg></button>
-                    {/* Image */}
-                    <button className="cw-tool-btn" title="Image"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg></button>
-                    {/* Video */}
-                    <button className="cw-tool-btn" title="Video"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="6" width="13" height="12" rx="2"></rect><path d="M15 10l5-3v10l-5-3"></path></svg></button>
-                    {/* Sticker */}
-                    <button className="cw-tool-btn" title="Sticker"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><path d="M12 8v4l3 3"></path></svg></button>
-                    {/* Order */}
-                    <button className="cw-tool-btn" title="Order"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg></button>
-                    <div style={{flex: 1}} />
-                    <button
-                      className="cw-send-btn"
-                      onClick={() => void sendMessage()}
-                      disabled={sending || !chatInput.trim()}
-                      aria-label="Send"
-                    >
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-                    </button>
-                  </div>
+
+                  {pendingMedia ? (
+                    <div className="cw-media-preview-bar">
+                      <div className="cw-media-preview-thumb-wrap">
+                        {pendingMedia.mediaType === 'image' ? (
+                          <img src={pendingMedia.previewUrl} alt="" className="cw-media-preview-thumb" />
+                        ) : pendingMedia.mediaType === 'video' ? (
+                          <video src={pendingMedia.previewUrl} className="cw-media-preview-thumb" muted playsInline />
+                        ) : (
+                          <div className="cw-media-preview-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                              <polyline points="14 2 14 8 20 8" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+                      <div className="cw-media-preview-meta">
+                        <strong>
+                          {pendingMedia.mediaType === 'image'
+                            ? 'Photo ready to send'
+                            : pendingMedia.mediaType === 'video'
+                              ? 'Video ready to send'
+                              : pendingMedia.mediaType === 'audio'
+                                ? 'Audio ready to send'
+                                : 'File ready to send'}
+                        </strong>
+                        <span>{pendingMedia.fileName}</span>
+                      </div>
+                      <button
+                        type="button"
+                        className="cw-media-preview-remove"
+                        onClick={clearPendingMedia}
+                        disabled={sending}
+                        aria-label="Remove attachment"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ) : null}
+
+                  {emojiTrayOpen ? (
+                    <div className="cw-picker-tray" role="dialog" aria-label="Emoji picker">
+                      <div className="cw-emoji-grid">
+                        {QUICK_EMOJIS.map(emoji => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            className="cw-emoji-item"
+                            onClick={() => {
+                              setChatInput(prev => prev + emoji)
+                              inputRef.current?.focus()
+                            }}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {stickerTrayOpen ? (
+                    <div className="cw-picker-tray" role="dialog" aria-label="Stickers and attachments">
+                      <div className="cw-sticker-grid">
+                        {QUICK_STICKERS.map(item => (
+                          <button
+                            key={item.label}
+                            type="button"
+                            className="cw-sticker-item"
+                            onClick={() => void sendQuickText(item.emoji)}
+                            title={item.label}
+                          >
+                            <span className="cw-sticker-emoji">{item.emoji}</span>
+                            <span className="cw-sticker-label">{item.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="cw-sticker-footer">
+                        <button
+                          type="button"
+                          className="cw-attach-file-btn"
+                          onClick={() => {
+                            setStickerTrayOpen(false)
+                            fileInputRef.current?.click()
+                          }}
+                        >
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                          </svg>
+                          Attach file or document
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {isRecordingVoice ? (
+                    <div className="cw-composer-row cw-recording-row">
+                      <button
+                        type="button"
+                        className="cw-composer-icon-btn cw-recording-cancel"
+                        onClick={cancelVoiceRecording}
+                        aria-label="Cancel voice recording"
+                        title="Cancel"
+                      >
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                          <path d="M9 3h6a1 1 0 0 1 1 1v1h4a1 1 0 1 1 0 2h-1v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7H4a1 1 0 1 1 0-2h4V4a1 1 0 0 1 1-1zm1 4a1 1 0 0 0-1 1v8a1 1 0 1 0 2 0V8a1 1 0 0 0-1-1zm4 0a1 1 0 0 0-1 1v8a1 1 0 1 0 2 0V8a1 1 0 0 0-1-1z" />
+                        </svg>
+                      </button>
+                      <div className="cw-recording-pill">
+                        <span className="cw-recording-dot" />
+                        <span className="cw-recording-time">{formatDuration(recordingSeconds)}</span>
+                        <div className="cw-recording-wave" aria-hidden="true">
+                          {VOICE_WAVE_BARS.slice(0, 12).map((h, i) => (
+                            <span
+                              key={i}
+                              className="cw-recording-wave-bar"
+                              style={{ height: `${Math.round(h * 18)}px`, animationDelay: `${i * 90}ms` }}
+                            />
+                          ))}
+                        </div>
+                        <span className="cw-recording-label">Recording voice...</span>
+                      </div>
+                      <button
+                        type="button"
+                        className="cw-composer-icon-btn cw-composer-send-btn"
+                        onClick={finishAndSendVoiceRecording}
+                        aria-label="Send voice message"
+                        title="Send voice message"
+                      >
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                          <path d="M3.4 20.4 20.85 12.92a1 1 0 0 0 0-1.84L3.4 3.6a.993.993 0 0 0-1.39.91L2 9.12c0 .5.37.93.87.99L17 12 2.87 13.88c-.5.07-.87.5-.87 1l.01 4.61c0 .71.73 1.2 1.39.91z" />
+                        </svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="cw-composer-row">
+                      {/* 1. Microphone (Voice Over) */}
+                      <button
+                        type="button"
+                        className="cw-composer-icon-btn"
+                        onClick={() => void startVoiceRecording()}
+                        disabled={sending}
+                        aria-label="Record voice message"
+                        title="Voice message"
+                      >
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                          <path d="M12 14a3.5 3.5 0 0 0 3.5-3.5v-5a3.5 3.5 0 1 0-7 0v5A3.5 3.5 0 0 0 12 14zm5.5-3.5a1 1 0 1 1 2 0 7.5 7.5 0 0 1-6.5 7.43V20h2a1 1 0 1 1 0 2H9a1 1 0 1 1 0-2h2v-2.07A7.5 7.5 0 0 1 4.5 10.5a1 1 0 1 1 2 0 5.5 5.5 0 0 0 11 0z" />
+                        </svg>
+                      </button>
+
+                      {/* 2. Picture / Video Gallery */}
+                      <button
+                        type="button"
+                        className="cw-composer-icon-btn"
+                        onClick={() => mediaInputRef.current?.click()}
+                        disabled={sending}
+                        aria-label="Send photo or video"
+                        title="Photo or video"
+                      >
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                          <path d="M6 3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3zm0 2a1 1 0 0 0-1 1v8.59l3.3-3.3a1 1 0 0 1 1.4 0l2.3 2.3 3.3-3.3a1 1 0 0 1 1.4 0L19 12.59V6a1 1 0 0 0-1-1H6zm2.5 5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z" />
+                        </svg>
+                      </button>
+
+                      {/* 3. Sticker / File Attachment (Folded-corner smiley icon from reference, without GIF) */}
+                      <button
+                        type="button"
+                        className={`cw-composer-icon-btn ${stickerTrayOpen ? 'active' : ''}`}
+                        onClick={() => {
+                          setStickerTrayOpen(prev => !prev)
+                          setEmojiTrayOpen(false)
+                        }}
+                        disabled={sending}
+                        aria-label="Stickers and files"
+                        title="Stickers and files"
+                      >
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                          <path d="M7 3h10a4 4 0 0 1 4 4v7.5a1.5 1.5 0 0 1-.44 1.06l-5 5A1.5 1.5 0 0 1 14.5 21H7a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4zm7 16v-3a2 2 0 0 1 2-2h3l-5 5zM9 10.5a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5zm6 0a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5zm-6.12 2.42a.85.85 0 0 0-1.26 1.14A5.1 5.1 0 0 0 11.5 15.8a5.1 5.1 0 0 0 2.9-.84.85.85 0 1 0-.96-1.4 3.4 3.4 0 0 1-1.94.54 3.4 3.4 0 0 1-2.62-1.18z" />
+                        </svg>
+                      </button>
+
+                      {/* 4. Pill Input ("Aa" + Emoji Button inside right) */}
+                      <div className="cw-input-pill">
+                        <input
+                          ref={inputRef}
+                          type="text"
+                          placeholder="Aa"
+                          value={chatInput}
+                          disabled={sending}
+                          onChange={e => setChatInput(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault()
+                              void sendMessage()
+                            }
+                          }}
+                          className="cw-input"
+                        />
+                        <button
+                          type="button"
+                          className={`cw-pill-emoji-btn ${emojiTrayOpen ? 'active' : ''}`}
+                          onClick={() => {
+                            setEmojiTrayOpen(prev => !prev)
+                            setStickerTrayOpen(false)
+                          }}
+                          aria-label="Choose emoji"
+                          title="Emoji"
+                        >
+                          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                            <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-3.5 7a1.35 1.35 0 1 1 0 2.7 1.35 1.35 0 0 1 0-2.7zm7 0a1.35 1.35 0 1 1 0 2.7 1.35 1.35 0 0 1 0-2.7zm-3.5 8.2c-2.52 0-4.63-1.48-5.38-3.55a.85.85 0 0 1 1.6-.58c.52 1.44 2.02 2.43 3.78 2.43s3.26-.99 3.78-2.43a.85.85 0 1 1 1.6.58c-.75 2.07-2.86 3.55-5.38 3.55z" />
+                          </svg>
+                        </button>
+                      </div>
+
+                      {/* 5. Thumbs-up (when empty) or Send button (when text/attachment exists) */}
+                      {hasSendableDraft ? (
+                        <button
+                          type="button"
+                          className="cw-composer-icon-btn cw-composer-send-btn"
+                          onClick={() => void sendMessage()}
+                          disabled={sending}
+                          aria-label="Send message"
+                          title="Send"
+                        >
+                          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                            <path d="M3.4 20.4 20.85 12.92a1 1 0 0 0 0-1.84L3.4 3.6a.993.993 0 0 0-1.39.91L2 9.12c0 .5.37.93.87.99L17 12 2.87 13.88c-.5.07-.87.5-.87 1l.01 4.61c0 .71.73 1.2 1.39.91z" />
+                          </svg>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="cw-composer-icon-btn cw-composer-like-btn"
+                          onClick={() => void sendQuickText('👍')}
+                          disabled={sending}
+                          aria-label="Send thumbs up"
+                          title="Like"
+                        >
+                          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                            <path d="M2 20h2c.55 0 1-.45 1-1v-9c0-.55-.45-1-1-1H2v11zm19.83-7.12c.11-.25.17-.52.17-.8V11c0-1.1-.9-2-2-2h-5.5l.92-4.65c.05-.22.02-.46-.08-.66-.23-.45-.52-.86-.88-1.22L14 2 7.59 8.41C7.21 8.79 7 9.3 7 9.83v7.84A2.33 2.33 0 0 0 9.33 20h8.11c.7 0 1.36-.37 1.72-.97l2.67-6.15z" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Fullscreen Image Lightbox */}
+      {lightboxImageUrl && (
+        <div
+          className="cw-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Photo preview"
+          onClick={() => setLightboxImageUrl(null)}
+        >
+          <button
+            type="button"
+            className="cw-lightbox-close"
+            onClick={() => setLightboxImageUrl(null)}
+            aria-label="Close photo preview"
+          >
+            ×
+          </button>
+          <img
+            src={lightboxImageUrl}
+            alt="Full size preview"
+            className="cw-lightbox-img"
+            onClick={e => e.stopPropagation()}
+          />
         </div>
       )}
     </>

@@ -29,6 +29,8 @@ import FuneralServiceRequestDetailsScreen from "@/screens/funeral/FuneralService
 import FuneralEditServiceRequestScreen from "@/screens/funeral/FuneralEditServiceRequestScreen";
 import FuneralShopScheduleScreen from "@/screens/funeral/FuneralShopScheduleScreen";
 import FuneralShopPaymentsScreen from "@/screens/funeral/FuneralShopPaymentsScreen";
+import FuneralLifeCyclePaymentsScreen, { FuneralLifeCyclePaymentDetailsScreen } from "@/screens/funeral/FuneralLifeCyclePaymentsScreen";
+import FuneralShopBankPayoutScreen from "@/screens/funeral/FuneralShopBankPayoutScreen";
 import FuneralShopPaymentReceiptScreen from "@/screens/funeral/FuneralShopPaymentReceiptScreen";
 import FuneralShopCatalogScreen from "@/screens/funeral/FuneralShopCatalogScreen";
 import FuneralShopPackagesScreen from "@/screens/funeral/FuneralShopPackagesScreen";
@@ -67,6 +69,9 @@ const SHOP_CENTER_ROUTES = new Set([
   "ServiceRequestDetails",
   "ServiceSchedule",
   "ShopPayments",
+  "LifeCyclePayments",
+  "LifeCyclePaymentDetails",
+  "ShopBankPayouts",
   "ShopPaymentReceipt",
   "ShopMessages",
 ]);
@@ -141,6 +146,9 @@ export default function FuneralProfileStackNavigator({ initialRouteName = "Profi
       <Stack.Screen name="EditServiceRequest" component={FuneralEditServiceRequestScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ServiceSchedule" component={FuneralShopScheduleScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ShopPayments" component={FuneralShopPaymentsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="LifeCyclePayments" component={FuneralLifeCyclePaymentsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="LifeCyclePaymentDetails" component={FuneralLifeCyclePaymentDetailsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ShopBankPayouts" component={FuneralShopBankPayoutScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ShopPaymentReceipt" component={FuneralShopPaymentReceiptScreen} options={{ headerShown: false }} />
       <Stack.Screen
         name="MyServiceRequests"

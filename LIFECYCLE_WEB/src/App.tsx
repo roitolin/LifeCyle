@@ -1,12 +1,13 @@
 import { Suspense, lazy } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import ProtectedRoute from '@/components/ProtectedRoute'
-import LoadingBird from '@/components/LoadingBird'
+import RouteLoading from '@/components/RouteLoading'
 import { LogoutConfirmationProvider } from '@/components/LogoutConfirmationProvider'
 import MobileMediaPermissionGate from '@/components/MobileMediaPermissionGate'
 
 const ChatWidget = lazy(() => import('@/components/ChatWidget'))
 
+const WelcomePage = lazy(() => import('./pages/WelcomePage'))
 const FuneralLandingPage = lazy(() => import('./pages/FuneralLandingPage'))
 const FuneralShopsPage = lazy(() => import('./pages/FuneralShopsPage'))
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'))
@@ -46,7 +47,9 @@ const AdminAuditLogsPage = lazy(() => import('./pages/admin/AdminAuditLogsPage')
 
 const AdminAnalyticsPage = lazy(() => import('./pages/admin/AdminAnalyticsPage'))
 const AdminAnnouncementsPage = lazy(() => import('./pages/admin/AdminAnnouncementsPage'))
+const AdminAppLinkPage = lazy(() => import('./pages/admin/AdminAppLinkPage'))
 const AdminLoginSecurityPage = lazy(() => import('./pages/admin/AdminLoginSecurityPage'))
+const AdminProfilePage = lazy(() => import('./pages/admin/AdminProfilePage'))
 const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'))
 const AdminFeedbackPage = lazy(() => import('./pages/admin/AdminFeedbackPage'))
 const AdminFuneralItemsPage = lazy(() => import('./pages/admin/AdminFuneralItemsPage'))
@@ -67,10 +70,6 @@ const AdminSupportPage = lazy(() => import('./pages/admin/AdminSupportPage'))
 const AdminUserDetailPage = lazy(() => import('./pages/admin/AdminUserDetailPage'))
 const AdminUsersPage = lazy(() => import('./pages/admin/AdminUsersPage'))
 
-function PageFallback() {
-  return <LoadingBird fullScreen />
-}
-
 function RouteScopedChatWidget() {
   const { pathname } = useLocation()
   const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname
@@ -90,11 +89,12 @@ function RouteScopedChatWidget() {
 function App() {
   return (
     <BrowserRouter>
-      <Suspense fallback={<PageFallback />}>
-        <LogoutConfirmationProvider>
-          <MobileMediaPermissionGate />
+      <LogoutConfirmationProvider>
+        <MobileMediaPermissionGate />
+        <Suspense fallback={<RouteLoading fullScreen />}>
           <Routes>
-          <Route path="/" element={<Navigate to="/funeral" replace />} />
+          <Route path="/" element={<WelcomePage />} />
+          <Route path="/app" element={<Navigate to="/funeral" replace />} />
           <Route path="/services" element={<Navigate to="/funeral" replace />} />
           <Route element={<ProtectedRoute allowAnonymous />}>
             <Route path="/funeral" element={<FuneralLandingPage />} />
@@ -157,6 +157,7 @@ function App() {
               <Route element={<AdminRoleGuard allowedRoles={['super_admin', 'admin']} />}>
                 <Route path="analytics" element={<AdminAnalyticsPage />} />
                 <Route path="announcements" element={<AdminAnnouncementsPage />} />
+                <Route path="app-link" element={<AdminAppLinkPage />} />
                 <Route path="home-content" element={<AdminHomeContentPage />} />
                 <Route path="account-deletions" element={<Navigate to="/admin" replace />} />
               </Route>
@@ -170,15 +171,18 @@ function App() {
               <Route path="shop-payouts" element={<Navigate to="/admin/payout-accounts" replace />} />
               <Route path="activity-logs" element={<AdminAuditLogsPage />} />
               <Route path="login-security" element={<AdminLoginSecurityPage />} />
+              <Route path="profile" element={<AdminProfilePage />} />
               <Route path="audit-logs" element={<Navigate to="/admin/activity-logs" replace />} />
             </Route>
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+        </Suspense>
+        <Suspense fallback={null}>
           <RouteScopedChatWidget />
-        </LogoutConfirmationProvider>
-      </Suspense>
+        </Suspense>
+      </LogoutConfirmationProvider>
     </BrowserRouter>
   )
 }

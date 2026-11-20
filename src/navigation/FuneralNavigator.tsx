@@ -160,6 +160,14 @@ function FuneralTabs() {
           name={tab.name}
           component={tab.component}
           options={({ route }) => {
+            if (tab.name === "Carts") {
+              return {
+                ...tab.options,
+                headerShown: false,
+                tabBarStyle: { display: "none" },
+              };
+            }
+
             if (tab.name !== "Profile") {
               return tab.options;
             }
@@ -183,6 +191,9 @@ function FuneralTabs() {
                 nestedRoute === "EditServiceRequest" ||
                 nestedRoute === "ServiceSchedule" ||
                 nestedRoute === "ShopPayments" ||
+                nestedRoute === "LifeCyclePayments" ||
+                nestedRoute === "LifeCyclePaymentDetails" ||
+                nestedRoute === "ShopBankPayouts" ||
                 nestedRoute === "ShopPaymentReceipt" ||
                 nestedRoute === "ShopInformation" ||
                 nestedRoute === "BusinessInformation" ||

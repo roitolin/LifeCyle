@@ -369,7 +369,7 @@ function AdminShopCentrePage() {
   return (
     <section className="panel sc-page admin-shop-workspace">
       <div className="page-back-row">
-        <PageBackButton to="/admin/funeral-shops" label="Back to funeral shops" />
+        <PageBackButton fallbackTo="/admin/funeral-shops" />
       </div>
       <header className="admin-shop-workspace-head">
         <div className="admin-shop-identity">

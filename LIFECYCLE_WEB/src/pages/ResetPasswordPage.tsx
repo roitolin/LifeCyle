@@ -136,7 +136,7 @@ function ResetPasswordPage() {
         <AuthBrandPanel />
 
         <section className='auth-card' aria-label='Reset password form'>
-          <div className='page-back-row auth-page-back'><PageBackButton to='/login' /></div>
+          <div className='page-back-row auth-page-back'><PageBackButton fallbackTo='/login' /></div>
 
           <div className='auth-card-head'>
             <h1>Create New Password</h1>

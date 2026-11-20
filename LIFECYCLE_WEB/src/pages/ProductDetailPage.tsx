@@ -1,17 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { addFuneralCartItem, loadFuneralCart } from '@/utils/funeralCart'
 import type { User } from '@supabase/supabase-js'
 import BrandLogo from '@/components/BrandLogo'
-import NotificationDropdown from '@/components/NotificationDropdown'
 import AnnouncementDropdown from '@/components/AnnouncementDropdown'
-import LogoutLink from '@/components/LogoutLink'
+import HeaderAccountMenu from '@/components/HeaderAccountMenu'
 import MarketplaceFooter from '@/components/MarketplaceFooter'
 import MarketplaceMobileDrawer from '@/components/MarketplaceMobileDrawer'
 import PageBackButton from '@/components/PageBackButton'
+import { ProductDetailSkeleton } from '@/components/ContentSkeleton'
+import ImageWithSkeleton from '@/components/ImageWithSkeleton'
 import ProductRating from '@/components/ProductRating'
-import { getProfileAvatar } from '@/utils/profileAvatar'
 import { summarizeProductRatings } from '@/utils/productRatings'
 import './ProductDetailPage.css'
 
@@ -30,7 +30,7 @@ type Product = {
   imageUrl: string | null
   galleryImageUrls: string[]
   variations: { id: string; name: string; price?: number | null; imageUrl?: string | null }[]
-  packageItems: PackageDisplayItem[]
+  packageItems: PackageDisplayItem[] | null
   downpaymentEnabled: boolean
   downpaymentAmount: number | null
   downpaymentPercentage: number | null
@@ -61,6 +61,8 @@ type RelatedProduct = {
   rating: number
   ratingCount: number
 }
+
+type ProductResult = { id: string; product?: Product; error?: string }
 
 function getPackageItems(row?: ShopPackage | null): PackageDisplayItem[] {
   if (!row || row.active === false) return []
@@ -125,11 +127,12 @@ const SearchIcon = () => (
 export default function ProductDetailPage() {
   const { productId } = useParams<{ productId: string }>()
   const navigate = useNavigate()
-  const [viewer, setViewer] = useState<User | null>(null)
-  const [product, setProduct] = useState<Product | null>(null)
+  const viewer = useOutletContext<User | null>()
+  const [result, setResult] = useState<ProductResult | null>(null)
+  const current = result?.id === productId ? result : null
+  const product = current?.product
+  const error = current?.error
   const [relatedProducts, setRelatedProducts] = useState<RelatedProduct[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [galleryIndex, setGalleryIndex] = useState(0)
   const [selectedVariation, setSelectedVariation] = useState<string | null>(null)
   const [cartCount, setCartCount] = useState(0)
@@ -152,7 +155,18 @@ export default function ProductDetailPage() {
   }, [productId, viewer])
 
   const [showLoginToast, setShowLoginToast] = useState(false)
-  const [showAddedToast, setShowAddedToast] = useState(false)
+  const [cartNotice, setCartNotice] = useState<{ productId: string; revision: number; success: boolean } | null>(null)
+  const cartNoticeTimer = useRef<number | undefined>(undefined)
+  const cartNoticeRevision = useRef(0)
+  const currentCartNotice = cartNotice?.productId === productId ? cartNotice : null
+
+  useEffect(() => () => window.clearTimeout(cartNoticeTimer.current), [productId])
+
+  const announceCartUpdate = (id: string, success: boolean) => {
+    window.clearTimeout(cartNoticeTimer.current)
+    setCartNotice({ productId: id, revision: ++cartNoticeRevision.current, success })
+    cartNoticeTimer.current = window.setTimeout(() => setCartNotice(null), 3400)
+  }
   const [showVariationToast, setShowVariationToast] = useState(false)
   const [showShareToast, setShowShareToast] = useState(false)
 
@@ -210,12 +224,6 @@ export default function ProductDetailPage() {
     ...variations.map(variation => variation.imageUrl).filter((url): url is string => Boolean(url)),
   ]))
   const isLoggedIn = Boolean(viewer)
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setViewer(data.session?.user ?? null))
-    const { data: l } = supabase.auth.onAuthStateChange((_, s) => setViewer(s?.user ?? null))
-    return () => l.subscription.unsubscribe()
-  }, [])
 
   useEffect(() => {
     if (viewer?.id) {
@@ -276,9 +284,9 @@ export default function ProductDetailPage() {
 
   useEffect(() => {
     if (!productId) return
-    let cancelled = false
-    setLoading(true)
-    setError(null)
+    const controller = new AbortController()
+    const { signal } = controller
+    setResult(null)
     setRelatedProducts([])
     void (async () => {
       try {
@@ -295,11 +303,13 @@ export default function ProductDetailPage() {
           .eq('active', true)
           .eq('funeral_shops.status', 'live')
           .gt('funeral_shops.paidUntil', new Date().toISOString())
+          .abortSignal(signal)
           .maybeSingle()
 
+        if (signal.aborted) return
         if (err) throw err
         if (!data) {
-          if (!cancelled) setError('Product not found.')
+          setResult({ id: productId, error: 'Product not found.' })
           return
         }
 
@@ -331,7 +341,7 @@ export default function ProductDetailPage() {
           imageUrl: getPrimaryImage(row),
           galleryImageUrls: galleryUrls,
           variations: variationList,
-          packageItems: [],
+          packageItems: null,
           downpaymentEnabled: Boolean(row.downpaymentEnabled),
           downpaymentAmount: row.downpaymentAmount == null ? null : Number(row.downpaymentAmount),
           downpaymentPercentage: row.downpaymentPercentage == null ? null : Number(row.downpaymentPercentage),
@@ -339,21 +349,27 @@ export default function ProductDetailPage() {
           ratingCount: ratingSummary.count,
         }
 
-        const { data: packageData } = await supabase
+        setResult({ id: productId, product: productData })
+        setGalleryIndex(0)
+        setSelectedVariation(null)
+
+        const packageRequest = supabase
           .from('funeral_shop_packages')
           .select('items, "flowersImageUrl", "candlesImageUrl", "curtainsImageUrl", "vehicleImageUrl", active')
           .eq('shopId', productData.shopId)
           .eq('active', true)
+          .abortSignal(signal)
           .maybeSingle()
-        productData.packageItems = getPackageItems(packageData as ShopPackage | null)
-
-        if (cancelled) return
-        setProduct(productData)
-        setGalleryIndex(0)
-        setSelectedVariation(null)
+          .then(({ data: packageData }) => {
+            if (signal.aborted) return
+            const packageItems = getPackageItems(packageData as ShopPackage | null)
+            setResult(previous => previous?.id === productId && previous.product
+              ? { id: productId, product: { ...previous.product, packageItems } }
+              : previous)
+          })
 
         // Load related products from the same shop (excluding this product)
-        const { data: relData } = await supabase
+        const relatedRequest = supabase
           .from('funeral_products')
           .select(`id, name, price, stock, "imageUrl", active, funeral_product_ratings(rating), funeral_shops!inner(status)`)
           .eq('active', true)
@@ -363,31 +379,31 @@ export default function ProductDetailPage() {
           .eq('shopId', productData.shopId)
           .neq('id', productId)
           .limit(6)
+          .abortSignal(signal)
+          .then(({ data: relData }) => {
+            if (!relData || signal.aborted) return
+            setRelatedProducts(relData.map(row => {
+              const summary = summarizeProductRatings(row.funeral_product_ratings)
+              return {
+                id: String(row.id),
+                name: String(row.name ?? ''),
+                price: Number(row.price) || 0,
+                stock: Number(row.stock) || 0,
+                imageUrl: row.imageUrl ?? null,
+                rating: summary.average,
+                ratingCount: summary.count,
+              }
+            }))
+          })
 
-        if (relData && !cancelled) {
-          setRelatedProducts((relData as any[]).map(r => {
-            const summary = summarizeProductRatings(r.funeral_product_ratings)
-            return {
-              id: String(r.id),
-              name: String(r.name ?? ''),
-              price: Number(r.price) || 0,
-              stock: Number(r.stock) || 0,
-              imageUrl: r.imageUrl ?? null,
-              rating: summary.average,
-              ratingCount: summary.count,
-            }
-          }))
-        }
-      } catch (e: any) {
+        await Promise.allSettled([packageRequest, relatedRequest])
+      } catch (e) {
+        if (signal.aborted) return
         console.error('Unable to load product details', e)
-        if (!cancelled) setError('We could not load this product right now. Please try again.')
-      } finally {
-        if (!cancelled) setLoading(false)
+        setResult({ id: productId, error: 'We could not load this product right now. Please try again.' })
       }
     })()
-    return () => {
-      cancelled = true
-    }
+    return () => controller.abort()
   }, [productId])
 
   const handleAddToCart = () => {
@@ -395,7 +411,7 @@ export default function ProductDetailPage() {
       navigate('/login?next=/funeral/product/' + productId)
       return
     }
-    if (!product) return
+    if (!product?.packageItems) return
     if (product.variations.length > 0 && !selectedVariation) {
       setShowVariationToast(true)
       window.requestAnimationFrame(() => document.getElementById('pd-variations')?.focus())
@@ -403,28 +419,28 @@ export default function ProductDetailPage() {
       return
     }
     const varItem = product.variations.find(v => v.id === selectedVariation)
-    addFuneralCartItem({
-      productId: product.id,
-      shopId: product.shopId,
-      shopName: product.shopName,
-      name: product.name,
-      price: calculatedTotal,
-      fullPrice: calculatedTotal,
-      paymentOption: 'full',
-      downpaymentAmount: product.downpaymentAmount,
-      downpaymentPercentage: product.downpaymentPercentage,
-      remainingBalance: 0,
-      imageUrl: varItem?.imageUrl ?? product.imageUrl,
-      variationId: varItem?.id ?? null,
-      variationName: varItem?.name ?? null,
-      packageItems: product.packageItems.map(item => item.name),
-      quantity: 1,
-    })
-    
-    setShowAddedToast(true)
-    setTimeout(() => {
-      setShowAddedToast(false)
-    }, 3500)
+    try {
+      addFuneralCartItem({
+        productId: product.id,
+        shopId: product.shopId,
+        shopName: product.shopName,
+        name: product.name,
+        price: calculatedTotal,
+        fullPrice: calculatedTotal,
+        paymentOption: 'full',
+        downpaymentAmount: product.downpaymentAmount,
+        downpaymentPercentage: product.downpaymentPercentage,
+        remainingBalance: 0,
+        imageUrl: varItem?.imageUrl ?? product.imageUrl,
+        variationId: varItem?.id ?? null,
+        variationName: varItem?.name ?? null,
+        packageItems: product.packageItems.map(item => item.name),
+        quantity: 1,
+      })
+      announceCartUpdate(product.id, true)
+    } catch {
+      announceCartUpdate(product.id, false)
+    }
   }
 
   const handleBuyNow = () => {
@@ -432,7 +448,7 @@ export default function ProductDetailPage() {
       navigate('/login?next=/funeral/product/' + productId)
       return
     }
-    if (!product) return
+    if (!product?.packageItems) return
     if (product.variations.length > 0 && !selectedVariation) {
       setShowVariationToast(true)
       window.requestAnimationFrame(() => document.getElementById('pd-variations')?.focus())
@@ -460,18 +476,8 @@ export default function ProductDetailPage() {
     navigate('/user/cart')
   }
 
-  if (loading) {
-    return (
-      <div className="pd-page">
-        <div className="pd-container pd-state">
-          <div className="pd-spinner" />
-          <p>Loading product...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (error || !product) {
+  const loadingProduct = Boolean(productId && !current)
+  if (!loadingProduct && (error || !product)) {
     return (
       <div className="pd-page">
         <div className="pd-container pd-state">
@@ -489,7 +495,8 @@ export default function ProductDetailPage() {
     )
   }
 
-  const mainImage = gallery[galleryIndex] || product.imageUrl || ''
+  const mainImage = gallery[galleryIndex] || product?.imageUrl || ''
+  const waitingForPackage = Boolean(isLoggedIn && product && product.stock > 0 && product.packageItems === null)
   const accountPath = isLoggedIn ? '/user/profile' : '/login?next=/user/profile'
   const serviceRequestsPath = isLoggedIn ? '/user/requests' : '/login?next=/user/requests'
   const helpPath = isLoggedIn ? '/user/help' : '/login?next=/user/help'
@@ -528,24 +535,11 @@ export default function ProductDetailPage() {
           </div>
           <div className="sp-topbar-right">
             <AnnouncementDropdown />
-            <NotificationDropdown />
             <Link to="/user/help">Help Centre</Link>
-            <span className="sp-divider">|</span>
+            {isLoggedIn && <span className="sp-divider" aria-hidden="true">|</span>}
             {isLoggedIn
               ? (
-                <div className="sp-user-menu">
-                  <div className="sp-user-menu-trigger">
-                    <img src={getProfileAvatar(userProfile?.photoURL, userProfile?.gender)} alt="Avatar" className="sp-user-avatar" />
-                    <span className="sp-user-name">{userProfile?.fullName || viewer?.email}</span>
-                    <svg className="sp-user-dropdown-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                  </div>
-                  <div className="sp-user-dropdown">
-                    <Link to="/user/profile">My Account</Link>
-                    <Link to="/user/requests">My service request</Link>
-                    <Link to="/auth/switch-account" className="sp-dropdown-switch">Switch Account</Link>
-                    <LogoutLink>Log out</LogoutLink>
-                  </div>
-                </div>
+                <HeaderAccountMenu profile={userProfile} fallbackName={viewer?.email} />
               )
               : <><Link to="/register" className="sp-signup">Sign Up</Link><Link to="/login">Login</Link></>}
           </div>
@@ -587,9 +581,6 @@ export default function ProductDetailPage() {
           </div>
 
           <div className="pd-header-actions">
-            <div className="pd-mobile-header-notification">
-              <NotificationDropdown variant="seller-centre" />
-            </div>
             <div className="sp-cart-area">
               <Link to={isLoggedIn ? '/user/cart' : '/login?next=/user/cart'} className="sp-cart-btn" aria-label="Shopping cart" title="Shopping cart">
                 <HeaderCartIcon />
@@ -602,16 +593,20 @@ export default function ProductDetailPage() {
 
       <main className="pd-container">
         <div className="pd-product-nav">
-          <PageBackButton label="Back to products" />
+          <PageBackButton />
           <nav className="pd-product-path" aria-label="Breadcrumb">
             <Link to="/funeral">Catalog</Link>
-            <span aria-hidden="true">/</span>
-            <Link to={`/funeral?search=${encodeURIComponent(product.category)}`}>{product.category}</Link>
+            {product && <>
+              <span aria-hidden="true">/</span>
+              <Link to={`/funeral?search=${encodeURIComponent(product.category)}`}>{product.category}</Link>
+            </>}
           </nav>
         </div>
 
+        {loadingProduct && <ProductDetailSkeleton />}
+        {product && <>
         {/* Main Product Card */}
-        <div className="pd-main-card">
+        <div className="pd-main-card lc-content-reveal">
           
           {/* Gallery Left */}
           <div className="pd-gallery-section">
@@ -624,14 +619,14 @@ export default function ProductDetailPage() {
               aria-label={mainImage ? `Open a larger image of ${product.name}` : 'No product image available'}
             >
               {mainImage ? (
-                <img src={mainImage} alt={product.name} />
+                <ImageWithSkeleton src={mainImage} alt={product.name} fetchPriority="high" style={{ objectFit: "contain" }} />
               ) : (
                 <span className="pd-image-placeholder">No image available</span>
               )}
               {mainImage && <span className="pd-image-zoom">View larger</span>}
             </button>
             
-            {gallery.length > 0 && (
+            {gallery.length > 1 && (
               <div className="pd-thumbs">
                 {gallery.slice(0, 5).map((url, idx) => (
                   <button
@@ -662,22 +657,16 @@ export default function ProductDetailPage() {
 
           {/* Info Right */}
           <div className="pd-info-section">
-            <div className="pd-product-kicker">
-              <span>{product.category}</span>
-              <span className="pd-verified-label">Verified provider</span>
-            </div>
             <h1 className="pd-title">{product.name}</h1>
+            <Link className="pd-listing-shop" to={`/shop/${product.shopId}`}>{product.shopName}</Link>
             
             <div className="pd-meta">
               <div className="pd-meta-item">
                 <ProductRating rating={product.rating} count={product.ratingCount} />
               </div>
               <div className="pd-meta-item">
-                <span className="pd-stock-dot" aria-hidden="true"></span>
-                <span>{product.stock > 0 ? 'Available' : 'Contact provider'}</span>
-              </div>
-              <div className="pd-meta-item">
-                <span>{product.stock} {product.stock === 1 ? 'item' : 'items'} in stock</span>
+                <span className={`pd-stock-dot${product.stock <= 0 ? ' pd-stock-dot--unavailable' : ''}`} aria-hidden="true" />
+                <span>{product.stock > 0 ? `${product.stock} in stock` : 'Sold out'}</span>
               </div>
             </div>
 
@@ -713,6 +702,7 @@ export default function ProductDetailPage() {
                       className={`pd-variation-btn ${selectedVariation === v.id ? 'selected' : ''}`}
                       onClick={() => {
                         setSelectedVariation(v.id)
+                        setShowVariationToast(false)
                         if (v.imageUrl) {
                           const imageIndex = gallery.indexOf(v.imageUrl)
                           if (imageIndex >= 0) setGalleryIndex(imageIndex)
@@ -741,7 +731,7 @@ export default function ProductDetailPage() {
             )}
 
 
-            {product.packageItems.length > 0 && (
+            {product.packageItems && product.packageItems.length > 0 && (
             <section className="pd-package-section" aria-labelledby="pd-package-title">
               <div className="pd-package-heading">
                 <div className="pd-option-label" id="pd-package-title">Package inclusions</div>
@@ -769,22 +759,19 @@ export default function ProductDetailPage() {
             </section>
             )}
 
-            <div className="pd-option-row">
-              <div className="pd-option-label">Service request</div>
-              <div className="pd-option-content">
-                <span className="pd-single-order-note">One casket per service request</span>
-                <span className="pd-stock-info">{product.stock} available</span>
-              </div>
-            </div>
+            <p className="pd-single-order-note">One casket per service request</p>
 
             <div className="pd-actions-row">
-              <button className="pd-btn pd-btn-cart" onClick={handleAddToCart} disabled={product.stock === 0}>
-                <CartIcon /> Add to cart
+              <button type="button" className={`pd-btn pd-btn-cart${currentCartNotice?.success ? ' pd-btn-cart--added' : ''}`} aria-label="Add to cart"
+                onClick={handleAddToCart} disabled={product.stock <= 0 || waitingForPackage}>
+                {currentCartNotice?.success ? <span className="pd-cart-check" key={currentCartNotice.revision}><CartCheckIcon /></span> : <CartIcon />}
+                {currentCartNotice?.success ? 'Added to cart' : 'Add to cart'}
               </button>
-              <button className="pd-btn pd-btn-buy" onClick={handleBuyNow} disabled={product.stock === 0}>
+              <button className="pd-btn pd-btn-buy" onClick={handleBuyNow} disabled={product.stock <= 0 || waitingForPackage}>
                 Buy now · {formatPeso(calculatedTotal)}
               </button>
             </div>
+            {waitingForPackage && <p className="pd-login-note" role="status">Loading package details…</p>}
             {!isLoggedIn && (
               <p className="pd-login-note">You can browse freely. Sign in when you are ready to check out.</p>
             )}
@@ -803,10 +790,9 @@ export default function ProductDetailPage() {
               </div>
               <div className="pd-spec-row">
                 <dt className="pd-spec-label">Variations</dt>
-                <dd className="pd-spec-value">{product.variations.length > 0 ? `${product.variations.length} options` : 'Standard'}</dd>
+                <dd className="pd-spec-value">{product.variations.length > 0 ? `${product.variations.length} ${product.variations.length === 1 ? 'option' : 'options'}` : 'Standard'}</dd>
               </div>
             </dl>
-            <div className="pd-description-divider" aria-hidden="true" />
             <div className="pd-desc-content">
               {product.description || 'No description provided by the seller.'}
             </div>
@@ -844,13 +830,10 @@ export default function ProductDetailPage() {
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
                   Chat
                 </button>
-                <button 
-                  className="pd-shop-btn pd-shop-btn-outline"
-                  onClick={() => navigate(`/shop/${product.shopId}`)}
-                >
+                <Link className="pd-shop-btn pd-shop-btn-outline" to={`/shop/${product.shopId}`}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
                   View shop
-                </button>
+                </Link>
               </div>
             </div>
           </div>
@@ -871,7 +854,7 @@ export default function ProductDetailPage() {
               {relatedProducts.map(rp => (
                 <Link to={`/funeral/product/${rp.id}`} key={rp.id} className="pd-related-card">
                   {rp.imageUrl ? (
-                    <img src={rp.imageUrl} alt={rp.name} className="pd-related-img" />
+                    <img src={rp.imageUrl} alt={rp.name} className="pd-related-img" loading="lazy" decoding="async" />
                   ) : (
                     <div className="pd-related-img pd-related-img-empty">No image</div>
                   )}
@@ -889,11 +872,12 @@ export default function ProductDetailPage() {
           </div>
         )}
 
+        </>}
       </main>
       <MarketplaceFooter />
 
       {/* Image Modal */}
-      {isImageModalOpen && (
+      {product && isImageModalOpen && (
         <div className="pd-image-modal-overlay" onClick={() => setIsImageModalOpen(false)} role="presentation">
           <div className="pd-image-modal-content" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={`Images of ${product.name}`}>
             <div className="pd-image-modal-left">
@@ -939,19 +923,14 @@ export default function ProductDetailPage() {
         </div>
       )}
 
-      {/* Added to Cart Toast — Centered Card */}
-      {showAddedToast && (
-        <div className="pd-added-overlay" role="status" aria-live="polite">
-          <div className="pd-added-card">
-            <div className="pd-added-icon-ring">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-                <path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </div>
-            <p className="pd-added-heading">Added to cart</p>
+      <div className="pd-cart-notice-region" role="status" aria-live="polite" aria-atomic="true">
+        {currentCartNotice && (
+          <div className={`pd-cart-notice${currentCartNotice.success ? '' : ' pd-cart-notice--error'}`} key={currentCartNotice.revision}>
+            {currentCartNotice.success && <CartCheckIcon />}
+            <span>{currentCartNotice.success ? 'Added to cart' : 'Could not add this item. Try again.'}</span>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {showShareToast && (
         <div className="pd-login-toast" role="status" aria-live="polite">
@@ -1018,4 +997,12 @@ function getPrimaryImage(row: any): string | null {
   }
   const vars = (row.funeral_product_variations ?? []) as any[]
   return vars.find((v: any) => v.imageUrl)?.imageUrl ?? null
+}
+
+function CartCheckIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="m5 12 4 4L19 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
 }

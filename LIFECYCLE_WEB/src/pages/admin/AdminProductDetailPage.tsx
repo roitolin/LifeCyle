@@ -221,7 +221,7 @@ function AdminProductDetailPage() {
       <section className="admin-product-state">
         <h2>Product unavailable</h2>
         <p className="panel-sub">{error || 'This product could not be found.'}</p>
-        <PageBackButton to="/admin/funeral-items" label="Back to products" />
+        <PageBackButton fallbackTo="/admin/funeral-items" />
       </section>
     )
   }
@@ -232,7 +232,7 @@ function AdminProductDetailPage() {
   return (
     <section className="admin-product-detail-page">
       <div className="admin-product-topbar">
-        <PageBackButton to="/admin/funeral-items" label="Back to products" />
+        <PageBackButton fallbackTo="/admin/funeral-items" />
         <div>
           <Link to={`/admin/funeral-shops/${product.shopId}`} className="ghost-btn btn-link">Open Shop</Link>
           {product.active ? <Link to={`/funeral/product/${product.id}`} className="ghost-btn btn-link">Public View</Link> : null}

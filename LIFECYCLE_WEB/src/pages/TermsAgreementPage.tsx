@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { ensureOwnUserProfile } from '@/lib/userProfile'
 import { getTermsReturnPath, needsTermsAgreement } from '@/lib/termsAgreement'
 import { termsSections } from '@/data/termsSections'
-import LoadingBird from '@/components/LoadingBird'
+import LoadingStatus from '@/components/LoadingStatus'
 import './TermsAgreementPage.css'
 
 const EFFECTIVE_DATE = 'April 2, 2026'
@@ -137,7 +137,7 @@ export default function TermsAgreementPage() {
     }
   }
 
-  if (loading) return <LoadingBird fullScreen />
+  if (loading) return <LoadingStatus fullScreen label="Checking your account…" />
 
   if (!user) {
     return (

@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { RecordListSkeleton } from '@/components/ContentSkeleton'
 import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
-import BrandLogo from '@/components/BrandLogo'
-import LogoutLink from '@/components/LogoutLink'
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
 import PageBackButton from '@/components/PageBackButton'
-import AccountMobileHeader from '@/components/AccountMobileHeader'
-import NotificationDropdown from '@/components/NotificationDropdown'
-import { getProfileAvatar } from '@/utils/profileAvatar'
+import AccountTaskHeader from '@/components/AccountTaskHeader'
 import './PurchasePage.css'
 
 type ViewerProfile = {
@@ -72,13 +70,15 @@ export default function PurchasePage() {
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
   const [query, setQuery] = useState('')
+  const [viewerId, setViewerId] = useState<string | null>(null)
 
-  const loadPayments = useCallback(async () => {
-    setLoading(true)
+  const loadPayments = useCallback(async (background = false) => {
+    if (!background) setLoading(true)
     setErrorMessage('')
 
     try {
       const { data: { session } } = await supabase.auth.getSession()
+      setViewerId(session?.user?.id ?? null)
       if (!session?.user) {
         setPayments([])
         setLoading(false)
@@ -103,7 +103,7 @@ export default function PurchasePage() {
       setProfile(profileResult.data ?? { fullName: session.user.email, photoURL: null, gender: null })
       setPayments((paymentResult.data ?? []) as UserPayment[])
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Payments could not be loaded.')
+      if (!background) setErrorMessage(error instanceof Error ? error.message : 'Payments could not be loaded.')
     } finally {
       setLoading(false)
     }
@@ -113,18 +113,9 @@ export default function PurchasePage() {
     void loadPayments()
   }, [loadPayments])
 
-  useEffect(() => {
-    const refreshOnFocus = () => void loadPayments()
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === 'visible') void loadPayments()
-    }
-    window.addEventListener('focus', refreshOnFocus)
-    document.addEventListener('visibilitychange', refreshWhenVisible)
-    return () => {
-      window.removeEventListener('focus', refreshOnFocus)
-      document.removeEventListener('visibilitychange', refreshWhenVisible)
-    }
-  }, [loadPayments])
+  useRealtimeRefresh([
+    { table: 'funeral_service_requests', filter: `requesterId=eq.${viewerId}` },
+  ], () => loadPayments(true), Boolean(viewerId) && !loading)
 
   const visiblePayments = useMemo(() => {
     const normalized = query.trim().toLowerCase()
@@ -139,32 +130,12 @@ export default function PurchasePage() {
 
   return (
     <div className="purchase-shop-page">
-      <AccountMobileHeader showNotifications />
+      <AccountTaskHeader title="My Payments" profile={profile} />
 
-      <div className="purchase-topbar">
-        <div className="purchase-topbar-inner">
-          <div className="purchase-topbar-right">
-            <NotificationDropdown variant="seller-centre" />
-            <span className="purchase-divider" aria-hidden="true" />
-            <div className="purchase-user-menu">
-              <button type="button" className="purchase-user-menu-trigger" aria-haspopup="menu">
-                <img src={getProfileAvatar(profile?.photoURL, profile?.gender)} alt="" className="purchase-user-avatar" />
-                <span className="purchase-user-name">{profile?.fullName || 'User'}</span>
-                <svg className="purchase-user-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
-              </button>
-              <div className="purchase-user-dropdown">
-                <Link to="/user/profile">My Account</Link>
-                <Link to="/auth/switch-account">Switch Account</Link>
-                <LogoutLink>Log out</LogoutLink>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <main className="purchase-main">
+        <div className="page-back-row purchase-page-nav"><PageBackButton fallbackTo="/user/profile" /></div>
 
-      <header className="purchase-header">
-        <div className="purchase-header-inner">
-          <BrandLogo to="/funeral" />
+        <section className="payments-page-heading" aria-label="Payment search">
           <label className="purchase-search">
             <span className="sr-only">Search payments</span>
             <input
@@ -177,17 +148,6 @@ export default function PurchasePage() {
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
             </span>
           </label>
-        </div>
-      </header>
-
-      <main className="purchase-main">
-        <div className="page-back-row purchase-page-nav"><PageBackButton to="/user/profile" /></div>
-
-        <section className="payments-page-heading">
-          <div>
-            <h2>My Payments</h2>
-            <p>Review payments for your service requests.</p>
-          </div>
           <button type="button" className="payments-refresh" onClick={() => void loadPayments()} disabled={loading} aria-label="Refresh payments">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 11a8 8 0 1 0-2.34 5.66" /><polyline points="20 4 20 11 13 11" /></svg>
             <span>{loading ? 'Refreshing' : 'Refresh'}</span>
@@ -200,10 +160,7 @@ export default function PurchasePage() {
         </div>
 
         {loading ? (
-          <section className="payments-state" aria-live="polite">
-            <span className="payments-spinner" aria-hidden="true" />
-            <p>Loading your payments...</p>
-          </section>
+          <RecordListSkeleton kind="payment" />
         ) : null}
 
         {!loading && errorMessage ? (
@@ -230,7 +187,7 @@ export default function PurchasePage() {
         ) : null}
 
         {!loading && !errorMessage ? (
-          <div className="payments-list">
+          <div className="payments-list lc-content-reveal">
             {visiblePayments.map(payment => {
               const status = getPaymentStatus(payment)
               return (

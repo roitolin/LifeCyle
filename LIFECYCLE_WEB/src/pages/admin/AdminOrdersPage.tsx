@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
 import { buildCsv, csvDate, csvTimestamp, dateStamp, downloadCsv } from '@/utils/exportCsv'
 
 export type ServiceRequest = {
@@ -117,8 +118,8 @@ function AdminOrdersPage() {
   const [queryText, setQueryText] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
 
-  const load = async () => {
-    setLoading(true)
+  const load = async (background = false) => {
+    if (!background) setLoading(true)
     setError('')
     try {
       const { data, error: fetchError } = await supabase
@@ -150,7 +151,7 @@ function AdminOrdersPage() {
         })),
       )
     } catch {
-      setError('Unable to load service requests right now.')
+      if (!background) setError('Unable to load service requests right now.')
     } finally {
       setLoading(false)
     }
@@ -159,6 +160,8 @@ function AdminOrdersPage() {
   useEffect(() => {
     void load()
   }, [])
+
+  useRealtimeRefresh([{ table: 'funeral_service_requests' }], () => load(true), !loading)
 
   const filtered = useMemo(() => {
     const q = normalize(queryText)

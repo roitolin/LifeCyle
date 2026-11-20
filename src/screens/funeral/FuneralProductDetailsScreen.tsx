@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
-import LoadingBird from '@/components/LoadingBird';
+import Reanimated from 'react-native-reanimated';
+import ContentSkeleton, { SkeletonBlock, contentFade } from '@/components/ContentSkeleton';
 import {
   Alert,
   Image,
@@ -141,10 +142,27 @@ export default function FuneralProductDetailsScreen({ navigation, route }: any) 
     [product]
   );
 
+  const mediaWidth = Math.max(width - spacing.xxl, 1);
+  const mediaHeight = Math.min(mediaWidth * 0.76, 320);
+
   if (loading) {
     return (
       <SafeAreaView style={styles.screen}>
-        <LoadingBird fullScreen />
+        <View style={styles.header}>
+          <AppBackButton onPress={() => navigation.goBack()} />
+          <Text style={styles.headerTitle} numberOfLines={1}>Product details</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+        <ContentSkeleton label="Loading product" style={styles.content}>
+          <SkeletonBlock style={[styles.mediaFrame, { height: mediaHeight }]} />
+          <View style={styles.productSummary}>
+            <SkeletonBlock style={{ width: "80%", height: 20 }} />
+            <View style={styles.priceStatusRow}>
+              <SkeletonBlock style={{ width: "38%", height: 16 }} />
+              <SkeletonBlock style={{ width: "26%", height: 18, borderRadius: 12 }} />
+            </View>
+          </View>
+        </ContentSkeleton>
       </SafeAreaView>
     );
   }
@@ -167,8 +185,6 @@ export default function FuneralProductDetailsScreen({ navigation, route }: any) 
     navigation.navigate("ProductEditor", { productId: product.id });
   };
 
-  const mediaWidth = Math.max(width - spacing.xxl, 1);
-  const mediaHeight = Math.min(mediaWidth * 0.76, 320);
   const availabilityLabel = getAvailabilityLabel(product);
   const isSoldOut = product.active && (product.stock ?? 0) <= 0;
 
@@ -186,7 +202,8 @@ export default function FuneralProductDetailsScreen({ navigation, route }: any) 
         <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView
+      <Reanimated.ScrollView
+        entering={contentFade}
         style={styles.scrollView}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -344,7 +361,7 @@ export default function FuneralProductDetailsScreen({ navigation, route }: any) 
             </View>
           </View>
         </View>
-      </ScrollView>
+      </Reanimated.ScrollView>
 
       <View style={styles.bottomBar}>
         <TouchableOpacity

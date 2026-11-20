@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppBackButton } from '@/components';
-import LoadingBird from '@/components/LoadingBird';
+import LoadingStatus from '@/components/LoadingStatus';
 import { auth } from '@/services';
 import { supabase } from '@/services/supabaseClient';
 import { formatPhilippinePeso } from '@/utils/funeralCatalog';
@@ -159,7 +159,7 @@ export default function FuneralShopCustomersScreen({ navigation }: any) {
     return query ? customers.filter((item) => `${item.name} ${item.phone}`.toLowerCase().includes(query)) : customers;
   }, [customers, search]);
 
-  if (loading) return <SafeAreaView style={styles.screen}><LoadingBird fullScreen /></SafeAreaView>;
+  if (loading) return <SafeAreaView style={styles.screen}><LoadingStatus label="Loading customers…" fullScreen /></SafeAreaView>;
 
   return (
     <SafeAreaView style={styles.screen}>

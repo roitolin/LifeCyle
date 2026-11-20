@@ -1,11 +1,14 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { KeyboardAwareScrollView } from '@/components';
+import ContentSkeleton, { ContentReveal, SkeletonBlock } from '@/components/ContentSkeleton';
 import { auth } from '@/services/supabaseAuth';
 import { supabase } from '@/services/supabaseClient';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import { useAuth } from '@/context/AuthContext';
 
 type UserPayment = {
   id: string;
@@ -49,14 +52,16 @@ const getPaymentStatus = (payment: UserPayment) => {
 
 export default function UserPaymentsScreen({ navigation }: any) {
   const [payments, setPayments] = useState<UserPayment[]>([]);
+  const { user: account } = useAuth();
+  const accountId = account?.id;
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const loadPayments = useCallback(async () => {
+  const loadPayments = useCallback(async (background = false) => {
     const currentUserId = auth.currentUser?.uid;
     if (!currentUserId) return;
 
-    setLoading(true);
+    if (!background) setLoading(true);
     setErrorMessage('');
     try {
       const result = await supabase
@@ -68,7 +73,7 @@ export default function UserPaymentsScreen({ navigation }: any) {
       if (result.error) throw result.error;
       setPayments((result.data || []) as UserPayment[]);
     } catch (error: any) {
-      setErrorMessage(error?.message || 'Payments could not be loaded.');
+      if (!background) setErrorMessage(error?.message || 'Payments could not be loaded.');
     } finally {
       setLoading(false);
     }
@@ -77,6 +82,8 @@ export default function UserPaymentsScreen({ navigation }: any) {
   useFocusEffect(useCallback(() => {
     void loadPayments();
   }, [loadPayments]));
+
+  useRealtimeRefresh([{ table: 'funeral_service_requests', filter: `requesterId=eq.${accountId}` }], () => loadPayments(true), Boolean(accountId) && !loading);
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -89,7 +96,7 @@ export default function UserPaymentsScreen({ navigation }: any) {
             <Text style={styles.heroTitle}>My payments</Text>
             <Text style={styles.heroText}>Only payments connected to your account are shown here.</Text>
           </View>
-          <TouchableOpacity accessibilityLabel='Refresh payments' disabled={loading} onPress={loadPayments} style={styles.refreshButton}>
+          <TouchableOpacity accessibilityLabel='Refresh payments' disabled={loading} onPress={() => void loadPayments()} style={styles.refreshButton}>
             <Ionicons name='refresh-outline' size={19} color='#ffffff' />
           </TouchableOpacity>
         </View>
@@ -100,10 +107,24 @@ export default function UserPaymentsScreen({ navigation }: any) {
         </View>
 
         {loading ? (
-          <View style={styles.stateCard}>
-            <ActivityIndicator color='#41514d' />
-            <Text style={styles.stateText}>Loading your payments...</Text>
-          </View>
+          <ContentSkeleton label="Loading payments">
+            {[0, 1].map(index => (
+              <View key={index} style={styles.paymentCard}>
+                <View style={styles.paymentHeader}>
+                  <SkeletonBlock style={styles.paymentIcon} />
+                  <View style={styles.paymentTitleCopy}>
+                    <SkeletonBlock style={{ width: "85%", height: 13, marginBottom: 6 }} />
+                    <SkeletonBlock style={{ width: "55%" }} />
+                  </View>
+                  <SkeletonBlock style={{ width: "23%", height: 17, borderRadius: 12 }} />
+                </View>
+                <View style={styles.amountRow}>
+                  <SkeletonBlock style={{ width: "24%" }} />
+                  <SkeletonBlock style={{ width: "33%", height: 15 }} />
+                </View>
+              </View>
+            ))}
+          </ContentSkeleton>
         ) : null}
 
         {!loading && errorMessage ? (
@@ -111,7 +132,7 @@ export default function UserPaymentsScreen({ navigation }: any) {
             <Ionicons name='alert-circle-outline' size={30} color='#9a5b32' />
             <Text style={styles.stateTitle}>Payments unavailable</Text>
             <Text style={styles.stateText}>Please check your connection and try again.</Text>
-            <TouchableOpacity onPress={loadPayments} style={styles.retryButton}>
+            <TouchableOpacity onPress={() => void loadPayments()} style={styles.retryButton}>
               <Text style={styles.retryText}>Try again</Text>
             </TouchableOpacity>
           </View>
@@ -128,7 +149,7 @@ export default function UserPaymentsScreen({ navigation }: any) {
         {!loading && !errorMessage ? payments.map((payment) => {
           const status = getPaymentStatus(payment);
           return (
-            <View key={payment.id} style={styles.paymentCard}>
+            <ContentReveal key={payment.id} style={styles.paymentCard}>
               <View style={styles.paymentHeader}>
                 <View style={styles.paymentIcon}>
                   <Ionicons name='receipt-outline' size={21} color='#41514d' />
@@ -164,7 +185,7 @@ export default function UserPaymentsScreen({ navigation }: any) {
                 <Text style={styles.requestButtonText}>View service request</Text>
                 <Ionicons name='chevron-forward' size={16} color='#41514d' />
               </TouchableOpacity>
-            </View>
+            </ContentReveal>
           );
         }) : null}
       </KeyboardAwareScrollView>

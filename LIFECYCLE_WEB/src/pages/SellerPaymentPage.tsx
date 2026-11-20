@@ -41,7 +41,7 @@ export default function SellerPaymentPage() {
   }
 
   return (
-    <div className="sc-page">
+    <div className="sc-page sidebar-hidden">
       <header className="sc-header-bar">
         <div className="sc-header-left">
           <Link to="/seller" className="sc-logo-area">
@@ -56,7 +56,7 @@ export default function SellerPaymentPage() {
       <div className="sc-workspace">
         <main className="sc-content-area">
           <div className="page-back-row">
-            <PageBackButton to="/seller" label="Back to shop center" />
+            <PageBackButton fallbackTo="/seller" />
           </div>
           {!isLoggedIn ? (
             <div className="sc-access-denied">

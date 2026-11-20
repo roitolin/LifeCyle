@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Searchbar, Text } from 'react-native-paper';
-import LoadingBird from '@/components/LoadingBird';
+import LoadingStatus from '@/components/LoadingStatus';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/services/supabaseClient';
 import { useResponsive } from '@/utils/responsive';
@@ -170,7 +170,7 @@ export default function AdminAuditLogsScreen() {
         })}
       </ScrollView>
 
-      {loading && !logs.length ? <LoadingBird compact /> : (
+      {loading && !logs.length ? <LoadingStatus label="Loading audit logs…" compact /> : (
         <FlatList
           data={filtered}
           keyExtractor={(item) => item.id}

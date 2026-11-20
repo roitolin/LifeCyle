@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import LoadingBird from '@/components/LoadingBird';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import LoadingStatus from '@/components/LoadingStatus';
 import {
   Alert,
   FlatList,
@@ -84,7 +84,6 @@ function getChannelLabel(code?: string | null) {
 export default function AdminFuneralShopVerificationsScreen() {
   const { isDesktop } = useResponsive();
   const [items, setItems] = useState<ShopApplicant[]>([]);
-  const [filteredItems, setFilteredItems] = useState<ShopApplicant[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<FilterType>("pending");
@@ -93,13 +92,13 @@ export default function AdminFuneralShopVerificationsScreen() {
   const [rejectionReason, setRejectionReason] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   // Payout form state
-  const applyFilters = useCallback((allItems: ShopApplicant[], search: string, filter: FilterType) => {
-    let result = [...allItems];
+  const filteredItems = useMemo(() => {
+    let result = items;
+    const search = searchQuery.trim().toLowerCase();
 
-    if (filter !== "all") result = result.filter((item) => item.status === filter);
+    if (filterType !== "all") result = result.filter((item) => item.status === filterType);
 
-    if (search.trim()) {
-      const lower = search.trim().toLowerCase();
+    if (search) {
       result = result.filter((item) =>
         [
           item.ownerFullName,
@@ -109,15 +108,14 @@ export default function AdminFuneralShopVerificationsScreen() {
           item.generalLocation,
         ]
           .filter(Boolean)
-          .some((value) => String(value).toLowerCase().includes(lower))
+          .some((value) => String(value).toLowerCase().includes(search))
       );
     }
 
-    setFilteredItems(result);
-  }, []);
+    return result;
+  }, [items, searchQuery, filterType]);
 
   const loadApplicants = useCallback(async () => {
-    setLoading(true);
     try {
       const { data, error } = await supabase
         .from("funeral_shops")
@@ -163,14 +161,13 @@ export default function AdminFuneralShopVerificationsScreen() {
       setSelectedItem((current) =>
         current ? nextItems.find((item) => item.id === current.id) || current : null
       );
-      applyFilters(nextItems, searchQuery, filterType);
     } catch (error) {
       console.error(error);
       Alert.alert("Error", "Failed to load funeral shop verifications.");
     } finally {
       setLoading(false);
     }
-  }, [applyFilters, filterType, searchQuery]);
+  }, []);
 
   useEffect(() => {
     // Async screen loading intentionally begins when the filter-backed loader changes.
@@ -237,7 +234,7 @@ export default function AdminFuneralShopVerificationsScreen() {
 
       Alert.alert(
         "Shop approved",
-        "The owner can now submit a test payout receiver. Review it separately in Payout Accounts.",
+        "The owner can now submit a test payout receiver. Review it separately in Withdrawal Accounts.",
       );
       await loadApplicants();
       closeModal();    } catch (error: any) {
@@ -318,7 +315,7 @@ export default function AdminFuneralShopVerificationsScreen() {
   );
 
   if (loading) {
-    return <LoadingBird fullScreen />;
+    return <LoadingStatus label="Loading shop applications…" fullScreen />;
   }
 
   return (
@@ -331,7 +328,6 @@ export default function AdminFuneralShopVerificationsScreen() {
         value={searchQuery}
         onChangeText={(value) => {
           setSearchQuery(value);
-          applyFilters(items, value, filterType);
         }}
         style={styles.searchbar}
       />
@@ -341,7 +337,6 @@ export default function AdminFuneralShopVerificationsScreen() {
         onValueChange={(value) => {
           const nextFilter = value as FilterType;
           setFilterType(nextFilter);
-          applyFilters(items, searchQuery, nextFilter);
         }}
         buttons={FILTER_OPTIONS}
       />
@@ -376,7 +371,7 @@ export default function AdminFuneralShopVerificationsScreen() {
 
                   <View style={styles.payoutCard}>
                     <Text style={styles.payoutTitle}>Test payout receivers</Text>
-                    <Text style={styles.payoutDetail}>The owner submits receiver details after shop approval. Review submitted accounts in Payout Accounts.</Text>
+                    <Text style={styles.payoutDetail}>The owner submits receiver details after shop approval. Review submitted accounts in Withdrawal Accounts.</Text>
                   </View>
                   <Button mode="outlined" onPress={() => void openExternalLink(selectedItem.birCertificateUrl)} style={styles.linkButton}>
                     View BIR Certificate

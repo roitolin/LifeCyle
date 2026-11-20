@@ -560,12 +560,6 @@
 .feedback-content {
   @apply w-full;
 }
-.fb-summary {
-  @apply flex flex-wrap gap-[16px] [background:var(--sp-bg)] border border-[color:var(--border)] text-[14px] text-[color:var(--text-muted)] mb-[20px] px-[16px] py-[12px] rounded-[8px] border-solid;
-}
-.fb-summary strong {
-  @apply text-[color:var(--sp-accent)];
-}
 .fb-section {
   @apply mb-[24px];
 }
@@ -636,7 +630,8 @@
 .fb-post-header strong {
   @apply text-[14px] text-[color:var(--text-main)];
 }
-.fb-post-header span {
+.fb-post-header span,
+.fb-post-header time {
   @apply text-[11px] text-[color:var(--text-muted)];
 }
 .fb-post-rating-meta {
@@ -663,7 +658,8 @@
 .fb-reply-head strong {
   @apply text-[13px];
 }
-.fb-reply-head span {
+.fb-reply-head span,
+.fb-reply-head time {
   @apply text-[11px] text-[color:var(--text-muted)];
 }
 .fb-empty {
@@ -876,9 +872,6 @@
   .contact-form > .btn-save,
   .contact-success-action {
     @apply w-full;
-  }
-  .fb-summary {
-    @apply grid gap-[7px];
   }
   .fb-section-header,
   .fb-rating-head,
@@ -1284,9 +1277,6 @@
 }
 
 @media (max-width: 380px) {
-  .profile-page .profile-mobile-home-prefix {
-    display: none;
-  }
   .profile-page .profile-mobile-home-link {
     margin-left: 6px;
     padding-inline: 10px;
@@ -1457,5 +1447,17 @@
     background: rgba(255, 255, 255, 0.09);
     color: #ffffff;
     outline: none;
+  }
+}
+
+.profile-desktop-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+@media (max-width: 768px) {
+  .profile-desktop-header-actions {
+    display: none;
   }
 }

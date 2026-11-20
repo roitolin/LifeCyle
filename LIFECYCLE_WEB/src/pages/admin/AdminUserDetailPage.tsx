@@ -143,7 +143,7 @@ function AdminUserDetailPage() {
   return (
     <section className="panel admin-user-detail-panel">
       <div className="admin-user-detail-topbar">
-        <PageBackButton to="/admin/users" label="Back to users" />
+        <PageBackButton fallbackTo="/admin/users" />
       </div>
 
       {loading ? <p className="panel-sub">Loading user details...</p> : null}

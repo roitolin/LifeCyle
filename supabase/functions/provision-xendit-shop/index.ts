@@ -147,6 +147,7 @@ Deno.serve(async (request) => {
     payoutChannelCode?: unknown;
     payoutAccountName?: unknown;
     payoutAccountNumber?: unknown;
+    payoutAccountEmail?: unknown;
     payoutAccountId?: unknown;
     active?: unknown;
     action?: unknown;
@@ -186,7 +187,7 @@ Deno.serve(async (request) => {
     if (!isAdmin) return jsonResponse(request, { error: 'Only an active administrator can review test receivers.' }, 403);
     let accountQuery = admin
       .from('funeral_shop_payout_accounts')
-      .select('id, "shopId", "channelCode", "accountName", "accountNumber", active, "verifiedByAdmin", "verifiedAt", "createdAt", "updatedAt"')
+      .select('id, "shopId", "channelCode", "accountName", "accountNumber", "accountEmail", active, "verifiedByAdmin", "verifiedAt", "createdAt", "updatedAt"')
       .order('createdAt', { ascending: true });
     if (action === 'list') accountQuery = accountQuery.eq('shopId', shopId);
     const { data: accounts, error } = await accountQuery;
@@ -241,6 +242,8 @@ Deno.serve(async (request) => {
     const channelCode = String(input?.payoutChannelCode || '').trim().toUpperCase();
     const accountName = String(input?.payoutAccountName || '').trim();
     const accountNumber = String(input?.payoutAccountNumber || '').trim();
+    const rawAccountEmail = String(input?.payoutAccountEmail || '').trim().toLowerCase();
+    const accountEmail = rawAccountEmail || String(userData.user.email || '').trim().toLowerCase() || null;
 
     if (!VALID_PAYOUT_CHANNELS.has(channelCode)) {
       return jsonResponse(request, { error: 'Select a valid payout channel (e.g. GCash, BDO, BPI).' }, 400);
@@ -251,10 +254,13 @@ Deno.serve(async (request) => {
     if (!accountNumber || accountNumber.length < 4 || accountNumber.length > 30) {
       return jsonResponse(request, { error: 'A valid account number is required.' }, 400);
     }
+    if (rawAccountEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawAccountEmail)) {
+      return jsonResponse(request, { error: 'Enter a valid email address.' }, 400);
+    }
 
     const { data: existingAccount, error: existingAccountError } = await admin
       .from('funeral_shop_payout_accounts')
-      .select('id, accountName, accountNumber, verifiedByAdmin')
+      .select('id, accountName, accountNumber, accountEmail, verifiedByAdmin')
       .eq('shopId', shopId)
       .eq('channelCode', channelCode)
       .maybeSingle();
@@ -265,7 +271,8 @@ Deno.serve(async (request) => {
 
     const receiverChanged = existingAccount && (
       String(existingAccount.accountName || '').trim() !== accountName ||
-      String(existingAccount.accountNumber || '').trim() !== accountNumber
+      String(existingAccount.accountNumber || '').trim() !== accountNumber ||
+      (accountEmail && String(existingAccount.accountEmail || '').trim().toLowerCase() !== accountEmail)
     );
 
     if (existingAccount && !receiverChanged) {
@@ -304,6 +311,7 @@ Deno.serve(async (request) => {
           channelCode,
           accountName,
           accountNumber,
+          accountEmail,
           expiresAt,
           lastSentAt: createdAt.toISOString(),
         })
@@ -340,9 +348,43 @@ Deno.serve(async (request) => {
     }
 
     const submittedAt = new Date().toISOString();
+    const { error: accountError } = await admin
+      .from('funeral_shop_payout_accounts')
+      .upsert({
+        shopId,
+        channelCode,
+        accountName,
+        accountNumber,
+        accountEmail,
+        active: false,
+        verifiedByAdmin: false,
+        verifiedAt: null,
+        updatedAt: submittedAt,
+      }, { onConflict: 'shopId,channelCode' });
+    if (accountError) {
+      console.error('Unable to save receiver account:', accountError.code || 'unknown');
+      return jsonResponse(request, { error: 'Unable to save the receiver account.' }, 500);
+    }
+
+    const { data: readyAccount } = await admin
+      .from('funeral_shop_payout_accounts')
+      .select('channelCode, accountName, accountNumber, verifiedAt')
+      .eq('shopId', shopId)
+      .eq('active', true)
+      .eq('verifiedByAdmin', true)
+      .order('updatedAt', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
     const { error: updateError } = await admin
       .from('funeral_shops')
-      .update({
+      .update(readyAccount ? {
+        payoutChannelCode: readyAccount.channelCode,
+        payoutAccountName: readyAccount.accountName,
+        payoutAccountNumber: readyAccount.accountNumber,
+        payoutVerifiedByAdmin: true,
+        payoutVerifiedAt: readyAccount.verifiedAt || submittedAt,
+      } : {
         payoutChannelCode: channelCode,
         payoutAccountName: accountName,
         payoutAccountNumber: accountNumber,
@@ -354,23 +396,6 @@ Deno.serve(async (request) => {
     if (updateError) {
       console.error('Unable to update shop payout:', updateError.code || 'unknown');
       return jsonResponse(request, { error: 'Unable to save the payout details.' }, 500);
-    }
-
-    const { error: accountError } = await admin
-      .from('funeral_shop_payout_accounts')
-      .upsert({
-        shopId,
-        channelCode,
-        accountName,
-        accountNumber,
-        active: false,
-        verifiedByAdmin: false,
-        verifiedAt: null,
-        updatedAt: submittedAt,
-      }, { onConflict: 'shopId,channelCode' });
-    if (accountError) {
-      console.error('Unable to save receiver account:', accountError.code || 'unknown');
-      return jsonResponse(request, { error: 'Unable to save the receiver account.' }, 500);
     }
 
     return jsonResponse(request, {
@@ -397,7 +422,7 @@ Deno.serve(async (request) => {
 
     const { data: challenge, error: challengeError } = await admin
       .from('payout_account_change_challenges')
-      .select('id, status, "failedAttempts", "expiresAt", "channelCode", "accountName", "accountNumber"')
+      .select('id, status, "failedAttempts", "expiresAt", "channelCode", "accountName", "accountNumber", "accountEmail"')
       .eq('id', challengeId)
       .eq('shopId', shopId)
       .maybeSingle();
@@ -489,6 +514,7 @@ Deno.serve(async (request) => {
           channelCode: challenge.channelCode,
           accountName: challenge.accountName,
           accountNumber: challenge.accountNumber,
+          accountEmail: challenge.accountEmail || email,
           active: false,
           verifiedByAdmin: false,
           verifiedAt: null,
@@ -534,6 +560,14 @@ Deno.serve(async (request) => {
       return jsonResponse(request, {
         error: `The email was verified, but the payout change could not be saved (${failureCode}). Please resend the code and try again.`,
       }, 500);
+    }
+
+    if (challenge.accountEmail) {
+      await admin
+        .from('funeral_shop_payout_accounts')
+        .update({ accountEmail: challenge.accountEmail })
+        .eq('shopId', shopId)
+        .eq('channelCode', challenge.channelCode);
     }
 
     await admin.from('payout_account_change_challenges').delete().eq('id', challengeId);

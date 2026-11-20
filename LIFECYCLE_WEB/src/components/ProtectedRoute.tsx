@@ -4,7 +4,7 @@ import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { ensureOwnUserProfile } from '@/lib/userProfile'
 import { getTermsAgreementPath, needsTermsAgreement } from '@/lib/termsAgreement'
-import LoadingBird from '@/components/LoadingBird'
+import RouteLoading from '@/components/RouteLoading'
 import {
   registerWebAccountSession,
   verifyWebAccountSession,
@@ -111,6 +111,7 @@ function ProtectedRoute({
       void syncUser(data.session?.user ?? null)
     })
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'INITIAL_SESSION') return
       // Supabase emits TOKEN_REFRESHED (and sometimes duplicate SIGNED_IN or USER_UPDATED)
       // when it silently refreshes the JWT or updates user data. If the user hasn't changed we
       // only need to update the user object — no need for a full profile
@@ -162,14 +163,14 @@ function ProtectedRoute({
   }, [user?.id])
 
   if (checking) {
-    return <LoadingBird fullScreen />
+    return <RouteLoading fullScreen label="Checking your session…" />
   }
 
   if (!user) {
     if (banDialog) {
       return <Navigate to="/login" replace state={{ banDialog }} />
     }
-    if (allowAnonymous) return <Outlet />
+    if (allowAnonymous) return <Outlet context={null} />
     const target =
       redirectTo === '/'
         ? '/'
@@ -202,7 +203,7 @@ function ProtectedRoute({
     return <Navigate to={redirectUnauthorizedTo} replace />
   }
 
-  return <Outlet />
+  return <Outlet context={user} />
 }
 
 export default ProtectedRoute

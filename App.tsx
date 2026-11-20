@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { RootNavigator } from '@/navigation';
+import StartupConnectionGate from '@/components/StartupConnectionGate';
 import { AppProviders } from '@/providers';
 import { configureForegroundPushNotifications } from '@/services/pushNotifications';
 import { colors } from '@/theme';
@@ -32,9 +33,11 @@ export default function App() {
     <GestureHandlerRootView style={styles.app}>
       <StatusBar hidden={false} style="dark" />
       <NavigationBar hidden={false} style="light" />
-      <AppProviders>
-        <RootNavigator />
-      </AppProviders>
+      <StartupConnectionGate>
+        <AppProviders>
+          <RootNavigator />
+        </AppProviders>
+      </StartupConnectionGate>
     </GestureHandlerRootView>
   );
 }

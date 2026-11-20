@@ -4,7 +4,7 @@ import { Linking } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { useAuth } from "../context/AuthContext";
 import { useAppNotificationSound, useChatDeliveryReceipts, useChatNotificationSound, usePushNotifications } from "@/hooks";
-import LoadingBird from '@/components/LoadingBird';
+import LoadingStatus from '@/components/LoadingStatus';
 import { ResetPasswordScreen } from '@/pages/auth';
 import { hasCompletedOnboarding, markOnboardingCompleted } from '@/services/onboarding';
 import { navigationTheme } from "../theme";
@@ -44,6 +44,7 @@ export default function RootNavigator() {
   const emailVerified = Boolean(user?.email_confirmed_at);
   const isAdminRole = role === "super_admin" || role === "admin";
   const canNavigateFromPush = Boolean(user && emailVerified && termsAccepted);
+  const waitingForStartup = loading || onboardingCompleted === null;
 
   const revealApp = useCallback(() => {
     if (hasHiddenNativeSplashRef.current) return;
@@ -54,8 +55,8 @@ export default function RootNavigator() {
   }, []);
 
   useEffect(() => {
-    if (loading) revealApp();
-  }, [loading, revealApp]);
+    if (!waitingForStartup && passwordRecoveryUrl) revealApp();
+  }, [passwordRecoveryUrl, revealApp, waitingForStartup]);
 
   useEffect(() => {
     let active = true;
@@ -101,7 +102,9 @@ export default function RootNavigator() {
   // (including saved agreement acceptance) has finished loading. Otherwise a
   // previously accepted user briefly mounts TermsNavigator with the default
   // `termsAccepted = false` value during sign-in or account switching.
-  if (loading || onboardingCompleted === null) return <LoadingBird fullScreen />;
+  if (waitingForStartup) {
+    return <LoadingStatus fullScreen label="Starting LifeCycle…" delayMs={400} onStatusLayout={revealApp} />;
+  }
 
   if (passwordRecoveryUrl) {
     return (

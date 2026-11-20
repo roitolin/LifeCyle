@@ -61,7 +61,7 @@ function ForgotPasswordPage() {
         <AuthBrandPanel />
 
         <section className='auth-card' aria-label='Password recovery form'>
-          <div className='page-back-row auth-page-back'><PageBackButton to='/login' /></div>
+          <div className='page-back-row auth-page-back'><PageBackButton fallbackTo='/login' /></div>
 
           <div className='auth-card-head'>
             <h1>Forgot Password?</h1>

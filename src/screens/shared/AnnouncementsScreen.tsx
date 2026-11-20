@@ -3,7 +3,7 @@ import { Animated, FlatList, Image, RefreshControl, StyleSheet, Text, TouchableO
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppBackButton } from '@/components';
-import LoadingBird from '@/components/LoadingBird';
+import LoadingStatus from '@/components/LoadingStatus';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/services/supabaseClient';
 import { colors, radii, spacing } from '@/theme';
@@ -226,7 +226,7 @@ export default function AnnouncementsScreen({ navigation, route }: any) {
             />
           )}
           ListEmptyComponent={loading ? (
-            <LoadingBird compact style={styles.loader} />
+            <LoadingStatus label="Loading announcements…" compact style={styles.loader} />
           ) : (
             <AnnouncementEmptyState
               hasError={loadError}

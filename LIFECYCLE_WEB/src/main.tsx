@@ -1,9 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import { APP_ICON_URL } from '@/assets/appIconAssets'
-
-document.querySelector<HTMLLinkElement>('link[rel="icon"]')?.setAttribute('href', APP_ICON_URL)
 
 const rootElement = document.getElementById('root')
 

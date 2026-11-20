@@ -11,12 +11,8 @@ export function useProductScrollReveal<T extends HTMLElement>(refreshKey: string
     if (!container) return
 
     const cards = Array.from(container.querySelectorAll<HTMLElement>(REVEAL_SELECTOR))
+      .filter(card => !card.classList.contains('product-scroll-reveal-visible'))
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
-    cards.forEach((card, index) => {
-      card.classList.remove('product-scroll-reveal-visible')
-      card.style.setProperty('--product-reveal-delay', `${(index % 5) * 55}ms`)
-    })
 
     if (prefersReducedMotion || !('IntersectionObserver' in window)) {
       cards.forEach(card => card.classList.add('product-scroll-reveal-visible'))

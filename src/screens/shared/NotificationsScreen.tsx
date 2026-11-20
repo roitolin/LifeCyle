@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import LoadingBird from '@/components/LoadingBird';
+import LoadingStatus from '@/components/LoadingStatus';
 import {
   View,
   SectionList,
@@ -711,8 +711,8 @@ export default function NotificationsScreen({ navigation, route }: any) {
     );
   };
 
-  if (loading && !refreshing) {
-    return <LoadingBird fullScreen />;
+  if (loading && !refreshing && allNotifications.length === 0) {
+    return <LoadingStatus label="Loading notifications…" fullScreen />;
   }
 
   return (

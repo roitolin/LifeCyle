@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
 import './ShopRegistrationPage.css'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
+import { usePageBack } from '@/hooks/usePageBack'
 
 type RegistrationData = {
   shopName: string
@@ -20,6 +21,7 @@ type RegistrationData = {
 
 export default function ShopRegistrationPage() {
   const navigate = useNavigate()
+  const goBack = usePageBack('/seller')
   const [user, setUser] = useState<User | null>(null)
   const [loadingUser, setLoadingUser] = useState(true)
   
@@ -142,7 +144,7 @@ export default function ShopRegistrationPage() {
     if (step > 1) {
       setStep(step - 1)
     } else {
-      navigate(-1)
+      goBack()
     }
   }
 

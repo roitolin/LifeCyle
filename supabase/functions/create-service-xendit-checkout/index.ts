@@ -1,11 +1,9 @@
 // eslint-disable-next-line import/no-unresolved
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { consumeUserRateLimit } from '../_shared/security.ts';
-import { xenditPayoutChannelCode } from '../_shared/xenditPayoutChannels.ts';
 import { availableShopCheckoutChannels, matchesAllowedPaymentChannels } from '../_shared/shopCheckoutChannels.ts';
 
 const CREATE_SESSION_URL = 'https://api.xendit.co/sessions';
-const XENDIT_PAYOUTS_URL = 'https://api.xendit.co/v2/payouts';
 const MAX_BODY_BYTES = 16 * 1024;
 const CHECKOUT_TTL_MS = 60 * 60 * 1000;
 
@@ -140,7 +138,12 @@ async function syncAndReconcileSession(
   const sessionStatus = String(session?.status || '').toUpperCase();
 
   if (sessionStatus === 'COMPLETED') {
-    const paymentId = String(session?.payment_id || '').trim();
+    const paymentId = String(
+      session?.payment_id ||
+      session?.payment_request_id ||
+      session?.id ||
+      checkoutId
+    ).trim();
     const sessionAmount = Number(session?.amount);
     const paymentMethod = String(
       session?.payment_method ||
@@ -149,8 +152,23 @@ async function syncAndReconcileSession(
       'gcash'
     ).toLowerCase();
 
-    const referenceId = String(claim?.referenceId || serviceRequest.providerReferenceId || session?.reference_id || '').trim();
-    const grossAmount = sessionAmount || Number(claim?.amount || serviceRequest.paymentAmount);
+    const referenceId = String(
+      claim?.referenceId ||
+      serviceRequest.providerReferenceId ||
+      session?.reference_id ||
+      requestId
+    ).trim();
+    const fallbackGross = Number(
+      claim?.amount ||
+      (serviceRequest.paymentOption === 'downpayment' ? serviceRequest.downpaymentAmountSnapshot : null) ||
+      serviceRequest.paymentAmount ||
+      serviceRequest.productFullPrice ||
+      serviceRequest.productPrice ||
+      0
+    );
+    const grossAmount = Number.isFinite(sessionAmount) && sessionAmount > 0 ? sessionAmount : fallbackGross;
+    const computedCommission = Math.round(grossAmount * 30) / 100;
+    const computedShopNet = Math.max(0, Math.round((grossAmount - computedCommission) * 100) / 100);
 
     const { error: syncError } = await admin.rpc('reconcile_xendit_service_event', {
       p_event_id: `xendit:sync:${checkoutId}:${paymentId || 'completed'}`,
@@ -158,7 +176,7 @@ async function syncAndReconcileSession(
       p_event_kind: 'payment_completed',
       p_checkout_id: checkoutId,
       p_reference_id: referenceId,
-      p_provider_payment_id: paymentId || null,
+      p_provider_payment_id: paymentId || checkoutId,
       p_provider_split_payment_id: null,
       p_split_rule_id: null,
       p_shop_account_id: String(serviceRequest.shopId || ''),
@@ -172,50 +190,31 @@ async function syncAndReconcileSession(
     });
 
     if (syncError) {
-      console.error('Unable to reconcile completed Xendit session:', syncError);
-    }
-
-    // Auto-trigger 70% shop payout if configured
-    const shopNetAmount = Number(claim?.shopNetAmount || serviceRequest.shopNetAmount || (grossAmount * 0.7));
-    if (requestId && shopNetAmount > 0) {
-      try {
-        const payoutRefId = `lifecycle-payout-${requestId}`;
-        const { data: payoutData } = await admin.rpc('initiate_shop_payout', {
-          p_request_id: requestId,
-          p_payout_reference_id: payoutRefId,
-        });
-        const payoutInfo = firstRpcRow<any>(payoutData);
-        if (payoutInfo && !payoutInfo.alreadyInitiated && payoutInfo.payoutAmount > 0) {
-          const payoutBody = {
-            reference_id: payoutRefId,
-            channel_code: xenditPayoutChannelCode(payoutInfo.payoutChannelCode),
-            channel_properties: {
-              account_holder_name: payoutInfo.payoutAccountName,
-              account_number: payoutInfo.payoutAccountNumber,
-            },
-            amount: payoutInfo.payoutAmount,
-            currency: 'PHP',
-            description: `LifeCycle shop payout (70%) for order ${requestId}`.slice(0, 200),
-            metadata: {
-              purpose: 'lifecycle_shop_payout',
-              request_id: requestId,
-              commission_percent: '30',
-            },
-          };
-          fetch(XENDIT_PAYOUTS_URL, {
-            method: 'POST',
-            headers: {
-              Authorization: basicAuth(xenditSecretKey),
-              Accept: 'application/json',
-              'Content-Type': 'application/json',
-              'Idempotency-key': payoutRefId,
-            },
-            body: JSON.stringify(payoutBody),
-          }).catch((err) => console.error('Auto-payout dispatch error:', err));
-        }
-      } catch (payoutErr) {
-        console.error('Error initiating payout in sync:', payoutErr);
-      }
+      console.error('Unable to reconcile completed Xendit session via RPC, applying service-role fallback:', syncError);
+      const nowIso = new Date().toISOString();
+      const nextStatus = ['awaiting_customer_confirmation', 'completed'].includes(String(serviceRequest.status || '').toLowerCase())
+        ? serviceRequest.status
+        : 'payment_verified';
+      await admin
+        .from('funeral_service_requests')
+        .update({
+          status: nextStatus,
+          paymentProvider: 'xendit',
+          paymentAmount: grossAmount > 0 ? grossAmount : serviceRequest.paymentAmount,
+          commissionRate: 0.3,
+          commissionAmount: computedCommission > 0 ? computedCommission : serviceRequest.commissionAmount,
+          shopNetAmount: computedShopNet > 0 ? computedShopNet : serviceRequest.shopNetAmount,
+          payoutAmount: computedShopNet > 0 ? computedShopNet : serviceRequest.shopNetAmount,
+          providerPaymentId: paymentId || checkoutId,
+          providerPaymentMethod: paymentMethod,
+          providerStatus: 'payment_verified',
+          providerPaymentCompletedAt: nowIso,
+          paymentSubmittedAt: nowIso,
+          paymentVerifiedAt: nowIso,
+          commissionStatus: 'completed',
+          updatedAt: nowIso,
+        })
+        .eq('id', requestId);
     }
 
     return {
@@ -332,7 +331,7 @@ Deno.serve(async (request) => {
 
   const { data: serviceRequest, error: requestError } = await admin
     .from('funeral_service_requests')
-    .select('id, requesterId, shopId, productName, requestType, status, paymentOption, providerStatus, providerCheckoutId, providerCheckoutClaimId, providerCheckoutUrl, providerReferenceId, paymentAmount, shopNetAmount, commissionAmount, payoutChannelCode')
+    .select('id, requesterId, shopId, productName, requestType, status, paymentOption, downpaymentAmountSnapshot, productPrice, productFullPrice, paymentVerifiedAt, providerPaymentCompletedAt, providerStatus, providerCheckoutId, providerCheckoutClaimId, providerCheckoutUrl, providerReferenceId, paymentAmount, shopNetAmount, commissionAmount, payoutChannelCode')
     .eq('id', requestId)
     .maybeSingle();
   if (requestError) return jsonResponse(request, { error: 'Unable to load the service request.' }, 500);
@@ -369,15 +368,11 @@ Deno.serve(async (request) => {
     return jsonResponse(request, { error: 'Unable to load this shop’s payment methods.' }, 500);
   }
 
-  const configuredChannels = new Set((receiverAccounts || []).map((row: any) => String(row.channelCode || '').toUpperCase()));
-  // Use the shop's primary active verified receiver for the payout unless an
-  // older client requests one configured channel directly.
-  const primaryShopChannel = String((shopRow as any)?.payoutChannelCode || '').trim().toUpperCase();
-  const defaultPayoutChannel = configuredChannels.has(primaryShopChannel)
-    ? primaryShopChannel
-    : String((receiverAccounts || [])[0]?.channelCode || '').trim().toUpperCase();
+  const defaultPayoutChannel = String((shopRow as any)?.payoutChannelCode || '').trim().toUpperCase() ||
+    String((receiverAccounts || [])[0]?.channelCode || '').trim().toUpperCase() ||
+    'PH_GCASH';
   const isAnyMethod = requestedPaymentMethod === '' || requestedPaymentMethod === 'ANY';
-  const availableMethods = availableShopCheckoutChannels(configuredChannels);
+  const availableMethods = availableShopCheckoutChannels();
 
   if (isMethodsAction) {
     const selectedMethod = String(serviceRequest.payoutChannelCode || '').trim().toUpperCase();
@@ -392,8 +387,12 @@ Deno.serve(async (request) => {
     });
   }
 
-  if (serviceRequest.status === 'payment_verified') {
-    return jsonResponse(request, { paid: true, status: 'payment_verified', requestId, testMode: true, livemode: false });
+  if (
+    ['payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(String(serviceRequest.status || '').toLowerCase()) ||
+    Boolean(serviceRequest.paymentVerifiedAt) ||
+    Boolean(serviceRequest.providerPaymentCompletedAt)
+  ) {
+    return jsonResponse(request, { paid: true, status: serviceRequest.status || 'payment_verified', requestId, testMode: true, livemode: false });
   }
   if (isPrepareAction && (serviceRequest.status !== 'awaiting_payment' || availableMethods.length === 0)) {
     return jsonResponse(request, { error: availableMethods.length === 0

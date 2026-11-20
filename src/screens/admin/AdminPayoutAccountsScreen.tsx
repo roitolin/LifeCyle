@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import LoadingBird from "@/components/LoadingBird";
+import LoadingStatus from "@/components/LoadingStatus";
 import {
   ActivityIndicator,
   Alert,
@@ -108,7 +108,7 @@ export default function AdminPayoutAccountsScreen() {
       }));
       setShops(rows);
     } catch (e: any) {
-      Alert.alert("Error", e?.message || "Unable to load payout accounts.");
+      Alert.alert("Error", e?.message || "Unable to load withdrawal accounts.");
     } finally {
       setLoading(false);
     }
@@ -155,7 +155,7 @@ export default function AdminPayoutAccountsScreen() {
         metadata: { payoutChannel: selectedReceiver.channelCode, testMode: true },
       }).catch(() => {});
       Alert.alert(
-        "Payout account approved",
+        "Withdrawal account approved",
         `${selected.shopName || "This shop"}'s ${getChannelLabel(selectedReceiver.channelCode)} account is ready for checkout.`
       );
       setModalVisible(false);
@@ -175,12 +175,12 @@ export default function AdminPayoutAccountsScreen() {
     { key: "all", label: "All", count: rows.length, color: "#6b7280" },
   ];
 
-  if (loading) return <LoadingBird fullScreen />;
+  if (loading && shops.length === 0) return <LoadingStatus label="Loading withdrawal accounts…" fullScreen />;
 
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Shop Payout Accounts</Text>
+        <Text style={styles.headerTitle}>Shop Withdrawal Accounts</Text>
         <Text style={styles.headerSub}>
           Review each bank and wallet account submitted by partner shops.
         </Text>
@@ -202,7 +202,7 @@ export default function AdminPayoutAccountsScreen() {
       </ScrollView>
 
       <View style={styles.searchWrap}>
-        <TextInput style={styles.searchInput} value={search} onChangeText={setSearch} placeholder="Search shop or account" accessibilityLabel="Search payout accounts" />
+        <TextInput style={styles.searchInput} value={search} onChangeText={setSearch} placeholder="Search shop or account" accessibilityLabel="Search withdrawal accounts" />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.channelRow}>
           <TouchableOpacity style={[styles.channelChip, channelFilter === "all" && styles.channelChipActive]} onPress={() => setChannelFilter("all")}><Text style={styles.channelChipText}>All channels</Text></TouchableOpacity>
           {PAYOUT_CHANNELS.map((channel) => <TouchableOpacity key={channel.code} style={[styles.channelChip, channelFilter === channel.code && styles.channelChipActive]} onPress={() => setChannelFilter(channel.code)}><Text style={styles.channelChipText}>{channel.label}</Text></TouchableOpacity>)}
@@ -262,7 +262,7 @@ export default function AdminPayoutAccountsScreen() {
           <View style={styles.modalCard}>
             <View>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Payout Account Review</Text>
+                <Text style={styles.modalTitle}>Withdrawal Account Review</Text>
                 <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeBtn}>
                   <Ionicons name="close" size={20} color="#6b7280" />
                 </TouchableOpacity>
@@ -280,7 +280,7 @@ export default function AdminPayoutAccountsScreen() {
                   ) : (
                     <View style={styles.missingBox}>
                       <Ionicons name="information-circle-outline" size={16} color="#92400e" />
-                      <Text style={styles.missingText}>The owner has not submitted a payout account.</Text>
+                      <Text style={styles.missingText}>The owner has not submitted a withdrawal account.</Text>
                     </View>
                   )}
                   {selectedReceiver && !selectedReceiver.verifiedByAdmin && (

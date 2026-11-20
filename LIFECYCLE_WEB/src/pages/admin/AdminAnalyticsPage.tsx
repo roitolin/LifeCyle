@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
 import { buildCsv, dateStamp, downloadCsv } from '@/utils/exportCsv'
+import { DashboardSkeleton } from '@/components/ContentSkeleton'
 import './AdminAnalyticsPage.css'
 
 type DateRange = '7d' | '30d' | '90d'
@@ -75,6 +77,51 @@ const SHOP_STATUS_COLORS: Record<string, string> = {
 }
 
 const EMPTY_DATA: AnalyticsData = { users: [], shops: [], services: [], payments: [] }
+
+/* ── animation helpers ─────────────────────────────────────────────── */
+
+function useAnimatedNumber(target: number, duration = 800) {
+  const [display, setDisplay] = useState(target)
+  const prevRef = useRef(target)
+  const rafRef = useRef(0)
+
+  useEffect(() => {
+    const from = prevRef.current
+    prevRef.current = target
+    if (from === target) return
+
+    const start = performance.now()
+    const tick = (now: number) => {
+      const progress = Math.min((now - start) / duration, 1)
+      const eased = 1 - Math.pow(1 - progress, 3)   // ease-out cubic
+      setDisplay(Math.round(from + (target - from) * eased))
+      if (progress < 1) rafRef.current = requestAnimationFrame(tick)
+    }
+    rafRef.current = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(rafRef.current)
+  }, [target, duration])
+
+  return display
+}
+
+function AnimatedKPI({ label, value, formattedValue, comparison, tone }: {
+  label: string
+  value: number
+  formattedValue: string
+  comparison: string
+  tone: string
+}) {
+  const display = useAnimatedNumber(value, 900)
+  const isMoney = formattedValue.startsWith('₱')
+  const displayText = isMoney ? formatPeso(display) : formatCompact(display)
+  return (
+    <article className="analytics-kpi-animated">
+      <span>{label}</span>
+      <strong>{displayText}</strong>
+      <small className={tone}>{comparison}</small>
+    </article>
+  )
+}
 
 function normalize(value: string | null | undefined) {
   return String(value || '').trim().toLowerCase()
@@ -189,6 +236,26 @@ function DonutChart({ segments, total, centreLabel, ariaLabel }: {
   const radius = 44
   const circumference = 2 * Math.PI * radius
   const visibleSegments = segments.filter((segment) => segment.value > 0)
+  const [progress, setProgress] = useState(0)
+  const animatedTotal = useAnimatedNumber(total, 1000)
+  const segmentKey = visibleSegments.map((s) => `${s.label}:${s.value}`).join('|')
+
+  useEffect(() => {
+    setProgress(0)
+    const start = performance.now()
+    let frame = 0
+    const tick = (now: number) => {
+      const elapsed = Math.min((now - start) / 1000, 1)
+      const eased = elapsed < 0.5
+        ? 4 * elapsed * elapsed * elapsed
+        : 1 - Math.pow(-2 * elapsed + 2, 3) / 2  // ease-in-out cubic
+      setProgress(eased)
+      if (elapsed < 1) frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [segmentKey])
 
   return (
     <div className="analytics-donut">
@@ -196,11 +263,11 @@ function DonutChart({ segments, total, centreLabel, ariaLabel }: {
         <circle className="analytics-donut-track" cx="60" cy="60" r={radius} />
         {visibleSegments.map((segment, index) => {
           const fraction = total > 0 ? segment.value / total : 0
-          const length = fraction * circumference
+          const length = fraction * circumference * progress
           const elapsed = visibleSegments
             .slice(0, index)
             .reduce((sum, previous) => sum + (total > 0 ? previous.value / total : 0), 0)
-          const offset = -elapsed * circumference
+          const offset = -elapsed * circumference * progress
           return (
             <circle
               key={segment.label}
@@ -212,12 +279,13 @@ function DonutChart({ segments, total, centreLabel, ariaLabel }: {
               strokeDasharray={length + ' ' + (circumference - length)}
               strokeDashoffset={offset}
               transform="rotate(-90 60 60)"
+              style={{ opacity: Math.min(progress * 4, 1), transition: 'opacity 0.15s ease' }}
             >
               <title>{segment.label}: {segment.value}</title>
             </circle>
           )
         })}
-        <text x="60" y="58" textAnchor="middle" className="analytics-donut-number">{formatCompact(total)}</text>
+        <text x="60" y="58" textAnchor="middle" className="analytics-donut-number">{formatCompact(animatedTotal)}</text>
         <text x="60" y="73" textAnchor="middle" className="analytics-donut-label">{centreLabel}</text>
       </svg>
     </div>
@@ -266,6 +334,8 @@ export default function AdminAnalyticsPage() {
   useEffect(() => {
     void load()
   }, [load])
+
+  useRealtimeRefresh([{ table: 'funeral_service_requests' }, { table: 'shop_payments' }], () => load(true), !loading)
 
   const analytics = useMemo(() => {
     const days = RANGE_DAYS[range]
@@ -381,10 +451,6 @@ export default function AdminAnalyticsPage() {
     downloadCsv(`admin-analytics-${range}-${dateStamp()}.csv`, csv)
   }
 
-  if (loading) {
-    return <div className="analytics-page"><div className="analytics-loading">Loading analytics…</div></div>
-  }
-
   return (
     <section className="analytics-page">
       <header className="analytics-header">
@@ -401,10 +467,10 @@ export default function AdminAnalyticsPage() {
               ))}
             </select>
           </label>
-          <button type="button" className="analytics-button secondary" onClick={() => void load(true)} disabled={refreshing}>
+          <button type="button" className="analytics-button secondary" onClick={() => void load(true)} disabled={loading || refreshing}>
             {refreshing ? 'Refreshing…' : 'Refresh'}
           </button>
-          <button type="button" className="analytics-button primary" onClick={exportAnalytics} disabled={analytics.trend.length === 0}>
+          <button type="button" className="analytics-button primary" onClick={exportAnalytics} disabled={loading || analytics.trend.length === 0}>
             Export CSV
           </button>
         </div>
@@ -418,39 +484,40 @@ export default function AdminAnalyticsPage() {
         </div>
       ) : null}
 
+      {loading ? <DashboardSkeleton kind="analytics" /> : <div className="lc-analytics-skeleton lc-content-reveal">
       <div className="analytics-kpis">
-        <article>
-          <span>New users</span>
-          <strong>{formatCompact(analytics.currentUsers.length)}</strong>
-          <small className={comparisonTone(analytics.currentUsers.length, analytics.previousUsers.length)}>
-            {comparisonLabel(analytics.currentUsers.length, analytics.previousUsers.length)}
-          </small>
-        </article>
-        <article>
-          <span>Service requests</span>
-          <strong>{formatCompact(analytics.currentServices.length)}</strong>
-          <small className={comparisonTone(analytics.currentServices.length, analytics.previousServices.length)}>
-            {comparisonLabel(analytics.currentServices.length, analytics.previousServices.length)}
-          </small>
-        </article>
-        <article>
+        <AnimatedKPI
+          label="New users"
+          value={analytics.currentUsers.length}
+          formattedValue={formatCompact(analytics.currentUsers.length)}
+          comparison={comparisonLabel(analytics.currentUsers.length, analytics.previousUsers.length)}
+          tone={comparisonTone(analytics.currentUsers.length, analytics.previousUsers.length)}
+        />
+        <AnimatedKPI
+          label="Service requests"
+          value={analytics.currentServices.length}
+          formattedValue={formatCompact(analytics.currentServices.length)}
+          comparison={comparisonLabel(analytics.currentServices.length, analytics.previousServices.length)}
+          tone={comparisonTone(analytics.currentServices.length, analytics.previousServices.length)}
+        />
+        <article className="analytics-kpi-animated">
           <span>Completion rate</span>
           <strong>{analytics.completionRate.toFixed(1)}%</strong>
           <small className={comparisonTone(analytics.completionRate, analytics.previousCompletionRate)}>
             {analytics.completed.length} completed · {analytics.completionRate - analytics.previousCompletionRate >= 0 ? '+' : ''}{(analytics.completionRate - analytics.previousCompletionRate).toFixed(1)} pts
           </small>
         </article>
-        <article>
-          <span>Verified shop fees</span>
-          <strong>{formatPeso(analytics.verifiedFees)}</strong>
-          <small className={comparisonTone(analytics.verifiedFees, analytics.previousVerifiedFees)}>
-            {comparisonLabel(analytics.verifiedFees, analytics.previousVerifiedFees)}
-          </small>
-        </article>
+        <AnimatedKPI
+          label="Verified shop fees"
+          value={analytics.verifiedFees}
+          formattedValue={formatPeso(analytics.verifiedFees)}
+          comparison={comparisonLabel(analytics.verifiedFees, analytics.previousVerifiedFees)}
+          tone={comparisonTone(analytics.verifiedFees, analytics.previousVerifiedFees)}
+        />
       </div>
 
       <div className="analytics-grid analytics-grid-main">
-        <article className="analytics-card analytics-trend-card">
+        <article className="analytics-card analytics-trend-card analytics-card-animated" style={{ '--card-index': 0 } as React.CSSProperties}>
           <div className="analytics-card-head">
             <h3>User and request trend</h3>
             <div className="analytics-legend" aria-label="Chart legend">
@@ -471,16 +538,16 @@ export default function AdminAnalyticsPage() {
                   {[16, 69, 121, 174].map((line) => (
                     <line key={line} x1="22" x2="698" y1={line} y2={line} className="grid-line" />
                   ))}
-                  <polygon points={'22,174 ' + requestPoints + ' 698,174'} className="trend-area" />
-                  <polyline points={userPoints} className="trend-line users" />
-                  <polyline points={requestPoints} className="trend-line requests" />
+                  <polygon points={'22,174 ' + requestPoints + ' 698,174'} className="trend-area analytics-trend-area-animated" />
+                  <polyline points={userPoints} className="trend-line users analytics-line-draw" />
+                  <polyline points={requestPoints} className="trend-line requests analytics-line-draw analytics-line-draw-delayed" />
                   {userCoordinates.map((point, index) => (
-                    <circle key={'user-' + index} cx={point.x} cy={point.y} r="3.2" className="trend-point users">
+                    <circle key={'user-' + index} cx={point.x} cy={point.y} r="3.2" className="trend-point users analytics-point-pop" style={{ animationDelay: `${0.6 + index * 0.05}s` }}>
                       <title>{analytics.trend[index]?.label}: {point.value} new users</title>
                     </circle>
                   ))}
                   {requestCoordinates.map((point, index) => (
-                    <circle key={'request-' + index} cx={point.x} cy={point.y} r="3.2" className="trend-point requests">
+                    <circle key={'request-' + index} cx={point.x} cy={point.y} r="3.2" className="trend-point requests analytics-point-pop" style={{ animationDelay: `${0.7 + index * 0.05}s` }}>
                       <title>{analytics.trend[index]?.label}: {point.value} service requests</title>
                     </circle>
                   ))}
@@ -500,7 +567,7 @@ export default function AdminAnalyticsPage() {
           </div>
         </article>
 
-        <article className="analytics-card analytics-status-card">
+        <article className="analytics-card analytics-status-card analytics-card-animated" style={{ '--card-index': 1 } as React.CSSProperties}>
           <div className="analytics-card-head">
             <h3>Request outcomes</h3>
           </div>
@@ -533,7 +600,7 @@ export default function AdminAnalyticsPage() {
       </div>
 
       <div className="analytics-grid analytics-grid-bottom">
-        <article className="analytics-card">
+        <article className="analytics-card analytics-card-animated" style={{ '--card-index': 2 } as React.CSSProperties}>
           <div className="analytics-card-head">
             <h3>Top shops by requests</h3>
             <span className="analytics-card-note">{analytics.liveShops} live shops</span>
@@ -543,8 +610,8 @@ export default function AdminAnalyticsPage() {
               <table className="analytics-table">
                 <thead><tr><th>Shop</th><th>Requests</th><th>Completed</th><th>Paid value</th></tr></thead>
                 <tbody>
-                  {analytics.topShops.map((shop) => (
-                    <tr key={shop.id}>
+                  {analytics.topShops.map((shop, index) => (
+                    <tr key={shop.id} className="analytics-row-animated" style={{ animationDelay: `${0.5 + index * 0.08}s` }}>
                       <td>{shop.name}</td>
                       <td>{shop.requests}</td>
                       <td>{shop.completed}</td>
@@ -557,7 +624,7 @@ export default function AdminAnalyticsPage() {
           ) : <p className="analytics-empty">No shop activity in this period.</p>}
         </article>
 
-        <article className="analytics-card">
+        <article className="analytics-card analytics-card-animated" style={{ '--card-index': 3 } as React.CSSProperties}>
           <div className="analytics-card-head">
             <h3>Shop application status</h3>
             <span className="analytics-card-note">{analytics.currentShops.length} new</span>
@@ -570,8 +637,8 @@ export default function AdminAnalyticsPage() {
               ariaLabel="New shop application status"
             />
             <div className="analytics-pie-legend">
-              {analytics.shopStatuses.map((entry) => (
-                <div key={entry.status}>
+              {analytics.shopStatuses.map((entry, index) => (
+                <div key={entry.status} className="analytics-legend-row-animated" style={{ animationDelay: `${0.6 + index * 0.08}s` }}>
                   <i style={{ backgroundColor: SHOP_STATUS_COLORS[entry.status] || '#94a3b8' }} />
                   <span>{entry.status.charAt(0).toUpperCase() + entry.status.slice(1)}</span>
                   <strong>{entry.count}</strong>
@@ -582,16 +649,17 @@ export default function AdminAnalyticsPage() {
           </div>
         </article>
 
-        <article className="analytics-card">
+        <article className="analytics-card analytics-card-animated" style={{ '--card-index': 4 } as React.CSSProperties}>
           <div className="analytics-card-head">
             <h3>Payments</h3>
           </div>
           <dl className="analytics-finance-list">
-            <div><dt>Paid service value</dt><dd>{formatPeso(analytics.serviceValue)}</dd></div>
-            <div><dt>Verified shop fees</dt><dd>{formatPeso(analytics.verifiedFees)}</dd></div>
+            <div className="analytics-legend-row-animated" style={{ animationDelay: '0.65s' }}><dt>Paid service value</dt><dd>{formatPeso(analytics.serviceValue)}</dd></div>
+            <div className="analytics-legend-row-animated" style={{ animationDelay: '0.75s' }}><dt>Verified shop fees</dt><dd>{formatPeso(analytics.verifiedFees)}</dd></div>
           </dl>
         </article>
       </div>
+      </div>}
     </section>
   )
 }

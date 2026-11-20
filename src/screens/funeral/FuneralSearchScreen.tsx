@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, FlatList, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Animated, Easing, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import LoadingBird from '@/components/LoadingBird';
+import Reanimated from 'react-native-reanimated';
+import ContentSkeleton, { ProductGridPlaceholders, contentFade } from '@/components/ContentSkeleton';
+import ImageWithSkeleton from '@/components/ImageWithSkeleton';
 import ProductCardMeta from '@/components/ProductCardMeta';
 import ProductDownpaymentBadge from '@/components/ProductDownpaymentBadge';
 import { supabase } from '@/services/supabaseClient';
@@ -243,7 +245,9 @@ export default function FuneralSearchScreen({ navigation, route }: any) {
       </View>
 
       {loading ? (
-        <LoadingBird compact style={styles.loadingIndicator} />
+        <ContentSkeleton label="Loading products" style={styles.resultsContent}>
+          <ProductGridPlaceholders gridStyle={[styles.resultRow, { flexDirection: "row", flexWrap: "wrap", rowGap: spacing.xl }]} cardStyle={styles.productCard} imageStyle={styles.productImageFrame} bodyStyle={styles.productDetails} />
+        </ContentSkeleton>
       ) : loadError ? (
         <View style={styles.stateWrap}>
           <Ionicons name='cloud-offline-outline' size={28} color={colors.textMuted} />
@@ -271,7 +275,8 @@ export default function FuneralSearchScreen({ navigation, route }: any) {
           ) : null}
         </View>
       ) : (
-        <FlatList
+        <Reanimated.FlatList
+          entering={contentFade}
           columnWrapperStyle={styles.resultRow}
           contentContainerStyle={styles.resultsContent}
           data={results}
@@ -292,7 +297,7 @@ export default function FuneralSearchScreen({ navigation, route }: any) {
                 onPress={() => navigation.navigate('ProductView', { product: item })}
               >
                 <View style={styles.productImageFrame}>
-                  <Image source={{ uri: getPrimaryProductImage(item) || '' }} resizeMode='cover' style={styles.productImage} />
+                  <ImageWithSkeleton source={{ uri: getPrimaryProductImage(item) || '' }} style={styles.productImage} />
                   <ProductDownpaymentBadge product={item} />
                   <TouchableOpacity
                     accessibilityLabel={(isFavorite ? 'Remove ' : 'Add ') + item.name + (isFavorite ? ' from favorites' : ' to favorites')}
@@ -501,7 +506,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  loadingIndicator: { flex: 1, backgroundColor: colors.surfaceWarm },
   stateWrap: {
     flex: 1,
     alignItems: 'center',

@@ -1,7 +1,7 @@
-import FeedbackBoard from '../../components/FeedbackBoard'
+import FeedbackPage from '../FeedbackPage'
 
 function AdminFeedbackPage() {
-  return <FeedbackBoard />
+  return <FeedbackPage adminMode />
 }
 
 export default AdminFeedbackPage

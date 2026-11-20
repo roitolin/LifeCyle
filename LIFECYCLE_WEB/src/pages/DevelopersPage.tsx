@@ -1,23 +1,28 @@
 import { useEffect, useRef, useState } from 'react'
 import BrandLogo from '@/components/BrandLogo'
+import ImageWithSkeleton from '@/components/ImageWithSkeleton'
 import PageBackButton from '@/components/PageBackButton'
-import NotificationDropdown from '@/components/NotificationDropdown'
 import './DevelopersPage.css'
 
 type Developer = {
   name: string
-  image: string
+  portrait: string
   color: string
 }
 
 const developers: Developer[] = [
-  { name: 'Ezra M. Baguhin', image: '/developers/ezra-baguhin.png', color: '#ffe7ad' },
-  { name: 'Jared M. Cuerbo', image: '/developers/jared-cuerbo.png', color: '#f8edf1' },
-  { name: 'Daisy Y. Derial', image: '/developers/daisy-derial.png', color: '#dfe8f8' },
-  { name: 'Elenne Antonette P. Garbo', image: '/developers/elenne-garbo.png', color: '#f8d9c5' },
-  { name: 'Princess Mecca P. Quijano', image: '/developers/princess-quijano.png', color: '#dcefdc' },
-  { name: 'Roi Veinze A. Tolin', image: '/developers/roi-tolin.png', color: '#e6dcf4' },
+  { name: 'Ezra M. Baguhin', portrait: 'ezra-baguhin', color: '#ffe7ad' },
+  { name: 'Jared M. Cuerbo', portrait: 'jared-cuerbo', color: '#f8edf1' },
+  { name: 'Daisy Y. Derial', portrait: 'daisy-derial', color: '#dfe8f8' },
+  { name: 'Elenne Antonette P. Garbo', portrait: 'elenne-garbo', color: '#f8d9c5' },
+  { name: 'Princess Mecca P. Quijano', portrait: 'princess-quijano', color: '#dcefdc' },
+  { name: 'Roi Veinze A. Tolin', portrait: 'roi-tolin', color: '#e6dcf4' },
 ]
+
+const cardSizes = '(max-width: 380px) 82vw, (max-width: 768px) min(78vw, 330px), (max-width: 1099px) calc((100vw - 76px) / 3), (max-width: 1480px) calc((100vw - 98px) / 6), 231px'
+const profileSizes = '(max-width: 768px) 100vw, (max-width: 978px) calc(100vw - 48px), 930px'
+const portraitUrl = (developer: Developer, width: number) => `/developers/${developer.portrait}-${width}.webp`
+const portraitSet = (developer: Developer, widths: number[]) => widths.map(width => `${portraitUrl(developer, width)} ${width}w`).join(', ')
 
 function ContactMark({ kind }: { kind: 'email' | 'phone' | 'facebook' }) {
   if (kind === 'email') {
@@ -81,9 +86,8 @@ export default function DevelopersPage() {
     <div className="developers-standalone-page">
       <header className="developers-page-header">
         <div className="developers-page-header-inner">
-          <PageBackButton to="/user/about" label="Back to About" className="developers-back-button" />
+          <PageBackButton fallbackTo="/user/about" className="developers-back-button" />
           <div className="developers-header-actions">
-            <NotificationDropdown variant="seller-centre" />
             <BrandLogo compact className="developers-brand" />
           </div>
         </div>
@@ -131,7 +135,15 @@ export default function DevelopersPage() {
                   <strong>{developer.name}</strong>
                   <small>LifeCycle developer</small>
                 </span>
-                <img src={developer.image} alt="" loading="lazy" />
+                <ImageWithSkeleton
+                  className="developers-card-photo"
+                  src={portraitUrl(developer, 360)}
+                  srcSet={portraitSet(developer, [360, 720])}
+                  sizes={cardSizes}
+                  alt=""
+                  loading={index === 0 ? 'eager' : 'lazy'}
+                  fetchPriority={index === 0 ? 'high' : undefined}
+                />
                 <span className="developers-card-hint">View profile <span aria-hidden="true">↗</span></span>
               </button>
             ))}
@@ -167,7 +179,13 @@ export default function DevelopersPage() {
       {selectedDeveloper ? (
         <div className="developer-profile-overlay" role="dialog" aria-modal="true" aria-labelledby="developer-profile-name" onClick={() => setSelectedDeveloper(null)}>
           <section className="developer-profile-modal" onClick={event => event.stopPropagation()}>
-            <img className="developer-profile-image" src={selectedDeveloper.image} alt={`${selectedDeveloper.name}, LifeCycle developer`} />
+            <ImageWithSkeleton
+              className="developer-profile-image"
+              src={portraitUrl(selectedDeveloper, 720)}
+              srcSet={portraitSet(selectedDeveloper, [720, 1050])}
+              sizes={profileSizes}
+              alt={`${selectedDeveloper.name}, LifeCycle developer`}
+            />
             <div className="developer-profile-shade" aria-hidden="true" />
             <button type="button" className="developer-profile-close" onClick={() => setSelectedDeveloper(null)} aria-label="Close developer profile">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="m18 6-12 12M6 6l12 12" /></svg>

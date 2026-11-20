@@ -148,7 +148,7 @@ export default function SwitchAccountPage() {
     <main className="auth-page">
       <div className="auth-layout grid w-full max-w-[620px] grid-cols-1">
         <section className="auth-card gap-5 min-[481px]:gap-5 max-[480px]:min-w-0 max-[480px]:gap-4">
-          <div className='page-back-row auth-page-back'><PageBackButton to='/funeral' /></div>
+          <div className='page-back-row auth-page-back'><PageBackButton /></div>
           <div className='auth-card-head'>
             <h1>Switch account</h1>
             <p className='auth-subtitle'>Choose a saved account or add another one.</p>

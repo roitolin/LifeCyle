@@ -9,6 +9,9 @@
 .home-content-header h2 {
  @apply m-0;
 }
+.home-content-header .panel-sub a {
+ @apply text-[#315f50] font-bold no-underline hover:underline;
+}
 .home-content-status {
  @apply border text-[#69788b] [background:#f3f5f7] text-[12px] font-bold px-[10px] py-[6px] rounded-[999px] border-solid border-[#d8e0e8];
 }

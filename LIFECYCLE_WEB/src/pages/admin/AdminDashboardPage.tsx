@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { DashboardSkeleton } from '@/components/ContentSkeleton'
 import { supabase } from '@/lib/supabase'
 import { Link } from 'react-router-dom'
 import {
@@ -131,7 +132,7 @@ function AdminDashboardPage() {
           supabase.from('funeral_products').select('*', { count: 'exact', head: true }).eq('active', true),
           supabase.from('funeral_service_requests').select('*', { count: 'exact', head: true }),
           supabase.from('funeral_service_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending_shop_acceptance'),
-          supabase.from('app_feedback').select('*', { count: 'exact', head: true }),
+          supabase.from('app_feedback').select('id', { count: 'exact', head: true }),
           supabase.from('users').select('id, email, fullName, role, createdAt').order('createdAt', { ascending: false }).limit(5),
           supabase.from('funeral_shops').select('id, shopName, status, generalLocation, createdAt').order('createdAt', { ascending: false }).limit(5),
           supabase.from('funeral_service_requests').select('commissionAmount, paymentAmount').or('paymentVerifiedAt.not.is.null,commissionAmount.not.is.null,status.in.(payment_verified,awaiting_customer_confirmation,completed)'),
@@ -183,12 +184,12 @@ function AdminDashboardPage() {
         </span>
       </div>
 
-      {loading ? <div className="admin-loading-state">Loading dashboard data...</div> : null}
+      {loading ? <DashboardSkeleton kind="admin" /> : null}
       {error ? <p className="auth-message auth-message-error">{error}</p> : null}
 
       {!loading && !error && (
         <>
-          <div className="dashboard-metrics" aria-label="Platform totals" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+          <div className="dashboard-metrics lc-content-reveal" aria-label="Platform totals">
             <article className="dashboard-metric" style={{ borderTop: '3px solid #10b981' }}>
               <span>Platform commissions</span>
               <strong style={{ color: '#047857' }}>{formatPeso(stats.totalCommission)}</strong>

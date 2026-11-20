@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import LoadingBird from "@/components/LoadingBird";
+import LoadingStatus from "@/components/LoadingStatus";
 import {
   FlatList,
   Image,
@@ -14,6 +14,7 @@ import { Searchbar } from "react-native-paper";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { supabase } from "@/services/supabaseClient";
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { useResponsive } from "@/utils/responsive";
 import { formatPhilippinePeso } from "@/utils/funeralCatalog";
 import { formatServiceDate, formatServiceTime } from "@/utils/serviceRequestSchedule";
@@ -116,7 +117,7 @@ const getStatusMeta = (status: string) => {
     return { label: "Payment Submitted", background: "#e0eefa", text: "#1c4f7e" };
   }
   if (normalized === "paid_waiting_for_split") {
-    return { label: "Processing Payout", background: "#fef3c7", text: "#86654a" };
+    return { label: "Payment Confirmed", background: "#e7f5ec", text: "#166534" };
   }
   if (normalized === "commission_failed") {
     return { label: "Payout Review", background: "#fde8e8", text: "#991b1b" };
@@ -292,6 +293,8 @@ export default function AdminOrdersScreen() {
     }, [loadOrders])
   );
 
+  useRealtimeRefresh([{ table: 'funeral_service_requests' }], loadOrders, !loading && !refreshing);
+
   const refreshOrders = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -383,8 +386,8 @@ export default function AdminOrdersScreen() {
     );
   };
 
-  if (loading) {
-    return <LoadingBird fullScreen />;
+  if (loading && items.length === 0) {
+    return <LoadingStatus label="Loading service requests…" fullScreen />;
   }
 
   return (

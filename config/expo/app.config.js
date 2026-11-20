@@ -36,14 +36,19 @@ module.exports = {
       [
         'expo-image-picker',
         {
-          photosPermission: 'Allow LifeCycle to access photos you choose to upload.',
-          cameraPermission: 'Allow LifeCycle to take pictures when you choose the camera.',
-          microphonePermission: false,
+          photosPermission: 'Allow LifeCycle to access photos and videos you choose to upload.',
+          cameraPermission: 'Allow LifeCycle to take pictures or videos when you choose the camera.',
+          microphonePermission: 'Allow LifeCycle to record audio when capturing video.',
         },
       ],
       "@react-native-community/datetimepicker",
       "expo-asset",
-      "expo-audio",
+      [
+        "expo-audio",
+        {
+          microphonePermission: "Allow LifeCycle to record voice messages in chat.",
+        },
+      ],
       "expo-font",
       "expo-sharing",
       [
@@ -77,6 +82,5 @@ module.exports = {
         projectId: "f9723096-48ee-4c7c-bcf7-090a3436467a",
       },
     },
-
   },
 };

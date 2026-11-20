@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase'
 import { fetchNotificationsForUser, markNotificationRead, markNotificationsRead } from '@/utils/supabaseNotifications'
 import './NotificationDropdown.css'
 
+let nextNotificationChannelId = 0
+
 export type WebNotification = {
   id: string
   userId?: string
@@ -158,8 +160,10 @@ export default function NotificationDropdown({
       finally { if (active) setLoading(false) }
     }
     void load()
+    // The desktop and mobile dropdowns can subscribe in the same millisecond.
+    const channelId = nextNotificationChannelId++
     const ch = supabase
-      .channel(`web-notif-${userId}-${Date.now()}`)
+      .channel(`web-notif-${userId}-${Date.now()}-${channelId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `userId=eq.${userId}` }, () => void load())
       .subscribe()
     return () => { active = false; void supabase.removeChannel(ch) }
@@ -227,11 +231,12 @@ export default function NotificationDropdown({
         type="button"
         className={`sc-web-notif-btn ${iconOnly || sellerCentreVariant ? 'is-icon-only' : ''} ${isOpen ? 'is-active' : ''}`}
         title="Notifications"
+        aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         onClick={handleTrigger}
       >
-        <span className="sc-web-notif-icon-wrap">
+        <span className="sc-web-notif-icon-wrap" aria-hidden="true">
           <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" />
           </svg>

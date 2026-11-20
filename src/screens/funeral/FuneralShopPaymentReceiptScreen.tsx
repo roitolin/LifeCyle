@@ -174,7 +174,7 @@ export default function FuneralShopPaymentReceiptScreen({ navigation, route }: a
 
   const handleClose = () => {
     if (navigation.canGoBack?.()) navigation.goBack();
-    else navigation.navigate("ShopPayments");
+    else navigation.navigate("ShopPayments", { section: "payments" });
   };
 
   if (!request) return null;

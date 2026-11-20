@@ -15,7 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { AppBackButton } from "@/components";
-import LoadingBird from "@/components/LoadingBird";
+import ContentSkeleton, { ContentReveal, SkeletonBlock } from '@/components/ContentSkeleton';
 import { auth } from "@/services";
 import { supabase } from "@/services/supabaseClient";
 import { formatPhilippinePeso } from "@/utils/funeralCatalog";
@@ -277,7 +277,20 @@ export default function FuneralShopCatalogScreen({ navigation, route }: any) {
           </ScrollView>
 
           {loading ? (
-            <View style={styles.loadingWrap}><LoadingBird /></View>
+            <ContentSkeleton label="Loading shop catalog" style={styles.productList}>
+              {[0, 1].map(index => (
+                <View key={index} style={styles.productCard}>
+                  <View style={styles.productSummary}>
+                    <SkeletonBlock style={styles.productImage} />
+                    <View style={styles.productCopy}>
+                      <SkeletonBlock style={{ width: "85%", height: 13, marginBottom: 6 }} />
+                      <SkeletonBlock style={{ width: "38%", marginBottom: 6 }} />
+                      <SkeletonBlock style={{ width: "62%", height: 8 }} />
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </ContentSkeleton>
           ) : loadError ? (
             <View style={styles.emptyCard}>
               <Ionicons name="cloud-offline-outline" size={30} color="#9b403b" />
@@ -299,7 +312,7 @@ export default function FuneralShopCatalogScreen({ navigation, route }: any) {
               ) : null}
             </View>
           ) : (
-            <View style={styles.productList}>
+            <ContentReveal style={styles.productList}>
               {visibleProducts.map((item) => {
                 const state = getProductState(item);
                 const imageUrl = getPrimaryProductImage(item);
@@ -350,7 +363,7 @@ export default function FuneralShopCatalogScreen({ navigation, route }: any) {
                   </View>
                 );
               })}
-            </View>
+            </ContentReveal>
           )}
         </ScrollView>
 
@@ -376,7 +389,6 @@ const styles = StyleSheet.create({
   filterChipActive: { backgroundColor: "#516961", borderColor: "#516961" },
   filterChipText: { color: "#62706b", fontSize: 12, fontWeight: "900" },
   filterChipTextActive: { color: "#ffffff" },
-  loadingWrap: { minHeight: 240, alignItems: "center", justifyContent: "center" },
   emptyCard: { minHeight: 230, borderRadius: 24, borderWidth: 1, borderColor: "#d9d6cd", backgroundColor: "#ffffff", alignItems: "center", justifyContent: "center", padding: 24 },
   emptyTitle: { color: "#22312d", fontSize: 18, fontWeight: "900", marginTop: 11 },
   emptyText: { color: "#687570", fontSize: 13, lineHeight: 19, textAlign: "center", marginTop: 5 },

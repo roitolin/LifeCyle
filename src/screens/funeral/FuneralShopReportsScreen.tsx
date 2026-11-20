@@ -4,9 +4,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppBackButton, SimpleBarChart } from '@/components';
-import LoadingBird from '@/components/LoadingBird';
+import ContentSkeleton, { ContentReveal, ChartPlotPlaceholder, MetricPlaceholders } from '@/components/ContentSkeleton';
 import { auth } from '@/services';
 import { supabase } from '@/services/supabaseClient';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import { useAuth } from '@/context/AuthContext';
 import { formatPhilippinePeso } from '@/utils/funeralCatalog';
 import { computeSalesOverview, formatCompactPeso, type SalesOverview } from '@/utils/salesAnalytics';
 
@@ -26,13 +28,14 @@ type ReportRequest = {
 type InventorySummary = { total: number; live: number; lowStock: number; unavailable: number };
 
 export default function FuneralShopReportsScreen({ navigation }: any) {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [overview, setOverview] = useState<SalesOverview | null>(null);
   const [inventory, setInventory] = useState<InventorySummary>({ total: 0, live: 0, lowStock: 0, unavailable: 0 });
   const [allRequests, setAllRequests] = useState<ReportRequest[]>([]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (background = false) => {
+    if (!background) setLoading(true);
     try {
       let shopId = auth.currentUser?.uid || null;
       if (!shopId) {
@@ -61,13 +64,15 @@ export default function FuneralShopReportsScreen({ navigation }: any) {
       });
     } catch (error) {
       console.error('Unable to load shop reports', error);
-      setOverview(null);
+      if (!background) setOverview(null);
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
   }, []);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
+
+  useRealtimeRefresh([{ table: 'funeral_service_requests', filter: `shopId=eq.${user?.id}` }], () => load(true), Boolean(user?.id) && !loading);
 
   const acceptanceRate = useMemo(() => {
     if (!allRequests.length) return 0;
@@ -75,20 +80,32 @@ export default function FuneralShopReportsScreen({ navigation }: any) {
     return Math.round((accepted / allRequests.length) * 100);
   }, [allRequests]);
 
-  if (loading) return <SafeAreaView style={styles.screen}><LoadingBird fullScreen /></SafeAreaView>;
-
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.header}>
         <AppBackButton onPress={() => navigation.goBack()} />
         <View style={styles.headerCopy}><Text style={styles.title}>Shop Reports</Text><Text style={styles.subtitle}>Last six months</Text></View>
-        <TouchableOpacity style={styles.iconButton} onPress={() => void load()}><Ionicons name='refresh-outline' size={20} color='#33453f' /></TouchableOpacity>
+        <TouchableOpacity style={styles.iconButton} disabled={loading} onPress={() => void load()}><Ionicons name='refresh-outline' size={20} color='#33453f' /></TouchableOpacity>
       </View>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {!overview ? (
+        {loading && !overview ? (
+          <ContentSkeleton label="Loading shop reports" style={{ gap: 12 }}>
+            <MetricPlaceholders gridStyle={styles.metrics} tileStyle={styles.metricCard} />
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Revenue</Text>
+              <Text style={styles.cardSub}>Confirmed revenue by month</Text>
+              <ChartPlotPlaceholder height={160} />
+            </View>
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Cases</Text>
+              <Text style={styles.cardSub}>Confirmed sales by month</Text>
+              <ChartPlotPlaceholder height={150} />
+            </View>
+          </ContentSkeleton>
+        ) : !overview ? (
           <View style={styles.empty}><Ionicons name='bar-chart-outline' size={30} color='#87918d' /><Text style={styles.emptyTitle}>Reports are unavailable</Text><Text style={styles.emptyText}>Try refreshing after your shop receives service requests.</Text></View>
         ) : (
-          <>
+          <ContentReveal style={{ gap: 12 }}>
             <View style={styles.metrics}>
               <View style={styles.metricCard}><Text style={styles.metricLabel}>Confirmed revenue</Text><Text style={styles.metricValue}>{formatPhilippinePeso(overview.totalRevenue)}</Text></View>
               <View style={styles.metricCard}><Text style={styles.metricLabel}>This month</Text><Text style={styles.metricValue}>{formatPhilippinePeso(overview.revenueThisMonth)}</Text></View>
@@ -122,7 +139,7 @@ export default function FuneralShopReportsScreen({ navigation }: any) {
                 <View><Text style={styles.inventoryValue}>{inventory.unavailable}</Text><Text style={styles.inventoryLabel}>Unavailable</Text></View>
               </View>
             </View>
-          </>
+          </ContentReveal>
         )}
       </ScrollView>
     </SafeAreaView>

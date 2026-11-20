@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useLayoutEffect, useMemo, useRef } from "react";
-import LoadingBird from '@/components/LoadingBird';
+import ContentSkeleton, { ContentReveal, SkeletonBlock } from '@/components/ContentSkeleton';
 import { AppHeaderBackButton } from "@/components";
 import {
   ActivityIndicator,
@@ -26,6 +26,8 @@ import {
   type ConversationPreference,
 } from "../../utils/conversationPreferences";
 import { useFocusEffect } from "@react-navigation/native";
+
+let nextChatListChannelId = 0;
 
 interface Conversation {
   id: string;
@@ -345,18 +347,20 @@ export default function ConversationsList({ navigation, route }: any) {
     const channel = supabase
       // A unique channel name prevents a previous Strict Mode/reload channel
       // from being reused while it is still unsubscribing.
-      .channel(`public:conversations_list:${userId}:${Date.now()}`)
+      .channel(`public:conversations_list:${userId}:${++nextChatListChannelId}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'conversations' },
+        { event: '*', schema: 'public', table: 'conversations', select: ['id'] },
         scheduleReload
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'messages' },
+        { event: '*', schema: 'public', table: 'messages', select: ['id'] },
         scheduleReload
       )
-      .subscribe();
+      .subscribe(status => {
+        if (status === 'SUBSCRIBED') scheduleReload();
+      });
 
     return () => {
       if (reloadTimerRef.current) {
@@ -633,7 +637,7 @@ export default function ConversationsList({ navigation, route }: any) {
         : fallbackSource;
 
     return (
-      <View style={[styles.card, unread && styles.unreadCard]}>
+      <ContentReveal style={[styles.card, unread && styles.unreadCard]}>
         <TouchableOpacity
           onPress={() => navigation.navigate("Chat", {
             conversationId: item.id,
@@ -714,13 +718,9 @@ export default function ConversationsList({ navigation, route }: any) {
           />
           <Text style={[styles.actionLabel, { color: "#d32f2f" }]}>Delete</Text>
         </Card.Actions> : null}
-      </View>
+      </ContentReveal>
     );
   };
-
-  if (loading) {
-    return <LoadingBird fullScreen />;
-  }
 
   const personalConversations = conversations.filter((conversation) => conversation.shopId !== userId);
   const shopConversations = conversations.filter((conversation) => conversation.shopId === userId);
@@ -796,7 +796,20 @@ export default function ConversationsList({ navigation, route }: any) {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
-          <View style={styles.emptyState}>
+          loading ? (
+            <ContentSkeleton label="Loading conversations">
+              {[0, 1, 2, 3].map(index => (
+                <View style={styles.conversationRow} key={index}>
+                  <SkeletonBlock style={[styles.conversationAvatar, styles.placeholderAvatar]} />
+                  <View style={styles.conversationCopy}>
+                    <SkeletonBlock style={styles.placeholderName} />
+                    <SkeletonBlock style={styles.placeholderPreview} />
+                  </View>
+                  <SkeletonBlock style={styles.placeholderTime} />
+                </View>
+              ))}
+            </ContentSkeleton>
+          ) : <View style={styles.emptyState}>
             <View style={styles.emptyIcon}><Ionicons name="chatbubble-outline" size={24} color="#76847e" /></View>
             <Text style={styles.emptyTitle}>{filterMode === "archived" ? "No archived conversations" : filterMode === "unread" ? "No unread conversations" : inboxMode === "shop" && isShopAccount ? "No customer messages yet" : "No conversations yet"}</Text>
             <Text style={styles.emptyText}>{inboxMode === "shop" && isShopAccount ? "Messages from customers will appear here." : "Messages will appear here when you start a conversation."}</Text>
@@ -894,6 +907,10 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
   },
   conversationAvatar: { width: 46, height: 46, backgroundColor: "#e8edea" },
+  placeholderAvatar: { borderRadius: 23 },
+  placeholderName: { width: "58%", height: 12 },
+  placeholderPreview: { width: "78%", height: 8, marginTop: 6 },
+  placeholderTime: { alignSelf: "flex-start", width: 28, height: 8, marginTop: 8 },
   conversationCopy: { flex: 1, minWidth: 0, marginLeft: 11, paddingRight: 10 },
   conversationName: { flexShrink: 1, color: "#35423d", fontSize: 14, fontWeight: "700" },
   unreadName: { color: "#20312b", fontWeight: "800" },

@@ -110,14 +110,6 @@ function LoginPage() {
   }, [location.search])
   const registerTarget = redirectAfterLogin ? `/register?next=${encodeURIComponent(redirectAfterLogin)}` : '/register'
 
-  const goBack = () => {
-    if (window.history.length > 1) {
-      navigate(-1)
-      return
-    }
-    navigate('/')
-  }
-
   const openSupportChannel = (channel: 'contact' | 'report') => {
     const subject = channel === 'contact' ? 'LifeCycle Login Help' : 'LifeCycle Report Login Issue'
     const body =
@@ -292,7 +284,7 @@ function LoginPage() {
         </section>
 
         <section className="auth-card" aria-label="Login form">
-          <div className="page-back-row auth-page-back"><PageBackButton onClick={goBack} /></div>
+          <div className="page-back-row auth-page-back"><PageBackButton fallbackTo="/" /></div>
 
           <div className="auth-card-head">
             <h1>Welcome Back</h1>

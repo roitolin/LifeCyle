@@ -200,21 +200,23 @@
   font-weight: 650;
 }
 
-.developers-card > img {
+.developers-card > .developers-card-photo {
+  --lc-image-transition: opacity 200ms ease-out, transform 260ms cubic-bezier(0.2, 0.75, 0.25, 1);
   position: absolute;
   right: 0;
   bottom: 0;
   left: 0;
   width: 100%;
   height: 70%;
-  object-fit: cover;
-  object-position: center top;
   border-radius: 50% 50% 26px 26px / 28% 28% 0 0;
-  transition: transform 260ms cubic-bezier(0.2, 0.75, 0.25, 1);
 }
 
-.developers-card:hover > img,
-.developers-card:focus-visible > img {
+.developers-card-photo > img {
+  object-position: center top;
+}
+
+.developers-card:hover .developers-card-photo > img,
+.developers-card:focus-visible .developers-card-photo > img {
   transform: scale(1.025);
 }
 
@@ -337,10 +339,8 @@
   height: 100%;
 }
 
-.developer-profile-image {
-  object-fit: cover;
+.developer-profile-image > img {
   object-position: center 28%;
-  animation: developer-portrait-in 620ms cubic-bezier(0.2, 0.7, 0.25, 1) both;
 }
 
 .developer-profile-shade {
@@ -489,11 +489,6 @@
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-@keyframes developer-portrait-in {
-  from { opacity: 0.7; transform: scale(1.045); }
-  to { opacity: 1; transform: scale(1); }
-}
-
 @keyframes developer-content-in {
   from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: translateY(0); }
@@ -522,7 +517,7 @@
     font-size: clamp(15px, 1.55vw, 19px);
   }
 
-  .developers-card > img {
+  .developers-card > .developers-card-photo {
     height: 69%;
   }
 
@@ -561,7 +556,7 @@
     font-size: 11px;
   }
 
-  .developers-card > img {
+  .developers-card > .developers-card-photo {
     height: 68%;
   }
 }
@@ -666,7 +661,6 @@
 @media (prefers-reduced-motion: reduce) {
   .developers-track { scroll-behavior: auto; }
   .developers-card,
-  .developers-card > img,
   .developers-card-hint,
   .developers-pagination button,
   .developer-profile-close,
@@ -676,7 +670,6 @@
 
   .developer-profile-overlay,
   .developer-profile-modal,
-  .developer-profile-image,
   .developer-profile-content {
     animation: none;
   }

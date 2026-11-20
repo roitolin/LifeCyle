@@ -411,6 +411,9 @@ verify_jwt = false
 [functions.provision-xendit-shop]
 verify_jwt = true
 
+[functions.request-shop-payout]
+verify_jwt = true
+
 [functions.create-service-xendit-checkout]
 verify_jwt = true
 

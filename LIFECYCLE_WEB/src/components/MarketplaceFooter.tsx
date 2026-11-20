@@ -2,43 +2,40 @@ import { Link } from 'react-router-dom'
 import { PAYMENT_LOGOS } from '@/assets/paymentLogoAssets'
 import './MarketplaceFooter.css'
 
-export default function MarketplaceFooter() {
+export default function MarketplaceFooter({ compact = false }: { compact?: boolean } = {}) {
   return (
-    <footer className="sp-footer marketplace-footer">
-      <div className="sp-footer-top">
+    <footer className={compact ? 'marketplace-footer marketplace-footer-compact' : 'marketplace-footer'}>
+      {!compact && <div className="marketplace-footer__sections">
         <div>
-          <h4>CUSTOMER SERVICE</h4>
+          <h4>Customer service</h4>
           <Link to="/user/help">Help Centre</Link>
-          <a href="#payment">Payment Methods</a>
-          <a href="#guarantee">LifeCycle Guarantee</a>
-          <Link to="/user/contact">Contact Us</Link>
+          <Link to="/user/contact">Contact support</Link>
         </div>
         <div>
-          <h4>ABOUT LIFECYCLE</h4>
-          <Link to="/user/about">About Us</Link>
-          <a href="#careers">Careers</a>
-          <Link to="/policies">Policies</Link>
-          <Link to="/privacy-policy">Privacy Policy</Link>
+          <h4>About LifeCycle</h4>
+          <Link to="/user/about">About us</Link>
+          <Link to="/policies">Platform policies</Link>
+          <Link to="/privacy-policy">Privacy policy</Link>
           <Link to="/seller">Shop Center</Link>
         </div>
-        <div>
-          <h4>PAYMENT</h4>
-          <div className="sp-footer-badges">
-            <img className="sp-payment-logo" src={PAYMENT_LOGOS.gcash} alt="GCash" loading="lazy" />
-            <img className="sp-payment-logo" src={PAYMENT_LOGOS.maya} alt="Maya" loading="lazy" />
-            <img className="sp-payment-logo" src={PAYMENT_LOGOS.visa} alt="Visa" loading="lazy" />
-            <img className="sp-payment-logo" src={PAYMENT_LOGOS.landbank} alt="Landbank" loading="lazy" />
+        <div className="marketplace-footer__payments">
+          <h4>Payment methods</h4>
+          <div className="marketplace-footer__badges">
+            <img src={PAYMENT_LOGOS.gcash} alt="GCash" loading="lazy" />
+            <img src={PAYMENT_LOGOS.maya} alt="Maya" loading="lazy" />
+            <img src={PAYMENT_LOGOS.visa} alt="Visa" loading="lazy" />
+            <img src={PAYMENT_LOGOS.landbank} alt="Landbank" loading="lazy" />
           </div>
         </div>
-        <div>
-          <h4>FOLLOW US</h4>
-          <a href="#fb">Facebook</a>
-          <a href="#ig">Instagram</a>
-          <a href="#yt">YouTube</a>
-        </div>
-      </div>
-      <div className="sp-footer-bottom">
-        <span>(c) {new Date().getFullYear()} LifeCycle Funeral Services Philippines. All Rights Reserved.</span>
+      </div>}
+      <div className="marketplace-footer__bottom">
+        <span>© {new Date().getFullYear()} LifeCycle Funeral Services Philippines</span>
+        {compact && (
+          <nav aria-label="Legal">
+            <Link to="/policies">Platform policies</Link>
+            <Link to="/privacy-policy">Privacy policy</Link>
+          </nav>
+        )}
       </div>
     </footer>
   )

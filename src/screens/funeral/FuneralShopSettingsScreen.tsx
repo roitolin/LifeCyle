@@ -16,8 +16,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "@/utils/permissionImagePicker";
-import { AdminPaymentModal, AppBackButton, KeyboardAwareScrollView } from "@/components";
-import LoadingBird from "@/components/LoadingBird";
+import { AppBackButton, KeyboardAwareScrollView } from "@/components";
+import LoadingStatus from "@/components/LoadingStatus";
 import { auth, uploadShopImage } from "@/services";
 import { supabase } from "@/services/supabaseClient";
 import { sanitizePlainText } from "@/utils/inputSecurity";
@@ -258,7 +258,6 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
   const [savingAvailability, setSavingAvailability] = useState(false);
   const [profileVisible, setProfileVisible] = useState(false);
   const [businessVisible, setBusinessVisible] = useState(false);
-  const [adminPaymentsVisible, setAdminPaymentsVisible] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [uploadingImage, setUploadingImage] = useState<"logo" | "cover" | null>(null);
   const [profileDraft, setProfileDraft] = useState({ name: "", address: "", phone: "", logo: null as string | null, cover: null as string | null });
@@ -366,7 +365,7 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
           : "Pay the LifeCycle registration fee online before making the shop live.",
         [
           { text: "Cancel", style: "cancel" },
-          { text: "Open Payment", onPress: () => setAdminPaymentsVisible(true) },
+          { text: "Open Payment", onPress: () => navigation.navigate("LifeCyclePayments") },
         ],
       );
       return;
@@ -377,7 +376,7 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
         "Renew your LifeCycle registration online before making the shop live.",
         [
           { text: "Cancel", style: "cancel" },
-          { text: "Renew Online", onPress: () => setAdminPaymentsVisible(true) },
+          { text: "Renew Online", onPress: () => navigation.navigate("LifeCyclePayments") },
         ],
       );
       return;
@@ -405,7 +404,7 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
     ]);
   };
 
-  if (loading) return <SafeAreaView style={styles.screen}><LoadingBird fullScreen /></SafeAreaView>;
+  if (loading) return <SafeAreaView style={styles.screen}><LoadingStatus label="Loading shop settings…" fullScreen /></SafeAreaView>;
 
   return (
     <View style={styles.screen}>
@@ -588,8 +587,6 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
         </View>
       </Modal>
 
-      <AdminPaymentModal visible={adminPaymentsVisible} onClose={() => setAdminPaymentsVisible(false)}
-        onChanged={() => void loadSettings()} />
     </View>
   );
 }

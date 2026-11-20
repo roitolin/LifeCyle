@@ -103,7 +103,7 @@ export default function AdminSidebarContent(props: DrawerContentComponentProps) 
           { label: 'Products', route: 'Products', icon: 'cube-outline' as const },
           { label: 'Service Requests', route: 'Orders', icon: 'receipt-outline' as const },
           { label: 'Payments', route: 'Payments', icon: 'wallet-outline' as const },
-          { label: 'Payout Accounts', route: 'PayoutAccounts', icon: 'card-outline' as const },
+          { label: 'Withdrawal Accounts', route: 'PayoutAccounts', icon: 'card-outline' as const },
         ]
       : []),
   ];

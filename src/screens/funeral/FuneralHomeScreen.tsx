@@ -5,7 +5,8 @@ import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
-import LoadingBird from "@/components/LoadingBird";
+import ContentSkeleton, { ContentReveal, ProductGridPlaceholders } from '@/components/ContentSkeleton';
+import ImageWithSkeleton from '@/components/ImageWithSkeleton';
 import ProductCardMeta from "@/components/ProductCardMeta";
 import ProductDownpaymentBadge from "@/components/ProductDownpaymentBadge";
 import { useUnreadCount, useUnreadMessageCount } from "@/hooks";
@@ -542,7 +543,9 @@ export default function FuneralHomeScreen({ navigation, route }: any) {
         </View>
 
         {loading ? (
-          <LoadingBird compact style={styles.loadingIndicator} />
+          <ContentSkeleton label="Loading marketplace products">
+            <ProductGridPlaceholders gridStyle={styles.productGrid} cardStyle={styles.productCard} imageStyle={styles.productImageFrame} bodyStyle={styles.productDetails} />
+          </ContentSkeleton>
         ) : loadError && products.length === 0 ? (
           <View style={styles.stateCard}>
             <Ionicons name="cloud-offline-outline" size={24} color={colors.textMuted} />
@@ -584,7 +587,7 @@ export default function FuneralHomeScreen({ navigation, route }: any) {
             </TouchableOpacity>
           </View>
         ) : (
-          <View style={styles.productGrid}>
+          <ContentReveal style={styles.productGrid}>
             {visibleProducts.map((item) => {
               const price = formatPhilippinePeso(item.price);
               const hasDownpayment = Boolean(item.downpaymentEnabled && item.downpaymentAmount && item.downpaymentPercentage);
@@ -602,10 +605,9 @@ export default function FuneralHomeScreen({ navigation, route }: any) {
                   onPress={() => openProductView(item)}
                 >
                   <View style={styles.productImageFrame}>
-                    <Image
+                    <ImageWithSkeleton
                       source={{ uri: getPrimaryProductImage(item) || "" }}
                       style={styles.productImage}
-                      resizeMode="cover"
                     />
                     <ProductDownpaymentBadge product={item} />
                     <TouchableOpacity
@@ -633,7 +635,7 @@ export default function FuneralHomeScreen({ navigation, route }: any) {
                 </TouchableOpacity>
               );
             })}
-          </View>
+          </ContentReveal>
         )}
       </ScrollView>
 
@@ -1284,10 +1286,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     letterSpacing: 0.4,
-  },
-  loadingIndicator: {
-    minHeight: 180,
-    backgroundColor: colors.surfaceWarm,
   },
   stateCard: {
     alignItems: "center",

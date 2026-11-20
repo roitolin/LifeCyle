@@ -44,7 +44,7 @@ export async function loadFuneralCart(): Promise<FuneralCartItem[]> {
         paymentOption: "full",
         downpaymentEnabled: item.downpaymentEnabled ?? Boolean(downpaymentAmount > 0 && downpaymentPercentage > 0),
         remainingBalance: "0",
-        quantity: 1,
+        quantity: Math.max(1, Number(item.quantity) || 1),
       } as FuneralCartItem;
     });
   } catch {

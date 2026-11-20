@@ -12,9 +12,10 @@ export const SHOP_CHECKOUT_CHANNELS = [
   { accountChannel: 'PH_SECURITYBANK', providerChannel: 'SECURITY_BANK_ONLINE_BANKING', label: 'Security Bank online banking', type: 'bank' },
 ] as const;
 
-export function availableShopCheckoutChannels(receiverChannels: Iterable<string>) {
-  const configured = new Set([...receiverChannels].map((channel) => channel.trim().toUpperCase()));
-  return SHOP_CHECKOUT_CHANNELS.filter((method) => configured.has(method.accountChannel));
+export function availableShopCheckoutChannels(_receiverChannels?: Iterable<string>) {
+  // Customer payments are collected by the platform/admin Xendit checkout.
+  // Shops withdraw their 70% share separately via Shop Withdrawals.
+  return [...SHOP_CHECKOUT_CHANNELS];
 }
 
 export function matchesAllowedPaymentChannels(actual: unknown, expected: readonly string[]) {

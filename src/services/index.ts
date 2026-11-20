@@ -6,4 +6,7 @@ export {
   uploadShopImage,
   uploadReportEvidence,
   uploadHomeHeroImage,
+  uploadChatMedia,
+  type ChatMediaType,
+  type UploadedChatMedia,
 } from './supabaseStorage';

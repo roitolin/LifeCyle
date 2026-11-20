@@ -31,7 +31,9 @@ import DeathCertificateRequestCard from "@/components/DeathCertificateRequestCar
 import ServiceXenditSheet from "@/components/ServiceXenditSheet";
 import RemainingBalancePaymentCard from "@/components/RemainingBalancePaymentCard";
 import { syncServiceXenditCheckout } from "@/services/serviceXendit";
+import { requestShopSaleWithdrawal } from "@/services/shopPayout";
 import { supabase } from "@/services/supabaseClient";
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { auth, uploadCertificate } from "@/services";
 import { acceptFuneralServiceRequest } from '@/utils/serviceRequestFlow';
 import { hapticMedium, hapticSuccess } from "@/utils/haptics";
@@ -89,6 +91,7 @@ type FuneralServiceRequest = {
   paymentProvider?: string;
   providerCheckoutId?: string | null;
   providerPaymentMethod?: string | null;
+  providerPaymentCompletedAt?: any;
   paymentPayerName?: string | null;
   paymentGcashName?: string | null;
   paymentGcashNumber?: string | null;
@@ -100,6 +103,7 @@ type FuneralServiceRequest = {
   payoutId?: string | null;
   payoutStatus?: string | null;
   payoutAmount?: number | null;
+  shopNetAmount?: number | null;
   payoutCompletedAt?: any;
   payoutFailureCode?: string | null;
   completionProofImageUrl?: string | null;
@@ -186,12 +190,12 @@ const getStatusMeta = (status: string, paymentOption?: string | null) => {
   }
   if (normalized === "paid_waiting_for_split") {
     return {
-      label: isDownpayment ? "Downpayment Confirmed" : "Processing Payout",
+      label: isDownpayment ? "Downpayment Confirmed" : "Payment Confirmed",
       background: "#fef3c7",
       text: "#86654a",
       icon: "wallet-outline" as IoniconName,
-      message: "Payment received. The order is confirmed and the 70% shop payout is processing.",
-      shopMessage: "Payment received. 70% payout to your registered account is processing.",
+      message: "Payment received. The order is confirmed, and the shop can withdraw its 70% share.",
+      shopMessage: "Payment received. Your 70% share is available to withdraw when you are ready.",
     };
   }
   if (normalized === "commission_failed") {
@@ -589,6 +593,7 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
   const [request, setRequest] = useState<FuneralServiceRequest>(initialRequest);
   const isRequestOwner = requesterView && request.requesterId === auth.currentUser?.uid;
   const [updatingRequestId, setUpdatingRequestId] = useState<string | null>(null);
+  const [withdrawingPayout, setWithdrawingPayout] = useState(false);
   const [customPrice, setCustomPrice] = useState(() =>
     Number(initialRequest.paymentAmount) > 0 ? String(initialRequest.paymentAmount) : ""
   );
@@ -651,6 +656,74 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
       };
     }, [request.id, request.paymentProvider, request.providerCheckoutId, request.status])
   );
+
+  useRealtimeRefresh([{ table: 'funeral_service_requests', filter: `id=eq.${request.id}` }], async () => {
+    const { data, error } = await supabase.from('funeral_service_requests').select('*').eq('id', request.id).maybeSingle();
+    if (error || !data) return;
+    const latest = data as FuneralServiceRequest;
+    setRequest(current => current.id === latest.id ? latest : current);
+    setCompletionProofUrl(latest.completionProofImageUrl || null);
+  }, Boolean(request.id));
+
+  const confirmShopWithdrawal = useCallback(() => {
+    const user = auth.currentUser;
+    if (!user || requesterView || request.shopId !== user.uid || withdrawingPayout) return;
+    const status = String(request.status || "").toLowerCase();
+    const isPaid =
+      ["payment_verified", "awaiting_customer_confirmation", "completed"].includes(status) ||
+      Boolean(request.paymentVerifiedAt) ||
+      Boolean(request.providerPaymentCompletedAt);
+    const isXendit =
+      request.paymentProvider === "xendit" ||
+      Boolean(request.providerPaymentCompletedAt) ||
+      Boolean(request.providerCheckoutId);
+    if (!isXendit || !isPaid) {
+      Alert.alert("Withdrawal unavailable", "Only a verified Xendit service payment can be withdrawn here.");
+      return;
+    }
+
+    const explicitAmount = Number(request.shopNetAmount || request.payoutAmount || 0);
+    const isDownpayment = String(request.paymentOption || "").toLowerCase() === "downpayment";
+    const grossPaid = Number(
+      request.paymentAmount ||
+        (isDownpayment ? request.downpaymentAmountSnapshot : (request.productFullPrice ?? request.productPrice)) ||
+        0
+    );
+    const amount = explicitAmount > 0 ? explicitAmount : Math.round(grossPaid * 0.7 * 100) / 100;
+    Alert.alert(
+      "Withdraw this sale?",
+      `Request an Xendit test withdrawal of ${formatCurrency(amount)} (your 70% share) to your verified payout account.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Withdraw",
+          onPress: async () => {
+            setWithdrawingPayout(true);
+            try {
+              const result = await requestShopSaleWithdrawal(request.id);
+              const { data: latest } = await supabase
+                .from("funeral_service_requests")
+                .select("*")
+                .eq("id", request.id)
+                .maybeSingle();
+              if (latest) setRequest(latest as FuneralServiceRequest);
+              hapticSuccess();
+              Alert.alert(
+                result.alreadyInitiated ? "Withdrawal already recorded" : "Withdrawal requested",
+                result.alreadyInitiated
+                  ? `This sale's withdrawal is ${result.payoutStatus || "already processing"}.`
+                  : "Xendit accepted the test withdrawal request. The payout status will update when Xendit confirms it."
+              );
+            } catch (error: any) {
+              Alert.alert("Withdrawal not completed", error?.message || "Please refresh and try again.");
+            } finally {
+              setWithdrawingPayout(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [request, requesterView, withdrawingPayout]);
 
   useEffect(() => {
     let active = true;
@@ -1263,6 +1336,16 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
 
   const statusMeta = getStatusMeta(request.status, request.paymentOption);
   const normalizedRequestStatus = String(request.status || '').toLowerCase();
+  const isPaidXenditSale =
+    ["payment_verified", "awaiting_customer_confirmation", "completed"].includes(normalizedRequestStatus) ||
+    Boolean(request.paymentVerifiedAt) ||
+    Boolean(request.providerPaymentCompletedAt);
+  const canWithdrawShopSale =
+    !requesterView &&
+    request.shopId === auth.currentUser?.uid &&
+    (request.paymentProvider === "xendit" || Boolean(request.providerPaymentCompletedAt) || Boolean(request.providerCheckoutId)) &&
+    isPaidXenditSale &&
+    (request.payoutStatus == null || ((request.payoutStatus === "failed" || request.payoutStatus === "pending") && !request.payoutId));
   const hasFamilyPaymentRecord =
     Boolean(
       request.paymentSubmittedAt ||
@@ -1271,12 +1354,12 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
         request.paymentPayerName ||
         request.paymentProofImageUrl
     ) &&
-    ["payment_submitted", "payment_verified", "awaiting_customer_confirmation", "completed"].includes(
+    ["payment_submitted", "paid_waiting_for_split", "payment_verified", "awaiting_customer_confirmation", "completed"].includes(
       normalizedRequestStatus
     );
   const shopHasFamilyPayment = !requesterView && hasFamilyPaymentRecord;
   const paymentSectionVisible =
-    ["awaiting_payment", "payment_submitted", "payment_verified", "awaiting_customer_confirmation", "completed"].includes(
+    ["awaiting_payment", "payment_submitted", "paid_waiting_for_split", "payment_verified", "awaiting_customer_confirmation", "completed"].includes(
       normalizedRequestStatus
     ) && (normalizedRequestStatus === "awaiting_payment" || hasPaymentSetup(request) || Number(request.remainingBalance) > 0);
   const currentStatusMessage = requesterView ? statusMeta.message : statusMeta.shopMessage;
@@ -1360,7 +1443,7 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
     } else if (normalizedRequestStatus === "paid_waiting_for_split") {
       stickyAction = {
         context: "Payment status",
-        label: "Processing payout",
+        label: "Payment confirmed",
         helper: "Payment confirmed. Preparing your service.",
         icon: "wallet-outline",
         disabled: true,
@@ -1421,8 +1504,8 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
   } else if (normalizedRequestStatus === "paid_waiting_for_split") {
     stickyAction = {
       context: "Payment status",
-      label: "Payout processing",
-      helper: "Payment received. 70% payout is being dispatched.",
+      label: "Shop share available",
+      helper: "Withdraw your 70% share from the payment details when you are ready.",
       icon: "wallet-outline",
       disabled: true,
       onPress: () => undefined,
@@ -1466,13 +1549,13 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
       return;
     }
 
-    navigation.navigate(
-      requesterView
-        ? "MyServiceRequests"
-        : route.params?.origin === "ShopPayments"
-          ? "ShopPayments"
-          : "ServiceRequestsInbox"
-    );
+    if (requesterView) {
+      navigation.navigate("MyServiceRequests");
+    } else if (route.params?.origin === "ShopPayments") {
+      navigation.navigate("ShopPayments", { section: "payments" });
+    } else {
+      navigation.navigate("ServiceRequestsInbox");
+    }
   };
 
   return (
@@ -1835,20 +1918,38 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
                   </>
                 ) : null}
 
-                {!requesterView && normalizedRequestStatus === "payment_verified" ? (
+                {!requesterView && request.paymentProvider === "xendit" && isPaidXenditSale ? (
                   <InfoRow
                     icon="swap-horizontal-outline"
-                    label="Shop payout (70%)"
+                    label="Shop share (70%)"
                     value={
                       request.payoutStatus === "succeeded"
-                        ? `₱${Number(request.payoutAmount || 0).toLocaleString()} sent${request.payoutCompletedAt ? ` on ${formatTimestamp(request.payoutCompletedAt)}` : ""}`
+                        ? `₱${Number(request.payoutAmount || request.shopNetAmount || 0).toLocaleString()} sent${request.payoutCompletedAt ? ` on ${formatTimestamp(request.payoutCompletedAt)}` : ""}`
                         : request.payoutStatus === "failed"
-                        ? `Payout of ₱${Number(request.payoutAmount || 0).toLocaleString()} failed (${request.payoutFailureCode || "Contact admin"})`
+                        ? `Withdrawal of ₱${Number(request.payoutAmount || request.shopNetAmount || 0).toLocaleString()} failed (${request.payoutFailureCode || "Contact admin"})`
                         : request.payoutStatus === "pending"
-                        ? `₱${Number(request.payoutAmount || 0).toLocaleString()} processing`
-                        : "70% payout will be sent to your registered account"
+                        ? `₱${Number(request.payoutAmount || request.shopNetAmount || 0).toLocaleString()} processing`
+                        : `${formatCurrency(request.shopNetAmount || 0)} available to withdraw`
                     }
                   />
+                ) : null}
+
+                {canWithdrawShopSale ? (
+                  <View style={{ marginTop: 10 }}>
+                    <TouchableOpacity
+                      style={[styles.acceptButton, withdrawingPayout ? styles.buttonDisabled : null, { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }]}
+                      onPress={confirmShopWithdrawal}
+                      disabled={withdrawingPayout}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Withdraw ${formatCurrency(request.shopNetAmount || 0)} from this sale`}
+                    >
+                      {withdrawingPayout ? <ActivityIndicator size="small" color="#ffffff" /> : <Ionicons name="wallet-outline" size={19} color="#ffffff" />}
+                      <Text style={styles.acceptButtonText}>
+                        {withdrawingPayout ? "Requesting withdrawal..." : `Withdraw ${formatCurrency(request.shopNetAmount || 0)}`}
+                      </Text>
+                    </TouchableOpacity>
+                    <Text style={styles.payoutWithdrawalHint}>Withdraw only your 70% share from this sale.</Text>
+                  </View>
                 ) : null}
 
                 {(request.paymentSubmittedAt || request.paymentVerifiedAt || request.payoutCompletedAt) ? (
@@ -1871,7 +1972,7 @@ export default function FuneralServiceRequestDetailsScreen({ navigation, route }
                     ) : null}
                     {request.payoutCompletedAt ? (
                       <TimelineItem
-                        label="Shop payout (70%) dispatched"
+                        label="Shop withdrawal (70%) sent"
                         value={`Shop received ₱${Number(request.payoutAmount || 0).toLocaleString()} payout · ${formatTimestamp(request.payoutCompletedAt)}`}
                         active
                         last
@@ -3794,5 +3895,12 @@ const styles = StyleSheet.create({
     color: "#15803d",
     fontSize: 12,
     marginTop: 3,
+  },
+  payoutWithdrawalHint: {
+    color: "#65736d",
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 8,
+    textAlign: "center",
   },
 });

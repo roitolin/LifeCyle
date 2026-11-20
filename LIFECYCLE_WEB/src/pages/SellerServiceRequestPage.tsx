@@ -7,6 +7,7 @@ import PageBackButton from '@/components/PageBackButton'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import { supabase } from '@/lib/supabase'
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
 import { canPayRemainingBalance } from '@/utils/remainingBalancePayments'
 import { acceptFuneralServiceRequest } from '@/utils/serviceRequestFlow'
 import './SellerServiceRequestPage.css'
@@ -202,15 +203,17 @@ export default function SellerServiceRequestPage() {
     window.dispatchEvent(new CustomEvent('open-chat', { detail: { userId: targetId } }))
   }, [openAlert, request?.requesterId])
 
-  const loadRequest = useCallback(async () => {
+  const loadRequest = useCallback(async (background = false) => {
     if (!requestId) {
       setError('This arrangement case does not have a valid request ID.')
       setLoading(false)
       return
     }
 
-    setLoading(true)
-    setError('')
+    if (!background) {
+      setLoading(true)
+      setError('')
+    }
     try {
       const { data: sessionData } = await supabase.auth.getSession()
       const user = sessionData.session?.user
@@ -237,9 +240,9 @@ export default function SellerServiceRequestPage() {
       if (requestResult.error) throw requestResult.error
       setShop((shopResult.data as ShopSummary | null) ?? null)
       setRequest((requestResult.data as ServiceRequest | null) ?? null)
-      if (!requestResult.data) setError('This arrangement case was not found or is not assigned to your shop.')
+      setError(requestResult.data ? '' : 'This arrangement case was not found or is not assigned to your shop.')
     } catch (loadError: unknown) {
-      setError(loadError instanceof Error ? loadError.message : 'Unable to load this arrangement case.')
+      if (!background) setError(loadError instanceof Error ? loadError.message : 'Unable to load this arrangement case.')
     } finally {
       setLoading(false)
     }
@@ -248,6 +251,8 @@ export default function SellerServiceRequestPage() {
   useEffect(() => {
     void loadRequest()
   }, [loadRequest])
+
+  useRealtimeRefresh([{ table: 'funeral_service_requests', filter: `id=eq.${requestId}` }], () => loadRequest(true), Boolean(requestId) && !loading)
 
   useEffect(() => {
     return () => {
@@ -593,7 +598,7 @@ export default function SellerServiceRequestPage() {
         )}
       </div>
       <div className="page-back-row">
-        <PageBackButton to="/seller?tab=orders" label="Back to arrangement cases" />
+        <PageBackButton fallbackTo="/seller?tab=orders" />
       </div>
     </header>
   )
@@ -614,7 +619,7 @@ export default function SellerServiceRequestPage() {
               <span className="sr-state-icon" aria-hidden="true">!</span>
               <h1>Arrangement case unavailable</h1>
               <p>{error || 'This service request could not be found.'}</p>
-              <Link to="/seller?tab=orders" className="sr-button sr-button-primary">Back to Arrangement Cases</Link>
+              <Link to="/seller?tab=orders" className="sr-button sr-button-primary">View arrangement cases</Link>
             </>
           )}
         </main>

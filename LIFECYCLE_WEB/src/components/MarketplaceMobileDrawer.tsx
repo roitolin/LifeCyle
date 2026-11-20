@@ -5,7 +5,7 @@ import LogoutLink from '@/components/LogoutLink'
 import { getProfileAvatar } from '@/utils/profileAvatar'
 import './MarketplaceMobileDrawer.css'
 
-type DrawerIconName = 'home' | 'account' | 'shop' | 'messages' | 'requests' | 'help'
+type DrawerIconName = 'home' | 'account' | 'shop' | 'messages' | 'requests' | 'notifications' | 'help'
 
 const DRAWER_ICON_PATHS: Record<DrawerIconName, ReactNode> = {
   home: <><path d='m3 11 9-8 9 8' /><path d='M5 10v10h14V10' /><path d='M9 20v-6h6v6' /></>,
@@ -13,6 +13,7 @@ const DRAWER_ICON_PATHS: Record<DrawerIconName, ReactNode> = {
   shop: <><path d='M4 10v10h16V10' /><path d='M3 10 5 4h14l2 6' /><path d='M3 10a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0' /><path d='M9 20v-6h6v6' /></>,
   messages: <><path d='M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z' /><path d='M8 9h8M8 13h5' /></>,
   requests: <><rect x='5' y='4' width='14' height='17' rx='2' /><rect x='9' y='2' width='6' height='4' rx='1' /><path d='M9 11h6M9 15h6' /></>,
+  notifications: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21a2 2 0 0 0 4 0" /></>,
   help: <><circle cx='12' cy='12' r='9' /><path d='M9.7 9a2.5 2.5 0 1 1 3.7 2.2c-.9.5-1.4 1.1-1.4 2.3' /><path d='M12 17h.01' /></>,
 }
 
@@ -90,6 +91,7 @@ export default function MarketplaceMobileDrawer({
           <Link to='/seller' onClick={onClose}><DrawerIcon name='shop' />Shop Center</Link>
           <button type='button' onClick={onOpenMessages}><DrawerIcon name='messages' />Messages</button>
           <div className='sp-mobile-menu-announcement'><AnnouncementDropdown menuItem /></div>
+          {isLoggedIn && <Link to="/user/notifications" onClick={onClose}><DrawerIcon name="notifications" />Notifications</Link>}
           <Link to={serviceRequestsPath} onClick={onClose}><DrawerIcon name='requests' />My service request</Link>
           <Link to={helpPath} onClick={onClose}><DrawerIcon name='help' />Help Centre</Link>
         </nav>

@@ -1,17 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { RecordListSkeleton } from '@/components/ContentSkeleton'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 import BrandLogo from '@/components/BrandLogo'
-import LogoutLink from '@/components/LogoutLink'
 import ServiceXenditModal from '@/components/ServiceXenditModal'
 import RemainingBalancePaymentCard from '@/components/RemainingBalancePaymentCard'
 import DeathCertificateVaultCard from '@/components/DeathCertificateVaultCard'
 import PageBackButton from '@/components/PageBackButton'
-import AccountMobileHeader from '@/components/AccountMobileHeader'
-import NotificationDropdown from '@/components/NotificationDropdown'
+import AccountTaskHeader from '@/components/AccountTaskHeader'
 import { syncServiceXenditCheckout } from '@/utils/serviceXendit'
-import { getProfileAvatar } from '@/utils/profileAvatar'
 import './MyServiceRequestsPage.css'
 
 type ViewerProfile = {
@@ -422,6 +421,10 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
     }
   }, [viewerId, loadRequests, refreshKey])
 
+  useRealtimeRefresh([
+    { table: 'funeral_service_requests', filter: detailRequestId ? `id=eq.${detailRequestId}` : `requesterId=eq.${viewerId}` },
+  ], () => viewerId ? loadRequests(viewerId) : undefined, Boolean(viewerId))
+
   // Automatically sync online payment when window gains focus
   useEffect(() => {
     if (!viewerId) return
@@ -447,9 +450,14 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
   }, [viewerId, requests, loadRequests, refreshKey])
 
   useEffect(() => {
-    if (!detailRequestId) return
-    setPaymentReceiptOpen(false)
-    setDetailsRequest(requests.find((request) => request.id === detailRequestId) ?? null)
+    if (detailRequestId) setPaymentReceiptOpen(false)
+  }, [detailRequestId])
+
+  useEffect(() => {
+    setDetailsRequest(current => {
+      const id = detailRequestId || current?.id
+      return id ? requests.find(row => row.id === id) ?? null : null
+    })
   }, [detailRequestId, requests])
 
   const getForm = (requestId: string): PaymentSubmissionForm => paymentForms[requestId] ?? EMPTY_PAYMENT_FORM
@@ -609,35 +617,10 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
 
   return (
     <div className={`requests-shop-page${detailRequestId ? ' requests-shop-page-detail' : ''}`}>
-      <AccountMobileHeader showNotifications />
-      <div className="requests-topbar">
-        <div className="requests-topbar-right">
-          <NotificationDropdown variant="seller-centre" />
-          <span className="requests-divider" aria-hidden="true" />
-          <div className="requests-user-menu">
-            <button type="button" className="requests-user-menu-trigger" aria-label="Open account menu">
-              <img src={getProfileAvatar(profile?.photoURL, profile?.gender)} alt="Account" className="requests-user-avatar" />
-              <span className="requests-topbar-user">{profile?.fullName || 'User'}</span>
-              <svg className="requests-user-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
-            </button>
-            <div className="requests-user-dropdown">
-              <Link to="/user/profile">My Account</Link>
-              <Link to="/user/requests">My service request</Link>
-              <Link to="/auth/switch-account">Switch Account</Link>
-              <LogoutLink>Log out</LogoutLink>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <header className="requests-header">
-        <BrandLogo to="/funeral" compact className="requests-brand" />
-        <div className="requests-header-divider" />
-        <h1>{detailRequestId ? 'Request Details' : 'My Service Requests'}</h1>
-      </header>
+      <AccountTaskHeader title={detailRequestId ? 'Request details' : 'My service requests'} profile={profile} />
 
       {!detailRequestId ? <main className="requests-main">
-        <div className="page-back-row"><PageBackButton to="/user/profile" /></div>
+        <div className="page-back-row"><PageBackButton fallbackTo="/user/profile" /></div>
         <div className="requests-list-toolbar">
           <div>
             <strong>{loading ? 'Loading requests' : requests.length + ' ' + (requests.length === 1 ? 'request' : 'requests')}</strong>
@@ -658,10 +641,12 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
           </button>
         </div>
         {loading ? (
-          <section className="requests-empty-state">
-            <h2>{reconnecting ? 'Reconnecting…' : 'Loading…'}</h2>
-            {reconnecting ? <p>Connection lost. Still trying to load your requests...</p> : null}
-          </section>
+          reconnecting ? (
+            <section className="requests-empty-state" role="status">
+              <h2>Reconnecting…</h2>
+              <p>Connection lost. Still trying to load your requests...</p>
+            </section>
+          ) : <RecordListSkeleton kind="request" />
         ) : requests.length === 0 ? (
           <section className="requests-empty-state">
             <h2>No Service Requests Yet</h2>
@@ -681,7 +666,7 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
               String(request.status || '').toLowerCase() !== 'payment_verified'
 
             return (
-              <section key={request.id} className="requests-card">
+              <section key={request.id} className="requests-card lc-content-reveal">
                 <div className="requests-card-header">
                     <div className="requests-card-product">
                       <button
@@ -970,13 +955,13 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
 
       {detailRequestId && !detailsRequest ? (
         <main className="requests-main">
-          <div className="page-back-row"><PageBackButton to="/user/requests" /></div>
+          <div className="page-back-row"><PageBackButton fallbackTo="/user/requests" /></div>
           <section className="requests-empty-state">
             <h2>{loading || reconnecting ? 'Loading request…' : 'Request not found'}</h2>
             {!loading && !reconnecting ? (
               <>
                 <p>This request is unavailable or does not belong to your account.</p>
-                <Link to="/user/requests" className="requests-browse-btn">Back to requests</Link>
+                <Link to="/user/requests" className="requests-browse-btn">View all requests</Link>
               </>
             ) : null}
           </section>
@@ -1023,7 +1008,7 @@ export default function MyServiceRequestsPage({ detailRequestId = '' }: MyServic
             >
               <div className="requests-modal-header requests-pd-header">
                 <div className="requests-pd-title-row">
-                  <PageBackButton to="/user/requests" label="Back to requests" className="requests-detail-back" />
+                  <PageBackButton fallbackTo="/user/requests" className="requests-detail-back" />
                 </div>
                 <div className="requests-pd-head-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
                   <span className={`requests-pay-pill pay-${statusMeta(detail.status, detail.paymentOption).tone}`}>{statusLabel}</span>

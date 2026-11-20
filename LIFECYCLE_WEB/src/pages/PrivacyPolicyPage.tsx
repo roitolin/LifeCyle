@@ -2,7 +2,7 @@ import { useLocation } from 'react-router-dom'
 import BrandLogo from '@/components/BrandLogo'
 import PageBackButton from '@/components/PageBackButton'
 import AccountMobileHeader from '@/components/AccountMobileHeader'
-import NotificationDropdown from '@/components/NotificationDropdown'
+import MarketplaceFooter from '@/components/MarketplaceFooter'
 import './FuneralLandingPage.css'
 
 const sections = [
@@ -48,17 +48,16 @@ export default function PrivacyPolicyPage() {
 
   return (
     <div className="sp-page policy-page">
-      <AccountMobileHeader homeTo={returnPath} homeLabel={agreementReturn ? 'agreement' : 'home'} showNotifications />
+      <AccountMobileHeader homeTo={returnPath} homeLabel={agreementReturn ? 'agreement' : 'home'} showAccountMenu={false} />
       <header className="sp-header">
         <div className="sp-header-inner policy-header-inner">
-          <BrandLogo to={returnPath} ariaLabel={agreementReturn ? 'LifeCycle agreement' : 'LifeCycle home'} />
-          <div className="policy-header-notification"><NotificationDropdown variant="seller-centre" /></div>
+          <BrandLogo compact to={returnPath} ariaLabel={agreementReturn ? 'LifeCycle agreement' : 'LifeCycle home'} />
         </div>
       </header>
 
       <div className="sp-body">
         <div className="sp-body-inner policy-body-inner">
-          <div className="page-back-row"><PageBackButton to={returnPath} label={agreementReturn ? 'Back to agreement' : 'Back to home'} /></div>
+          <div className="page-back-row"><PageBackButton fallbackTo={returnPath} label={agreementReturn ? 'Back to agreement' : 'Back'} /></div>
           <div className="policy-content">
             <span className="policy-kicker">LifeCycle Funeral Services Philippines</span>
             <h1>Privacy Policy</h1>
@@ -76,11 +75,7 @@ export default function PrivacyPolicyPage() {
         </div>
       </div>
 
-      <footer className="sp-footer">
-        <div className="sp-footer-bottom">
-          <span>© {new Date().getFullYear()} LifeCycle Funeral Services Philippines.</span>
-        </div>
-      </footer>
+      <MarketplaceFooter compact />
     </div>
   )
 }

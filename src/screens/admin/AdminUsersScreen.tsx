@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import LoadingBird from '@/components/LoadingBird';
+import LoadingStatus from '@/components/LoadingStatus';
 import {
   View,
   FlatList,
@@ -333,7 +333,7 @@ export default function AdminUsersScreen({ navigation }: any) {
   };
 
   if (loading) {
-    return <LoadingBird fullScreen />;
+    return <LoadingStatus label="Loading users…" fullScreen />;
   }
 
   return (

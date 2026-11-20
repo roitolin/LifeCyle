@@ -2,8 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import type { User } from '@supabase/supabase-js'
 import BrandLogo from '@/components/BrandLogo'
-import LogoutLink from '@/components/LogoutLink'
-import NotificationDropdown from '@/components/NotificationDropdown'
+import PageBackButton from '@/components/PageBackButton'
+import HeaderAccountMenu, { type HeaderAccountProfile } from '@/components/HeaderAccountMenu'
 import { supabase } from '@/lib/supabase'
 import { getProfileAvatar } from '@/utils/profileAvatar'
 import './UserProfilePage.css'
@@ -13,6 +13,7 @@ const accountLinks = [
   { to: '/user/requests', label: 'Service requests' },
   { to: '/user/purchase', label: 'My Payments' },
   { to: '/user/favorites', label: 'Favorites' },
+  { to: '/user/notifications', label: 'Notifications' },
   { to: '/user/account-settings', label: 'Account settings' },
   { to: '/user/privacy-data', label: 'Privacy & data' },
   { to: '/user/notification-preferences', label: 'Notification preferences' },
@@ -26,9 +27,17 @@ const supportLinks = [
   { to: '/user/feedback', label: 'Feedback' },
 ]
 
-export default function ProfileLayout({ children, title, subtitle }: { children: ReactNode, title: string, subtitle: string }) {
+type ProfileLayoutProps = {
+  children: ReactNode
+  title: string
+  subtitle?: string
+  mainClassName?: string
+  headerAction?: ReactNode
+}
+
+export default function ProfileLayout({ children, title, subtitle, mainClassName, headerAction }: ProfileLayoutProps) {
   const [viewer, setViewer] = useState<User | null>(null)
-  const [profile, setProfile] = useState<any>(null)
+  const [profile, setProfile] = useState<HeaderAccountProfile | null>(null)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const mobileNavCloseRef = useRef<HTMLButtonElement>(null)
   const location = useLocation()
@@ -124,27 +133,6 @@ export default function ProfileLayout({ children, title, subtitle }: { children:
         </div>
       ) : null}
 
-      <div className="sp-topbar">
-        <div className="sp-topbar-inner">
-          <div className="sp-topbar-right">
-            <NotificationDropdown variant="seller-centre" />
-            <span className="profile-topbar-divider" aria-hidden="true" />
-            <div className="sp-user-menu">
-              <button type="button" className="sp-user-menu-trigger" aria-haspopup="menu">
-                <img src={avatarUrl} alt="" className="sp-user-avatar" />
-                <span className="sp-user-name">{profile?.fullName || viewer?.email}</span>
-                <svg className="sp-user-dropdown-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
-              </button>
-              <div className="sp-user-dropdown">
-                <Link to="/user/requests">My service request</Link>
-                <Link to="/auth/switch-account" className="sp-dropdown-switch">Switch account</Link>
-                <LogoutLink>Log out</LogoutLink>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <header className="sp-header profile-app-header">
         <div className="sp-header-inner profile-app-header-inner">
           <div className="profile-mobile-brand-row">
@@ -161,15 +149,12 @@ export default function ProfileLayout({ children, title, subtitle }: { children:
             <BrandLogo compact className="profile-brand-logo" />
           </div>
           <div className="profile-mobile-header-actions">
-            <div className="profile-mobile-header-notification">
-              <NotificationDropdown variant="seller-centre" />
-            </div>
-            <Link to="/funeral" className="profile-mobile-home-link">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
-              <span><span className="profile-mobile-home-prefix">Back to </span>home</span>
-            </Link>
+            <PageBackButton className="profile-mobile-home-link" />
           </div>
-          <Link to="/funeral" className="profile-browse-link">Browse services</Link>
+          <div className="profile-desktop-header-actions">
+            <Link to="/funeral" className="profile-browse-link">Browse services</Link>
+            <HeaderAccountMenu profile={profile} fallbackName={viewer?.email} showNotifications={false} />
+          </div>
         </div>
       </header>
 
@@ -186,10 +171,11 @@ export default function ProfileLayout({ children, title, subtitle }: { children:
             </nav>
           </aside>
 
-          <main className="profile-main">
+          <main className={mainClassName ? `profile-main ${mainClassName}` : 'profile-main'}>
             <div className="profile-header">
               <h1>{title}</h1>
-              <p>{subtitle}</p>
+              {subtitle && <p>{subtitle}</p>}
+              {headerAction}
             </div>
             <div className="profile-content">{children}</div>
           </main>

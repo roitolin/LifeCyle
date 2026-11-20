@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, FlatList, RefreshControl, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from 'react-native-paper';
-import LoadingBird from '@/components/LoadingBird';
+import LoadingStatus from '@/components/LoadingStatus';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/services/supabaseClient';
 import { logAdminAction } from '@/utils/adminAuditLog';
@@ -183,7 +183,7 @@ export default function AdminLoginSecurityScreen() {
         <Text style={styles.sectionTitle}>{role === 'super_admin' ? 'Admin login activity' : 'Your login activity'}</Text>
         <Text style={styles.historyCount}>{activity.length} events</Text>
       </View>
-      {loading && !activity.length ? <LoadingBird compact /> : null}
+      {loading && !activity.length ? <LoadingStatus label="Loading sign-in activity…" compact /> : null}
     </>
   );
 

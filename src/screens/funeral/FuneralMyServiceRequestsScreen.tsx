@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
-import LoadingBird from '@/components/LoadingBird';
+import ContentSkeleton, { SkeletonBlock, contentFade } from '@/components/ContentSkeleton';
 import {
   ActivityIndicator,
   Alert,
@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import Reanimated from "react-native-reanimated";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -26,6 +27,8 @@ import ServiceXenditSheet from "@/components/ServiceXenditSheet";
 import RemainingBalancePaymentCard from "@/components/RemainingBalancePaymentCard";
 import { syncServiceXenditCheckout } from "@/services/serviceXendit";
 import { supabase } from "@/services/supabaseClient";
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import { useAuth } from '@/context/AuthContext';
 import { auth, uploadCertificate } from "@/services";
 import { hapticMedium, hapticSuccess } from "@/utils/haptics";
 import {
@@ -41,6 +44,8 @@ import {
   serializeTimeOnly,
   validateServiceSchedule,
 } from "@/utils/serviceRequestSchedule";
+
+const RequestCard = Reanimated.createAnimatedComponent(TouchableOpacity);
 
 type FuneralServiceRequest = {
   id: string;
@@ -296,7 +301,7 @@ const getStatusMeta = (status: string, paymentOption?: string | null) => {
       label: isDownpayment ? "Downpayment Confirmed" : "Payment Confirmed",
       background: "#fef3c7",
       text: "#86654a",
-      message: "Payment received. The shop payout is being processed and the shop is preparing your order.",
+      message: "Payment received. The shop can withdraw its 70% share while preparing your order.",
     };
   }
   if (normalized === "commission_failed") {
@@ -387,6 +392,8 @@ const EMPTY_PAYMENT_FORM: PaymentSubmissionForm = {
 
 export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
+  const { user: account } = useAuth();
+  const accountId = account?.id;
   const [loading, setLoading] = useState(true);
   const [reconnecting, setReconnecting] = useState(false);
   const [requests, setRequests] = useState<FuneralServiceRequest[]>([]);
@@ -477,7 +484,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
     });
   }, [navigation]);
 
-  const loadRequests = useCallback(async (): Promise<boolean> => {
+  const loadRequests = useCallback(async (background = false): Promise<boolean> => {
     const user = auth.currentUser;
     if (!user) return false;
 
@@ -516,7 +523,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
           String(r.status || "").toLowerCase() === "awaiting_payment" &&
           (r.paymentProvider === "xendit" || Boolean(r.providerCheckoutId))
       );
-      if (awaitingXendit.length > 0) {
+      if (!background && awaitingXendit.length > 0) {
         Promise.allSettled(awaitingXendit.map((r: any) => syncServiceXenditCheckout(r.id))).then((results) => {
           const anyPaid = results.some((res) => res.status === "fulfilled" && res.value?.paid === true);
           if (anyPaid) {
@@ -527,7 +534,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
 
       return true;
     } catch {
-      setReconnecting(true);
+      if (!background) setReconnecting(true);
       return false;
     }
   }, []);
@@ -562,6 +569,17 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
       };
     }, [loadWithRetry])
   );
+
+  const sharedIds = requests.filter(request => request.sharedWithMe).map(request => request.id).sort();
+  const sharedWatches = [];
+  for (let start = 0; start < sharedIds.length; start += 100) {
+    sharedWatches.push({ table: 'funeral_service_requests', filter: `id=in.(${sharedIds.slice(start, start + 100).join(",")})` });
+  }
+  useRealtimeRefresh([
+    { table: 'funeral_service_requests', filter: `requesterId=eq.${accountId}` },
+    { table: 'service_request_members', filter: `user_id=eq.${accountId}` },
+    ...sharedWatches,
+  ], () => loadRequests(true), Boolean(accountId) && !loading);
 
   const openEditRequest = useCallback((request: FuneralServiceRequest) => {
     setEditingRequest(request);
@@ -996,7 +1014,18 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
 
         {loading ? (
           <View style={styles.loadingWrap}>
-            <LoadingBird />
+            <ContentSkeleton label="Loading service requests" style={{ alignSelf: "stretch", gap: 10 }}>
+              {[0, 1].map(index => (
+                <View key={index} style={styles.requestCard}>
+                  <SkeletonBlock style={styles.requestImage} />
+                  <View style={styles.requestBody}>
+                    <SkeletonBlock style={{ width: "78%", height: 13 }} />
+                    <SkeletonBlock style={{ width: "58%" }} />
+                    <SkeletonBlock style={{ width: "42%", height: 16, borderRadius: 10 }} />
+                  </View>
+                </View>
+              ))}
+            </ContentSkeleton>
             {reconnecting ? (
               <Text style={styles.loadingText}>Connection lost. Still trying to load your requests...</Text>
             ) : null}
@@ -1022,7 +1051,8 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
               Boolean(item.paymentVerifiedAt) &&
               String(item.status || "").toLowerCase() !== "payment_verified";
             return (
-              <TouchableOpacity
+              <RequestCard
+                entering={contentFade}
                 key={item.id}
                 style={[styles.requestCard, paymentRequired ? styles.requestCardPayment : null]}
                 activeOpacity={0.92}
@@ -1105,7 +1135,7 @@ export default function FuneralMyServiceRequestsScreen({ navigation }: any) {
                     <Ionicons name="chevron-forward" size={16} color="#7f6653" />
                   </View>
                 </View>
-              </TouchableOpacity>
+              </RequestCard>
             );
           })
         )}
@@ -2155,8 +2185,7 @@ const styles = StyleSheet.create({
   },
   loadingWrap: {
     alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 42,
+    paddingVertical: 12,
   },
   loadingText: {
     color: "#62706b",

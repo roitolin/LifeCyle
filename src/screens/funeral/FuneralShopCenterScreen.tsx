@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import LoadingBird from '@/components/LoadingBird';
+import ContentSkeleton, { ChartPlotPlaceholder, ContentReveal, MetricPlaceholders, SkeletonBlock } from '@/components/ContentSkeleton';
 import {
   ActivityIndicator,
   Alert,
@@ -22,9 +22,9 @@ import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import { LineChart, PieChart, type lineDataItem } from "react-native-gifted-charts";
-import { AppBackButton, AdminPaymentModal, KeyboardAwareScrollView } from "@/components";
-import PayoutAccountsModal from "@/components/PayoutAccountsModal";
+import { AppBackButton, KeyboardAwareScrollView } from "@/components";
 import { supabase } from "@/services/supabaseClient";
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import * as ImagePicker from "@/utils/permissionImagePicker";
 import { auth, uploadShopImage } from "@/services";
 import { formatPhilippinePeso } from "@/utils/funeralCatalog";
@@ -590,8 +590,6 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
   const [savingGoal, setSavingGoal] = useState(false);
 
   const [sidebarVisible, setSidebarVisible] = useState(false);
-  const [adminPaymentsVisible, setAdminPaymentsVisible] = useState(false);
-  const [payoutAccountsVisible, setPayoutAccountsVisible] = useState(false);
   const [shopDetailsVisible, setShopDetailsVisible] = useState(false);
   const [shopDetailsEditable, setShopDetailsEditable] = useState(false);
 
@@ -601,8 +599,8 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
   const [rejectingPayment, setRejectingPayment] = useState(false);
   const [receiptRequest, setReceiptRequest] = useState<ServiceRequest | null>(null);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (background = false) => {
+    if (!background) setLoading(true);
     try {
       let userId = auth.currentUser?.uid || null;
 
@@ -760,15 +758,17 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
       if (paymentError) throw paymentError;
       setPayment((paymentData as ShopPayment | null) || null);
 
-      setShopNameInput(String(nextShopInfo?.shopName || ""));
-      setShopBioInput(String(nextShopInfo?.bio || ""));
-      setShopAddressInput(String(nextShopInfo?.shopAddress || ""));
-      setShopPhoneInput(String(nextShopInfo?.shopPhoneNumber || ""));
-      setShopImageUrl((nextShopInfo?.shopImageUrl as string | null) || null);
-      setCoverImageUrl((nextShopInfo?.coverImageUrl as string | null) || null);
+      if (!background) {
+        setShopNameInput(String(nextShopInfo?.shopName || ""));
+        setShopBioInput(String(nextShopInfo?.bio || ""));
+        setShopAddressInput(String(nextShopInfo?.shopAddress || ""));
+        setShopPhoneInput(String(nextShopInfo?.shopPhoneNumber || ""));
+        setShopImageUrl((nextShopInfo?.shopImageUrl as string | null) || null);
+        setCoverImageUrl((nextShopInfo?.coverImageUrl as string | null) || null);
+      }
     } catch (error) {
       console.error(error);
-      Alert.alert("Error", "Failed to load shop center.");
+      if (!background) Alert.alert("Error", "Failed to load shop center.");
     } finally {
       setLoading(false);
     }
@@ -779,6 +779,11 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
       void loadData();
     }, [loadData])
   );
+
+  useRealtimeRefresh([
+    { table: 'funeral_service_requests', filter: `shopId=eq.${shopId}` },
+    { table: 'shop_payments', filter: `shopId=eq.${shopId}` },
+  ], () => loadData(true), Boolean(shopId) && !loading);
 
   const isVerified = hasShopCenterAccess(shopStatus);
   const statusMeta = getShopStatusMeta(shopStatus, rejectionReason);
@@ -1060,14 +1065,15 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
 
   const openVerifiedScreen = (
     routeName: "ServiceRequestsInbox" | "ServiceSchedule" | "ShopPayments" | "ShopCatalog" | "ShopPackages" | "ShopCustomers" | "ShopReports",
-    featureName: string
+    featureName: string,
+    params?: Record<string, unknown>
   ) => {
     if (!isVerified) {
       Alert.alert("Shop Approval Required", `Your shop must be approved before you can use ${featureName}.`);
       return;
     }
 
-    navigation.navigate(routeName);
+    navigation.navigate(routeName, params);
   };
 
   const closeShopDetails = () => {
@@ -1075,6 +1081,8 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
     setShopDetailsVisible(false);
     setShopDetailsEditable(false);
   };
+
+  const openLifeCyclePayments = () => navigation.navigate("LifeCyclePayments");
 
   const returnToMarketplace = () => {
     setSidebarVisible(false);
@@ -1102,7 +1110,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
             : "Pay the LifeCycle registration fee online before going live.",
         [
           { text: "Cancel", style: "cancel" },
-          { text: "Open Payment", onPress: () => setAdminPaymentsVisible(true) },
+          { text: "Open Payment", onPress: openLifeCyclePayments },
         ]
       );
       return;
@@ -1114,7 +1122,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
         "Your subscription expired on " + formatSubscriptionDate(subscriptionEnd) + ". Renew online before going live again.",
         [
           { text: "Cancel", style: "cancel" },
-          { text: "Renew Online", onPress: () => setAdminPaymentsVisible(true) },
+          { text: "Renew Online", onPress: openLifeCyclePayments },
         ]
       );
       return;
@@ -1592,7 +1600,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
       icon: isVerified ? "wallet-outline" : "lock-closed-outline",
       badge: todoStats.paymentsToVerify,
       urgent: todoStats.paymentsToVerify > 0,
-      onPress: () => openVerifiedScreen("ShopPayments", "family payments"),
+      onPress: () => openVerifiedScreen("ShopPayments", "family payments", { section: "payments" }),
     },
     {
       key: "schedule",
@@ -1635,16 +1643,16 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
     {
       label: "FINANCE",
       items: [
-        sidebarTool("payments"),
         {
-          key: "payout-accounts",
-          label: "Payout Accounts",
-          description: "Register test payout destinations",
-          icon: "wallet-outline",
+          key: "withdrawals",
+          label: "Shop Withdrawals",
+          description: "Withdraw paid service sales to a bank",
+          icon: "cash-outline",
           badge: 0,
           urgent: false,
-          onPress: () => setPayoutAccountsVisible(true),
+          onPress: () => openVerifiedScreen("ShopPayments", "shop withdrawals", { section: "withdrawals" }),
         },
+        sidebarTool("payments"),
         {
           key: "lifecycle-payments",
           label: "LifeCycle Payments",
@@ -1652,7 +1660,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
           icon: "card-outline",
           badge: 0,
           urgent: false,
-          onPress: () => setAdminPaymentsVisible(true),
+          onPress: openLifeCyclePayments,
         },
       ],
     },
@@ -1695,8 +1703,27 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.screen}>
-        <LoadingBird fullScreen />
+      <SafeAreaView edges={["left", "right"]} style={styles.screen}>
+        <ScrollView contentContainerStyle={styles.content}>
+          <View style={styles.heroSection}>
+            <View style={[styles.topBar, { paddingTop: Math.max(10, insets.top + 4) }]}>
+              <AppBackButton onPress={handleBack} />
+              <View style={styles.topBarText}><Text style={styles.topBarTitle}>Shop Center</Text></View>
+            </View>
+            <ContentSkeleton label="Loading shop profile" style={styles.centerProfilePanel}>
+              <View style={styles.centerProfileAvatarWrap}><SkeletonBlock style={styles.centerProfileAvatar} /></View>
+              <SkeletonBlock style={{ width: "55%", height: 19, marginTop: 8, alignSelf: "center" }} />
+              <SkeletonBlock style={{ width: "70%", marginTop: 8, alignSelf: "center" }} />
+            </ContentSkeleton>
+          </View>
+          <ContentSkeleton label="Loading shop summary" style={styles.quickStatsStrip}>
+            <View style={styles.quickStatsHeader}><Text style={styles.quickStatsTitle}>Shop snapshot</Text></View>
+            <MetricPlaceholders gridStyle={styles.quickStatsGrid} tileStyle={styles.quickStatCell} valueFirst />
+          </ContentSkeleton>
+          <ContentSkeleton label="Loading shop trends" style={styles.analyticsSection}>
+            <View style={styles.analyticsChartBlock}><ChartPlotPlaceholder height={168} /></View>
+          </ContentSkeleton>
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -1731,7 +1758,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
               </TouchableOpacity>
              </View>
 
-            <View style={styles.centerProfilePanel}>
+            <ContentReveal style={styles.centerProfilePanel}>
               <View style={styles.centerProfileAvatarWrap}>
                 {shopImageUrl ? (
                   <Image source={{ uri: shopImageUrl }} style={styles.centerProfileAvatar} resizeMode="cover" />
@@ -1772,7 +1799,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
                   {shopInfo?.bio || "+ Add a bio"}
                 </Text>
               </TouchableOpacity>
-            </View>
+            </ContentReveal>
 
           </View>
 
@@ -1786,7 +1813,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
 
           {/* ── QUICK STATS STRIP ── */}
           {isVerified ? (
-            <View style={styles.quickStatsStrip}>
+            <ContentReveal style={styles.quickStatsStrip}>
               <View style={styles.quickStatsHeader}>
                 <View style={styles.dashboardHeaderIcon}>
                   <Ionicons name="speedometer-outline" size={18} color="#3e7260" />
@@ -1818,7 +1845,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
                   <Text style={styles.quickStatLabel}>Products</Text>
                 </View>
               </View>
-            </View>
+            </ContentReveal>
           ) : null}
 
           {/* ── SUBSCRIPTION EXPIRY ALERT ── */}
@@ -1981,7 +2008,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
               ) : null}
 
               {todoStats.paymentsToVerify > 0 ? (
-                <TouchableOpacity style={styles.attentionRow} onPress={() => openVerifiedScreen("ShopPayments", "family payments")}>
+                <TouchableOpacity style={styles.attentionRow} onPress={() => openVerifiedScreen("ShopPayments", "family payments", { section: "payments" })}>
                   <View style={styles.attentionNumber}><Text style={styles.attentionNumberText}>{todoStats.paymentsToVerify}</Text></View>
                   <View style={styles.attentionRowCopy}>
                     <Text style={styles.attentionRowTitle}>Verify payment receipts</Text>
@@ -2203,7 +2230,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
           ) : null}
 
           {centerSection === "overview" && analytics ? (
-            <View style={styles.analyticsSection}>
+            <ContentReveal style={styles.analyticsSection}>
               <View style={styles.analyticsSectionHeader}>
                 <View style={styles.dashboardHeaderLead}>
                   <View style={styles.dashboardHeaderIcon}>
@@ -2351,7 +2378,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
                 </View>
                 <Ionicons name="arrow-forward" size={18} color="#3e7260" />
               </TouchableOpacity>
-            </View>
+            </ContentReveal>
           ) : null}
 
           {centerSection === "payments" ? (
@@ -2631,19 +2658,6 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
         </View>
       </Modal>
 
-      <PayoutAccountsModal
-        visible={payoutAccountsVisible}
-        shopId={shopId}
-        shopApproved={isVerified}
-        onClose={() => setPayoutAccountsVisible(false)}
-      />
-
-      <AdminPaymentModal
-        visible={adminPaymentsVisible}
-        onClose={() => setAdminPaymentsVisible(false)}
-        onChanged={() => void loadData()}
-      />
-
       <Modal visible={shopDetailsVisible} transparent animationType="fade" onRequestClose={closeShopDetails}>
         <View style={styles.modalOverlay}>
           <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={closeShopDetails} />
@@ -2708,7 +2722,10 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
                   {!paymentVerified || subscriptionExpired ? (
                     <TouchableOpacity
                       style={[styles.statusControlButton, { backgroundColor: "#0f766e", marginBottom: 10 }]}
-                      onPress={() => setAdminPaymentsVisible(true)}
+                      onPress={() => {
+                        closeShopDetails();
+                        openLifeCyclePayments();
+                      }}
                     >
                       <Ionicons name="shield-checkmark-outline" size={18} color="#ffffff" />
                       <Text style={styles.statusControlButtonText}>

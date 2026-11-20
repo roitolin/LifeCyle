@@ -1,0 +1,34 @@
+.header-account-menu .sp-user-menu-trigger {
+  appearance: none;
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #f1f5f9;
+  font: inherit;
+}
+
+.header-account-menu .sp-user-menu-trigger:is(:hover, [aria-expanded='true']) {
+  background: rgb(255 255 255 / 10%);
+  opacity: 1;
+}
+
+.header-account-menu .sp-user-dropdown:not([hidden]) {
+  display: block;
+  z-index: 30;
+}
+
+.header-account-menu > [hidden] {
+  display: none !important;
+}
+
+.header-account-menu .sp-user-menu-trigger:focus-visible,
+.header-account-menu .sp-user-dropdown a:focus-visible {
+  outline: 2px solid #739385;
+  outline-offset: 2px;
+}
+
+.header-account-menu svg {
+  flex-shrink: 0;
+}

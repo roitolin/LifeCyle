@@ -75,7 +75,7 @@ function VerifyEmailPage() {
         if (error) throw error
         params.delete('code')
         const nextSearch = params.toString()
-        window.history.replaceState(null, '', `${location.pathname}${nextSearch ? `?${nextSearch}` : ''}`)
+        window.history.replaceState(window.history.state, '', `${location.pathname}${nextSearch ? `?${nextSearch}` : ''}`)
         setStatus('Email verified. Redirecting...')
       } catch {
         setStatusIsError(true)

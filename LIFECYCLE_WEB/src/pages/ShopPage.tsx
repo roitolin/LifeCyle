@@ -2,17 +2,17 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { User } from '@supabase/supabase-js'
 import BrandLogo from '@/components/BrandLogo'
-import NotificationDropdown from '@/components/NotificationDropdown'
 import AnnouncementDropdown from '@/components/AnnouncementDropdown'
-import LogoutLink from '@/components/LogoutLink'
+import HeaderAccountMenu from '@/components/HeaderAccountMenu'
 import MarketplaceFooter from '@/components/MarketplaceFooter'
 import MarketplaceMobileDrawer from '@/components/MarketplaceMobileDrawer'
 import PageBackButton from '@/components/PageBackButton'
+import { ProductGridSkeleton, StorefrontSkeleton } from '@/components/ContentSkeleton'
+import ImageWithSkeleton from '@/components/ImageWithSkeleton'
 import ProductRating from '@/components/ProductRating'
 import { useProductScrollReveal } from '@/hooks/useProductScrollReveal'
 import { supabase } from '@/lib/supabase'
 import { loadFuneralCart } from '@/utils/funeralCart'
-import { getProfileAvatar } from '@/utils/profileAvatar'
 import { summarizeProductRatings } from '@/utils/productRatings'
 import './ShopPage.css'
 
@@ -204,11 +204,10 @@ export default function ShopPage() {
     window.dispatchEvent(new CustomEvent('open-chat'))
   }
 
-  if (loading) return <div className="shop-detail-state">Loading shop…</div>
-  if (error || !shop) return <div className="shop-detail-state shop-detail-state-error"><p>{error || 'Shop not found.'}</p><Link to="/funeral/shops">Browse funeral shops</Link></div>
+  if (!loading && (error || !shop)) return <div className="shop-detail-state shop-detail-state-error"><p>{error || 'Shop not found.'}</p><Link to="/funeral/shops">Browse funeral shops</Link></div>
 
-  const joinedDate = shop.createdAt ? new Date(shop.createdAt).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : null
-  const coverImageUrl = shop.coverImageUrl || shop.shopImageUrl || ''
+  const joinedDate = shop?.createdAt ? new Date(shop.createdAt).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : null
+  const coverImageUrl = shop?.coverImageUrl || shop?.shopImageUrl || ''
 
   return (
     <div className="sp-bg shop-detail-page marketplace-page-shell">
@@ -232,23 +231,10 @@ export default function ShopPage() {
           <div className="sp-topbar-left"><Link to="/seller">Shop Center</Link></div>
           <div className="sp-topbar-right">
             <AnnouncementDropdown />
-            <NotificationDropdown />
             <Link to="/user/help">Help Centre</Link>
-            <span className="sp-divider">|</span>
+            {isLoggedIn && <span className="sp-divider" aria-hidden="true">|</span>}
             {isLoggedIn ? (
-              <div className="sp-user-menu">
-                <div className="sp-user-menu-trigger">
-                  <img src={getProfileAvatar(userProfile?.photoURL, userProfile?.gender)} alt="Account" className="sp-user-avatar" />
-                  <span className="sp-user-name">{userProfile?.fullName || viewer?.email}</span>
-                  <svg className="sp-user-dropdown-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
-                </div>
-                <div className="sp-user-dropdown">
-                  <Link to="/user/profile">My account</Link>
-                  <Link to="/user/requests">My service request</Link>
-                  <Link to="/auth/switch-account" className="sp-dropdown-switch">Switch account</Link>
-                  <LogoutLink>Log out</LogoutLink>
-                </div>
-              </div>
+              <HeaderAccountMenu profile={userProfile} fallbackName={viewer?.email} />
             ) : <><Link to="/register" className="sp-signup">Sign up</Link><Link to="/login">Log in</Link></>}
           </div>
         </div>
@@ -263,13 +249,17 @@ export default function ShopPage() {
             <BrandLogo to="/funeral" className="sp-brand-logo" />
           </div>
           <div className="sp-search-wrap">
-            <div className="sp-search-box">
+            <form className="sp-search-box" role="search" onSubmit={event => {
+              event.preventDefault()
+              const results = document.getElementById('shop-products')
+              results?.focus({ preventScroll: true })
+              results?.scrollIntoView({ block: 'start' })
+            }}>
               <input type="search" value={queryText} onChange={event => setQueryText(event.target.value)} placeholder="Search this shop" aria-label="Search this shop" />
-              <button type="button" className="sp-search-btn" aria-label="Search"><SearchIcon /></button>
-            </div>
+              <button type="submit" className="sp-search-btn" aria-label="Search"><SearchIcon /></button>
+            </form>
           </div>
           <div className="sp-header-actions">
-            <div className="sp-mobile-header-notification"><NotificationDropdown variant="seller-centre" /></div>
             <div className="sp-cart-area">
               <Link to={isLoggedIn ? '/user/cart' : '/login?next=/user/cart'} className="sp-cart-btn" aria-label="Shopping cart" title="Shopping cart">
                 <HeaderCartIcon />
@@ -281,18 +271,18 @@ export default function ShopPage() {
       </header>
 
       <main className="sp-container shop-detail-main">
-        <div className="page-back-row"><PageBackButton /></div>
+        <div className="page-back-row"><PageBackButton fallbackTo="/funeral/shops" /></div>
 
-        <section className="shop-detail-overview" id="shop-overview" aria-label={`${shop.shopName} shop information`}>
+        {loading && <StorefrontSkeleton />}
+        {!loading && shop && <section className="shop-detail-overview lc-content-reveal" id="shop-overview" aria-label={`${shop.shopName} shop information`}>
           <div
             className={`shop-detail-summary${coverImageUrl ? ' shop-detail-summary-cover' : ''}`}
-            style={coverImageUrl ? { backgroundImage: `linear-gradient(110deg, rgba(25, 48, 41, 0.94), rgba(34, 49, 45, 0.72)), url("${coverImageUrl}")` } : undefined}
+            style={coverImageUrl ? { backgroundImage: `linear-gradient(105deg, rgba(27, 51, 43, 0.96), rgba(34, 49, 45, 0.79)), url("${coverImageUrl}")` } : undefined}
           >
             <div className="shop-detail-profile">
               {shop.shopImageUrl ? <img src={shop.shopImageUrl} alt="" className="shop-detail-avatar" /> : <div className="shop-detail-avatar shop-detail-avatar-fallback" aria-hidden="true">{shop.shopName.charAt(0).toUpperCase()}</div>}
               <div className="shop-detail-identity">
                 <h1>{shop.shopName}</h1>
-                <p className="shop-detail-status"><span aria-hidden="true">•</span> Online</p>
                 <p className="shop-detail-location">{shop.generalLocation || shop.shopAddress || 'Location not provided'}</p>
                 {shop.bio ? <p className="shop-detail-bio">{shop.bio}</p> : null}
               </div>
@@ -308,33 +298,33 @@ export default function ShopPage() {
             <div><dt>Followers</dt><dd>{followerCount}</dd></div>
             {joinedDate && <div><dt>Joined</dt><dd>{joinedDate}</dd></div>}
           </dl>
-        </section>
+        </section>}
 
         <nav className="shop-detail-tabs" aria-label="Shop navigation">
-          <a href="#shop-overview">Shop</a>
-          <a href="#shop-products">All products</a>
+          <a href="#shop-overview">Shop overview</a>
+          <a href="#shop-products">Products</a>
         </nav>
 
-        <section className="shop-detail-products" id="shop-products">
+        <section className="shop-detail-products" id="shop-products" tabIndex={-1}>
           <div className="shop-detail-products-header">
-            <div><h2>Products</h2><p>{visibleProducts.length} shown</p></div>
+            <div><h2>Products</h2>{!loading && <p>{visibleProducts.length} shown</p>}</div>
             <label className="shop-sort-control">Sort
-              <select value={sortBy} onChange={event => setSortBy(event.target.value)}>{SORT_OPTIONS.map(option => <option key={option}>{option}</option>)}</select>
+              <select disabled={loading} value={sortBy} onChange={event => setSortBy(event.target.value)}>{SORT_OPTIONS.map(option => <option key={option}>{option}</option>)}</select>
             </label>
           </div>
 
-          {visibleProducts.length === 0 ? (
+          {loading ? <ProductGridSkeleton storefront /> : visibleProducts.length === 0 ? (
             <div className="shop-detail-empty">{queryText ? 'No products match your search.' : 'This shop has no active products.'}</div>
           ) : (
-            <div className="shop-detail-grid" ref={productGridRef}>
-              {visibleProducts.map(product => (
+            <div className="shop-detail-grid lc-content-reveal" ref={productGridRef}>
+              {visibleProducts.map((product, index) => (
                 <Link
                   key={product.id}
                   to={`/funeral/product/${product.id}`}
                   className="shop-product-card product-scroll-reveal"
                   data-product-scroll-reveal
                 >
-                  {product.imageUrl ? <img src={product.imageUrl} alt={product.name} /> : <div className="shop-product-image-empty">No image</div>}
+                  {product.imageUrl ? <ImageWithSkeleton className="shop-product-photo" src={product.imageUrl} alt={product.name} loading={index === 0 ? "eager" : "lazy"} /> : <div className="shop-product-image-empty">No image</div>}
                   <div className="shop-product-copy">
                     <h3>{product.name}</h3>
                     <strong>₱{product.price.toLocaleString()}</strong>

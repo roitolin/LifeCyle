@@ -150,7 +150,7 @@ export default function AdminShopDetailsPage() {
 
   return (
     <section className="panel sc-page admin-shop-detail-page">
-      <div className="page-back-row"><PageBackButton to="/admin/funeral-shops" label="Back to funeral shops" /></div>
+      <div className="page-back-row"><PageBackButton fallbackTo="/admin/funeral-shops" /></div>
       <header className="admin-detail-page-head">
         <div>
           <h2>Registration details</h2>
@@ -284,7 +284,7 @@ export default function AdminShopDetailsPage() {
                     className="sc-link-btn"
                     style={{ fontSize: 12, fontWeight: 700, color: '#2563eb', textDecoration: 'none' }}
                   >
-                    Manage Payout Accounts &rarr;
+                    Manage Withdrawal Accounts &rarr;
                   </Link>
                 </div>
                 <p className="sc-details-head-sub">Owner-submitted destination for test payments. Admin review here does not verify a live account.</p>

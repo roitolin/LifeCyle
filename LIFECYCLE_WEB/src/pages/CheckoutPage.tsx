@@ -6,10 +6,8 @@ import { removeFuneralCartItem, type WebFuneralCartItem } from '@/utils/funeralC
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 import { checkServiceAvailability } from '@/utils/serviceAvailability'
-import BrandLogo from '@/components/BrandLogo'
-import LogoutLink from '@/components/LogoutLink'
+import AccountTaskHeader from '@/components/AccountTaskHeader'
 import PageBackButton from '@/components/PageBackButton'
-import { getProfileAvatar } from '@/utils/profileAvatar'
 import './CheckoutPage.css'
 
 type ViewerProfile = {
@@ -394,8 +392,7 @@ export default function CheckoutPage() {
   if (!cartItem) {
     return (
       <div className="checkout-page">
-        <TopBar profile={profile} />
-        <Header />
+        <AccountTaskHeader title="Service Request" profile={profile} />
         <div className="checkout-empty">
           <h2>No cart item selected</h2>
           <p>Please go back to your cart and select an item to check out.</p>
@@ -409,8 +406,7 @@ export default function CheckoutPage() {
   if (successState) {
     return (
       <div className="checkout-page">
-        <TopBar profile={profile} />
-        <Header />
+        <AccountTaskHeader title="Service Request" profile={profile} />
         <div className="checkout-success">
           <h2 className="checkout-success-title">Request Sent</h2>
           <p className="checkout-success-text">
@@ -430,12 +426,11 @@ export default function CheckoutPage() {
   // ── Form ──────────────────────────────────────
   return (
     <div className="checkout-page">
-      <TopBar profile={profile} />
-      <Header />
+      <AccountTaskHeader title="Service Request" profile={profile} />
 
       <div className="checkout-main">
         <div className="page-back-row checkout-page-nav">
-          <PageBackButton />
+          <PageBackButton fallbackTo="/user/cart" />
         </div>
         <div className="checkout-layout">
         <aside className="checkout-order-summary">
@@ -733,47 +728,5 @@ export default function CheckoutPage() {
       {confirmDialog}
       {alertDialog}
     </div>
-  )
-}
-
-
-/* ── Shared sub-components ─────────────────────── */
-
-function TopBar({ profile }: { profile: ViewerProfile | null }) {
-  return (
-    <div className="checkout-topbar">
-      <div className="checkout-topbar-inner">
-        <div className="checkout-topbar-right">
-          <Link to="/user/notifications">Notifications</Link>
-          <Link to="/user/help">Help Centre</Link>
-          <span className="checkout-divider">|</span>
-          <div className="checkout-user-menu">
-            <div className="checkout-user-menu-trigger">
-              <img src={getProfileAvatar(profile?.photoURL, profile?.gender)} alt="Account" className="checkout-user-avatar checkout-user-avatar-image" />
-              <span className="checkout-user-name">{profile?.fullName || 'User'}</span>
-              <svg className="checkout-user-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-            </div>
-            <div className="checkout-user-dropdown">
-              <Link to="/user/profile">My Account</Link>
-              <Link to="/user/requests">My service request</Link>
-              <Link to="/auth/switch-account" className="checkout-dropdown-switch">Switch Account</Link>
-              <LogoutLink>Log out</LogoutLink>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function Header() {
-  return (
-    <header className="checkout-header">
-      <div className="checkout-header-inner">
-        <BrandLogo to="/funeral" compact className="checkout-brand-logo" />
-        <div className="checkout-header-divider" />
-        <h1>Service Request</h1>
-      </div>
-    </header>
   )
 }

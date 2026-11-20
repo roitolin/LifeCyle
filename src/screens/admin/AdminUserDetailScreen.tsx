@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import LoadingBird from '@/components/LoadingBird';
+import LoadingStatus from '@/components/LoadingStatus';
 import {
   View,
   Text,
@@ -114,7 +114,7 @@ export default function AdminUserDetailScreen({ route, navigation }: any) {
   };
 
   if (loading) {
-    return <LoadingBird fullScreen />;
+    return <LoadingStatus label="Loading user details…" fullScreen />;
   }
 
   if (!user) return null;

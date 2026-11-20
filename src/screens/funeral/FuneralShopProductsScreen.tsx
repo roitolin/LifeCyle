@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import LoadingBird from '@/components/LoadingBird';
+import Reanimated from 'react-native-reanimated';
+import ContentSkeleton, { ProductGridPlaceholders, SkeletonBlock, contentFade } from '@/components/ContentSkeleton';
 import ProductCardMeta from '@/components/ProductCardMeta';
 import ProductDownpaymentBadge from '@/components/ProductDownpaymentBadge';
 import {
@@ -689,8 +690,20 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
 
   if (loading && !shop) {
     return (
-      <SafeAreaView style={styles.loadingScreen}>
-        <LoadingBird fullScreen />
+      <SafeAreaView edges={["left", "right"]} style={styles.screen}>
+        <ScrollView>
+          <View style={[styles.hero, { justifyContent: "flex-start", paddingTop: Math.max(14, insets.top + 4), paddingHorizontal: 12 }]}>
+            <AppBackButton onPress={handleBack} style={styles.heroBackButton} />
+          </View>
+          <ContentSkeleton label="Loading shop products">
+            <View style={styles.profilePanel}>
+              <View style={styles.profileAvatarWrap}><SkeletonBlock style={styles.profileAvatar} /></View>
+              <SkeletonBlock style={{ width: "54%", height: 18, marginTop: 10, alignSelf: "center" }} />
+              <SkeletonBlock style={{ width: "72%", marginTop: 8, alignSelf: "center" }} />
+            </View>
+            <View style={styles.productSection}><ProductGridPlaceholders gridStyle={styles.productGrid} cardStyle={styles.productCard} imageStyle={styles.productImageFrame} bodyStyle={styles.productDetails} /></View>
+          </ContentSkeleton>
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -716,7 +729,8 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
   return (
     <SafeAreaView edges={["left", "right"]} style={styles.screen}>
       <StatusBar hidden={false} style="light" />
-      <ScrollView
+      <Reanimated.ScrollView
+        entering={contentFade}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={colors.primaryDark} onRefresh={() => { setRefreshing(true); void loadShop(); }} />}
@@ -846,7 +860,7 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
           {activeTab === "categories" ? renderCategoriesTab() : null}
           {activeTab === "reviews" ? renderReviewsTab() : null}
         </View>
-      </ScrollView>
+      </Reanimated.ScrollView>
     </SafeAreaView>
   );
 }

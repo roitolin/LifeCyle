@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import LoadingBird from '@/components/LoadingBird';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import LoadingStatus from '@/components/LoadingStatus';
 import {
   Alert,
   FlatList,
@@ -63,35 +63,34 @@ const formatTimestamp = (value: any) => {
 export default function AdminProductsScreen() {
   const { isDesktop } = useResponsive();
   const [items, setItems] = useState<ProductRow[]>([]);
-  const [filteredItems, setFilteredItems] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<FilterType>("all");
   const [selectedItem, setSelectedItem] = useState<ProductRow | null>(null);
 
-  const applyFilters = useCallback((allItems: ProductRow[], search: string, filter: FilterType) => {
-    let result = [...allItems];
+  const filteredItems = useMemo(() => {
+    let result = items;
+    const search = searchQuery.trim().toLowerCase();
 
-    if (filter === "available") {
+    if (filterType === "available") {
       result = result.filter((item) => item.active && item.stock > 0);
-    } else if (filter === "soldout") {
+    } else if (filterType === "soldout") {
       result = result.filter((item) => item.stock <= 0);
-    } else if (filter === "hidden") {
+    } else if (filterType === "hidden") {
       result = result.filter((item) => !item.active);
     }
 
-    if (search.trim()) {
-      const lower = search.trim().toLowerCase();
+    if (search) {
       result = result.filter((item) =>
         [item.name, item.shopName, item.ownerName, item.ownerEmail]
           .filter(Boolean)
-          .some((value) => String(value).toLowerCase().includes(lower))
+          .some((value) => String(value).toLowerCase().includes(search))
       );
     }
 
-    setFilteredItems(result);
-  }, []);
+    return result;
+  }, [items, searchQuery, filterType]);
 
   const loadProducts = useCallback(async () => {
     try {
@@ -130,15 +129,13 @@ export default function AdminProductsScreen() {
       }));
 
       setItems(nextItems);
-      applyFilters(nextItems, searchQuery, filterType);
     } catch (error) {
       console.error(error);
       Alert.alert("Error", "Failed to load products.");
     }
-  }, [applyFilters, filterType, searchQuery]);
+  }, []);
 
   useEffect(() => {
-    setLoading(true);
     void loadProducts().finally(() => setLoading(false));
   }, [loadProducts]);
 
@@ -185,7 +182,7 @@ export default function AdminProductsScreen() {
   };
 
   if (loading) {
-    return <LoadingBird fullScreen />;
+    return <LoadingStatus label="Loading products…" fullScreen />;
   }
 
   return (
@@ -198,7 +195,6 @@ export default function AdminProductsScreen() {
         value={searchQuery}
         onChangeText={(value) => {
           setSearchQuery(value);
-          applyFilters(items, value, filterType);
         }}
         style={styles.searchbar}
       />
@@ -208,7 +204,6 @@ export default function AdminProductsScreen() {
         onValueChange={(value) => {
           const nextFilter = value as FilterType;
           setFilterType(nextFilter);
-          applyFilters(items, searchQuery, nextFilter);
         }}
         buttons={FILTER_OPTIONS}
       />

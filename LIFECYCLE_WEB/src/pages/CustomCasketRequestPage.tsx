@@ -5,7 +5,7 @@ import { uploadCertificateWeb } from '@/lib/supabaseStorage'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 import { checkServiceAvailability } from '@/utils/serviceAvailability'
-import BrandLogo from '@/components/BrandLogo'
+import AccountTaskHeader, { type AccountHeaderProfile } from '@/components/AccountTaskHeader'
 import PageBackButton from '@/components/PageBackButton'
 import './CheckoutPage.css' // Reusing Checkout styles for consistent form layout
 
@@ -34,6 +34,7 @@ function computeAgeFromDates(dob: Date | null, dop: Date | null): number | null 
 
 export default function CustomCasketRequestPage() {
   const { shopId } = useParams()
+  const returnToShop = shopId ? `/shop/${encodeURIComponent(shopId)}` : '/funeral/shops'
   const { openConfirm, confirmDialog } = useConfirmDialog()
   const { openAlert, alertDialog } = useAlertDialog()
   const memorialFileInputRef = useRef<HTMLInputElement>(null)
@@ -41,6 +42,7 @@ export default function CustomCasketRequestPage() {
 
   // Viewer
   const [viewer, setViewer] = useState<{ id: string } | null>(null)
+  const [profile, setProfile] = useState<AccountHeaderProfile | null>(null)
 
   // Shop state
   const [shopName, setShopName] = useState('Shop')
@@ -101,6 +103,7 @@ export default function CustomCasketRequestPage() {
           .eq('id', session.user.id)
           .maybeSingle()
         if (userData) {
+          setProfile(userData)
           setFamilyCoordinatorName(String(userData.fullName || ''))
         }
       }
@@ -371,7 +374,7 @@ export default function CustomCasketRequestPage() {
   if (shopFound === false) {
     return (
       <div className="checkout-page">
-        <Header />
+        <AccountTaskHeader title="Custom casket request" profile={profile} />
         <div className="checkout-empty">
           <h2>Shop Not Found</h2>
           <p>The shop you are looking for does not exist or has been removed.</p>
@@ -385,7 +388,7 @@ export default function CustomCasketRequestPage() {
   if (successState) {
     return (
       <div className="checkout-page">
-        <Header />
+        <AccountTaskHeader title="Custom casket request" profile={profile} />
         <div className="checkout-success">
           <h2 className="checkout-success-title">Request Sent</h2>
           <p className="checkout-success-text">
@@ -396,7 +399,7 @@ export default function CustomCasketRequestPage() {
           </p>
           <p className="checkout-success-ref">Reference: {successState.requestId}</p>
           <Link to="/user/requests" className="checkout-success-primary">Track My Request</Link>
-          <Link to="/funeral/shops" className="checkout-success-secondary">Back to Shops</Link>
+          <PageBackButton fallbackTo={returnToShop} className="checkout-success-secondary" />
         </div>
       </div>
     )
@@ -405,11 +408,11 @@ export default function CustomCasketRequestPage() {
   // ── Form ──────────────────────────────────────
   return (
     <div className="checkout-page">
-      <Header />
+      <AccountTaskHeader title="Custom casket request" profile={profile} />
 
       <div className="checkout-main">
         <div className="page-back-row checkout-page-nav">
-          <PageBackButton />
+          <PageBackButton fallbackTo={returnToShop} />
         </div>
         <div className="checkout-layout">
         <aside className="checkout-order-summary">
@@ -745,19 +748,5 @@ export default function CustomCasketRequestPage() {
       {confirmDialog}
       {alertDialog}
     </div>
-  )
-}
-
-/* ── Shared sub-components ─────────────────────── */
-
-function Header() {
-  return (
-    <header className="checkout-header">
-      <div className="checkout-header-inner">
-        <BrandLogo to="/funeral" compact className="checkout-brand-logo" />
-        <div className="checkout-header-divider" />
-        <h1>Custom casket request</h1>
-      </div>
-    </header>
   )
 }

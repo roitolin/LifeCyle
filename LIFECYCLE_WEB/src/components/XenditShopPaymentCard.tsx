@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
-import BrandLogo from '@/components/BrandLogo'
 import { APP_ICON_TRANSPARENT_URL } from '@/assets/appIconAssets'
 import { createXenditShopCheckout, syncXenditShopPayment } from '@/utils/xenditShop'
 import { getPaymentSetting } from '@/utils/paymentSettings'
+import HistoryPagination from './HistoryPagination'
 import './XenditShopPaymentCard.css'
 
 type Props = {
@@ -40,6 +40,9 @@ const dateTime = (value?: string | null) => value
 const dateOnly = (value?: string | null) => value
   ? new Date(value).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })
   : 'Not set'
+
+const historyDate = new Intl.DateTimeFormat('en-PH', { dateStyle: 'medium' })
+const historyTime = new Intl.DateTimeFormat('en-PH', { timeStyle: 'short' })
 
 function remainingDays(value?: string | null) {
   if (!value) return 0
@@ -82,9 +85,10 @@ export default function XenditShopPaymentCard({
   const [starting, setStarting] = useState(false)
   const [fee, setFee] = useState(0)
   const [payments, setPayments] = useState<Payment[]>([])
+  const [historyPage, setHistoryPage] = useState(1)
+  const [historyPageSize, setHistoryPageSize] = useState(10)
   const [shopName, setShopName] = useState('Funeral shop')
   const [paidUntil, setPaidUntil] = useState<string | null>(null)
-  const [historyOpen, setHistoryOpen] = useState(false)
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null)
   const [purchaseConfirmOpen, setPurchaseConfirmOpen] = useState(false)
 
@@ -184,15 +188,6 @@ export default function XenditShopPaymentCard({
         : Number.isFinite(paidUntilTime)
           ? 'expired'
           : 'unpaid'
-  const subscriptionDetail = subscriptionActive
-    ? `Active through ${dateOnly(paidUntil)}`
-    : renewalPaymentReady
-      ? 'Payment confirmed - ready to activate'
-      : latestPending
-        ? 'Payment confirmation pending'
-        : Number.isFinite(paidUntilTime)
-          ? `Expired on ${dateOnly(paidUntil)}`
-          : 'No active subscription'
 
   const startCheckout = async () => {
     if (starting) return
@@ -235,155 +230,232 @@ export default function XenditShopPaymentCard({
     }
   }
 
-  if (!ready) return <div className='pm-card pm-loading'>Loading subscription details…</div>
+  if (!ready) {
+    return (
+      <div className={'lp-layout' + (className ? ` ${className}` : '')}>
+        <h2 className="lp-page-title">LifeCycle Payments</h2>
+        <div className="lp-loading-card">Loading subscription details…</div>
+      </div>
+    )
+  }
 
+  const historyPageCount = Math.max(1, Math.ceil(payments.length / historyPageSize))
+  const currentHistoryPage = Math.min(historyPage, historyPageCount)
+  const historyStart = (currentHistoryPage - 1) * historyPageSize
+  const visiblePayments = payments.slice(historyStart, historyStart + historyPageSize)
   const manualPending = latestPending?.paymentProvider === 'manual'
   const returned = new URLSearchParams(window.location.search).get('xendit')
+  const statusPillLabel = subscriptionActive
+    ? 'Active'
+    : renewalPaymentReady
+      ? 'Paid'
+      : latestPending
+        ? 'Pending'
+        : Number.isFinite(paidUntilTime)
+          ? 'Expired'
+          : 'Unpaid'
 
   return (
-    <section className={'pm-card' + (className ? ` ${className}` : '')}>
-      <div className='pm-hero'>
-        <BrandLogo to='/funeral' compact className='pm-payment-brand' />
-      </div>
+    <section className={'lp-layout' + (className ? ` ${className}` : '')}>
+      <h2 className="lp-page-title">LifeCycle Payments</h2>
 
-      {returned === 'success' && <div className='pm-banner success'>Checkout finished. Confirming your payment now.</div>}
-      {returned === 'cancelled' && <div className='pm-banner'>Checkout was cancelled. You can continue whenever you are ready.</div>}
-
-      <div className='pm-product-row'>
-        <span className='pm-product-icon' aria-hidden='true'>
-          <svg viewBox='0 0 24 24'><path d='M3 10h18M5 10v10h14V10M4 10l2-6h12l2 6M9 20v-6h6v6'/></svg>
-        </span>
-        <div className='pm-product-info'>
-          <strong>Shop registration &amp; renewal</strong>
-          <small>{shopName}</small>
-          <span className={`pm-product-status ${subscriptionState}`}>{subscriptionDetail}</span>
-        </div>
-      </div>
-
-      <div className='pm-order-summary'>
-        <div className='pm-summary-row'>
-          <span>{paymentComplete ? 'Current subscription' : 'Registration / renewal fee'}</span>
-          <strong>{peso(fee)}</strong>
-        </div>
-        <div className='pm-summary-total'>
-          <div>
-            <strong>{paymentComplete ? 'Subscription status' : 'Amount due'}</strong>
-            <small>{subscriptionActive
-              ? `Active until ${dateOnly(paidUntil)} · ${subscriptionDaysLeft} day${subscriptionDaysLeft === 1 ? '' : 's'} left`
-              : renewalPaymentReady
-                ? 'Payment confirmed · starts when your shop goes live'
-                : latestPending
-                  ? 'Waiting for payment confirmation'
-                  : 'Includes shop listing and service request management'}</small>
-          </div>
-          <b className={paymentComplete ? 'paid' : ''}>{paymentComplete ? 'Paid' : peso(fee)}</b>
-        </div>
-      </div>
-
-      <div className='pm-method-summary'>
-        <span className='pm-method-summary-icon' aria-hidden='true'>
-          <svg viewBox='0 0 24 24'><rect x='3' y='5' width='18' height='14' rx='2'/><path d='M3 10h18'/></svg>
-        </span>
-        <div>
-          <strong>Payment methods</strong>
-          <small>GCash, Maya, cards and online banking</small>
-        </div>
-        <span className='pm-method-check' aria-hidden='true'>&#10003;</span>
-      </div>
-
+      {returned === 'success' && <div className="lp-banner is-success">Checkout finished. Confirming your payment now.</div>}
+      {returned === 'cancelled' && <div className="lp-banner">Checkout was cancelled. You can continue whenever you are ready.</div>}
       {manualPending && (
-        <div className='pm-banner warning'>Your previous manual payment is awaiting admin review. It must be resolved before starting another checkout.</div>
+        <div className="lp-banner is-warning">Your previous manual payment is awaiting admin review. It must be resolved before starting another checkout.</div>
       )}
 
-      {paymentComplete ? (
-        <div className='pm-paid-actions-wrap'>
-          <div className='pm-paid-actions'>
-            <div className='pm-paid-confirmation' aria-label='Payment complete'>
-              <span aria-hidden='true'>&#10003;</span>
-              <strong>{subscriptionActive ? `Already paid - renews after ${dateOnly(paidUntil)}` : 'Payment confirmed - ready to activate'}</strong>
-            </div>
-            {latestVerified && (
-              <button type='button' className='pm-receipt-link' onClick={() => setSelectedPayment(latestVerified)}>View payment receipt</button>
-            )}
+      <div className="lp-card">
+        <div className="lp-card-header">
+          <div>
+            <h3 className="lp-card-title">Shop subscription</h3>
+            <p className="lp-card-subtitle">{shopName}</p>
           </div>
+          <span className={`lp-status-pill is-${subscriptionState}`}>{statusPillLabel}</span>
         </div>
-      ) : (
-        <button type='button' className='pm-pay' disabled={starting || fee <= 0 || manualPending} onClick={() => setPurchaseConfirmOpen(true)}>
-          {starting
-            ? 'Opening payment...'
-            : latestPending?.paymentProvider === 'xendit'
-              ? 'Continue checkout'
-              : Number.isFinite(paidUntilTime)
-                ? `Renew for ${peso(fee)}`
-                : `Pay ${peso(fee)}`}
-        </button>
-      )}
 
-      {payments.length > 0 && (
-        <>
-          <button type='button' className='pm-history-toggle' onClick={() => setHistoryOpen(open => !open)} aria-expanded={historyOpen}>
-            <span aria-hidden='true'>&#9783;</span>
-            <strong>View payment history ({payments.length})</strong>
-            <b aria-hidden='true'>{historyOpen ? '^' : '>'}</b>
-          </button>
-          {historyOpen && (
-            <div className='pm-history'>
-              <div className='pm-history-head'>
-                <h4>Payment history</h4>
-                <span>{payments.length} {payments.length === 1 ? 'payment' : 'payments'}</span>
-              </div>
-              {payments.map((payment) => (
-                <button
-                  type='button'
-                  className='pm-row pm-row-button'
-                  key={payment.id}
-                  onClick={() => setSelectedPayment(payment)}
-                  aria-label={`Open receipt for ${peso(payment.amount)} payment`}
-                >
-                  <div>
-                    <strong>{peso(payment.amount)}</strong>
-                    <small>{payment.paymentProvider === 'xendit' ? 'Online payment' : payment.paymentProvider === 'legacy' ? 'Legacy online payment' : 'Legacy manual'}{payment.providerPaymentMethod ? ` - ${payment.providerPaymentMethod.replace(/_/g, ' ')}` : ''} - {dateTime(payment.createdAt)}</small>
-                    {payment.rejectionReason && <small className='pm-reason'>{payment.rejectionReason}</small>}
-                  </div>
-                  <span className='pm-row-end'>
-                    <span className={'pm-status ' + payment.status}>{statusText(payment)}</span>
-                    <span className='pm-view-receipt'>View receipt</span>
-                  </span>
-                </button>
-              ))}
+        <div className="lp-summary-band">
+          <div>
+            <span className="lp-price-label">Subscription fee</span>
+            <strong className="lp-price-amount">{peso(fee)}</strong>
+            <p className="lp-status-note">
+              {subscriptionActive
+                ? `${subscriptionDaysLeft} day${subscriptionDaysLeft === 1 ? '' : 's'} left on your subscription`
+                : renewalPaymentReady
+                  ? 'Payment confirmed · ready to activate'
+                  : latestPending
+                    ? 'Waiting for payment confirmation'
+                    : Number.isFinite(paidUntilTime)
+                      ? `Expired on ${dateOnly(paidUntil)}`
+                      : 'Payment required to go live'}
+            </p>
+          </div>
+
+          {paymentComplete ? (
+            latestVerified && (
+              <button
+                type="button"
+                className="lp-secondary-btn"
+                onClick={() => setSelectedPayment(latestVerified)}
+              >
+                View receipt
+              </button>
+            )
+          ) : (
+            <button
+              type="button"
+              className="lp-primary-btn"
+              disabled={starting || fee <= 0 || manualPending}
+              onClick={() => setPurchaseConfirmOpen(true)}
+            >
+              {starting
+                ? 'Opening…'
+                : latestPending?.paymentProvider === 'xendit'
+                  ? 'Continue checkout'
+                  : Number.isFinite(paidUntilTime)
+                    ? `Renew ${peso(fee)}`
+                    : `Pay ${peso(fee)}`}
+            </button>
+          )}
+        </div>
+
+        <dl className="lp-details-list">
+          {paidUntil && (
+            <div className="lp-detail-row">
+              <dt>{subscriptionActive ? 'Valid through' : 'Previous expiry'}</dt>
+              <dd>{dateOnly(paidUntil)}</dd>
             </div>
           )}
-        </>
-      )}
+          {latestVerified && (
+            <div className="lp-detail-row">
+              <dt>Last payment</dt>
+              <dd>
+                {dateOnly(latestVerified.verifiedAt || latestVerified.createdAt)}
+                <span className="lp-detail-receipt">#{receiptNumber(latestVerified)}</span>
+              </dd>
+            </div>
+          )}
+          <div className="lp-detail-row">
+            <dt>Payment methods</dt>
+            <dd>GCash, Maya, cards, online banking</dd>
+          </div>
+        </dl>
+      </div>
+
+      {/* Payment History table card */}
+      <section className="lp-history-card" aria-label="Payment history">
+        <div className="lp-history-head">
+          <h3>Payment history</h3>
+          <span>{payments.length} {payments.length === 1 ? 'record' : 'records'}</span>
+        </div>
+
+        <div className="sc-history-table-wrap">
+          <table className="sc-history-table lp-history-table">
+            <thead>
+              <tr>
+                <th scope="col" className="col-time">Time</th>
+                <th scope="col" className="col-amount">Amount</th>
+                <th scope="col" className="col-status">Status</th>
+                <th scope="col" className="col-ref">Reference No.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visiblePayments.length === 0 ? (
+                <tr><td colSpan={4} className="sc-history-empty-cell">No subscription payments yet.</td></tr>
+              ) : visiblePayments.map(payment => {
+                const reference = payment.referenceNumber || receiptNumber(payment)
+                const createdAt = new Date(payment.createdAt)
+
+                return (
+                  <tr key={payment.id} className="sc-history-clickable-row" onClick={() => setSelectedPayment(payment)}>
+                    <td className="col-time">
+                      {Number.isFinite(createdAt.getTime()) ? (
+                        <time dateTime={createdAt.toISOString()} className="lp-history-time">
+                          <span>{historyDate.format(createdAt)}</span>
+                          <span>{historyTime.format(createdAt)}</span>
+                        </time>
+                      ) : '—'}
+                    </td>
+                    <td className="col-amount">{peso(payment.amount)}</td>
+                    <td className="col-status">
+                      <span className={`lp-tx-status is-${payment.status}`}>{statusText(payment)}</span>
+                    </td>
+                    <td className="col-ref">
+                      <div className="lp-history-reference">
+                        <span>{reference}</span>
+                        <button
+                          type="button"
+                          className="lp-view-receipt-btn"
+                          aria-label={`View receipt ${reference}`}
+                          aria-haspopup="dialog"
+                          onClick={event => {
+                            event.stopPropagation()
+                            setSelectedPayment(payment)
+                          }}
+                        >
+                          View
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        <HistoryPagination
+          label="Payment history pages"
+          page={currentHistoryPage}
+          pageCount={historyPageCount}
+          pageSize={historyPageSize}
+          onPageChange={setHistoryPage}
+          onPageSizeChange={setHistoryPageSize}
+        />
+      </section>
 
       {purchaseConfirmOpen && !paymentComplete && (
-        <div className='pm-purchase-overlay' role='presentation' onMouseDown={() => !starting && setPurchaseConfirmOpen(false)}>
-          <section className='pm-purchase-sheet' role='dialog' aria-modal='true' aria-label='Confirm payment' onMouseDown={event => event.stopPropagation()}>
-            <div className='pm-purchase-handle' />
-            <div className='pm-purchase-brand-row'>
+        <div className="lp-modal-overlay" role="presentation" onMouseDown={() => !starting && setPurchaseConfirmOpen(false)}>
+          <section className="lp-confirm-modal" role="dialog" aria-modal="true" aria-label="Confirm payment" onMouseDown={event => event.stopPropagation()}>
+            <header className="lp-modal-header">
               <div>
-                <BrandLogo to='/funeral' compact className='pm-payment-brand pm-purchase-brand-logo' />
+                <h3>Confirm payment</h3>
+                <p>LifeCycle shop registration &amp; renewal</p>
               </div>
               <button
-                type='button'
-                className='pm-purchase-close'
+                type="button"
+                className="lp-modal-close"
                 onClick={() => setPurchaseConfirmOpen(false)}
-                aria-label='Close checkout'
+                aria-label="Close checkout"
               >
-                <svg viewBox='0 0 24 24' aria-hidden='true'><path d='M18 6 6 18M6 6l12 12' /></svg>
+                ×
               </button>
-            </div>
-            <div className='pm-purchase-product-row'>
+            </header>
+            <div className="lp-confirm-summary">
               <div>
-                <strong>Shop registration and renewal</strong>
-                <small>LifeCycle billing</small>
+                <strong>{shopName}</strong>
+                <span>GCash, Maya, cards &amp; online banking</span>
               </div>
               <b>{peso(fee)}</b>
             </div>
-            <div className='pm-purchase-divider' />
-            <button type='button' className='pm-purchase-buy' aria-busy={starting} disabled={starting} onClick={() => void startCheckout()}>
-              {starting ? 'Opening checkout...' : 'Continue to payment'}
-            </button>
+            <footer className="lp-confirm-actions">
+              <button
+                type="button"
+                className="lp-secondary-btn"
+                disabled={starting}
+                onClick={() => setPurchaseConfirmOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="lp-primary-btn"
+                aria-busy={starting}
+                disabled={starting}
+                onClick={() => void startCheckout()}
+              >
+                {starting ? 'Opening checkout…' : 'Continue to payment'}
+              </button>
+            </footer>
           </section>
         </div>
       )}
@@ -391,19 +463,25 @@ export default function XenditShopPaymentCard({
       {selectedPayment && (
         <div className='pm-receipt-overlay' role='presentation' onMouseDown={() => setSelectedPayment(null)}>
           <section
-            className='pm-receipt-modal'
+            className='pm-receipt-modal lp-receipt-modal'
             role='dialog'
             aria-modal='true'
             aria-label='Registration payment receipt'
             onMouseDown={(event) => event.stopPropagation()}
           >
-            <header className='pm-receipt-hero'>
-              <button className='pm-receipt-x' type='button' onClick={() => setSelectedPayment(null)} aria-label='Close receipt'>×</button>
-              <div className={'pm-receipt-status-icon ' + selectedPayment.status} aria-hidden='true'>
-                {selectedPayment.status === 'verified' ? '✓' : selectedPayment.status === 'rejected' ? '!' : '…'}
+            <header className='lp-receipt-header'>
+              <div>
+                <span className={`lp-tx-status is-${selectedPayment.status}`}>{statusText(selectedPayment)}</span>
+                <h3>
+                  {selectedPayment.status === 'verified'
+                    ? 'Payment Verified'
+                    : selectedPayment.status === 'rejected'
+                      ? 'Payment Not Completed'
+                      : 'Payment Pending'}
+                </h3>
+                <p>{receiptMessage(selectedPayment)}</p>
               </div>
-              <h3>{selectedPayment.status === 'verified' ? 'Payment Verified' : selectedPayment.status === 'rejected' ? 'Payment Not Completed' : 'Payment Pending'}</h3>
-              <p>{receiptMessage(selectedPayment)}</p>
+              <button className='lp-modal-close' type='button' onClick={() => setSelectedPayment(null)} aria-label='Close receipt'>×</button>
             </header>
 
             <div className='pm-receipt-body'>

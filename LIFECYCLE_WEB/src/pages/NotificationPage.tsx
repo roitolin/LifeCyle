@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import BrandLogo from '@/components/BrandLogo'
-import AccountMobileHeader from '@/components/AccountMobileHeader'
-import LogoutLink from '@/components/LogoutLink'
+import AccountTaskHeader from '@/components/AccountTaskHeader'
 import PageBackButton from '@/components/PageBackButton'
 import { useAlertDialog } from '@/hooks/useAlertDialog'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
@@ -16,7 +14,6 @@ import {
   markNotificationsUnread,
 } from '@/utils/supabaseNotifications'
 import { getNotificationPreferences, isNotificationTypeEnabled } from '@/utils/notificationPreferences'
-import { getProfileAvatar } from '@/utils/profileAvatar'
 import './NotificationPage.css'
 
 type Notification = {
@@ -365,44 +362,11 @@ export default function NotificationPage() {
 
   return (
     <div className="notification-page">
-      <AccountMobileHeader homeTo={notificationReturnPath} />
-      <div className="notification-topbar">
-        <div className="notification-topbar-inner">
-          <div className="notification-topbar-left">
-            <Link to="/seller">Shop Center</Link>
-          </div>
-          <div className="notification-topbar-right">
-            <Link to="/user/notifications" aria-current="page">Notifications</Link>
-            <Link to="/user/help">Help Centre</Link>
-            <span className="notification-topbar-divider">|</span>
-            <div className="notification-user-menu">
-              <div className="notification-user-menu-trigger">
-                <img src={getProfileAvatar(profile?.photoURL, profile?.gender)} alt="Avatar" className="notification-user-avatar" />
-                <span className="notification-user-name">{profile?.fullName || 'User'}</span>
-                <svg className="notification-user-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
-              </div>
-              <div className="notification-user-dropdown">
-                <Link to="/user/profile">My Account</Link>
-                <Link to="/user/requests">My service request</Link>
-                <Link to="/auth/switch-account">Switch Account</Link>
-                <LogoutLink>Log out</LogoutLink>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <header className="notification-header">
-        <div className="notification-header-inner">
-          <BrandLogo to="/" />
-          <div className="notification-header-divider" />
-          <h1>Notifications</h1>
-        </div>
-      </header>
+      <AccountTaskHeader title="Notifications" profile={profile} showShopCenter />
 
       <main className="notification-main">
         <div className="page-back-row notification-page-nav">
-          <PageBackButton to={notificationReturnPath} />
+          <PageBackButton fallbackTo={notificationReturnPath} />
         </div>
 
         <section className={`notification-inbox-toolbar${selectionMode ? ' selecting' : ''}`}>

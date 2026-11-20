@@ -14,7 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "@/utils/permissionImagePicker";
 import { AppBackButton } from "@/components";
-import LoadingBird from "@/components/LoadingBird";
+import LoadingStatus from "@/components/LoadingStatus";
 import { auth, uploadCertificate } from "@/services";
 import { supabase } from "@/services/supabaseClient";
 import { generateId } from "@/utils/generateId";
@@ -179,7 +179,7 @@ export default function FuneralShopPackagesScreen({ navigation }: any) {
   if (loading) {
     return (
       <SafeAreaView style={styles.screen}>
-        <LoadingBird fullScreen />
+        <LoadingStatus label="Loading packages…" fullScreen />
       </SafeAreaView>
     );
   }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import {
   ActivityIndicator,
   Alert,
@@ -175,6 +176,8 @@ function BalancePanel({ request, isShop = false }: Props) {
     });
     return () => subscription.remove();
   }, [syncCheckoutStatus]);
+
+  useRealtimeRefresh([{ table: 'funeral_balance_payments', filter: `request_id=eq.${requestId}` }], () => refresh(false), Boolean(requestId) && !loading);
 
   const current = payments.find((p) => p.status !== 'rejected');
   const latestRejection = !current ? payments[0] : undefined;

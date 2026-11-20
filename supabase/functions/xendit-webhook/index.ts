@@ -1,8 +1,6 @@
 // eslint-disable-next-line import/no-unresolved
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { xenditPayoutChannelCode } from '../_shared/xenditPayoutChannels.ts';
 
-const XENDIT_PAYOUTS_URL = 'https://api.xendit.co/v2/payouts';
 const MAX_BODY_BYTES = 256 * 1024;
 const encoder = new TextEncoder();
 
@@ -53,10 +51,6 @@ function amountValue(value: unknown) {
     return null;
   }
   return cents / 100;
-}
-
-function basicAuth(secretKey: string) {
-  return `Basic ${btoa(`${secretKey}:`)}`;
 }
 
 async function digest(value: string) {
@@ -465,130 +459,6 @@ Deno.serve(async (request) => {
     commissionStatus: result?.commissionStatus || null,
     duplicate: Boolean(result?.duplicate),
   };
-
-  // ── After payment_completed: trigger payout of 70% to shop ──
-  if (event.eventKind === 'payment_completed' && !result?.duplicate && result?.status === 'payment_verified') {
-    const requestId = result?.requestId;
-    const shopNetAmount = result?.shopNetAmount;
-    if (requestId && shopNetAmount && shopNetAmount > 0) {
-      try {
-        const payoutRefId = `lifecycle-payout-${requestId}`;
-        const { data: payoutData, error: payoutError } = await admin.rpc('initiate_shop_payout', {
-          p_request_id: requestId,
-          p_payout_reference_id: payoutRefId,
-        });
-        const payoutInfo = firstRpcRow<any>(payoutData);
-
-        if (payoutError) {
-          console.error('Unable to initiate shop payout:', payoutError.code || 'unknown');
-        } else if (payoutInfo && !payoutInfo.alreadyInitiated && payoutInfo.payoutAmount > 0) {
-          // Call Xendit Payouts API to send 70% to shop
-          const payoutBody = {
-            reference_id: payoutRefId,
-            channel_code: xenditPayoutChannelCode(payoutInfo.payoutChannelCode),
-            channel_properties: {
-              account_holder_name: payoutInfo.payoutAccountName,
-              account_number: payoutInfo.payoutAccountNumber,
-            },
-            amount: payoutInfo.payoutAmount,
-            currency: 'PHP',
-            description: `LifeCycle shop payout (70%) for order ${requestId}`.slice(0, 200),
-            metadata: {
-              purpose: 'lifecycle_shop_payout',
-              request_id: requestId,
-              commission_percent: '30',
-            },
-          };
-
-          const payoutResponse = await fetch(XENDIT_PAYOUTS_URL, {
-            method: 'POST',
-            headers: {
-              Authorization: basicAuth(xenditSecretKey),
-              Accept: 'application/json',
-              'Content-Type': 'application/json',
-              'Idempotency-key': payoutRefId,
-            },
-            body: JSON.stringify(payoutBody),
-          }).catch(() => null);
-
-          const payoutJson = payoutResponse ? await payoutResponse.json().catch(() => null) : null;
-          if (payoutResponse?.ok && payoutJson?.id) {
-            responsePayload.payoutInitiated = true;
-            responsePayload.payoutId = payoutJson.id;
-            console.warn('Shop payout initiated:', payoutJson.id, 'Amount:', payoutInfo.payoutAmount);
-          } else {
-            const payoutErrorCode = String(payoutJson?.error_code || 'payout_failed').slice(0, 80);
-            console.error('Xendit payout creation failed:', payoutErrorCode);
-            responsePayload.payoutInitiated = false;
-            responsePayload.payoutError = payoutErrorCode;
-
-            // Mark failure on the service request
-            await admin
-              .from('funeral_service_requests')
-              .update({
-                payoutStatus: 'failed',
-                payoutFailureCode: payoutErrorCode,
-                updatedAt: new Date().toISOString(),
-              })
-              .eq('id', requestId);
-
-            const formattedPayout = Number(payoutInfo.payoutAmount).toLocaleString('en-PH', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            });
-
-            // 1. Notify Admins immediately
-            const { data: admins } = await admin
-              .from('users')
-              .select('id')
-              .in('role', ['admin', 'super_admin']);
-
-            if (admins && admins.length > 0) {
-              await admin.from('notifications').insert(
-                admins.map((adm: any) => ({
-                  userId: adm.id,
-                  type: 'admin_payout_failed',
-                  title: `ALERT: Shop Payout Failed (₱${formattedPayout})`,
-                  body: `70% payout for order #${requestId.slice(0, 8)} failed to dispatch via Xendit (${payoutErrorCode}). Please check admin balance or shop details.`,
-                  data: {
-                    requestId,
-                    payoutError: payoutErrorCode,
-                    amount: payoutInfo.payoutAmount,
-                  },
-                  read: false,
-                }))
-              );
-            }
-
-            // 2. Notify Shop
-            const { data: reqData } = await admin
-              .from('funeral_service_requests')
-              .select('shopId')
-              .eq('id', requestId)
-              .maybeSingle();
-
-            if (reqData?.shopId) {
-              await admin.from('notifications').insert({
-                userId: reqData.shopId,
-                type: 'shop_payout_failed',
-                title: `Payout Issue: ₱${formattedPayout}`,
-                body: `Your 70% payout of ₱${formattedPayout} for order #${requestId.slice(0, 8)} encountered an issue (${payoutErrorCode}). An administrator will review your account.`,
-                data: {
-                  requestId,
-                  payoutError: payoutErrorCode,
-                  amount: payoutInfo.payoutAmount,
-                },
-                read: false,
-              });
-            }
-          }
-        }
-      } catch (payoutErr) {
-        console.error('Payout initiation error:', payoutErr);
-        responsePayload.payoutInitiated = false;
-      }
-    }
-  }
 
   return jsonResponse(responsePayload);
 });

@@ -169,10 +169,10 @@
   @apply text-[#263246] text-[12px];
 }
 .analytics-donut-layout {
-  @apply min-h-[232px] grid grid-cols-[minmax(120px,150px)_minmax(150px,1fr)] items-center gap-[18px];
+  @apply min-h-[232px] grid grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] items-center gap-[18px];
 }
 .analytics-donut-layout.compact {
-  @apply min-h-[170px] grid-cols-[minmax(95px,120px)_minmax(100px,1fr)] gap-[12px];
+  @apply min-h-[170px] grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] gap-[12px];
 }
 .analytics-donut {
   @apply w-full max-w-[158px] mx-auto my-0;
@@ -295,6 +295,183 @@
 }
 .analytics-finance-list .attention dd {
   @apply text-amber-700;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ANIMATIONS
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── KPI card entrance ───────────────────────────────────────────── */
+.analytics-kpi-animated {
+  @apply min-h-[96px] grid content-center gap-[5px] px-[18px] py-[16px] border-r-[#e7ebf0] border-r border-solid last:border-r-0;
+  animation: kpiSlideUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform, opacity;
+}
+.analytics-kpi-animated:nth-child(1) { animation-delay: 0.06s; }
+.analytics-kpi-animated:nth-child(2) { animation-delay: 0.14s; }
+.analytics-kpi-animated:nth-child(3) { animation-delay: 0.22s; }
+.analytics-kpi-animated:nth-child(4) { animation-delay: 0.30s; }
+
+.analytics-kpi-animated > span {
+  @apply text-[#657188] text-[11px] font-[650];
+}
+.analytics-kpi-animated strong {
+  @apply overflow-hidden text-[#172033] text-[clamp(23px,2.2vw,30px)] font-[760] tracking-[-0.035em] text-ellipsis whitespace-nowrap;
+}
+.analytics-kpi-animated small {
+  @apply text-slate-500 text-[10px] font-[650];
+}
+.analytics-kpi-animated small.up {
+  @apply text-green-700;
+}
+.analytics-kpi-animated small.down {
+  @apply text-amber-700;
+}
+.analytics-kpi-animated small.neutral {
+  @apply text-slate-500;
+}
+
+@keyframes kpiSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ── Card entrance ───────────────────────────────────────────────── */
+.analytics-card-animated {
+  animation: cardFadeUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--card-index, 0) * 0.1s + 0.25s);
+  will-change: transform, opacity;
+}
+
+@keyframes cardFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Line chart draw animation ───────────────────────────────────── */
+.analytics-line-draw {
+  stroke-dasharray: 3000;
+  stroke-dashoffset: 3000;
+  animation: lineDraw 1.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation-delay: 0.35s;
+}
+.analytics-line-draw-delayed {
+  animation-delay: 0.5s;
+}
+
+@keyframes lineDraw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ── Trend area fade in ──────────────────────────────────────────── */
+.analytics-chart .trend-area.analytics-trend-area-animated {
+  opacity: 0;
+  animation: areaFadeIn 1s ease-out both;
+  animation-delay: 0.8s;
+}
+
+@keyframes areaFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.08;
+  }
+}
+
+/* ── Data points pop (cross-browser: uses scale instead of r) ──── */
+.analytics-point-pop {
+  opacity: 0;
+  transform-origin: center center;
+  transform-box: fill-box;
+  animation: pointPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes pointPop {
+  0% {
+    opacity: 0;
+    transform: scale(0);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.3);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ── Table row slide-in ──────────────────────────────────────────── */
+.analytics-row-animated {
+  animation: rowSlideIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform, opacity;
+}
+
+@keyframes rowSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ── Legend / finance row fade ───────────────────────────────────── */
+.analytics-legend-row-animated {
+  animation: legendFadeIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform, opacity;
+}
+
+@keyframes legendFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Respect reduced motion ──────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .analytics-kpi-animated,
+  .analytics-card-animated,
+  .analytics-line-draw,
+  .analytics-trend-area-animated,
+  .analytics-point-pop,
+  .analytics-row-animated,
+  .analytics-legend-row-animated {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    will-change: auto !important;
+  }
+  .analytics-line-draw {
+    stroke-dasharray: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+  .analytics-chart .trend-area.analytics-trend-area-animated {
+    opacity: 0.08 !important;
+    animation: none !important;
+  }
 }
 @media (max-width: 1120px) {
   .analytics-grid-main,

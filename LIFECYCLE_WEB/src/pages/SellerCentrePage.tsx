@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useOutletContext, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
 import { acceptFuneralServiceRequest } from '@/utils/serviceRequestFlow'
 import type { User } from '@supabase/supabase-js'
 import './SellerCentrePage.css'
@@ -9,9 +10,11 @@ import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import { addMonths, daysRemaining, formatSubscriptionDate, SUBSCRIPTION_MONTHS } from '@/utils/subscription'
 import { fetchNotificationsForUser } from '@/utils/supabaseNotifications'
 import { getProfileAvatar } from '@/utils/profileAvatar'
-import XenditShopPaymentCard from '@/components/XenditShopPaymentCard'
 import BrandLogo from '@/components/BrandLogo'
 import PageBackButton from '@/components/PageBackButton'
+import { DashboardSkeleton } from '@/components/ContentSkeleton'
+import RouteLoading from '@/components/RouteLoading'
+import HistoryPagination from '@/components/HistoryPagination'
 import { PAYOUT_CHANNEL_LOGOS } from '@/assets/paymentLogoAssets'
 import {
   createShopScheduleEvent,
@@ -24,6 +27,7 @@ import {
 } from '@/utils/shopSchedule'
 
 const EmbeddedChat = lazy(() => import('@/components/ChatWidget'))
+const XenditShopPaymentCard = lazy(() => import('@/components/XenditShopPaymentCard'))
 
 type ShopInfo = {
   id: string
@@ -160,6 +164,12 @@ type ServiceRequest = {
   providerStatus?: string | null
   providerPaymentCompletedAt?: string | null
   payoutChannelCode?: string | null
+  payoutId?: string | null
+  payoutStatus?: string | null
+  payoutAmount?: number | string | null
+  shopNetAmount?: number | string | null
+  payoutCompletedAt?: string | null
+  payoutFailureCode?: string | null
   completionProofImageUrl?: string | null
   shopMarkedCompletedAt?: string | null
   completionProofSeenAt?: string | null
@@ -199,6 +209,41 @@ type ServiceCustomerProfile = {
   fullName?: string | null
   photoURL?: string | null
   gender?: string | null
+}
+
+type ShopWithdrawalRecord = {
+  id: string
+  shopId: string
+  amount: number | string
+  channelCode: string
+  accountName: string
+  accountNumber: string
+  referenceNo: string
+  payoutId?: string | null
+  status: string
+  failureCode?: string | null
+  createdAt?: string | null
+  completedAt?: string | null
+}
+type WithdrawalHistoryTab = 'all' | 'withdrawals' | 'earnings'
+
+function formatSettlementDate(value: string | null | undefined): string {
+  if (!value) return '—'
+  const parsed = new Date(String(value))
+  if (Number.isNaN(parsed.getTime())) return '—'
+  const month = String(parsed.getMonth() + 1).padStart(2, '0')
+  const day = String(parsed.getDate()).padStart(2, '0')
+  const year = parsed.getFullYear()
+  return `${month}/${day}/${year}`
+}
+
+function formatPesoDecimal(value: number | string | null | undefined): string {
+  const num = Number(value)
+  const clean = Number.isFinite(num) ? num : 0
+  return new Intl.NumberFormat('en-PH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(clean)
 }
 
 async function notifyShopFollowersOnNewProduct(
@@ -280,6 +325,7 @@ type ShopPayoutAccount = {
   channelCode: string
   accountName: string
   accountNumber: string
+  accountEmail?: string | null
   active: boolean
   verifiedByAdmin: boolean
   verifiedAt: string | null
@@ -313,7 +359,15 @@ type FamilyPaymentReceipt = {
   icon: FamilyPaymentIconName
   source: 'uploaded' | 'provider' | 'missing'
 }
-type SellerCentreTab = 'dashboard' | 'messages' | 'products' | 'packages' | 'orders' | 'customers' | 'calendar' | 'reports' | 'payments' | 'payout_accounts' | 'payout_account_setup' | 'admin_payments' | 'settings' | 'registered_information' | 'product_editor'
+type SellerCentreTab = 'dashboard' | 'messages' | 'products' | 'packages' | 'orders' | 'customers' | 'calendar' | 'reports' | 'payments' | 'withdrawals' | 'withdraw_funds' | 'withdrawal_details' | 'withdrawal_export_history' | 'payout_accounts' | 'payout_account_setup' | 'admin_payments' | 'settings' | 'registered_information' | 'product_editor'
+type WithdrawalExportRecord = {
+  id: string
+  exportedAt: string
+  categoryLabel: string
+  rowCount: number
+  fileName: string
+  csvContent: string
+}
 type ScheduleFilter = 'all' | 'requests' | 'shop'
 
 type ScheduleItem = {
@@ -371,6 +425,32 @@ const SHOP_PAYOUT_CHANNELS = [
   { value: 'PH_CHINABANK', label: 'China Banking Corporation', type: 'bank' },
   { value: 'PH_SECURITYBANK', label: 'Security Bank', type: 'bank' },
 ] as const
+const BANK_PAYOUT_CHANNELS = SHOP_PAYOUT_CHANNELS.filter(channel => channel.type === 'bank')
+const BANK_PAYOUT_CHANNEL_CODES = new Set<string>(BANK_PAYOUT_CHANNELS.map(channel => channel.value))
+
+function isPaidXenditSale(request: ServiceRequest) {
+  const status = String(request.status || '').toLowerCase()
+  const provider = String(request.paymentProvider || '').toLowerCase()
+  const isXendit = provider === 'xendit' || Boolean(request.providerPaymentCompletedAt)
+  return isXendit && (
+    ['payment_verified', 'awaiting_customer_confirmation', 'completed'].includes(status)
+    || Boolean(request.paymentVerifiedAt)
+    || Boolean(request.providerPaymentCompletedAt)
+  )
+}
+
+function getShopSalePayoutAmount(request: ServiceRequest) {
+  const explicitAmount = Number(request.payoutAmount ?? request.shopNetAmount ?? 0)
+  if (explicitAmount > 0) return explicitAmount
+  const isDownpayment = String(request.paymentOption || '').toLowerCase() === 'downpayment'
+  const grossPaid = Number(
+    request.paymentAmount
+    || (isDownpayment ? request.downpaymentAmountSnapshot : (request.productFullPrice ?? request.productPrice))
+    || 0
+  )
+  return grossPaid > 0 ? Math.round(grossPaid * 0.7 * 100) / 100 : 0
+}
+
 const XENDIT_PAYMENT_METHOD_LABELS: Record<string, string> = {
   CARDS: 'Cards (Visa, Mastercard, JCB)', CARD: 'Cards (Visa, Mastercard, JCB)',
   CREDIT_CARD: 'Cards (Visa, Mastercard, JCB)', GCASH: 'GCash', PAYMAYA: 'Maya',
@@ -470,6 +550,18 @@ function formatPeso(value: number | string | null | undefined): string {
   const num = Number(String(value ?? '').replace(/[^\d.]/g, ''))
   if (!Number.isFinite(num) || num <= 0) return value ? String(value) : '—'
   return `₱${new Intl.NumberFormat('en-PH', { maximumFractionDigits: 0 }).format(num)}`
+}
+
+function formatAmountInputWithCommas(raw: string): string {
+  const sanitized = raw.replace(/[^0-9.]/g, '')
+  if (!sanitized) return ''
+  const [rawInt = '', ...decParts] = sanitized.split('.')
+  const normalizedInt = rawInt.replace(/^0+(?=\d)/, '')
+  const formattedInt = (normalizedInt || (rawInt ? '0' : '')).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  if (decParts.length > 0) {
+    return `${formattedInt || '0'}.${decParts.join('').slice(0, 2)}`
+  }
+  return formattedInt
 }
 
 function isCustomCasketRequest(request: ServiceRequest): boolean {
@@ -775,22 +867,25 @@ export default function SellerCentrePage() {
   const [searchParams] = useSearchParams()
   const { openAlert, alertDialog } = useAlertDialog()
   const { openConfirm, confirmDialog } = useConfirmDialog()
-  const [user, setUser] = useState<User | null>(null)
-  const [authReady, setAuthReady] = useState(false)
+  const user = useOutletContext<User | null>()
+  const userId = user?.id
+  const userEmail = user?.email ?? ''
   const [shop, setShop] = useState<ShopInfo | null>(null)
   const [products, setProducts] = useState<ShopProduct[]>([])
   const [packages, setPackages] = useState<ShopPackage[]>([])
   const [requests, setRequests] = useState<ServiceRequest[]>([])
+  const [withdrawalSales, setWithdrawalSales] = useState<ServiceRequest[]>([])
   const [customerProfiles, setCustomerProfiles] = useState<Record<string, ServiceCustomerProfile>>({})
   const [activeTab, setActiveTab] = useState<SellerCentreTab>(() => {
     const requestedTab = searchParams.get('tab')
-    if (requestedTab === 'messages' || requestedTab === 'orders' || requestedTab === 'settings' || requestedTab === 'registered_information') {
+    if (requestedTab === 'messages' || requestedTab === 'orders' || requestedTab === 'settings' || requestedTab === 'registered_information' || requestedTab === 'withdrawals') {
       return requestedTab
     }
     return 'dashboard'
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const loadController = useRef<AbortController | null>(null)
   const [productTab, setProductTab] = useState<'all' | 'live' | 'soldout'>('all')
   const [saving, setSaving] = useState(false)
   const [uploadingShopProfile, setUploadingShopProfile] = useState(false)
@@ -802,8 +897,17 @@ export default function SellerCentrePage() {
     address: '',
     phone: '',
   })
-  const [payoutDraft, setPayoutDraft] = useState({ channel: '', name: '', number: '' })
+  const [payoutDraft, setPayoutDraft] = useState({ channel: '', name: '', number: '', email: '' })
   const [payoutAccounts, setPayoutAccounts] = useState<ShopPayoutAccount[]>([])
+  const [shopWithdrawals, setShopWithdrawals] = useState<ShopWithdrawalRecord[]>([])
+  const [withdrawalAmountDraft, setWithdrawalAmountDraft] = useState('')
+  const [withdrawingCustom, setWithdrawingCustom] = useState(false)
+  const [withdrawalHistoryTab, setWithdrawalHistoryTab] = useState<WithdrawalHistoryTab>('withdrawals')
+  const [settlementDateFilter, setSettlementDateFilter] = useState('')
+  const [withdrawalHistoryPage, setWithdrawalHistoryPage] = useState(1)
+  const [withdrawalHistoryPageSize, setWithdrawalHistoryPageSize] = useState(10)
+  const [selectedWithdrawalDetailId, setSelectedWithdrawalDetailId] = useState<string | null>(null)
+  const [withdrawalExportHistory, setWithdrawalExportHistory] = useState<WithdrawalExportRecord[]>([])
   const [savingPayout, setSavingPayout] = useState(false)
   const [resendingPayoutCode, setResendingPayoutCode] = useState(false)
   const [payoutVerification, setPayoutVerification] = useState<PayoutChangeVerification | null>(null)
@@ -840,7 +944,7 @@ export default function SellerCentrePage() {
 
   useEffect(() => {
     const requestedTab = searchParams.get('tab')
-    if (requestedTab === 'messages' || requestedTab === 'orders' || requestedTab === 'settings' || requestedTab === 'registered_information') {
+    if (requestedTab === 'messages' || requestedTab === 'orders' || requestedTab === 'settings' || requestedTab === 'registered_information' || requestedTab === 'withdrawals') {
       setActiveTab(requestedTab)
     }
   }, [searchParams])
@@ -1145,10 +1249,11 @@ export default function SellerCentrePage() {
     const channel = payoutDraft.channel.trim().toUpperCase()
     const accountName = payoutDraft.name.trim()
     const accountNumber = payoutDraft.number.trim().replace(/[\s-]+/g, '')
+    const accountEmail = (payoutDraft.email.trim() || user.email || '').toLowerCase()
     const validChannel = SHOP_PAYOUT_CHANNELS.some(item => item.value === channel)
 
     if (!validChannel) {
-      openAlert({ title: 'Select a Payout Account', message: 'Choose an e-wallet or supported bank account.', tone: 'warning', okLabel: 'Got It' })
+      openAlert({ title: 'Select a Bank', message: 'Please choose a bank from the dropdown.', tone: 'warning', okLabel: 'Got It' })
       return
     }
     if (accountName.length < 2 || accountName.length > 120) {
@@ -1156,7 +1261,11 @@ export default function SellerCentrePage() {
       return
     }
     if (accountNumber.length < 4 || accountNumber.length > 30) {
-      openAlert({ title: 'Check Account Number', message: 'Enter a valid GCash, Maya, or bank account number.', tone: 'warning', okLabel: 'Got It' })
+      openAlert({ title: 'Check Account Number', message: 'Enter a valid bank account number.', tone: 'warning', okLabel: 'Got It' })
+      return
+    }
+    if (!accountEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(accountEmail)) {
+      openAlert({ title: 'Check Email', message: 'Enter a valid email address.', tone: 'warning', okLabel: 'Got It' })
       return
     }
 
@@ -1169,6 +1278,7 @@ export default function SellerCentrePage() {
           payoutChannelCode: channel,
           payoutAccountName: accountName,
           payoutAccountNumber: accountNumber,
+          payoutAccountEmail: accountEmail,
         },
       })
 
@@ -1181,7 +1291,7 @@ export default function SellerCentrePage() {
         typeof data.maskedEmail === 'string' &&
         typeof data.expiresAt === 'string'
       ) {
-        setPayoutDraft({ channel, name: accountName, number: accountNumber })
+        setPayoutDraft({ channel, name: accountName, number: accountNumber, email: accountEmail })
         setPayoutVerification({
           challengeId: data.challengeId,
           maskedEmail: data.maskedEmail,
@@ -1192,10 +1302,10 @@ export default function SellerCentrePage() {
         return
       }
       if (!data || data.shopId !== shop.id || (data.reviewPending !== true && data.unchanged !== true)) {
-        throw new Error('The test receiver could not be submitted.')
+        throw new Error('The payout account could not be submitted.')
       }
 
-      setPayoutDraft({ channel, name: accountName, number: accountNumber })
+      setPayoutDraft({ channel, name: accountName, number: accountNumber, email: accountEmail })
       if (!data.unchanged) {
         setShop(current => current ? {
           ...current,
@@ -1312,7 +1422,8 @@ export default function SellerCentrePage() {
       channel: account.channelCode,
       name: account.accountName,
       number: account.accountNumber,
-    } : { channel: channelCode || '', name: '', number: '' })
+      email: account.accountEmail || user?.email || '',
+    } : { channel: channelCode || '', name: '', number: '', email: user?.email || '' })
     setPayoutVerification(null)
     setPayoutVerificationCode('')
     setPayoutResendCooldown(0)
@@ -1347,6 +1458,86 @@ export default function SellerCentrePage() {
     } finally {
       setSavingPayout(false)
     }
+  }
+
+  const requestCustomWithdrawal = () => {
+    const payoutAccount = selectedWithdrawalBank
+    if (!payoutAccount) {
+      if (bankPayoutAccounts.length > 0) setActiveTab('payout_accounts')
+      else openPayoutAccountEditor()
+      return
+    }
+    if (withdrawingCustom) return
+    const cleaned = withdrawalAmountDraft.replace(/[^\d.]/g, '')
+    const amount = Math.round((Number(cleaned) || 0) * 100) / 100
+    if (availableWithdrawalBalance <= 0) {
+      openAlert({
+        title: 'No Available Balance',
+        message: 'You currently have no available balance to withdraw.',
+        tone: 'warning',
+        okLabel: 'Got It',
+      })
+      return
+    }
+    if (amount <= 0) {
+      openAlert({
+        title: 'Enter Amount',
+        message: 'Type how much you want to withdraw before submitting.',
+        tone: 'warning',
+        okLabel: 'Got It',
+      })
+      return
+    }
+    if (amount > availableWithdrawalBalance + 0.009) {
+      openAlert({
+        title: 'Amount Exceeds Balance',
+        message: `Enter an amount up to your available balance of ₱${formatPesoDecimal(availableWithdrawalBalance)}.`,
+        tone: 'warning',
+        okLabel: 'Got It',
+      })
+      return
+    }
+    const bank = getPayoutChannelLabel(payoutAccount.channelCode)
+
+    openConfirm({
+      title: 'Confirm withdrawal?',
+      message: `Request a withdrawal of ₱${formatPesoDecimal(amount)} to your selected bank account.`,
+      details: [`${bank} · ${payoutAccount.accountName} · ${maskPayoutAccount(payoutAccount.accountNumber)}`],
+      confirmLabel: 'Withdraw',
+      pendingLabel: 'Requesting withdrawal…',
+      tone: 'success',
+      onConfirm: async () => {
+        setWithdrawingCustom(true)
+        try {
+          const { data, error: functionError } = await supabase.functions.invoke('request-shop-payout', {
+            body: { amount, payoutChannelCode: payoutAccount.channelCode },
+          })
+          if (functionError) throw new Error(await getPayoutFunctionError(functionError, 'Unable to request this withdrawal.'))
+          if (data?.accepted !== true) throw new Error(data?.error || 'Xendit did not accept the withdrawal request.')
+
+          setWithdrawalAmountDraft('')
+          setWithdrawalHistoryTab('withdrawals')
+          setWithdrawalHistoryPage(1)
+          setActiveTab('withdrawals')
+          await loadData()
+          openAlert({
+            title: 'Withdrawal Transferred',
+            message: `₱${formatPesoDecimal(amount)} was submitted to your bank account.${data.referenceNo ? ` Reference No. ${data.referenceNo}` : ''}`,
+            tone: 'info',
+            okLabel: 'Done',
+          })
+        } catch (err: unknown) {
+          openAlert({
+            title: 'Withdrawal not completed',
+            message: err instanceof Error ? err.message : 'Please refresh and try again.',
+            tone: 'danger',
+            okLabel: 'Dismiss',
+          })
+        } finally {
+          setWithdrawingCustom(false)
+        }
+      },
+    })
   }
 
   const handleCompletionProofFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1584,44 +1775,6 @@ export default function SellerCentrePage() {
   }
 
   useEffect(() => {
-    let mounted = true
-    void supabase.auth.getSession()
-      .then(({ data }) => {
-        if (!mounted) return
-        setUser(data.session?.user ?? null)
-        if (!data.session?.user) setLoading(false)
-      })
-      .catch(() => {
-        if (!mounted) return
-        setUser(null)
-        setLoading(false)
-        setError('Your session could not be checked. Refresh the page and try again.')
-      })
-      .finally(() => {
-        if (mounted) setAuthReady(true)
-      })
-    const { data: l } = supabase.auth.onAuthStateChange((_, s) => {
-      if (!mounted) return
-      setUser(s?.user ?? null)
-      setAuthReady(true)
-      if (!s?.user) setLoading(false)
-    })
-    return () => {
-      mounted = false
-      l.subscription.unsubscribe()
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!authReady || !user || !loading) return
-    const timeout = window.setTimeout(() => {
-      setLoading(false)
-      setError('The Shop Centre is taking too long to load. Check your connection, then retry.')
-    }, 20_000)
-    return () => window.clearTimeout(timeout)
-  }, [authReady, loading, user])
-
-  useEffect(() => {
     if (!user) return
     let active = true
     const load = async () => {
@@ -1662,51 +1815,111 @@ export default function SellerCentrePage() {
     }
   }
 
-  const loadData = useCallback(async () => {
-    const userId = user?.id
-    if (!userId) return
-    setError(null)
+  const loadData = useCallback(async (background = false) => {
+    if (!userId || (background && loadController.current)) return
+    loadController.current?.abort()
+    const controller = new AbortController()
+    const { signal } = controller
+    loadController.current = controller
+    const timeout = window.setTimeout(() => {
+      if (signal.aborted) return
+      controller.abort()
+      setLoading(false)
+      if (!background) setError('The Shop Centre is taking too long to load. Check your connection, then retry.')
+    }, 20_000)
+    if (!background) setError(null)
     try {
       const { data: shopData, error: shopErr } = await supabase
         .from('funeral_shops')
         .select('*')
         .eq('id', userId)
+        .abortSignal(signal)
         .maybeSingle()
+      if (signal.aborted) return
       if (shopErr) throw shopErr
 
       setShop(shopData ?? null)
-      setPayoutDraft({
+      if (!background) setPayoutDraft({
         channel: String(shopData?.payoutChannelCode || ''),
         name: String(shopData?.payoutAccountName || ''),
         number: String(shopData?.payoutAccountNumber || ''),
+        email: userEmail,
       })
-      const { data: payoutAccountData, error: payoutAccountError } = await supabase
-        .from('funeral_shop_payout_accounts')
-        .select('id, "shopId", "channelCode", "accountName", "accountNumber", active, "verifiedByAdmin", "verifiedAt", "createdAt", "updatedAt"')
-        .eq('shopId', userId)
-        .order('createdAt', { ascending: true })
+      if (!shopData || shopData.status === 'pending' || shopData.status === 'rejected') return
+
+      const loadOrders = async () => {
+        const { data } = await supabase
+          .from('funeral_service_requests')
+          .select('*')
+          .eq('shopId', userId)
+          .order('createdAt', { ascending: false })
+          .limit(250)
+          .abortSignal(signal)
+        const orders = dedupeServiceRequests((data ?? []) as ServiceRequest[])
+        const requesterIds = [...new Set(orders.map(request => request.requesterId).filter(Boolean))]
+        if (signal.aborted || requesterIds.length === 0) return { orders, profiles: {} }
+
+        const { data: profileData, error: profileError } = await supabase
+          .rpc('get_service_customer_profiles', { target_ids: requesterIds })
+          .abortSignal(signal)
+        if (profileError && !signal.aborted) console.warn('Unable to load customer profile pictures:', profileError)
+        const profiles = Object.fromEntries(((profileData ?? []) as ServiceCustomerProfile[]).map(profile => [profile.id, profile]))
+        return { orders, profiles }
+      }
+
+      const loadWithdrawalSales = async () => {
+        const sales: ServiceRequest[] = []
+        const pageSize = 500
+        for (let offset = 0; !signal.aborted; offset += pageSize) {
+          const { data, error: pageError } = await supabase
+            .from('funeral_service_requests')
+            .select('id, "shopId", "productName", "deceasedFullName", status, "paymentOption", "downpaymentAmountSnapshot", "productPrice", "productFullPrice", "paymentAmount", "paymentVerifiedAt", "paymentReferenceNumber", "paymentProvider", "providerReferenceId", "providerPaymentCompletedAt", "payoutChannelCode", "payoutId", "payoutStatus", "payoutAmount", "shopNetAmount", "payoutCompletedAt", "payoutFailureCode", "createdAt"')
+            .eq('shopId', userId)
+            .eq('paymentProvider', 'xendit')
+            .in('status', ['payment_verified', 'paid_waiting_for_split', 'awaiting_customer_confirmation', 'completed'])
+            .order('createdAt', { ascending: false })
+            .order('id')
+            .range(offset, offset + pageSize - 1)
+            .abortSignal(signal)
+          if (pageError) throw pageError
+          sales.push(...((data ?? []) as ServiceRequest[]))
+          if ((data?.length ?? 0) < pageSize) break
+        }
+        return sales.filter(isPaidXenditSale)
+      }
+
+      const [payoutResult, paymentResult, productsResult, packagesResult, orderResult, sales, withdrawalsResult] = await Promise.all([
+        supabase.from('funeral_shop_payout_accounts')
+          .select('id, "shopId", "channelCode", "accountName", "accountNumber", "accountEmail", active, "verifiedByAdmin", "verifiedAt", "createdAt", "updatedAt"')
+          .eq('shopId', userId).order('createdAt', { ascending: true }).abortSignal(signal),
+        supabase.from('shop_payments')
+          .select('id, status, amount, "createdAt", "verifiedAt", "expiresAt"')
+          .eq('shopId', userId).order('createdAt', { ascending: false }).limit(1).abortSignal(signal).maybeSingle(),
+        supabase.from('funeral_products')
+          .select(`
+            id, name, description, price, stock, "imageUrl", active, "hasVariations", "downpaymentEnabled", "downpaymentAmount", "downpaymentPercentage", "createdAt", "updatedAt",
+            funeral_product_variations ( id )
+          `)
+          .eq('shopId', userId).order('createdAt', { ascending: false }).abortSignal(signal),
+        supabase.from('funeral_shop_packages')
+          .select('id, "shopId", items, "flowersImageUrl", "candlesImageUrl", "curtainsImageUrl", "vehicleImageUrl", active, "createdAt", "updatedAt"')
+          .eq('shopId', userId).abortSignal(signal).maybeSingle(),
+        loadOrders(),
+        loadWithdrawalSales(),
+        supabase.from('shop_withdrawals')
+          .select('id, "shopId", amount, "channelCode", "accountName", "accountNumber", "referenceNo", "payoutId", status, "failureCode", "createdAt", "completedAt"')
+          .eq('shopId', userId).order('createdAt', { ascending: false }).abortSignal(signal),
+      ])
+      if (signal.aborted) return
+
+      const { data: payoutAccountData, error: payoutAccountError } = payoutResult
       if (payoutAccountError) throw payoutAccountError
       setPayoutAccounts(((payoutAccountData || []) as ShopPayoutAccount[]).filter(account =>
         SHOP_PAYOUT_CHANNELS.some(channel => channel.value === account.channelCode)
       ))
+      setPayment((paymentResult.data as ShopPayment | null) ?? null)
 
-      const { data: paymentData } = await supabase
-        .from('shop_payments')
-        .select('id, status, amount, "createdAt", "verifiedAt", "expiresAt"')
-        .eq('shopId', userId)
-        .order('createdAt', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      setPayment((paymentData as ShopPayment | null) ?? null)
-
-      const { data: productsData, error: productsErr } = await supabase
-        .from('funeral_products')
-        .select(`
-          id, name, description, price, stock, "imageUrl", active, "hasVariations", "downpaymentEnabled", "downpaymentAmount", "downpaymentPercentage", "createdAt", "updatedAt",
-          funeral_product_variations ( id )
-        `)
-        .eq('shopId', userId)
-        .order('createdAt', { ascending: false })
+      const { data: productsData, error: productsErr } = productsResult
       if (productsErr) throw productsErr
 
       const prods: ShopProduct[] = (productsData ?? []).map((row: any) => ({
@@ -1728,11 +1941,7 @@ export default function SellerCentrePage() {
       }))
       setProducts(prods)
 
-      const { data: packagesData, error: packagesErr } = await supabase
-        .from('funeral_shop_packages')
-        .select('id, "shopId", items, "flowersImageUrl", "candlesImageUrl", "curtainsImageUrl", "vehicleImageUrl", active, "createdAt", "updatedAt"')
-        .eq('shopId', userId)
-        .maybeSingle()
+      const { data: packagesData, error: packagesErr } = packagesResult
       if (packagesErr) throw packagesErr
       setPackages(packagesData ? [{
         id: String((packagesData as any).id),
@@ -1747,43 +1956,30 @@ export default function SellerCentrePage() {
         updatedAt: (packagesData as any).updatedAt ?? null,
       }] : [])
 
-      const [reqData] = await Promise.all([
-        supabase
-          .from('funeral_service_requests')
-          .select('*')
-          .eq('shopId', userId)
-          .order('createdAt', { ascending: false })
-          .limit(250),
-      ])
-
-      const reqs = dedupeServiceRequests((reqData?.data ?? []) as ServiceRequest[])
-      setRequests(reqs)
-
-      const requesterIds = [...new Set(reqs.map(request => request.requesterId).filter(Boolean))]
-      if (requesterIds.length > 0) {
-        const { data: customerProfileData, error: customerProfileError } = await supabase
-          .rpc('get_service_customer_profiles', { target_ids: requesterIds })
-        if (customerProfileError) {
-          console.warn('Unable to load customer profile pictures:', customerProfileError)
-          setCustomerProfiles({})
-        } else {
-          const profileEntries = ((customerProfileData ?? []) as ServiceCustomerProfile[])
-            .map(profile => [profile.id, profile] as const)
-          setCustomerProfiles(Object.fromEntries(profileEntries))
-        }
-      } else {
-        setCustomerProfiles({})
-      }
-      setError(null)
+      setRequests(orderResult.orders)
+      setCustomerProfiles(orderResult.profiles)
+      setShopWithdrawals(withdrawalsResult.error ? [] : ((withdrawalsResult.data || []) as ShopWithdrawalRecord[]))
+      setWithdrawalSales(sales)
 
     } catch (e: any) {
-      setError(e?.message ?? 'Unable to load shop data.')
+      if (!signal.aborted && !background) setError(e?.message ?? 'Unable to load shop data.')
     } finally {
-      setLoading(false)
+      window.clearTimeout(timeout)
+      if (!signal.aborted) setLoading(false)
+      if (loadController.current === controller) loadController.current = null
     }
-  }, [user?.id])
+  }, [userId, userEmail])
 
-  useEffect(() => { if (user?.id) void loadData() }, [user?.id, loadData])
+  useEffect(() => {
+    void loadData()
+    return () => loadController.current?.abort()
+  }, [loadData])
+
+  useRealtimeRefresh([
+    { table: 'funeral_service_requests', filter: `shopId=eq.${userId}` },
+    { table: 'shop_payments', filter: `shopId=eq.${userId}` },
+    { table: 'shop_withdrawals', filter: `shopId=eq.${userId}` },
+  ], () => loadData(true), Boolean(userId) && !loading)
 
   const openProductDetail = useCallback(async (product: ShopProduct) => {
     setSelectedProduct(product)
@@ -2581,6 +2777,175 @@ export default function SellerCentrePage() {
     )
   }, [paymentSubmissions])
 
+  const bankPayoutAccounts = useMemo(
+    () => payoutAccounts.filter(account => BANK_PAYOUT_CHANNEL_CODES.has(account.channelCode)),
+    [payoutAccounts]
+  )
+  const activeVerifiedBankAccounts = useMemo(
+    () => bankPayoutAccounts.filter(account => account.active && account.verifiedByAdmin),
+    [bankPayoutAccounts]
+  )
+  const selectedWithdrawalBank = activeVerifiedBankAccounts.find(account => account.channelCode === shop?.payoutChannelCode)
+    || activeVerifiedBankAccounts[0]
+    || null
+  const availableWithdrawalBalance = useMemo(() => {
+    const totalEarned = Math.round(withdrawalSales.reduce((sum, sale) => sum + getShopSalePayoutAmount(sale), 0) * 100) / 100
+    const activeWithdrawals = shopWithdrawals.filter(
+      w => !['failed', 'cancelled', 'reversed'].includes(String(w.status || '').toLowerCase())
+    )
+    const recordedPayoutIds = new Set(activeWithdrawals.map(w => String(w.payoutId || '')).filter(Boolean))
+    const legacyWithdrawn = withdrawalSales
+      .filter(s => {
+        const pId = String(s.payoutId || '')
+        const pStatus = String(s.payoutStatus || '').toLowerCase()
+        return Boolean(pId) && !recordedPayoutIds.has(pId) && !['failed', 'cancelled', 'reversed'].includes(pStatus)
+      })
+      .reduce((sum, sale) => sum + getShopSalePayoutAmount(sale), 0)
+    const withdrawnFromTable = activeWithdrawals.reduce((sum, w) => sum + (Number(w.amount) || 0), 0)
+    return Math.max(0, Math.round((totalEarned - (withdrawnFromTable + legacyWithdrawn)) * 100) / 100)
+  }, [withdrawalSales, shopWithdrawals])
+
+  const allWithdrawalDetailRows = useMemo(() => {
+    const withdrawalItems = shopWithdrawals.map(w => {
+      const ts = w.completedAt || w.createdAt || null
+      return {
+        id: `w-${w.id}`,
+        kind: 'withdrawal' as const,
+        timestamp: ts,
+        dateText: formatSettlementDate(ts),
+        fullTimeText: formatTimestamp(ts),
+        isoDate: String(ts || '').slice(0, 10),
+        amount: Number(w.amount) || 0,
+        status: String(w.status || 'transferred').toLowerCase(),
+        referenceNo: String(w.referenceNo || '—'),
+        title: `${getPayoutChannelLabel(w.channelCode)} · ${maskPayoutAccount(w.accountNumber)}`,
+        bankName: getPayoutChannelLabel(w.channelCode),
+        accountName: w.accountName || '—',
+        accountNumber: maskPayoutAccount(w.accountNumber),
+        failureCode: w.failureCode || null,
+        serviceName: null as string | null,
+        customerName: null as string | null,
+        paymentTypeLabel: null as string | null,
+      }
+    })
+    const earningItems = withdrawalSales.map(sale => {
+      const ts = sale.payoutCompletedAt || sale.providerPaymentCompletedAt || sale.paymentVerifiedAt || sale.createdAt || null
+      const isDownpayment = String(sale.paymentOption || '').toLowerCase() === 'downpayment'
+      return {
+        id: `e-${sale.id}`,
+        kind: 'earning' as const,
+        timestamp: ts,
+        dateText: formatSettlementDate(ts),
+        fullTimeText: formatTimestamp(ts),
+        isoDate: String(ts || '').slice(0, 10),
+        amount: getShopSalePayoutAmount(sale),
+        status: 'credited',
+        referenceNo: String(sale.paymentReferenceNumber || sale.providerReferenceId || sale.id.replace(/\D/g, '').slice(0, 19) || sale.id.slice(0, 12)),
+        title: String(sale.productName || 'Service sale'),
+        bankName: null as string | null,
+        accountName: null as string | null,
+        accountNumber: null as string | null,
+        failureCode: null as string | null,
+        serviceName: String(sale.productName || 'Funeral service'),
+        customerName: String(sale.paymentPayerName || sale.familyCoordinatorName || sale.deceasedFullName || 'Customer'),
+        paymentTypeLabel: isDownpayment ? 'Downpayment (70% net share)' : 'Full payment (70% net share)',
+      }
+    })
+    return [...withdrawalItems, ...earningItems].sort(
+      (a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()
+    )
+  }, [shopWithdrawals, withdrawalSales])
+
+  const selectedWithdrawalDetailItem = useMemo(
+    () => allWithdrawalDetailRows.find(item => item.id === selectedWithdrawalDetailId) || allWithdrawalDetailRows[0] || null,
+    [allWithdrawalDetailRows, selectedWithdrawalDetailId]
+  )
+
+  const withdrawalHistoryRows = useMemo(() => {
+    const combined = withdrawalHistoryTab === 'withdrawals'
+      ? allWithdrawalDetailRows.filter(item => item.kind === 'withdrawal')
+      : withdrawalHistoryTab === 'earnings'
+        ? allWithdrawalDetailRows.filter(item => item.kind === 'earning')
+        : allWithdrawalDetailRows
+
+    const filterVal = settlementDateFilter.trim().toLowerCase()
+    if (!filterVal) return combined
+    return combined.filter(
+      row =>
+        row.isoDate.toLowerCase().includes(filterVal) ||
+        row.dateText.toLowerCase().includes(filterVal) ||
+        row.referenceNo.toLowerCase().includes(filterVal) ||
+        row.title.toLowerCase().includes(filterVal)
+    )
+  }, [allWithdrawalDetailRows, settlementDateFilter, withdrawalHistoryTab])
+
+  const totalWithdrawalHistoryPages = Math.max(1, Math.ceil(withdrawalHistoryRows.length / withdrawalHistoryPageSize))
+  const safeWithdrawalHistoryPage = Math.min(withdrawalHistoryPage, totalWithdrawalHistoryPages)
+  const pagedWithdrawalHistoryRows = useMemo(() => {
+    const start = (safeWithdrawalHistoryPage - 1) * withdrawalHistoryPageSize
+    return withdrawalHistoryRows.slice(start, start + withdrawalHistoryPageSize)
+  }, [safeWithdrawalHistoryPage, withdrawalHistoryPageSize, withdrawalHistoryRows])
+
+  const triggerCsvDownload = (fileName: string, csvContent: string) => {
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = fileName
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
+
+  const exportWithdrawalHistory = () => {
+    if (withdrawalHistoryRows.length === 0) {
+      openAlert({
+        title: 'Nothing to Export',
+        message: 'There are no transactions matching the current filter to export.',
+        tone: 'info',
+      })
+      return
+    }
+
+    const escapeCsv = (val: string) => `"${String(val || '').replace(/"/g, '""')}"`
+    const header = ['Time', 'Type', 'Description', 'Amount (PHP)', 'Status', 'Reference No.'].join(',')
+    const lines = withdrawalHistoryRows.map(row => {
+      const isWithdrawal = row.kind === 'withdrawal'
+      const amountStr = isWithdrawal
+        ? `-${formatPesoDecimal(row.amount)}`
+        : `+${formatPesoDecimal(row.amount)}`
+      return [
+        escapeCsv(row.dateText),
+        escapeCsv(isWithdrawal ? 'Withdrawal' : 'Earning'),
+        escapeCsv(row.title),
+        escapeCsv(amountStr),
+        escapeCsv(row.status),
+        escapeCsv(row.referenceNo),
+      ].join(',')
+    })
+    const csvContent = [header, ...lines].join('\n')
+    const dateStamp = new Date().toISOString().slice(0, 10)
+    const categoryLabel =
+      withdrawalHistoryTab === 'withdrawals'
+        ? 'Withdrawals'
+        : withdrawalHistoryTab === 'earnings'
+          ? 'Earnings'
+          : 'All'
+    const fileName = `withdrawals-${withdrawalHistoryTab}-${dateStamp}.csv`
+
+    const record: WithdrawalExportRecord = {
+      id: `exp-${Date.now()}`,
+      exportedAt: formatTimestamp(new Date().toISOString()),
+      categoryLabel,
+      rowCount: withdrawalHistoryRows.length,
+      fileName,
+      csvContent,
+    }
+    setWithdrawalExportHistory(prev => [record, ...prev])
+    triggerCsvDownload(fileName, csvContent)
+  }
+
   const visibleFamilyPayments = useMemo(() => {
     if (familyPaymentFilter === 'review') {
       return paymentSubmissions.filter(request => String(request.status || '').toLowerCase() === 'payment_submitted')
@@ -2616,13 +2981,10 @@ export default function SellerCentrePage() {
 
   const isLoggedIn = Boolean(user)
 
-  if (!authReady || (loading && !shop)) {
+  if (user && loading && !shop) {
     return (
       <div className="sc-page">
-        <div className="sc-state">
-          <div className="sc-spinner" />
-          <p>Loading your shop centre…</p>
-        </div>
+        <RouteLoading label="Loading shop center…" />
       </div>
     )
   }
@@ -2654,15 +3016,25 @@ export default function SellerCentrePage() {
     return (
       <div className="sc-page">
         <div className="page-back-row sc-status-page-back">
-          <PageBackButton to="/funeral" />
+          <PageBackButton />
         </div>
-        <div className="sc-status-page">
-          <h2>No Shop Registered</h2>
-          <p>You haven't registered a funeral shop yet. Click below to register your shop and start selling on LifeCycle.</p>
-          <div className="sc-status-page-actions">
-            <Link to="/seller/register" className="sc-primary-btn">Register Shop</Link>
+        {error ? (
+          <div className="sc-state sc-state-error" role="alert">
+            <p>{error}</p>
+            <button className="sc-primary-btn" onClick={() => {
+              setLoading(true)
+              void loadData()
+            }}>Retry</button>
           </div>
-        </div>
+        ) : (
+          <div className="sc-status-page">
+            <h2>No Shop Registered</h2>
+            <p>You haven't registered a funeral shop yet. Click below to register your shop and start selling on LifeCycle.</p>
+            <div className="sc-status-page-actions">
+              <Link to="/seller/register" className="sc-primary-btn">Register Shop</Link>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -2671,7 +3043,7 @@ export default function SellerCentrePage() {
     return (
       <div className="sc-page">
         <div className="page-back-row sc-status-page-back">
-          <PageBackButton to="/funeral" />
+          <PageBackButton />
         </div>
         <div className="sc-status-page">
           <h2>Registration Pending</h2>
@@ -2685,7 +3057,7 @@ export default function SellerCentrePage() {
     return (
       <div className="sc-page">
         <div className="page-back-row sc-status-page-back">
-          <PageBackButton to="/funeral" />
+          <PageBackButton />
         </div>
         <div className="sc-status-page">
           <h2>Registration Rejected</h2>
@@ -2923,7 +3295,7 @@ export default function SellerCentrePage() {
               {sidebarExpanded.finance && (
                 <div className="sc-sidebar-sub">
                   <div className={`sc-sidebar-sub-item${activeTab === 'payments' ? ' active' : ''}`} onClick={() => setActiveTab('payments')}>Family Payments</div>
-                  <div className={`sc-sidebar-sub-item${activeTab === 'payout_accounts' || activeTab === 'payout_account_setup' ? ' active' : ''}`} onClick={() => setActiveTab('payout_accounts')}>Payout Accounts</div>
+                  <div className={`sc-sidebar-sub-item${activeTab === 'withdrawals' || activeTab === 'payout_accounts' || activeTab === 'payout_account_setup' ? ' active' : ''}`} onClick={() => setActiveTab('withdrawals')}>Withdrawals</div>
                   <div className={`sc-sidebar-sub-item${activeTab === 'admin_payments' ? ' active' : ''}`} onClick={openAdminPayments}>LifeCycle Payments</div>
                 </div>
               )}
@@ -2955,7 +3327,7 @@ export default function SellerCentrePage() {
         </aside>
 
         {/* Content */}
-        <main className="sc-content-area">
+        <main className={`sc-content-area${activeTab === 'messages' ? ' is-messages-tab' : ''}`}>
           {error && (
             <div className="sc-state sc-state-error">
               <p>{error}</p>
@@ -2963,20 +3335,16 @@ export default function SellerCentrePage() {
             </div>
           )}
 
-          {!loading && !error && !shop && (
-            <div className="sc-state">
-              <h2>No Shop Found</h2>
-              <p>It looks like you haven't registered a funeral shop yet.</p>
-              <Link to="/funeral" className="sc-primary-btn">Go to Marketplace</Link>
-            </div>
-          )}
+          {loading && !error && (activeTab === 'dashboard' || activeTab === 'reports'
+            ? <DashboardSkeleton kind={activeTab === 'reports' ? 'report' : 'seller'} />
+            : <RouteLoading label="Loading shop data…" />)}
 
           {!loading && !error && shop && (
             <div className="sc-content-grid">
               
               {/* DASHBOARD VIEW */}
               {activeTab === 'dashboard' && (
-                <div className="sc-dashboard-overview">
+                <div className="sc-dashboard-overview lc-content-reveal">
                   {/* Shop dashboard header */}
                   <section className="sc-dashboard-hero">
                     <div className="sc-dashboard-hero-main">
@@ -3834,7 +4202,7 @@ export default function SellerCentrePage() {
 
               {/* REPORTS VIEW */}
               {activeTab === 'reports' && (
-                <div className='sc-ops-page'>
+                <div className='sc-ops-page lc-content-reveal'>
                   <div className='sc-section-head'>
                     <div>
                       <h2>Reports</h2>
@@ -3976,78 +4344,121 @@ export default function SellerCentrePage() {
               {/* PACKAGES VIEW */}
               {activeTab === 'packages' && (
                 <div className="sc-packages-layout">
-                  <div className="sc-section-head">
+                  <div className="sc-packages-header">
                     <div>
                       <h2>Packages</h2>
-                      <p className="sc-card-subtitle">Create inclusions with a name and photo. They come with every casket at no separate price.</p>
+                      <p className="sc-card-subtitle">
+                        Create inclusions with a name and photo. They come with every casket at no separate price.
+                      </p>
                     </div>
-                    <button className="sc-primary-btn" disabled={packageSaving || Boolean(uploadingPackageItemId)} onClick={() => void handleSavePackage()}>
-                      {packageSaving ? 'Saving...' : 'Save Package'}
-                    </button>
+                    <div className="sc-packages-header-actions">
+                      <span className="sc-packages-count">
+                        {packageItems.length} / {MAX_PACKAGE_ITEMS}
+                      </span>
+                      <button
+                        type="button"
+                        className="sc-packages-save-btn"
+                        disabled={packageSaving || Boolean(uploadingPackageItemId)}
+                        onClick={() => void handleSavePackage()}
+                      >
+                        {packageSaving ? 'Saving…' : 'Save Package'}
+                      </button>
+                    </div>
                   </div>
 
-                  {packageItems.length === 0 && (
+                  {packageItems.length === 0 ? (
                     <div className="sc-package-empty">
                       <strong>No inclusions yet</strong>
                       <span>Add anything your shop provides. You choose the name and photo.</span>
+                      <button
+                        type="button"
+                        className="sc-packages-add-inline-btn"
+                        disabled={packageSaving || Boolean(uploadingPackageItemId)}
+                        onClick={addPackageItem}
+                      >
+                        + Add Inclusion
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="sc-package-grid">
+                      {packageItems.map((item, index) => {
+                        const imageUrl = item.imageUrl || null
+                        const uploading = uploadingPackageItemId === item.id
+                        return (
+                          <section className="sc-package-tile" key={item.id}>
+                            <div className="sc-package-image-box">
+                              {imageUrl ? (
+                                <img src={imageUrl} alt={item.name || `Inclusion ${index + 1}`} />
+                              ) : uploading ? (
+                                <div className="sc-spinner" />
+                              ) : (
+                                <label className="sc-package-empty-upload">
+                                  <span>Upload photo</span>
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    style={{ display: 'none' }}
+                                    disabled={uploadingPackageItemId !== null || packageSaving}
+                                    onChange={(event) => void handlePackageImageUpload(item.id, event)}
+                                  />
+                                </label>
+                              )}
+                            </div>
+
+                            <div className="sc-package-tile-body">
+                              <label className="sc-package-name-label" htmlFor={`package-name-${item.id}`}>
+                                Inclusion {index + 1}
+                              </label>
+                              <input
+                                id={`package-name-${item.id}`}
+                                className="sc-form-input sc-package-name-input"
+                                type="text"
+                                maxLength={80}
+                                value={item.name}
+                                placeholder="e.g. Memorial flower arrangement"
+                                disabled={packageSaving}
+                                onChange={event => updatePackageItem(item.id, { name: event.target.value })}
+                              />
+                            </div>
+
+                            <div className="sc-package-tile-footer">
+                              <label className="sc-package-upload-link">
+                                {uploading ? 'Uploading…' : imageUrl ? 'Replace photo' : 'Upload photo'}
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  style={{ display: 'none' }}
+                                  disabled={uploadingPackageItemId !== null || packageSaving}
+                                  onChange={(event) => void handlePackageImageUpload(item.id, event)}
+                                />
+                              </label>
+                              <button
+                                type="button"
+                                className="sc-package-remove"
+                                disabled={packageSaving || Boolean(uploadingPackageItemId)}
+                                onClick={() => removePackageItem(item.id)}
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </section>
+                        )
+                      })}
+
+                      {packageItems.length < MAX_PACKAGE_ITEMS && (
+                        <button
+                          type="button"
+                          className="sc-package-add-tile"
+                          disabled={packageSaving || Boolean(uploadingPackageItemId)}
+                          onClick={addPackageItem}
+                        >
+                          <span aria-hidden="true">+</span>
+                          <strong>Add inclusion</strong>
+                          <small>{MAX_PACKAGE_ITEMS - packageItems.length} remaining</small>
+                        </button>
+                      )}
                     </div>
                   )}
-
-                  <div className="sc-package-grid">
-                    {packageItems.map((item, index) => {
-                      const imageUrl = item.imageUrl || null
-                      const uploading = uploadingPackageItemId === item.id
-                      return (
-                        <section className="sc-package-tile" key={item.id}>
-                          <div className="sc-package-tile-head">
-                            <h3>Inclusion {index + 1}</h3>
-                            <button
-                              type="button"
-                              className="sc-package-remove"
-                              disabled={packageSaving || Boolean(uploadingPackageItemId)}
-                              onClick={() => removePackageItem(item.id)}
-                            >
-                              Remove
-                            </button>
-                          </div>
-                          <label className="sc-package-name-label" htmlFor={`package-name-${item.id}`}>What is included?</label>
-                          <input
-                            id={`package-name-${item.id}`}
-                            className="sc-form-input sc-package-name-input"
-                            type="text"
-                            maxLength={80}
-                            value={item.name}
-                            placeholder="e.g. Memorial flower arrangement"
-                            disabled={packageSaving}
-                            onChange={event => updatePackageItem(item.id, { name: event.target.value })}
-                          />
-                          <div className="sc-package-image-box">
-                            {imageUrl ? <img src={imageUrl} alt={item.name || `Inclusion ${index + 1}`} /> : uploading ? <div className="sc-spinner" /> : <span>No picture added</span>}
-                          </div>
-                          <label className="sc-btn sc-btn-secondary sc-package-upload">
-                            {imageUrl ? 'Replace Picture' : 'Upload Picture'}
-                            <input
-                              type="file"
-                              accept="image/*"
-                              style={{ display: 'none' }}
-                              disabled={uploadingPackageItemId !== null || packageSaving}
-                              onChange={(event) => void handlePackageImageUpload(item.id, event)}
-                            />
-                          </label>
-                        </section>
-                      )
-                    })}
-                  </div>
-
-                  <button
-                    type="button"
-                    className="sc-package-add"
-                    disabled={packageSaving || Boolean(uploadingPackageItemId) || packageItems.length >= MAX_PACKAGE_ITEMS}
-                    onClick={addPackageItem}
-                  >
-                    {packageItems.length >= MAX_PACKAGE_ITEMS ? 'Maximum 12 inclusions' : '+ Add Inclusion'}
-                  </button>
-
                 </div>
               )}
 
@@ -4263,6 +4674,559 @@ export default function SellerCentrePage() {
                 </div>
               )}
 
+              {/* SHOP WITHDRAWALS VIEW */}
+              {activeTab === 'withdrawals' && (
+                <div className="sc-withdrawals-layout">
+                  <h2 className="sc-withdrawals-page-title">Withdrawals</h2>
+
+                  <section className="sc-withdrawal-overview" aria-label="Available shop balance">
+                    <div className="sc-withdrawal-balance">
+                      <div className="sc-live-data-head">
+                        <strong>Live Data</strong>
+                        <span>Data updated on {formatTimestamp(new Date().toISOString())}</span>
+                      </div>
+                      <span className="sc-live-data-label">Available to withdraw</span>
+                      <div className="sc-live-data-row">
+                        <div className="sc-live-data-amount">
+                          <span>₱</span>
+                          <strong>{formatPesoDecimal(availableWithdrawalBalance)}</strong>
+                        </div>
+                        <button
+                          type="button"
+                          className="sc-withdraw-open-btn"
+                          disabled={!shopAccountApproved}
+                          onClick={() => {
+                            if (!selectedWithdrawalBank) {
+                              if (bankPayoutAccounts.length > 0) setActiveTab('payout_accounts')
+                              else openPayoutAccountEditor()
+                              return
+                            }
+                            setWithdrawalAmountDraft('')
+                            setActiveTab('withdraw_funds')
+                          }}
+                        >
+                          Withdraw
+                        </button>
+                      </div>
+                      <p className="sc-live-data-note">
+                        You can make one withdrawal every 24 hours.
+                      </p>
+                    </div>
+
+                    <div className="sc-withdrawal-method">
+                      <div className="sc-withdrawal-method-heading">
+                        <strong>Primary bank account</strong>
+                      </div>
+                      <div className="sc-primary-bank-box">
+                        <div className="sc-primary-bank-info">
+                          {selectedWithdrawalBank ? (
+                            <div className="sc-payout-method-brand">
+                              <PayoutChannelLogo
+                                channelCode={selectedWithdrawalBank.channelCode}
+                                label={getPayoutChannelLabel(selectedWithdrawalBank.channelCode)}
+                                fallback={getPayoutChannelLabel(selectedWithdrawalBank.channelCode).slice(0, 2).toUpperCase()}
+                              />
+                            </div>
+                          ) : (
+                            <div className="sc-primary-bank-card-icon" aria-hidden="true">
+                              <svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/></svg>
+                            </div>
+                          )}
+                          <div className="sc-withdrawal-bank-copy">
+                            <strong>
+                              {selectedWithdrawalBank
+                                ? getPayoutChannelLabel(selectedWithdrawalBank.channelCode)
+                                : 'Bank account number'}
+                            </strong>
+                            <small>
+                              {selectedWithdrawalBank
+                                ? `${selectedWithdrawalBank.accountName} · ${maskPayoutAccount(selectedWithdrawalBank.accountNumber)}`
+                                : 'No primary bank account provided'}
+                            </small>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          className="sc-primary-bank-link"
+                          disabled={!shopAccountApproved}
+                          onClick={() => {
+                            if (bankPayoutAccounts.length > 0) {
+                              setActiveTab('payout_accounts')
+                            } else {
+                              openPayoutAccountEditor()
+                            }
+                          }}
+                        >
+                          Manage bank account
+                        </button>
+                      </div>
+                    </div>
+                  </section>
+
+                  {!shopAccountApproved ? (
+                    <div className="sc-settings-notice">
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+                      <div><strong>Available after shop approval</strong><span>Your shop must be approved before it can add a bank payout method or request withdrawals.</span></div>
+                    </div>
+                  ) : null}
+
+                  <section className="sc-history-section" aria-label="Withdrawal history">
+                    <h3 className="sc-history-heading">History</h3>
+
+                    <div className="sc-history-date-filter">
+                      <input
+                        type="text"
+                        value={settlementDateFilter}
+                        placeholder="Select settlement dates"
+                        aria-label="Select settlement dates"
+                        onChange={event => {
+                          setSettlementDateFilter(event.target.value)
+                          setWithdrawalHistoryPage(1)
+                        }}
+                      />
+                      {settlementDateFilter ? (
+                        <button
+                          type="button"
+                          className="sc-history-date-clear"
+                          aria-label="Clear settlement date filter"
+                          onClick={() => {
+                            setSettlementDateFilter('')
+                            setWithdrawalHistoryPage(1)
+                          }}
+                        >
+                          ×
+                        </button>
+                      ) : null}
+                      <span className="sc-history-date-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>
+                      </span>
+                    </div>
+
+                    <div className="sc-history-tabs-bar">
+                      <nav className="sc-history-tabs" aria-label="History categories">
+                        {([
+                          { key: 'all', label: 'All' },
+                          { key: 'withdrawals', label: 'Withdrawals' },
+                          { key: 'earnings', label: 'Earnings' },
+                        ] as { key: WithdrawalHistoryTab; label: string }[]).map(tab => (
+                          <button
+                            type="button"
+                            key={tab.key}
+                            className={`sc-history-tab${withdrawalHistoryTab === tab.key ? ' is-active' : ''}`}
+                            onClick={() => {
+                              setWithdrawalHistoryTab(tab.key)
+                              setWithdrawalHistoryPage(1)
+                            }}
+                          >
+                            {tab.label}
+                          </button>
+                        ))}
+                      </nav>
+
+                      <div className="sc-history-export-actions">
+                        <button
+                          type="button"
+                          className="sc-history-export-btn"
+                          onClick={exportWithdrawalHistory}
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+                          Export
+                        </button>
+                        <span className="sc-history-export-divider" aria-hidden="true" />
+                        <button
+                          type="button"
+                          className="sc-history-export-btn"
+                          onClick={() => setActiveTab('withdrawal_export_history')}
+                        >
+                          Export History
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="sc-history-table-wrap">
+                      <table className="sc-history-table">
+                        <thead>
+                          <tr>
+                            <th className="col-time">Time</th>
+                            <th className="col-amount">Amount</th>
+                            <th className="col-status">Status</th>
+                            <th className="col-ref">Reference No.</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pagedWithdrawalHistoryRows.length === 0 ? (
+                            <tr>
+                              <td colSpan={4} className="sc-history-empty-cell">
+                                {withdrawalHistoryTab === 'withdrawals'
+                                  ? 'No withdrawals recorded yet.'
+                                  : withdrawalHistoryTab === 'earnings'
+                                    ? 'No settled earnings recorded yet.'
+                                    : 'No transactions match your filter.'}
+                              </td>
+                            </tr>
+                          ) : (
+                            pagedWithdrawalHistoryRows.map(row => {
+                              const isWithdrawal = row.kind === 'withdrawal'
+                              const isFailed = row.status === 'failed' || row.status === 'cancelled' || row.status === 'reversed'
+                              const isPending = row.status === 'in_progress' || row.status === 'pending' || row.status === 'requested'
+                              const isTransferred = !isFailed && !isPending
+
+                              return (
+                                <tr
+                                  key={row.id}
+                                  className="sc-history-clickable-row"
+                                  onClick={() => {
+                                    setSelectedWithdrawalDetailId(row.id)
+                                    setActiveTab('withdrawal_details')
+                                  }}
+                                >
+                                  <td className="col-time">{row.dateText}</td>
+                                  <td className="col-amount">
+                                    {isWithdrawal
+                                      ? `₱-${formatPesoDecimal(row.amount)}`
+                                      : `₱+${formatPesoDecimal(row.amount)}`}
+                                  </td>
+                                  <td className="col-status">
+                                    <div className="sc-history-stepper">
+                                      <div className="sc-history-stepper-line" aria-hidden="true" />
+                                      <div className="sc-history-stepper-node is-done">
+                                        <span className="sc-history-stepper-dot">
+                                          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg>
+                                        </span>
+                                        <span className="sc-history-stepper-label">Requested</span>
+                                      </div>
+                                      <div className="sc-history-stepper-node is-done">
+                                        <span className="sc-history-stepper-dot">
+                                          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg>
+                                        </span>
+                                        <span className="sc-history-stepper-label">In progress</span>
+                                      </div>
+                                      <div className={`sc-history-stepper-node${isFailed ? ' is-failed' : isPending ? ' is-pending' : ' is-done is-final'}`}>
+                                        <span className="sc-history-stepper-dot">
+                                          {isFailed ? (
+                                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                                          ) : (
+                                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg>
+                                          )}
+                                        </span>
+                                        <span className="sc-history-stepper-label is-final">
+                                          {isWithdrawal
+                                            ? isFailed
+                                              ? 'Failed'
+                                              : isTransferred
+                                                ? 'Transferred'
+                                                : 'Pending'
+                                            : 'Credited'}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="col-ref">{row.referenceNo}</td>
+                                </tr>
+                              )
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <HistoryPagination
+                      label="Withdrawal history pages"
+                      page={safeWithdrawalHistoryPage}
+                      pageCount={totalWithdrawalHistoryPages}
+                      pageSize={withdrawalHistoryPageSize}
+                      onPageChange={setWithdrawalHistoryPage}
+                      onPageSizeChange={setWithdrawalHistoryPageSize}
+                    />
+                  </section>
+                </div>
+              )}
+
+              {/* DEDICATED WITHDRAW SCREEN */}
+              {activeTab === 'withdraw_funds' && (
+                <div className="sc-method-setup-page">
+                  <button
+                    type="button"
+                    className="sc-method-setup-back"
+                    onClick={() => setActiveTab('withdrawals')}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+                    Back to withdrawals
+                  </button>
+
+                  <div className="sc-add-payout-wrapper">
+                    <h2 className="sc-add-payout-heading">Withdraw funds</h2>
+
+                    <section className="sc-add-payout-card">
+                      <div className="sc-withdraw-dedicated-summary">
+                        <div className="sc-withdraw-dedicated-stat">
+                          <span>Available balance</span>
+                          <strong>₱{formatPesoDecimal(availableWithdrawalBalance)}</strong>
+                        </div>
+                      </div>
+
+                      <form
+                        className="sc-add-payout-form"
+                        onSubmit={event => {
+                          event.preventDefault()
+                          requestCustomWithdrawal()
+                        }}
+                      >
+                        <div className="sc-add-payout-field">
+                          <label htmlFor="sc-withdraw-amount-input">Withdrawal amount</label>
+                          <div className="sc-withdraw-page-input-wrap">
+                            <span className="sc-withdraw-page-currency">₱</span>
+                            <input
+                              id="sc-withdraw-amount-input"
+                              type="text"
+                              inputMode="decimal"
+                              placeholder="0.00"
+                              value={withdrawalAmountDraft}
+                              disabled={withdrawingCustom || !shopAccountApproved}
+                              autoFocus
+                              onChange={event => {
+                                setWithdrawalAmountDraft(formatAmountInputWithCommas(event.target.value))
+                              }}
+                            />
+                            {availableWithdrawalBalance > 0 ? (
+                              <button
+                                type="button"
+                                className="sc-withdraw-amount-max"
+                                disabled={withdrawingCustom || !shopAccountApproved}
+                                onClick={() => setWithdrawalAmountDraft(formatPesoDecimal(availableWithdrawalBalance))}
+                              >
+                                Max
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <footer className="sc-add-payout-footer">
+                          <button
+                            type="button"
+                            className="sc-settings-secondary-btn"
+                            disabled={withdrawingCustom}
+                            onClick={() => setActiveTab('withdrawals')}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            className="sc-settings-primary-btn"
+                            disabled={withdrawingCustom || !shopAccountApproved || availableWithdrawalBalance <= 0}
+                          >
+                            {withdrawingCustom ? 'Requesting…' : 'Withdraw'}
+                          </button>
+                        </footer>
+                      </form>
+                    </section>
+                  </div>
+                </div>
+              )}
+
+              {/* FULL TRANSACTION DETAILS SCREEN (WITHDRAWALS & EARNINGS) */}
+              {activeTab === 'withdrawal_details' && (
+                <div className="sc-method-setup-page">
+                  <button
+                    type="button"
+                    className="sc-method-setup-back"
+                    onClick={() => setActiveTab('withdrawals')}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+                    Back to withdrawals
+                  </button>
+
+                  {selectedWithdrawalDetailItem ? (() => {
+                    const isWithdrawal = selectedWithdrawalDetailItem.kind === 'withdrawal'
+                    const isFailed =
+                      selectedWithdrawalDetailItem.status === 'failed' ||
+                      selectedWithdrawalDetailItem.status === 'cancelled' ||
+                      selectedWithdrawalDetailItem.status === 'reversed'
+                    const isPending =
+                      selectedWithdrawalDetailItem.status === 'in_progress' ||
+                      selectedWithdrawalDetailItem.status === 'pending' ||
+                      selectedWithdrawalDetailItem.status === 'requested'
+                    const isTransferred = !isFailed && !isPending
+                    const finalStatusLabel = isWithdrawal
+                      ? isFailed
+                        ? 'Failed'
+                        : isTransferred
+                          ? 'Transferred'
+                          : 'Pending'
+                      : 'Credited'
+
+                    return (
+                      <div className="sc-add-payout-wrapper">
+                        <h2 className="sc-add-payout-heading">
+                          {isWithdrawal ? 'Withdrawal details' : 'Earning details'}
+                        </h2>
+
+                        <section className="sc-tx-detail-card">
+                          <div className="sc-tx-detail-head">
+                            <span className="sc-tx-detail-eyebrow">
+                              {isWithdrawal ? 'Bank withdrawal' : 'Service earning'}
+                            </span>
+                            <strong className="sc-tx-detail-amount">
+                              {isWithdrawal
+                                ? `-₱${formatPesoDecimal(selectedWithdrawalDetailItem.amount)}`
+                                : `+₱${formatPesoDecimal(selectedWithdrawalDetailItem.amount)}`}
+                            </strong>
+                            <p className="sc-tx-detail-subtitle">{selectedWithdrawalDetailItem.title}</p>
+                          </div>
+
+                          <div className="sc-tx-detail-stepper-box">
+                            <span className="sc-tx-detail-section-label">Status</span>
+                            <div className="sc-history-stepper is-full-width">
+                              <div className="sc-history-stepper-line" aria-hidden="true" />
+                              <div className="sc-history-stepper-node is-done">
+                                <span className="sc-history-stepper-dot">
+                                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg>
+                                </span>
+                                <span className="sc-history-stepper-label">Requested</span>
+                              </div>
+                              <div className="sc-history-stepper-node is-done">
+                                <span className="sc-history-stepper-dot">
+                                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg>
+                                </span>
+                                <span className="sc-history-stepper-label">In progress</span>
+                              </div>
+                              <div className={`sc-history-stepper-node${isFailed ? ' is-failed' : isPending ? ' is-pending' : ' is-done is-final'}`}>
+                                <span className="sc-history-stepper-dot">
+                                  {isFailed ? (
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                                  ) : (
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg>
+                                  )}
+                                </span>
+                                <span className="sc-history-stepper-label is-final">
+                                  {finalStatusLabel}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <dl className="sc-tx-detail-list">
+                            <div>
+                              <dt>Time</dt>
+                              <dd>{selectedWithdrawalDetailItem.dateText}</dd>
+                            </div>
+                            <div>
+                              <dt>Recorded at</dt>
+                              <dd>{selectedWithdrawalDetailItem.fullTimeText}</dd>
+                            </div>
+                            <div>
+                              <dt>Amount</dt>
+                              <dd>
+                                {isWithdrawal
+                                  ? `₱-${formatPesoDecimal(selectedWithdrawalDetailItem.amount)}`
+                                  : `₱+${formatPesoDecimal(selectedWithdrawalDetailItem.amount)}`}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>Status</dt>
+                              <dd className={isFailed ? 'is-failed' : 'is-success'}>{finalStatusLabel}</dd>
+                            </div>
+                            <div>
+                              <dt>Reference No.</dt>
+                              <dd>{selectedWithdrawalDetailItem.referenceNo}</dd>
+                            </div>
+                            {isWithdrawal ? (
+                              <>
+                                <div>
+                                  <dt>Bank</dt>
+                                  <dd>{selectedWithdrawalDetailItem.bankName}</dd>
+                                </div>
+                                <div>
+                                  <dt>Account</dt>
+                                  <dd>{selectedWithdrawalDetailItem.accountName} · {selectedWithdrawalDetailItem.accountNumber}</dd>
+                                </div>
+                                {selectedWithdrawalDetailItem.failureCode ? (
+                                  <div>
+                                    <dt>Failure reason</dt>
+                                    <dd className="is-failed">{selectedWithdrawalDetailItem.failureCode}</dd>
+                                  </div>
+                                ) : null}
+                              </>
+                            ) : (
+                              <>
+                                <div>
+                                  <dt>Service</dt>
+                                  <dd>{selectedWithdrawalDetailItem.serviceName}</dd>
+                                </div>
+                                <div>
+                                  <dt>Customer</dt>
+                                  <dd>{selectedWithdrawalDetailItem.customerName}</dd>
+                                </div>
+                                <div>
+                                  <dt>Payment option</dt>
+                                  <dd>{selectedWithdrawalDetailItem.paymentTypeLabel}</dd>
+                                </div>
+                              </>
+                            )}
+                          </dl>
+                        </section>
+                      </div>
+                    )
+                  })() : null}
+                </div>
+              )}
+
+              {/* EXPORT HISTORY SCREEN */}
+              {activeTab === 'withdrawal_export_history' && (
+                <div className="sc-method-setup-page">
+                  <button
+                    type="button"
+                    className="sc-method-setup-back"
+                    onClick={() => setActiveTab('withdrawals')}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+                    Back to withdrawals
+                  </button>
+
+                  <div className="sc-add-payout-wrapper">
+                    <div className="sc-export-history-head">
+                      <h2 className="sc-add-payout-heading">Export History</h2>
+                      <button
+                        type="button"
+                        className="sc-history-export-btn"
+                        onClick={exportWithdrawalHistory}
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+                        Export current filter
+                      </button>
+                    </div>
+
+                    <section className="sc-tx-detail-card">
+                      {withdrawalExportHistory.length === 0 ? (
+                        <p className="sc-export-history-empty">No exports generated yet.</p>
+                      ) : (
+                        <div className="sc-export-history-list">
+                          {withdrawalExportHistory.map(item => (
+                            <div key={item.id} className="sc-export-history-row">
+                              <div className="sc-export-history-copy">
+                                <strong>{item.fileName}</strong>
+                                <span>
+                                  {item.categoryLabel} · {item.rowCount} {item.rowCount === 1 ? 'record' : 'records'} · {item.exportedAt}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                className="sc-export-history-download"
+                                onClick={() => triggerCsvDownload(item.fileName, item.csvContent)}
+                              >
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+                                Download
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </section>
+                  </div>
+                </div>
+              )}
+
               {/* PAYMENTS VIEW */}
               {activeTab === 'payments' && (
                 <div className="sc-family-payments-layout">
@@ -4348,138 +5312,201 @@ export default function SellerCentrePage() {
                       if (payoutVerification) {
                         setPayoutVerification(null)
                         setPayoutVerificationCode('')
-                      } else {
+                      } else if (bankPayoutAccounts.length > 0) {
                         setActiveTab('payout_accounts')
+                      } else {
+                        setActiveTab('withdrawals')
                       }
                     }}
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
-                    {payoutVerification ? 'Payout details' : 'Payout destinations'}
+                    {payoutVerification ? 'Payout details' : bankPayoutAccounts.length > 0 ? 'Payout methods' : 'Back to withdrawals'}
                   </button>
 
-                  {selectedPayoutChannel ? (
+                  {payoutVerification ? (
                     <section className="sc-method-setup-card">
                       <header className="sc-method-setup-header">
-                        <div className={`sc-method-setup-logo is-${selectedPayoutChannel.type}`}>
-                          <PayoutChannelLogo
-                            channelCode={selectedPayoutChannel.value}
-                            label={selectedPayoutChannel.label}
-                            fallback={selectedPayoutChannel.label.slice(0, 2).toUpperCase()}
-                          />
-                        </div>
+                        {selectedPayoutChannel ? (
+                          <div className={`sc-method-setup-logo is-${selectedPayoutChannel.type}`}>
+                            <PayoutChannelLogo
+                              channelCode={selectedPayoutChannel.value}
+                              label={selectedPayoutChannel.label}
+                              fallback={selectedPayoutChannel.label.slice(0, 2).toUpperCase()}
+                            />
+                          </div>
+                        ) : null}
                         <div>
-                          <span>{payoutVerification ? 'Security check' : selectedPayoutChannel.type === 'wallet' ? 'E-wallet receiver' : 'Bank receiver'}</span>
-                          <h2>{payoutVerification ? 'Verify payout change' : `${payoutAccounts.some(account => account.channelCode === payoutDraft.channel) ? 'Edit' : 'Add'} ${selectedPayoutChannel.label}`}</h2>
-                          <p>{payoutVerification ? 'Confirm this change with the code sent to your account email.' : `This page only manages your ${selectedPayoutChannel.label} payout destination.`}</p>
+                          <span>Security check</span>
+                          <h2>Verify payout change</h2>
+                          <p>Confirm this change with the code sent to your account email.</p>
                         </div>
                       </header>
 
-                      {payoutVerification ? (
-                        <form className="sc-method-setup-form sc-payout-verification-form" onSubmit={event => { event.preventDefault(); void verifyPayoutAccountChange() }}>
-                          <div className="sc-payout-verification-copy">
-                            <strong>Enter verification code</strong>
-                            <span>We sent a 6-digit code to <b>{payoutVerification.maskedEmail}</b>.</span>
-                          </div>
-                          <label>
-                            <span>Verification code</span>
-                            <div className="sc-payout-otp-control">
-                              <div className="sc-payout-otp-boxes" aria-hidden="true">
-                                {Array.from({ length: 6 }, (_, index) => (
-                                  <i key={index} className={payoutVerificationCode[index] ? 'is-filled' : ''}>
-                                    {payoutVerificationCode[index] || ''}
-                                  </i>
-                                ))}
-                              </div>
-                              <input
-                                className="sc-payout-otp-input"
-                                aria-label="Payout change verification code"
-                                type="text"
-                                inputMode="numeric"
-                                pattern="[0-9]*"
-                                autoComplete="one-time-code"
-                                value={payoutVerificationCode}
-                                maxLength={6}
-                                onChange={event => setPayoutVerificationCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
-                                autoFocus
-                              />
-                            </div>
-                          </label>
-                          <div className="sc-method-setup-notice">
-                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>
-                            <div>
-                            <strong>Email check before test review</strong>
-                            <span>The code expires in 10 minutes. The changed receiver will be unavailable until an admin reviews it.</span>
-                            </div>
-                          </div>
-                          <footer>
-                            <button
-                              type="button"
-                              className="sc-settings-secondary-btn"
-                              disabled={resendingPayoutCode || payoutResendCooldown > 0}
-                              onClick={() => void resendPayoutVerificationCode()}
-                            >
-                              {resendingPayoutCode ? 'Sending…' : payoutResendCooldown > 0 ? `Resend in ${payoutResendCooldown}s` : 'Resend code'}
-                            </button>
-                            <button type="submit" className="sc-settings-primary-btn" disabled={savingPayout || payoutVerificationCode.length !== 6}>
-                              {savingPayout ? 'Verifying…' : 'Verify and update'}
-                            </button>
-                          </footer>
-                        </form>
-                      ) : (
-                      <form className="sc-method-setup-form" onSubmit={event => { event.preventDefault(); void savePayoutAccount() }}>
-                        <div className="sc-method-setup-readonly">
-                          <span>Test payout destination</span>
-                          <strong>{selectedPayoutChannel.label}</strong>
+                      <form className="sc-method-setup-form sc-payout-verification-form" onSubmit={event => { event.preventDefault(); void verifyPayoutAccountChange() }}>
+                        <div className="sc-payout-verification-copy">
+                          <strong>Enter verification code</strong>
+                          <span>We sent a 6-digit code to <b>{payoutVerification.maskedEmail}</b>.</span>
                         </div>
-
                         <label>
-                          <span>Registered account holder</span>
-                          <input
-                            type="text"
-                            value={payoutDraft.name}
-                            maxLength={120}
-                            autoComplete="name"
-                            placeholder={selectedPayoutChannel.type === 'wallet' ? 'Name registered to the wallet' : 'Name registered to the bank account'}
-                            onChange={event => setPayoutDraft(current => ({ ...current, name: event.target.value }))}
-                          />
+                          <span>Verification code</span>
+                          <div className="sc-payout-otp-control">
+                            <div className="sc-payout-otp-boxes" aria-hidden="true">
+                              {Array.from({ length: 6 }, (_, index) => (
+                                <i key={index} className={payoutVerificationCode[index] ? 'is-filled' : ''}>
+                                  {payoutVerificationCode[index] || ''}
+                                </i>
+                              ))}
+                            </div>
+                            <input
+                              className="sc-payout-otp-input"
+                              aria-label="Payout change verification code"
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              autoComplete="one-time-code"
+                              value={payoutVerificationCode}
+                              maxLength={6}
+                              onChange={event => setPayoutVerificationCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                              autoFocus
+                            />
+                          </div>
                         </label>
-
-                        <label>
-                          <span>{selectedPayoutChannel.type === 'wallet' ? 'Registered mobile number' : 'Bank account number'}</span>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={payoutDraft.number}
-                            maxLength={30}
-                            autoComplete="off"
-                            placeholder={selectedPayoutChannel.type === 'wallet' ? '09XXXXXXXXX' : 'Enter account number'}
-                            onChange={event => setPayoutDraft(current => ({ ...current, number: event.target.value }))}
-                          />
-                          <small>Enter the exact details registered with {selectedPayoutChannel.label}.</small>
-                        </label>
-
                         <div className="sc-method-setup-notice">
                           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>
                           <div>
-                            <strong>{payoutAccounts.some(account => account.channelCode === payoutDraft.channel) ? 'Email check and test review' : 'Test review required'}</strong>
-                            <span>{payoutAccounts.some(account => account.channelCode === payoutDraft.channel) ? 'Changing saved details requires an email code. The changed receiver is unavailable until an admin reviews it.' : 'An admin reviews this test receiver before it can be used for test payments. This does not verify a live account.'}</span>
+                            <strong>Email check before admin review</strong>
+                            <span>The code expires in 10 minutes. The updated bank account will be reviewed by an admin before withdrawals.</span>
                           </div>
                         </div>
-
                         <footer>
-                          <button type="button" className="sc-settings-secondary-btn" onClick={() => setActiveTab('payout_accounts')}>Cancel</button>
-                          <button type="submit" className="sc-settings-primary-btn" disabled={savingPayout}>
-                            {savingPayout ? 'Saving…' : 'Save payout account'}
+                          <button
+                            type="button"
+                            className="sc-settings-secondary-btn"
+                            disabled={resendingPayoutCode || payoutResendCooldown > 0}
+                            onClick={() => void resendPayoutVerificationCode()}
+                          >
+                            {resendingPayoutCode ? 'Sending…' : payoutResendCooldown > 0 ? `Resend in ${payoutResendCooldown}s` : 'Resend code'}
+                          </button>
+                          <button type="submit" className="sc-settings-primary-btn" disabled={savingPayout || payoutVerificationCode.length !== 6}>
+                            {savingPayout ? 'Verifying…' : 'Verify and update'}
                           </button>
                         </footer>
                       </form>
-                      )}
                     </section>
                   ) : (
-                    <div className="sc-payout-empty">
-                      <strong>Select a payout destination first</strong>
-                      <span>Return to the receiver list and choose a bank or wallet.</span>
-                      <button type="button" onClick={() => setActiveTab('payout_accounts')}>View receivers</button>
+                    <div className="sc-add-payout-wrapper">
+                      <h2 className="sc-add-payout-heading">
+                        {payoutAccounts.some(account => account.channelCode === payoutDraft.channel) ? 'Edit payout method' : 'Add payout method'}
+                      </h2>
+
+                      <section className="sc-add-payout-card">
+                        <div className="sc-add-payout-type-row">
+                          <span className="sc-add-payout-card-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 10h18M7 15h4" /></svg>
+                          </span>
+                          <strong>Bank transfer</strong>
+                        </div>
+
+                        <form className="sc-add-payout-form" onSubmit={event => { event.preventDefault(); void savePayoutAccount() }}>
+                          <div className="sc-add-payout-field">
+                            <div className="sc-add-payout-label-row">
+                              <label htmlFor="sc-payout-holder-name">Name</label>
+                              <button
+                                type="button"
+                                className="sc-add-payout-info-btn"
+                                title="Enter the full name or business name registered with your bank account"
+                                aria-label="Account holder name information"
+                                onClick={() => openAlert({
+                                  title: 'Account Holder Name',
+                                  message: 'Enter the full name or business name registered with your bank account.',
+                                  tone: 'info',
+                                  okLabel: 'Got It',
+                                })}
+                              >
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
+                              </button>
+                            </div>
+                            <input
+                              id="sc-payout-holder-name"
+                              type="text"
+                              value={payoutDraft.name}
+                              maxLength={120}
+                              autoComplete="name"
+                              onChange={event => setPayoutDraft(current => ({ ...current, name: event.target.value }))}
+                            />
+                          </div>
+
+                          <div className="sc-add-payout-field">
+                            <label htmlFor="sc-payout-bank-select">Bank name</label>
+                            <div className="sc-add-payout-select-wrap">
+                              <select
+                                id="sc-payout-bank-select"
+                                className={payoutDraft.channel ? '' : 'is-placeholder'}
+                                value={payoutDraft.channel}
+                                onChange={event => {
+                                  const nextChannel = event.target.value
+                                  const saved = bankPayoutAccounts.find(item => item.channelCode === nextChannel)
+                                  setPayoutDraft(current => ({
+                                    channel: nextChannel,
+                                    name: saved ? saved.accountName : current.name,
+                                    number: saved ? saved.accountNumber : current.number,
+                                    email: saved?.accountEmail || current.email || user?.email || '',
+                                  }))
+                                }}
+                              >
+                                <option value="">Choose bank</option>
+                                {BANK_PAYOUT_CHANNELS.map(channel => (
+                                  <option key={channel.value} value={channel.value}>{channel.label}</option>
+                                ))}
+                              </select>
+                              <span className="sc-add-payout-select-chevrons" aria-hidden="true">
+                                <svg viewBox="0 0 24 24"><path d="m8 9 4-4 4 4M16 15l-4 4-4-4" /></svg>
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="sc-add-payout-row-2">
+                            <div className="sc-add-payout-field">
+                              <label htmlFor="sc-payout-account-number">Bank account number</label>
+                              <input
+                                id="sc-payout-account-number"
+                                type="text"
+                                inputMode="numeric"
+                                value={payoutDraft.number}
+                                maxLength={30}
+                                autoComplete="off"
+                                onChange={event => setPayoutDraft(current => ({ ...current, number: event.target.value }))}
+                              />
+                            </div>
+
+                            <div className="sc-add-payout-field">
+                              <label htmlFor="sc-payout-account-email">Email</label>
+                              <input
+                                id="sc-payout-account-email"
+                                type="email"
+                                value={payoutDraft.email}
+                                maxLength={120}
+                                placeholder="example@email.com"
+                                autoComplete="email"
+                                onChange={event => setPayoutDraft(current => ({ ...current, email: event.target.value }))}
+                              />
+                            </div>
+                          </div>
+
+                          <footer className="sc-add-payout-footer">
+                            <button
+                              type="button"
+                              className="sc-settings-secondary-btn"
+                              onClick={() => setActiveTab(bankPayoutAccounts.length > 0 ? 'payout_accounts' : 'withdrawals')}
+                            >
+                              Cancel
+                            </button>
+                            <button type="submit" className="sc-settings-primary-btn" disabled={savingPayout}>
+                              {savingPayout ? 'Saving…' : 'Save payout method'}
+                            </button>
+                          </footer>
+                        </form>
+                      </section>
                     </div>
                   )}
                 </div>
@@ -4487,178 +5514,71 @@ export default function SellerCentrePage() {
 
               {/* PAYOUT ACCOUNTS VIEW */}
               {activeTab === 'payout_accounts' && (
-                <div className="sc-payout-page">
-                  <header className="sc-payout-page-header">
-                    <div>
-                      <span>Finance</span>
-                      <h2>Payout accounts</h2>
-                      <p>Register test payout destinations for your shop's share. These are not live payment accounts.</p>
-                    </div>
-                  </header>
+                <div className="sc-method-setup-page">
+                  <button
+                    type="button"
+                    className="sc-method-setup-back"
+                    onClick={() => setActiveTab('withdrawals')}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+                    Back to withdrawals
+                  </button>
 
-                  <div className="sc-payout-overview-grid">
-                    <article>
-                      <span>Accounts set up</span>
-                      <strong>{payoutAccounts.length}</strong>
-                      <small>Wallets and bank accounts</small>
-                    </article>
-                    <article>
-                      <span>Enabled for test checkout</span>
-                      <strong>{payoutAccounts.filter(account => account.active && account.verifiedByAdmin).length}</strong>
-                      <small>Reviewed receiver accounts</small>
-                    </article>
-                    <article>
-                      <span>Needs attention</span>
-                      <strong>{payoutAccounts.filter(account => !account.verifiedByAdmin).length}</strong>
-                      <small>Pending test review</small>
-                    </article>
+                  <div className="sc-payout-clean-header">
+                    <h2 className="sc-add-payout-heading">Payout methods</h2>
+                    {shopAccountApproved ? (
+                      <button
+                        type="button"
+                        className="sc-settings-primary-btn"
+                        onClick={() => openPayoutAccountEditor()}
+                      >
+                        Add payout method
+                      </button>
+                    ) : null}
                   </div>
 
-                  <div className="sc-payout-page-note">
-                    <FamilyPaymentIcon name="wallet" />
-                    <div>
-                      <strong>Test review</strong>
-                      <span>Only admin-reviewed, enabled receivers can be used for test checkout. Card payments are separate from payout destinations.</span>
+                  {bankPayoutAccounts.length === 0 ? (
+                    <div className="sc-payout-empty">
+                      <strong>No payout methods added yet</strong>
+                      <span>Add a bank account to receive your withdrawals.</span>
+                      {shopAccountApproved && <button type="button" onClick={() => openPayoutAccountEditor()}>Add payout method</button>}
                     </div>
-                  </div>
-
-                  {!shopAccountApproved && (
-                    <div className="sc-settings-notice">
-                      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
-                      <div><strong>Available after shop approval</strong><span>Your funeral shop must be approved before you can submit receiver accounts.</span></div>
+                  ) : (
+                    <div className="sc-payout-account-list">
+                      {bankPayoutAccounts.map(account => {
+                        const channel = SHOP_PAYOUT_CHANNELS.find(item => item.value === account.channelCode)
+                        const enabled = account.active && account.verifiedByAdmin
+                        return (
+                          <article className={`sc-payout-account-card${!account.active ? ' is-disabled' : ''}`} key={account.id}>
+                            <div className="sc-payout-account-logo is-bank">
+                              <PayoutChannelLogo
+                                channelCode={account.channelCode}
+                                label={channel?.label || account.channelCode}
+                                fallback="B"
+                              />
+                            </div>
+                            <div className="sc-payout-account-copy">
+                              <strong>{getPayoutChannelLabel(account.channelCode)}</strong>
+                              <p>{account.accountName} · {maskPayoutAccount(account.accountNumber)}</p>
+                              {account.accountEmail ? <small>{account.accountEmail}</small> : null}
+                            </div>
+                            <div className="sc-payout-account-status">
+                              <span className={enabled ? 'is-enabled' : account.verifiedByAdmin ? 'is-disabled' : 'is-pending'}>
+                                <i aria-hidden="true" />
+                                {enabled ? 'Active' : account.verifiedByAdmin ? 'Disabled' : 'Pending verification'}
+                              </span>
+                            </div>
+                            <div className="sc-payout-account-actions">
+                              <button type="button" onClick={() => openPayoutAccountEditor(account)}>Edit</button>
+                              {account.verifiedByAdmin && <button type="button" disabled={savingPayout} onClick={() => void togglePayoutAccount(account)}>
+                                {account.active ? 'Disable' : 'Enable'}
+                              </button>}
+                            </div>
+                          </article>
+                        )
+                      })}
                     </div>
                   )}
-
-                  <section className="sc-payout-accounts-panel">
-                    <header>
-                      <div>
-                        <span>Receiver accounts</span>
-                        <h3>Test payout destinations</h3>
-                      </div>
-                    </header>
-
-                    {payoutAccounts.length === 0 ? (
-                      <div className="sc-payout-empty">
-                        <div><FamilyPaymentIcon name="wallet" /></div>
-                        <strong>No receiver accounts yet</strong>
-                        <span>Add GCash, Maya, or a Philippine bank account for test review.</span>
-                        {shopAccountApproved && <button type="button" onClick={() => openPayoutAccountEditor(undefined, SHOP_PAYOUT_CHANNELS[0].value)}>Add your first account</button>}
-                      </div>
-                    ) : (
-                      <div className="sc-payout-account-list">
-                        {payoutAccounts.map(account => {
-                          const channel = SHOP_PAYOUT_CHANNELS.find(item => item.value === account.channelCode)
-                          const enabled = account.active && account.verifiedByAdmin
-                          return (
-                            <article className={`sc-payout-account-card${!account.active ? ' is-disabled' : ''}`} key={account.id}>
-                              <div className={`sc-payout-account-logo is-${channel?.type || 'bank'}`}>
-                                <PayoutChannelLogo
-                                  channelCode={account.channelCode}
-                                  label={channel?.label || account.channelCode}
-                                  fallback={channel?.type === 'wallet' ? 'W' : 'B'}
-                                />
-                              </div>
-                              <div className="sc-payout-account-copy">
-                                <div>
-                                  <span>{channel?.type === 'wallet' ? 'E-wallet' : 'Philippine bank'}</span>
-                                  <strong>{getPayoutChannelLabel(account.channelCode)}</strong>
-                                </div>
-                                <p>{account.accountName}</p>
-                                <small>{maskPayoutAccount(account.accountNumber)}</small>
-                              </div>
-                              <div className="sc-payout-account-status">
-                                <span className={enabled ? 'is-enabled' : account.verifiedByAdmin ? 'is-disabled' : 'is-pending'}>
-                                  <i aria-hidden="true" />
-                                  {enabled ? 'Enabled for test checkout' : account.verifiedByAdmin ? 'Disabled' : 'Pending test review'}
-                                </span>
-                                {account.verifiedAt && <small>Reviewed {new Date(account.verifiedAt).toLocaleDateString('en-PH')}</small>}
-                              </div>
-                              <div className="sc-payout-account-actions">
-                                <button type="button" onClick={() => openPayoutAccountEditor(account)}>Edit</button>
-                                {account.verifiedByAdmin && <button type="button" disabled={savingPayout} onClick={() => void togglePayoutAccount(account)}>
-                                  {account.active ? 'Disable' : 'Enable'}
-                                </button>}
-                              </div>
-                            </article>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </section>
-
-                  <section className="sc-payout-methods-panel">
-                    <header>
-                      <div>
-                        <span>Payout destinations</span>
-                        <h3>Add or manage a receiver</h3>
-                        <p>Each option opens its own secure setup page.</p>
-                      </div>
-                    </header>
-
-                    <div className="sc-payout-method-group">
-                      <span className="sc-payout-method-group-title">E-wallets</span>
-                      {SHOP_PAYOUT_CHANNELS.filter(channel => channel.type === 'wallet').map(channel => {
-                        const account = payoutAccounts.find(item => item.channelCode === channel.value)
-                        return (
-                          <button
-                            type="button"
-                            className="sc-payout-method-row"
-                            key={channel.value}
-                            disabled={!shopAccountApproved}
-                            onClick={() => openPayoutAccountEditor(account, channel.value)}
-                          >
-                            <span className="sc-payout-method-brand is-wallet">
-                              <PayoutChannelLogo
-                                channelCode={channel.value}
-                                label={channel.label}
-                                fallback={channel.label.slice(0, 2).toUpperCase()}
-                              />
-                            </span>
-                            <span className="sc-payout-method-copy">
-                              <strong>{account ? channel.label : `Add ${channel.label}`}</strong>
-                              <small>{account ? `${account.accountName} · ${maskPayoutAccount(account.accountNumber)}` : 'Set up a new e-wallet receiver'}</small>
-                            </span>
-                            <span className={`sc-payout-method-state${account?.active && account.verifiedByAdmin ? ' is-ready' : account ? ' is-pending' : ''}`}>
-                              {account?.active && account.verifiedByAdmin ? 'Test ready' : account ? account.verifiedByAdmin ? 'Disabled' : 'Pending' : 'Add'}
-                            </span>
-                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
-                          </button>
-                        )
-                      })}
-                    </div>
-
-                    <div className="sc-payout-method-group">
-                      <span className="sc-payout-method-group-title">Philippine banks</span>
-                      {SHOP_PAYOUT_CHANNELS.filter(channel => channel.type === 'bank').map(channel => {
-                        const account = payoutAccounts.find(item => item.channelCode === channel.value)
-                        return (
-                          <button
-                            type="button"
-                            className="sc-payout-method-row"
-                            key={channel.value}
-                            disabled={!shopAccountApproved}
-                            onClick={() => openPayoutAccountEditor(account, channel.value)}
-                          >
-                            <span className="sc-payout-method-brand">
-                              <PayoutChannelLogo
-                                channelCode={channel.value}
-                                label={channel.label}
-                                fallback={channel.label.split(' ').map(part => part[0]).join('').slice(0, 3)}
-                              />
-                            </span>
-                            <span className="sc-payout-method-copy">
-                              <strong>{account ? channel.label : `Add ${channel.label}`}</strong>
-                              <small>{account ? `${account.accountName} · ${maskPayoutAccount(account.accountNumber)}` : 'Set up a bank receiver account'}</small>
-                            </span>
-                            <span className={`sc-payout-method-state${account?.active && account.verifiedByAdmin ? ' is-ready' : account ? ' is-pending' : ''}`}>
-                              {account?.active && account.verifiedByAdmin ? 'Test ready' : account ? account.verifiedByAdmin ? 'Disabled' : 'Pending' : 'Add'}
-                            </span>
-                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </section>
                 </div>
               )}
 
@@ -4896,10 +5816,12 @@ export default function SellerCentrePage() {
               {/* PAYMENTS TO ADMIN VIEW */}
               {activeTab === 'admin_payments' && (
                 <div className="sc-payment-layout sc-admin-payments-layout">
-                  <XenditShopPaymentCard
-                    className="sc-lifecycle-payment-card"
-                    onSuccess={() => void loadData()}
-                  />
+                  <Suspense fallback={<div className="sc-state" role="status">Loading payments…</div>}>
+                    <XenditShopPaymentCard
+                      className="sc-lifecycle-payment-card"
+                      onSuccess={() => void loadData()}
+                    />
+                  </Suspense>
                 </div>
               )}
 

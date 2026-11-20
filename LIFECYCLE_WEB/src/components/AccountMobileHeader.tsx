@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import BrandLogo from '@/components/BrandLogo'
-import NotificationDropdown from '@/components/NotificationDropdown'
+import PageBackButton from '@/components/PageBackButton'
 import { supabase } from '@/lib/supabase'
 import { getProfileAvatar } from '@/utils/profileAvatar'
 import '@/pages/UserProfilePage.css'
@@ -11,6 +11,7 @@ const accountLinks = [
   { to: '/user/requests', label: 'Service requests' },
   { to: '/user/purchase', label: 'My Payments' },
   { to: '/user/favorites', label: 'Favorites' },
+  { to: '/user/notifications', label: 'Notifications' },
   { to: '/user/account-settings', label: 'Account settings' },
   { to: '/user/privacy-data', label: 'Privacy & data' },
   { to: '/user/notification-preferences', label: 'Notification preferences' },
@@ -31,10 +32,10 @@ type AccountProfile = {
 type AccountMobileHeaderProps = {
   homeTo?: string
   homeLabel?: string
-  showNotifications?: boolean
+  showAccountMenu?: boolean
 }
 
-export default function AccountMobileHeader({ homeTo = '/funeral', homeLabel = 'home', showNotifications = false }: AccountMobileHeaderProps) {
+export default function AccountMobileHeader({ homeTo = '/funeral', homeLabel = 'home', showAccountMenu = true }: AccountMobileHeaderProps) {
   const [open, setOpen] = useState(false)
   const [profile, setProfile] = useState<AccountProfile | null>(null)
   const [email, setEmail] = useState('')
@@ -42,6 +43,7 @@ export default function AccountMobileHeader({ homeTo = '/funeral', homeLabel = '
   const location = useLocation()
 
   useEffect(() => {
+    if (!open) return
     const loadAccount = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user) return
@@ -56,7 +58,7 @@ export default function AccountMobileHeader({ homeTo = '/funeral', homeLabel = '
     }
 
     void loadAccount()
-  }, [])
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -136,28 +138,22 @@ export default function AccountMobileHeader({ homeTo = '/funeral', homeLabel = '
       <header className="sp-header profile-app-header">
         <div className="sp-header-inner profile-app-header-inner">
           <div className="profile-mobile-brand-row">
-            <button
-              type="button"
-              className="profile-mobile-menu-trigger"
-              onClick={() => setOpen(true)}
-              aria-label="Open account navigation"
-              aria-haspopup="dialog"
-              aria-expanded={open}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
-            </button>
+            {showAccountMenu && (
+              <button
+                type="button"
+                className="profile-mobile-menu-trigger"
+                onClick={() => setOpen(true)}
+                aria-label="Open account navigation"
+                aria-haspopup="dialog"
+                aria-expanded={open}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+              </button>
+            )}
             <BrandLogo to={homeTo} ariaLabel={`LifeCycle ${homeLabel}`} compact className="profile-brand-logo" />
           </div>
           <div className="profile-mobile-header-actions">
-            {showNotifications ? (
-              <div className="profile-mobile-header-notification">
-                <NotificationDropdown variant="seller-centre" />
-              </div>
-            ) : null}
-            <Link to={homeTo} className="profile-mobile-home-link">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
-              <span><span className="profile-mobile-home-prefix">Back to </span>{homeLabel}</span>
-            </Link>
+            <PageBackButton fallbackTo={homeTo} className="profile-mobile-home-link" />
           </div>
         </div>
       </header>

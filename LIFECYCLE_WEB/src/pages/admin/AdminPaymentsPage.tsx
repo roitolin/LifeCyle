@@ -403,7 +403,7 @@ export default function AdminPaymentsPage() {
           className="payments-tab"
           style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}
         >
-          <span>Shop Payout Accounts</span>
+          <span>Shop Withdrawal Accounts</span>
         </Link>
       </div>
 

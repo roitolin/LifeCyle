@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import LoadingBird from '@/components/LoadingBird';
+import ContentSkeleton, { ContentReveal, ChartPlotPlaceholder, MetricPlaceholders } from '@/components/ContentSkeleton';
 import { RefreshControl, ScrollView, View, Text, StyleSheet } from "react-native";
 import { Button, Card } from "react-native-paper";
 import { supabase } from "@/services/supabaseClient";
@@ -141,10 +141,12 @@ export default function AdminDashboard({ navigation }: any) {
         </Button>
       </View>
 
-      {loadingMetrics ? (
-        <LoadingBird compact />
+      {loadingMetrics && !refreshing ? (
+        <ContentSkeleton label="Loading platform totals">
+          <MetricPlaceholders gridStyle={styles.metricsGrid} tileStyle={styles.metricTile} count={isRootAdmin ? 4 : 1} valueFirst />
+        </ContentSkeleton>
       ) : (
-        <View style={styles.metricsGrid}>
+        <ContentReveal style={styles.metricsGrid}>
           <MetricTile value={metrics.totalUsers} label="Total users" />
           {isRootAdmin ? (
             <MetricTile value={metrics.pendingFuneralShops} label="Pending shop verifications" />
@@ -155,13 +157,26 @@ export default function AdminDashboard({ navigation }: any) {
           {isRootAdmin ? (
             <MetricTile value={metrics.totalOrders} label="Service requests" />
           ) : null}
-        </View>
+        </ContentReveal>
       )}
 
-      {canSeeSales && loadingSales ? <LoadingBird compact /> : null}
+      {canSeeSales && loadingSales && !sales ? (
+        <ContentSkeleton label="Loading sales analytics" style={{ gap: 12 }}>
+          <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Sales Overview</Text></View>
+          <MetricPlaceholders gridStyle={styles.metricsGrid} tileStyle={styles.metricTile} valueFirst />
+          <Card style={styles.actionCard} mode="outlined">
+            <Card.Title title="Revenue - Last 6 Months" />
+            <Card.Content><ChartPlotPlaceholder height={140} /></Card.Content>
+          </Card>
+          <Card style={styles.actionCard} mode="outlined">
+            <Card.Title title="Confirmed Sales - Last 6 Months" />
+            <Card.Content><ChartPlotPlaceholder height={140} /></Card.Content>
+          </Card>
+        </ContentSkeleton>
+      ) : null}
 
-      {canSeeSales && !loadingSales && sales ? (
-        <>
+      {canSeeSales && sales ? (
+        <ContentReveal style={{ gap: 12 }}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Sales Overview</Text>
             <Text style={styles.sectionSubtitle}>
@@ -227,8 +242,8 @@ export default function AdminDashboard({ navigation }: any) {
                 </Card.Content>
               </Card>
             ) : null}
-          </>
-        ) : null}
+        </ContentReveal>
+      ) : null}
 
       {isRootAdmin ? (
         <Card style={styles.actionCard} mode="outlined">

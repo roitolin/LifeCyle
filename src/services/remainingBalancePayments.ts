@@ -112,6 +112,14 @@ export function balanceChannelLabel(code: string): string {
   return labels[code] || code.replace(/^PH_/, '').replace(/_/g, ' ');
 }
 
+const DEFAULT_PLATFORM_BALANCE_RECEIVERS: BalanceReceiver[] = [
+  { id: 'platform-gcash', channelCode: 'PH_GCASH', accountName: 'LifeCycle Platform', accountNumber: 'Xendit Checkout' },
+  { id: 'platform-maya', channelCode: 'PH_MAYA', accountName: 'LifeCycle Platform', accountNumber: 'Xendit Checkout' },
+  { id: 'platform-bdo', channelCode: 'PH_BDO', accountName: 'LifeCycle Platform', accountNumber: 'Xendit Checkout' },
+  { id: 'platform-bpi', channelCode: 'PH_BPI', accountName: 'LifeCycle Platform', accountNumber: 'Xendit Checkout' },
+  { id: 'platform-ubp', channelCode: 'PH_UBP', accountName: 'LifeCycle Platform', accountNumber: 'Xendit Checkout' },
+];
+
 export async function loadBalancePayments(request: Pick<BalanceRequest, 'id' | 'shopId'>) {
   const [payments, receivers] = await Promise.all([
     supabase.from('funeral_balance_payments').select('*')
@@ -120,12 +128,11 @@ export async function loadBalancePayments(request: Pick<BalanceRequest, 'id' | '
       .eq('shopId', request.shopId).eq('active', true).eq('verifiedByAdmin', true),
   ]);
   if (payments.error) throw payments.error;
-  if (receivers.error) throw receivers.error;
   const supportedReceivers = ((receivers.data || []) as BalanceReceiver[])
     .filter((receiver) => isSupportedXenditReceiverChannel(receiver.channelCode));
   return {
     payments: (payments.data || []) as BalancePayment[],
-    receivers: supportedReceivers,
+    receivers: supportedReceivers.length > 0 ? supportedReceivers : DEFAULT_PLATFORM_BALANCE_RECEIVERS,
   };
 }
 

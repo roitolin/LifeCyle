@@ -58,10 +58,11 @@ export function saveFuneralCart(items: WebFuneralCartItem[]) {
 
 export function addFuneralCartItem(item: Omit<WebFuneralCartItem, 'cartId' | 'quantity'> & { quantity?: number }) {
   const current = loadFuneralCart()
+  const variation = item.variationId || item.variationName || null
   const existing = current.find(cartItem => 
     cartItem.productId === item.productId && 
     cartItem.shopId === item.shopId && 
-    (cartItem.variationId || cartItem.variationName) === (item.variationId || item.variationName)
+    (cartItem.variationId || cartItem.variationName || null) === variation
   )
   const itemWithoutQty: Omit<WebFuneralCartItem, 'cartId' | 'quantity'> = {
     productId: item.productId,
@@ -80,16 +81,13 @@ export function addFuneralCartItem(item: Omit<WebFuneralCartItem, 'cartId' | 'qu
     packageItems: item.packageItems,
   }
   
-  const next = existing
-    ? current.map(cartItem => cartItem.cartId === existing.cartId ? { ...cartItem, ...itemWithoutQty, quantity: 1 } : cartItem)
-    : [
-        ...current,
-        {
-          ...itemWithoutQty,
-          cartId: `${item.shopId}_${item.productId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-          quantity: 1,
-        },
-      ]
+  const next = existing ? current.filter(cartItem => cartItem.cartId !== existing.cartId) : current
+  next.push({
+    ...existing,
+    ...itemWithoutQty,
+    cartId: existing?.cartId ?? `${item.shopId}_${item.productId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    quantity: 1,
+  })
   saveFuneralCart(next)
   return next
 }

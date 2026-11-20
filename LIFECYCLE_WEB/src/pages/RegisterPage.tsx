@@ -125,14 +125,6 @@ function RegisterPage() {
     }
   }, [showPasswordStrength])
 
-  const goBack = () => {
-    if (window.history.length > 1) {
-      navigate(-1)
-      return
-    }
-    navigate('/')
-  }
-
   const redirectAfterRegister = (() => {
     const search = new URLSearchParams(location.search)
     const next = search.get('next') || ''
@@ -218,7 +210,7 @@ function RegisterPage() {
         </section>
 
         <section className="auth-card" aria-label="Register form">
-          <div className="page-back-row auth-page-back"><PageBackButton onClick={goBack} /></div>
+          <div className="page-back-row auth-page-back"><PageBackButton fallbackTo="/" /></div>
 
           <div className="auth-card-head">
             <h1>Create Account</h1>

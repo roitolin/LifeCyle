@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Image, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, type ScrollViewInstance } from "react-native";
-import LoadingBird from '@/components/LoadingBird';
+import ContentSkeleton, { ContentReveal, SkeletonBlock } from '@/components/ContentSkeleton';
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -136,9 +136,19 @@ export default function FuneralShopsScreen({ navigation }: any) {
         </View>
 
         {loading ? (
-          <View style={styles.loadingWrap}>
-            <LoadingBird />
-          </View>
+          <ContentSkeleton label="Loading shops" style={{ gap: 12 }}>
+            {[0, 1].map(index => (
+              <View key={index} style={styles.shopCard}>
+                <SkeletonBlock style={styles.shopImage} />
+                <View style={styles.shopBody}>
+                  <SkeletonBlock style={{ width: "58%", height: 16 }} />
+                  <SkeletonBlock />
+                  <SkeletonBlock style={{ width: "48%" }} />
+                </View>
+                <SkeletonBlock style={{ width: "100%", height: 44, borderRadius: 14, marginTop: 14 }} />
+              </View>
+            ))}
+          </ContentSkeleton>
         ) : loadError && shops.length === 0 ? (
           <View style={styles.emptyCard}>
             <Ionicons name="cloud-offline-outline" size={28} color="#9b2c2c" />
@@ -160,7 +170,7 @@ export default function FuneralShopsScreen({ navigation }: any) {
             ) : null}
           </View>
         ) : (
-          <>
+          <ContentReveal style={styles.shopResults}>
             {loadError ? (
               <TouchableOpacity style={styles.refreshWarning} onPress={() => void loadShops()}>
                 <Ionicons name="cloud-offline-outline" size={18} color="#9b2c2c" />
@@ -219,7 +229,7 @@ export default function FuneralShopsScreen({ navigation }: any) {
             </View>
               );
             })}
-          </>
+          </ContentReveal>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -236,6 +246,7 @@ const styles = StyleSheet.create({
     paddingBottom: 28,
     gap: 14,
   },
+  shopResults: { gap: 14 },
   heroCard: {
     borderRadius: 22,
     backgroundColor: "#d6e2d2",
@@ -285,12 +296,6 @@ const styles = StyleSheet.create({
     color: "#22312d",
     fontSize: 13,
     paddingVertical: 8,
-  },
-  loadingWrap: {
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-    paddingVertical: 48,
   },
   loadingText: {
     color: "#62706b",

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh'
 import PageBackButton from '@/components/PageBackButton'
 import AdminServiceRequestDetail from './AdminServiceRequestDetail'
 import type { ServiceRequest } from './AdminOrdersPage'
@@ -12,15 +13,17 @@ function AdminServiceRequestDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (background = false) => {
     if (!requestId) {
       setError('No service request was selected.')
       setLoading(false)
       return
     }
 
-    setLoading(true)
-    setError('')
+    if (!background) {
+      setLoading(true)
+      setError('')
+    }
     try {
       const { data, error: requestError } = await supabase
         .from('funeral_service_requests')
@@ -50,9 +53,12 @@ function AdminServiceRequestDetailPage() {
       }
 
       setRequest({ ...item, requesterName, requesterEmail })
+      setError('')
     } catch {
-      setRequest(null)
-      setError('Unable to load this service request right now.')
+      if (!background) {
+        setRequest(null)
+        setError('Unable to load this service request right now.')
+      }
     } finally {
       setLoading(false)
     }
@@ -61,6 +67,8 @@ function AdminServiceRequestDetailPage() {
   useEffect(() => {
     void load()
   }, [load])
+
+  useRealtimeRefresh([{ table: 'funeral_service_requests', filter: `id=eq.${requestId}` }], () => load(true), Boolean(requestId) && !loading)
 
   if (loading) {
     return (
@@ -76,7 +84,7 @@ function AdminServiceRequestDetailPage() {
         <h2>Request unavailable</h2>
         <p className="panel-sub">{error || 'This service request could not be found.'}</p>
         <div className="quick-actions">
-          <PageBackButton to="/admin/orders" label="Back to all service requests" />
+          <PageBackButton fallbackTo="/admin/orders" />
           <button type="button" className="solid-btn" onClick={() => void load()}>Try again</button>
         </div>
       </section>

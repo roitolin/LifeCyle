@@ -1,17 +1,19 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { Link, useNavigate, useOutletContext } from 'react-router-dom'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import BrandLogo from '@/components/BrandLogo'
 import AnnouncementDropdown from '@/components/AnnouncementDropdown'
 import NotificationDropdown from '@/components/NotificationDropdown'
-import LogoutLink from '@/components/LogoutLink'
+import HeaderAccountMenu from '@/components/HeaderAccountMenu'
 import MarketplaceFooter from '@/components/MarketplaceFooter'
 import MarketplaceMobileDrawer from '@/components/MarketplaceMobileDrawer'
 import ProductRating from '@/components/ProductRating'
+import { ProductGridSkeleton } from '@/components/ContentSkeleton'
+import ImageWithSkeleton from '@/components/ImageWithSkeleton'
+import { createMarketplaceResource, earliestShopExpiry, useMarketplaceResource } from '@/hooks/useMarketplaceResource'
 import { useProductScrollReveal } from '@/hooks/useProductScrollReveal'
 import { loadFuneralCart } from '@/utils/funeralCart'
-import { getProfileAvatar } from '@/utils/profileAvatar'
 import { summarizeProductRatings } from '@/utils/productRatings'
 import './FuneralLandingPage.css'
 
@@ -20,13 +22,10 @@ type Product = {
   id: string
   shopId: string
   shopName: string
-  shopAddress: string
-  shopPhoneNumber: string
   name: string
   description: string
   price: number
   stock: number
-  category: string
   imageUrl: string | null
   downpaymentEnabled: boolean
   downpaymentAmount: number | null
@@ -36,6 +35,19 @@ type Product = {
 }
 
 type Shop = { id: string; shopName: string; generalLocation: string }
+const EMPTY_PRODUCTS: Product[] = []
+const EMPTY_SHOPS: Shop[] = []
+const MOBILE_HEADER = '(max-width: 768px)'
+
+function subscribeToHeaderWidth(onChange: () => void) {
+  const query = window.matchMedia(MOBILE_HEADER)
+  query.addEventListener('change', onChange)
+  return () => query.removeEventListener('change', onChange)
+}
+
+function isMobileHeader() {
+  return window.matchMedia(MOBILE_HEADER).matches
+}
 
 /* â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const SORT_OPTIONS = ['Relevance', 'Latest', 'Top Sales', 'Price']
@@ -59,17 +71,59 @@ function getPrimaryImage(row: any): string | null {
     .find((image) => image.imageUrl)?.imageUrl ?? null
 }
 
-function resolveCategory(row: any): string {
-  const n = normalize(row.name)
-  if (n.includes('casket') || n.includes('coffin'))                                          return 'Caskets'
-  if (n.includes('flower') || n.includes('bouquet') || n.includes('wreath') || n.includes('floral')) return 'Floral Tributes'
-  if (n.includes('urn') || n.includes('memorial') || n.includes('candle'))                   return 'Urns & Memorial'
-  if (n.includes('package') || n.includes('service') || n.includes('plan'))                  return 'Service Packages'
-  if (n.includes('burial') || n.includes('interment'))                                       return 'Burial Needs'
-  if (n.includes('chapel') || n.includes('hall') || n.includes('venue'))                     return 'Chapel Services'
-  if (n.includes('transport') || n.includes('hearse'))                                       return 'Transportation'
-  if (n.includes('keepsake') || n.includes('token'))                                         return 'Keepsakes'
-  return 'Caskets'
+const catalogResource = createMarketplaceResource(async () => {
+  const { data, error } = await supabase
+    .from('funeral_products')
+    .select(`
+      id, name, description, price, stock, "imageUrl", "shopId", "downpaymentEnabled", "downpaymentAmount", "downpaymentPercentage",
+      funeral_product_images ( "imageUrl", "displayOrder" ),
+      funeral_product_ratings ( rating ),
+      funeral_shops!inner ( "shopName", "shopAddress", "generalLocation", "paidUntil" )
+    `)
+    .eq('active', true)
+    .gt('stock', 0)
+    .eq('funeral_shops.status', 'live')
+    .gt('funeral_shops.paidUntil', new Date().toISOString())
+
+  if (error) throw error
+
+  const rows = (data ?? []) as any[]
+  const shopMap = new Map<string, Shop>()
+  const products: Product[] = rows.map(row => {
+    const shopId = String(row.shopId ?? '')
+    const shop = row.funeral_shops
+    if (!shopMap.has(shopId)) {
+      shopMap.set(shopId, {
+        id: shopId,
+        shopName: String(shop?.shopName ?? 'Shop'),
+        generalLocation: String(shop?.generalLocation ?? shop?.shopAddress ?? ''),
+      })
+    }
+    const rating = summarizeProductRatings(row.funeral_product_ratings)
+    return {
+      id: String(row.id),
+      shopId,
+      shopName: String(shop?.shopName ?? 'Verified Shop'),
+      name: String(row.name ?? 'Untitled Product'),
+      description: String(row.description ?? ''),
+      price: Number(row.price) || 0,
+      stock: Number(row.stock) || 0,
+      imageUrl: getPrimaryImage(row),
+      downpaymentEnabled: Boolean(row.downpaymentEnabled),
+      downpaymentAmount: row.downpaymentAmount == null ? null : Number(row.downpaymentAmount),
+      downpaymentPercentage: row.downpaymentPercentage == null ? null : Number(row.downpaymentPercentage),
+      rating: rating.average,
+      ratingCount: rating.count,
+    }
+  })
+
+  products.sort((a, b) => a.name.localeCompare(b.name))
+  const shops = Array.from(shopMap.values()).sort((a, b) => a.shopName.localeCompare(b.shopName))
+  return { data: { products, shops }, expiresAt: earliestShopExpiry(rows.map(row => row.funeral_shops?.paidUntil)) }
+})
+
+function preloadProductDetail() {
+  void import('./ProductDetailPage').catch(() => undefined)
 }
 
 /* â”€â”€ Star Rating â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
@@ -109,12 +163,12 @@ function SearchIcon() {
    MAIN COMPONENT
 â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 export default function FuneralLandingPage() {
-  const [viewer,          setViewer]          = useState<User | null>(null)
+  const viewer = useOutletContext<User | null>()
+  const viewerId = viewer?.id ?? null
   const [userProfile,     setUserProfile]     = useState<any>(null)
-  const [products,        setProducts]        = useState<Product[]>([])
-  const [shops,           setShops]           = useState<Shop[]>([])
-  const [loading,         setLoading]         = useState(true)
-  const [error,           setError]           = useState<string | null>(null)
+  const { data: catalog, loading, error } = useMarketplaceResource(catalogResource, viewerId, 'Unable to load products.')
+  const products = catalog?.products ?? EMPTY_PRODUCTS
+  const shops = catalog?.shops ?? EMPTY_SHOPS
   const [cartCount, setCartCount] = useState(0)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const mobileMenuCloseRef = useRef<HTMLButtonElement>(null)
@@ -131,94 +185,15 @@ export default function FuneralLandingPage() {
   const [filtersOpen,      setFiltersOpen]       = useState(false)
   const PAGE_SIZE = 20
 
-  /* Auth */
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setViewer(data.session?.user ?? null)
-      if (data.session?.user) {
-        supabase.from('users').select('fullName, photoURL, gender').eq('id', data.session.user.id).maybeSingle().then(({ data: profileData }) => {
-          if (profileData) setUserProfile(profileData)
-        })
-      }
-    })
-    const { data: l } = supabase.auth.onAuthStateChange((_, s) => {
-      setViewer(s?.user ?? null)
-      if (s?.user) {
-        supabase.from('users').select('fullName, photoURL, gender').eq('id', s.user.id).maybeSingle().then(({ data: profileData }) => {
-          if (profileData) setUserProfile(profileData)
-        })
-      } else {
-        setUserProfile(null)
-      }
-    })
-    return () => l.subscription.unsubscribe()
-  }, [])
-
-   /* Load products */
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true); setError(null)
-      try {
-        const { data, error: err } = await supabase
-          .from('funeral_products')
-          .select(`
-            id, name, description, price, stock, "imageUrl", "shopId", "downpaymentEnabled", "downpaymentAmount", "downpaymentPercentage",
-            funeral_product_images ( "imageUrl", "displayOrder" ),
-            funeral_product_ratings ( rating ),
-            funeral_shops!inner ( "shopName", "shopAddress", "shopPhoneNumber", "generalLocation", status, "paidUntil" )
-          `)
-          .eq('active', true)
-          .gt('stock', 0)
-          .eq('funeral_shops.status', 'live')
-          .gt('funeral_shops.paidUntil', new Date().toISOString())
-
-        if (err) throw err
-
-        const rows = (data ?? []) as any[]
-        const mapped: Product[] = rows.map(row => {
-          const ratingSummary = summarizeProductRatings(row.funeral_product_ratings)
-          return {
-            id:              String(row.id),
-            shopId:          String(row.shopId ?? ''),
-            shopName:        String(row.funeral_shops?.shopName ?? 'Verified Shop'),
-            shopAddress:     String(row.funeral_shops?.shopAddress ?? ''),
-            shopPhoneNumber: String(row.funeral_shops?.shopPhoneNumber ?? ''),
-            name:            String(row.name ?? 'Untitled Product'),
-            description:     String(row.description ?? ''),
-            price:           Number(row.price) || 0,
-            stock:           Number(row.stock) || 0,
-            category:        resolveCategory(row),
-            imageUrl:        getPrimaryImage(row),
-            downpaymentEnabled: Boolean(row.downpaymentEnabled),
-            downpaymentAmount: row.downpaymentAmount == null ? null : Number(row.downpaymentAmount),
-            downpaymentPercentage: row.downpaymentPercentage == null ? null : Number(row.downpaymentPercentage),
-            rating: ratingSummary.average,
-            ratingCount: ratingSummary.count,
-          }
-        })
-        mapped.sort((a, b) => a.name.localeCompare(b.name))
-        setProducts(mapped)
-
-        // Build shop list
-        const shopMap = new Map<string, Shop>()
-        rows.forEach(row => {
-          if (!shopMap.has(row.shopId)) {
-            shopMap.set(row.shopId, {
-              id: row.shopId,
-              shopName: String(row.funeral_shops?.shopName ?? 'Shop'),
-              generalLocation: String(row.funeral_shops?.generalLocation ?? row.funeral_shops?.shopAddress ?? ''),
-            })
-          }
-        })
-        setShops(Array.from(shopMap.values()).sort((a, b) => a.shopName.localeCompare(b.shopName)))
-      } catch (e: any) {
-        setError(e?.message ?? 'Unable to load products.')
-      } finally {
-        setLoading(false)
-      }
-    }
-    void load()
-  }, [])
+    if (!viewerId) return
+    const controller = new AbortController()
+    void supabase.from('users').select('fullName, photoURL, gender').eq('id', viewerId)
+      .abortSignal(controller.signal).maybeSingle().then(({ data }) => {
+        if (!controller.signal.aborted) setUserProfile(data)
+      })
+    return () => controller.abort()
+  }, [viewerId])
 
   /* Derived filtered + sorted list */
   const filtered = useMemo(() => {
@@ -256,6 +231,7 @@ export default function FuneralLandingPage() {
   }
 
   const isLoggedIn = Boolean(viewer)
+  const mobileHeader = useSyncExternalStore(subscribeToHeaderWidth, isMobileHeader, () => false)
 
   const refreshCartCount = () => {
     setCartCount(isLoggedIn ? loadFuneralCart().reduce((sum, item) => sum + item.quantity, 0) : 0)
@@ -367,35 +343,15 @@ export default function FuneralLandingPage() {
         <div className="sp-topbar-inner">
           <div className="sp-topbar-left">
             <Link to="/seller">Shop Center</Link>
-            <span className="sp-divider">|</span>
-            <span>Follow us on</span>
-            <a href="#fb" aria-label="Facebook">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg>
-            </a>
-            <a href="#ig" aria-label="Instagram">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor"/></svg>
-            </a>
           </div>
           <div className="sp-topbar-right">
             <AnnouncementDropdown />
-            <NotificationDropdown variant="seller-centre" />
-            <a href="#help">Help</a>
-            <a href="#language">English</a>
-            <span className="sp-divider">|</span>
+            {isLoggedIn && !mobileHeader && <NotificationDropdown variant="seller-centre" />}
+            <Link to={helpPath}>Help Centre</Link>
+            {isLoggedIn && <span className="sp-divider" aria-hidden="true">|</span>}
             {isLoggedIn
               ? (
-                <div className="sp-user-menu">
-                  <div className="sp-user-menu-trigger">
-                    <img src={getProfileAvatar(userProfile?.photoURL, userProfile?.gender)} alt="Avatar" className="sp-user-avatar" />
-                    <span className="sp-user-name">{userProfile?.fullName || viewer?.email}</span>
-                    <svg className="sp-user-dropdown-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                  </div>
-                  <div className="sp-user-dropdown">
-                    <Link to="/user/profile">My Account</Link>
-                    <Link to="/user/requests">My service request</Link>
-                    <LogoutLink>Log out</LogoutLink>
-                  </div>
-                </div>
+                <HeaderAccountMenu profile={userProfile} fallbackName={viewer?.email} showNotifications={false} />
               )
               : <><Link to="/register" className="sp-signup">Sign Up</Link><Link to="/login">Login</Link></>}
           </div>
@@ -420,7 +376,12 @@ export default function FuneralLandingPage() {
           </div>
 
           <div className="sp-search-wrap">
-            <div className="sp-search-box">
+            <form className="sp-search-box" role="search" onSubmit={event => {
+              event.preventDefault()
+              const results = document.getElementById('marketplace-results')
+              results?.focus({ preventScroll: true })
+              results?.scrollIntoView({ block: 'start' })
+            }}>
               <input
                 id="sp-search-input"
                 type="search"
@@ -429,16 +390,13 @@ export default function FuneralLandingPage() {
                 placeholder="Search products"
                 aria-label="Search"
               />
-              <button type="button" className="sp-search-btn" aria-label="Search">
+              <button type="submit" className="sp-search-btn" aria-label="Search">
                 <SearchIcon />
               </button>
-            </div>
+            </form>
           </div>
 
           <div className='sp-header-actions'>
-            <div className='sp-mobile-header-notification'>
-              <NotificationDropdown variant='seller-centre' />
-            </div>
             <div className="sp-cart-area">
               <Link to={isLoggedIn ? '/user/cart' : '/login?next=/user/cart'} className="sp-cart-btn" aria-label="Shopping cart" title="Shopping cart">
                 <CartIcon />
@@ -563,7 +521,7 @@ export default function FuneralLandingPage() {
           </aside>
 
           {/* â”€â”€ Main Content â”€â”€ */}
-          <main className="sp-main">
+          <main className="sp-main" id="marketplace-results" tabIndex={-1}>
 
             {/* Search result header */}
             <div className='sp-result-heading'>
@@ -611,12 +569,7 @@ export default function FuneralLandingPage() {
             </div>
 
             {/* States */}
-            {loading && (
-              <div className="sp-state">
-                <div className="sp-spinner" />
-                <p>Loading products...</p>
-              </div>
-            )}
+            {loading && <ProductGridSkeleton />}
             {!loading && error && (
               <div className="sp-state sp-state-error">{error}</div>
             )}
@@ -630,8 +583,8 @@ export default function FuneralLandingPage() {
 
             {/* Product Grid */}
             {!loading && !error && (
-              <div className="sp-grid" ref={productGridRef}>
-                {paginated.map(product => {
+              <div className="sp-grid lc-content-reveal" ref={productGridRef}>
+                {paginated.map((product, index) => {
                   const downpaymentAmount = Number(product.downpaymentAmount) || 0
                   const downpaymentPercentage = Number(product.downpaymentPercentage) || 0
                   const hasDownpayment = product.downpaymentEnabled
@@ -645,10 +598,12 @@ export default function FuneralLandingPage() {
                     className="sp-card product-scroll-reveal"
                     data-product-scroll-reveal
                     to={`/funeral/product/${product.id}`}
+                    onPointerEnter={preloadProductDetail}
+                    onFocus={preloadProductDetail}
                   >
                     <div className="sp-card-img-wrap">
                       {product.imageUrl
-                        ? <img src={product.imageUrl} alt={product.name} loading="lazy" decoding="async" />
+                        ? <ImageWithSkeleton src={product.imageUrl} alt={product.name} loading={index === 0 ? "eager" : "lazy"} />
                         : <div className="sp-card-img-ph"><CasketSVG /></div>}
                       {hasDownpayment ? (
                         <span className="sp-card-downpayment-badge" aria-label={`${downpaymentPercentage}% down payment available`}>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
@@ -7,6 +7,7 @@ import { getDefaultProfileAvatar } from '@/utils/profileAvatar'
 import { logWebAdminActivity, recordWebAdminLoginActivity } from '@/utils/adminActivity'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import NotificationDropdown, { type WebNotification } from '@/components/NotificationDropdown'
+import RouteLoading from '@/components/RouteLoading'
 import './AdminLayout.css'
 
 type ProfileData = {
@@ -49,10 +50,34 @@ function AdminLayout() {
   const [userRole, setUserRole] = useState<AdminRole>('user')
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
+  const [menuLocation, setMenuLocation] = useState<string | null>(null)
+  const menuOpen = menuLocation === location.key
   const [profile, setProfile] = useState<ProfileData>({ fullName: 'Admin', photoURL: '', gender: '' })
+  const menuWrapRef = useRef<HTMLDivElement>(null)
+  const menuTriggerRef = useRef<HTMLButtonElement>(null)
   const lastTrackedClickRef = useRef({ signature: '', time: 0 })
   const { openConfirm, confirmDialog } = useConfirmDialog()
+
+  useEffect(() => {
+    if (!menuOpen) return undefined
+    const handlePointerDown = (event: MouseEvent) => {
+      if (menuWrapRef.current && !menuWrapRef.current.contains(event.target as Node)) {
+        setMenuLocation(null)
+      }
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMenuLocation(null)
+        menuTriggerRef.current?.focus()
+      }
+    }
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [menuOpen])
 
   useEffect(() => {
     void supabase.auth.getSession().then(({ data }) => {
@@ -86,6 +111,25 @@ function AdminLayout() {
       }
     }
     void loadProfile()
+
+    if (!user) return undefined
+    const handleProfileUpdated = () => {
+      void loadProfile()
+    }
+    window.addEventListener('admin-profile-updated', handleProfileUpdated)
+    const channel = supabase
+      .channel(`admin-header-profile-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'users', filter: `id=eq.${user.id}` },
+        () => void loadProfile(),
+      )
+      .subscribe()
+
+    return () => {
+      window.removeEventListener('admin-profile-updated', handleProfileUpdated)
+      void supabase.removeChannel(channel)
+    }
   }, [user])
 
   const avatarSrc = profile.photoURL || getDefaultAvatar(profile.gender)
@@ -113,7 +157,7 @@ function AdminLayout() {
   }
 
   const confirmLogout = () => {
-    setMenuOpen(false)
+    setMenuLocation(null)
     openConfirm({
       title: 'Log Out',
       message: 'Are you sure you want to log out?',
@@ -248,6 +292,14 @@ function AdminLayout() {
             </span>
             <span className="sidebar-label">{homeLabel}</span>
           </NavLink>
+          <Link to="/user/notifications" className="user-nav-link admin-mobile-notifications" onClick={() => setMobileSidebarOpen(false)}>
+            <span className="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+            <span className="sidebar-label">Notifications</span>
+          </Link>
           {isRootAdmin ? <NavLink to="/admin/analytics" className={({ isActive }) => `user-nav-link${isActive ? ' active' : ''}`}>
             <span className="nav-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none">
@@ -307,7 +359,7 @@ function AdminLayout() {
                 <path d="M14 15L16 17L20 13" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </span>
-            <span className="sidebar-label">Payout Accounts</span>
+            <span className="sidebar-label">Withdrawal Accounts</span>
           </NavLink> : null}
           {isRootAdmin ? <span className="admin-nav-section sidebar-label">Root Tools</span> : null}
           {isRootAdmin ? <NavLink to="/admin/home-content" className={({ isActive }) => isActive ? 'user-nav-link active' : 'user-nav-link'}>
@@ -319,6 +371,16 @@ function AdminLayout() {
               </svg>
             </span>
             <span className="sidebar-label">Mobile Home</span>
+          </NavLink> : null}
+          {isRootAdmin ? <NavLink to="/admin/app-link" className={({ isActive }) => isActive ? 'user-nav-link active' : 'user-nav-link'}>
+            <span className="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M12 4V14" strokeWidth="1.8" strokeLinecap="round" />
+                <path d="M8 10L12 14L16 10" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M5 18H19" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
+            </span>
+            <span className="sidebar-label">Install App Link</span>
           </NavLink> : null}
           {isRootAdmin ? <NavLink to="/admin/announcements" className={({ isActive }) => isActive ? 'user-nav-link active' : 'user-nav-link'}>
             <span className="nav-icon" aria-hidden="true">
@@ -389,6 +451,15 @@ function AdminLayout() {
             </span>
             <span className="sidebar-label">Login &amp; Security</span>
           </NavLink>
+          <NavLink to="/admin/profile" className={({ isActive }) => `user-nav-link${isActive ? ' active' : ''}`}>
+            <span className="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="8" r="3.5" strokeWidth="1.8" />
+                <path d="M5 20C5 16.4 8.1 14 12 14C15.9 14 19 16.4 19 20" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
+            </span>
+            <span className="sidebar-label">Profile</span>
+          </NavLink>
         </nav>
 
         <div className="utility-actions">
@@ -417,40 +488,70 @@ function AdminLayout() {
             </Link>
           </div>
           <div className="user-header-right">
-            <NotificationDropdown
-              variant="seller-centre"
-              className="admin-home-notifications"
-              routeResolver={resolveAdminNotificationRoute}
-              viewAllPath="/user/notifications"
-            />
+            {location.pathname === homePath && (
+              <NotificationDropdown
+                variant="seller-centre"
+                className="admin-home-notifications"
+                routeResolver={resolveAdminNotificationRoute}
+                viewAllPath="/user/notifications"
+              />
+            )}
 
-            <div className="user-menu-wrap">
+            <div className="user-menu-wrap" ref={menuWrapRef}>
               <button
                 type="button"
+                ref={menuTriggerRef}
                 className="user-profile-trigger"
-                onClick={() => setMenuOpen((prev) => !prev)}
-                aria-haspopup="dialog"
+                onClick={() => setMenuLocation(menuOpen ? null : location.key)}
+                aria-label="Admin profile menu"
                 aria-expanded={menuOpen}
                 aria-controls="admin-profile-menu"
               >
-                <img src={avatarSrc} alt="Profile" className="user-avatar" />
+                <img src={avatarSrc} alt="" className="user-avatar" />
                 <span className="user-profile-name">{profile.fullName}</span>
-                <svg viewBox="0 0 24 24" fill="none" className={`user-arrow${menuOpen ? ' open' : ''}`} aria-hidden="true">
-                  <path d="M6 9L12 15L18 9" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className={`user-arrow${menuOpen ? ' open' : ''}`}
+                  aria-hidden="true"
+                >
+                  <polyline points="6 9 12 15 18 9" />
                 </svg>
               </button>
 
-              {menuOpen ? (
-                <div id="admin-profile-menu" className="user-dropdown" role="dialog" aria-label="Admin profile menu" aria-modal="false">
-                  <button type='button' className='user-dropdown-item' data-no-activity='true' onClick={confirmLogout}>Logout</button>
-                </div>
-              ) : null}
+              <div
+                id="admin-profile-menu"
+                className={`user-dropdown${menuOpen ? ' is-open' : ''}`}
+                hidden={!menuOpen}
+              >
+                {location.pathname !== homePath && (
+                  <Link to="/user/notifications" className="user-dropdown-item" onClick={() => setMenuLocation(null)}>
+                    Notifications
+                  </Link>
+                )}
+                <button
+                  type="button"
+                  className="user-dropdown-item"
+                  data-no-activity="true"
+                  onClick={confirmLogout}
+                >
+                  Log out
+                </button>
+              </div>
             </div>
           </div>
         </header>
 
         <div className="user-content admin-content-full-bleed">
-          <Outlet />
+          <Suspense fallback={<RouteLoading />}>
+            <Outlet />
+          </Suspense>
         </div>
       </main>
       {confirmDialog}

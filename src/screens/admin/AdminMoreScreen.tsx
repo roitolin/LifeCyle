@@ -62,7 +62,7 @@ export default function AdminMoreScreen({ navigation }: any) {
           ) : null}
           {isRootAdmin ? (
             <Button mode="contained" icon="bank-check" buttonColor="#2563eb" textColor="#fff" onPress={() => navigation.navigate("PayoutAccounts")}>
-              Payout Accounts
+              Withdrawal Accounts
             </Button>
           ) : null}
           <Button mode="contained-tonal" onPress={() => navigation.navigate("Moderation")}>

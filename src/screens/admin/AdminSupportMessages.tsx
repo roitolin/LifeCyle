@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import LoadingBird from '@/components/LoadingBird';
+import LoadingStatus from '@/components/LoadingStatus';
 import {
   View,
   FlatList,
@@ -282,8 +282,8 @@ export default function AdminSupportMessages({ navigation }: any) {
     ]);
   };
 
-  if (loading && !refreshing) {
-    return <LoadingBird fullScreen />;
+  if (loading && !refreshing && conversations.length === 0) {
+    return <LoadingStatus label="Loading support messages…" fullScreen />;
   }
 
   return (
