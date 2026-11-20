@@ -266,6 +266,11 @@
 .sp-card-img-wrap img {
   @apply absolute w-full h-full object-cover left-0 top-0;
 }
+@media (hover: hover) and (pointer: fine) {
+  .sp-card:hover .sp-card-img-wrap img {
+    transform: scale(1.035);
+  }
+}
 .sp-card-img-ph {
   @apply absolute w-full h-full flex items-center justify-center left-0 top-0;
 }

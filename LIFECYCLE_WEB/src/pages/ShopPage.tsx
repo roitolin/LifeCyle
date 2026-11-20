@@ -324,7 +324,18 @@ export default function ShopPage() {
                   className="shop-product-card product-scroll-reveal"
                   data-product-scroll-reveal
                 >
-                  {product.imageUrl ? <ImageWithSkeleton className="shop-product-photo" src={product.imageUrl} alt={product.name} loading={index === 0 ? "eager" : "lazy"} /> : <div className="shop-product-image-empty">No image</div>}
+                  {product.imageUrl ? (
+                    <ImageWithSkeleton
+                      className="shop-product-photo"
+                      src={product.imageUrl}
+                      alt={product.name}
+                      loading={index < 4 ? 'eager' : 'lazy'}
+                      fetchPriority={index === 0 ? 'high' : 'auto'}
+                      deliveryWidth={480}
+                      deliveryHeight={480}
+                      sizes="(max-width: 640px) calc(50vw - 24px), 240px"
+                    />
+                  ) : <div className="shop-product-image-empty">No image</div>}
                   <div className="shop-product-copy">
                     <h3>{product.name}</h3>
                     <strong>₱{product.price.toLocaleString()}</strong>

@@ -603,7 +603,15 @@ export default function FuneralLandingPage() {
                   >
                     <div className="sp-card-img-wrap">
                       {product.imageUrl
-                        ? <ImageWithSkeleton src={product.imageUrl} alt={product.name} loading={index === 0 ? "eager" : "lazy"} />
+                        ? <ImageWithSkeleton
+                            src={product.imageUrl}
+                            alt={product.name}
+                            loading={index < 5 ? 'eager' : 'lazy'}
+                            fetchPriority={index < 2 ? 'high' : 'auto'}
+                            deliveryWidth={480}
+                            deliveryHeight={480}
+                            sizes="(max-width: 480px) calc(50vw - 20px), (max-width: 768px) calc(33vw - 20px), 220px"
+                          />
                         : <div className="sp-card-img-ph"><CasketSVG /></div>}
                       {hasDownpayment ? (
                         <span className="sp-card-downpayment-badge" aria-label={`${downpaymentPercentage}% down payment available`}>

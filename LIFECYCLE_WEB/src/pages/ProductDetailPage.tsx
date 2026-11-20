@@ -619,7 +619,16 @@ export default function ProductDetailPage() {
               aria-label={mainImage ? `Open a larger image of ${product.name}` : 'No product image available'}
             >
               {mainImage ? (
-                <ImageWithSkeleton src={mainImage} alt={product.name} fetchPriority="high" style={{ objectFit: "contain" }} />
+                <ImageWithSkeleton
+                  src={mainImage}
+                  alt={product.name}
+                  fetchPriority="high"
+                  deliveryWidth={1200}
+                  deliveryHeight={1200}
+                  deliveryFit="contain"
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  style={{ objectFit: 'contain' }}
+                />
               ) : (
                 <span className="pd-image-placeholder">No image available</span>
               )}

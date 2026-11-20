@@ -5,26 +5,48 @@
   height: 100%;
   overflow: hidden;
   border-radius: inherit;
+  isolation: isolate;
+  background: #e3eae3;
+}
+
+.lc-image-frame::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  content: '';
+  background: linear-gradient(105deg, transparent 28%, rgba(255, 255, 255, 0.72) 44%, transparent 62%);
+  transform: translateX(-110%);
+  opacity: 0;
+  pointer-events: none;
 }
 
 .lc-image-frame > img {
   position: absolute;
+  z-index: 1;
   inset: 0;
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
   opacity: 0;
-  transition: var(--lc-image-transition, opacity 200ms ease-out);
+  filter: blur(5px);
+  transform: scale(1.025);
+  transition: var(--lc-image-transition, opacity 320ms ease-out, filter 320ms ease-out, transform 520ms cubic-bezier(.2,.7,.2,1));
 }
 
 .lc-image-frame[data-image-state="ready"] > img {
   opacity: 1;
+  filter: blur(0);
+  transform: scale(1);
 }
 
 .lc-image-frame[data-image-state="loading"] {
-  background: #e3eae3;
-  animation: lc-image-pending 1.75s ease-in-out 180ms infinite;
+  background: linear-gradient(135deg, #e2e9e3, #eef2ee);
+}
+
+.lc-image-frame[data-image-state="loading"]::before {
+  opacity: 1;
+  animation: lc-image-shimmer 1.25s ease-in-out 120ms infinite;
 }
 
 .lc-image-unavailable {
@@ -39,12 +61,11 @@
   text-align: center;
 }
 
-@keyframes lc-image-pending {
-  0%, 100% { background-color: #e3eae3; }
-  50% { background-color: #edf1ec; }
+@keyframes lc-image-shimmer {
+  to { transform: translateX(110%); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .lc-image-frame[data-image-state="loading"] { animation: none; }
+  .lc-image-frame[data-image-state="loading"]::before { animation: none; }
   .lc-image-frame > img { transition: none; }
 }

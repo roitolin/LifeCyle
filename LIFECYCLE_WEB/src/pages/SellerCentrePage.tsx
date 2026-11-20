@@ -16,6 +16,7 @@ import { DashboardSkeleton } from '@/components/ContentSkeleton'
 import RouteLoading from '@/components/RouteLoading'
 import HistoryPagination from '@/components/HistoryPagination'
 import { PAYOUT_CHANNEL_LOGOS } from '@/assets/paymentLogoAssets'
+import { compressImageForUpload } from '@/utils/imageCompression'
 import {
   createShopScheduleEvent,
   deleteShopScheduleEvent,
@@ -1087,9 +1088,14 @@ export default function SellerCentrePage() {
 
     setEditorUploadingIndex(index)
     try {
-      const ext = file.name.split('.').pop()
+      const uploadFile = await compressImageForUpload(file)
+      const ext = uploadFile.name.split('.').pop() || 'webp'
       const path = `products/${user.id}_${Date.now()}_${index}.${ext}`
-      const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(path, uploadFile, {
+        upsert: true,
+        contentType: uploadFile.type,
+        cacheControl: '31536000',
+      })
       if (uploadError) throw uploadError
 
       const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
@@ -1109,9 +1115,14 @@ export default function SellerCentrePage() {
 
     setEditorUploadingIndex(100 + index)
     try {
-      const ext = file.name.split('.').pop()
+      const uploadFile = await compressImageForUpload(file)
+      const ext = uploadFile.name.split('.').pop() || 'webp'
       const path = `variations/${user.id}_${Date.now()}_${index}.${ext}`
-      const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(path, uploadFile, {
+        upsert: true,
+        contentType: uploadFile.type,
+        cacheControl: '31536000',
+      })
       if (uploadError) throw uploadError
 
       const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
@@ -1718,9 +1729,14 @@ export default function SellerCentrePage() {
 
     setUploadingPackageItemId(itemId)
     try {
-      const ext = file.name.split('.').pop()
+      const uploadFile = await compressImageForUpload(file)
+      const ext = uploadFile.name.split('.').pop() || 'webp'
       const path = `packages/${user.id}_${itemId}_${Date.now()}.${ext}`
-      const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(path, uploadFile, {
+        upsert: true,
+        contentType: uploadFile.type,
+        cacheControl: '31536000',
+      })
       if (uploadError) throw uploadError
       const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
       updatePackageItem(itemId, { imageUrl: urlData.publicUrl })

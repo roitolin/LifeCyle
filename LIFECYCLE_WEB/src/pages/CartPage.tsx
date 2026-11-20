@@ -170,7 +170,15 @@ export default function CartPage() {
                             <SelectionCheckbox checked={selectedIds.has(item.cartId)} label={`Select ${item.name}${item.variationName ? ' · ' + item.variationName : ''}`} onChange={checked => selectItems([item], checked)} />
                           </label>
                           {item.imageUrl ? (
-                            <ImageWithSkeleton src={item.imageUrl} className="web-cart-image" alt="" loading="lazy" />
+                            <ImageWithSkeleton
+                              src={item.imageUrl}
+                              className="web-cart-image"
+                              alt=""
+                              loading="lazy"
+                              deliveryWidth={220}
+                              deliveryHeight={220}
+                              sizes="110px"
+                            />
                           ) : <span className="web-cart-image web-cart-image-empty" aria-hidden="true">No image</span>}
                           <div className="web-cart-item-details">
                             <Link className="web-cart-item-name" to={`/funeral/product/${encodeURIComponent(item.productId)}`}>{item.name}</Link>
