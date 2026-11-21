@@ -17,6 +17,7 @@ import RouteLoading from '@/components/RouteLoading'
 import HistoryPagination from '@/components/HistoryPagination'
 import { PAYOUT_CHANNEL_LOGOS } from '@/assets/paymentLogoAssets'
 import { compressImageForUpload } from '@/utils/imageCompression'
+import ImageWithSkeleton from '@/components/ImageWithSkeleton'
 import {
   createShopScheduleEvent,
   deleteShopScheduleEvent,
@@ -1149,9 +1150,19 @@ export default function SellerCentrePage() {
     else setUploadingShopCover(true)
 
     try {
-      const ext = file.name.split('.').pop()
+      const uploadFile = await compressImageForUpload(file, {
+        maxDimension: field === 'shopImageUrl' ? 960 : 1600,
+        quality: 0.78,
+        skipBelowBytes: 180 * 1024,
+        preserveTransparency: true,
+      })
+      const ext = uploadFile.name.split('.').pop() || 'webp'
       const path = `shops/${user.id}_${field}_${Date.now()}.${ext}`
-      const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(path, uploadFile, {
+        upsert: true,
+        cacheControl: '31536000',
+        contentType: uploadFile.type || undefined,
+      })
       if (uploadError) throw uploadError
 
       const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
@@ -3174,7 +3185,7 @@ export default function SellerCentrePage() {
           <div className="sc-header-divider" />
           <div className="sc-header-user">
             {shop.shopImageUrl ? (
-              <img src={shop.shopImageUrl} alt="" className="sc-header-avatar" />
+              <ImageWithSkeleton src={shop.shopImageUrl} alt="" className="sc-header-avatar" deliveryWidth={96} deliveryHeight={96} sizes="32px" />
             ) : (
               <span className="sc-header-avatar-ph">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
@@ -3212,7 +3223,7 @@ export default function SellerCentrePage() {
           </div>
           <div className="sc-mobile-menu-profile">
             {shop.shopImageUrl ? (
-              <img src={shop.shopImageUrl} alt="" />
+              <ImageWithSkeleton src={shop.shopImageUrl} alt="" className="sc-mobile-menu-avatar" deliveryWidth={128} deliveryHeight={128} sizes="42px" loading="lazy" />
             ) : (
               <span className="sc-mobile-menu-avatar" aria-hidden="true">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" /><path d="M4.5 21a7.5 7.5 0 0 1 15 0" /></svg>
@@ -3366,10 +3377,13 @@ export default function SellerCentrePage() {
                     <div className="sc-dashboard-hero-main">
                       <div className="sc-dashboard-hero-avatar-wrap">
                         {shop.shopImageUrl ? (
-                          <img
+                          <ImageWithSkeleton
                             src={shop.shopImageUrl}
                             alt={shop.shopName}
                             className="sc-dashboard-hero-avatar"
+                            deliveryWidth={256}
+                            deliveryHeight={256}
+                            sizes="96px"
                           />
                         ) : (
                           <div className="sc-dashboard-hero-avatar-placeholder">
@@ -5713,14 +5727,14 @@ export default function SellerCentrePage() {
 
                         <div className="sc-settings-profile-media">
                           <div className="sc-settings-cover-preview">
-                            {shop.coverImageUrl ? <img src={shop.coverImageUrl} alt={`${shop.shopName} cover`} /> : <span>Cover photo</span>}
+                            {shop.coverImageUrl ? <ImageWithSkeleton src={shop.coverImageUrl} alt={`${shop.shopName} cover`} deliveryWidth={1200} deliveryHeight={420} sizes="(max-width: 768px) 100vw, 900px" /> : <span>Cover photo</span>}
                             <label>
                               {uploadingShopCover ? 'Uploading…' : 'Change cover'}
                               <input type="file" accept="image/*" onChange={event => handleUploadShopImage(event, 'coverImageUrl')} />
                             </label>
                           </div>
                           <div className="sc-settings-logo-preview">
-                            {shop.shopImageUrl ? <img src={shop.shopImageUrl} alt={shop.shopName} /> : <span>{shop.shopName.slice(0, 2).toUpperCase()}</span>}
+                            {shop.shopImageUrl ? <ImageWithSkeleton src={shop.shopImageUrl} alt={shop.shopName} deliveryWidth={256} deliveryHeight={256} sizes="76px" /> : <span>{shop.shopName.slice(0, 2).toUpperCase()}</span>}
                             <label>
                               {uploadingShopProfile ? 'Uploading…' : 'Change logo'}
                               <input type="file" accept="image/*" onChange={event => handleUploadShopImage(event, 'shopImageUrl')} />

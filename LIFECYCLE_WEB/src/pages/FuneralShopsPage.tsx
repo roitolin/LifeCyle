@@ -248,7 +248,17 @@ export default function FuneralShopsPage() {
             {filtered.map((shop, index) => (
               <article key={shop.id} className={SHOP_CARD}>
                 {shop.shopImageUrl ? (
-                  <ImageWithSkeleton src={shop.shopImageUrl} alt={`${shop.shopName} logo`} loading={index === 0 ? "eager" : "lazy"} className={SHOP_IMAGE} />
+                  <ImageWithSkeleton
+                    src={shop.shopImageUrl}
+                    alt={`${shop.shopName} logo`}
+                    loading={index === 0 ? "eager" : "lazy"}
+                    fetchPriority={index === 0 ? "high" : "auto"}
+                    className={SHOP_IMAGE}
+                    deliveryWidth={320}
+                    deliveryHeight={320}
+                    deliveryFit="contain"
+                    sizes="108px"
+                  />
                 ) : (
                   <div className="funeral-shop-card-placeholder">
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#22312d" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>

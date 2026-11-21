@@ -277,10 +277,36 @@ export default function ShopPage() {
         {!loading && shop && <section className="shop-detail-overview lc-content-reveal" id="shop-overview" aria-label={`${shop.shopName} shop information`}>
           <div
             className={`shop-detail-summary${coverImageUrl ? ' shop-detail-summary-cover' : ''}`}
-            style={coverImageUrl ? { backgroundImage: `linear-gradient(105deg, rgba(27, 51, 43, 0.96), rgba(34, 49, 45, 0.79)), url("${coverImageUrl}")` } : undefined}
           >
+            {coverImageUrl ? (
+              <>
+                <ImageWithSkeleton
+                  className="shop-detail-cover-image"
+                  src={coverImageUrl}
+                  alt=""
+                  loading="eager"
+                  fetchPriority="high"
+                  deliveryWidth={1200}
+                  deliveryHeight={420}
+                  sizes="(max-width: 760px) calc(100vw - 32px), 1160px"
+                />
+                <span className="shop-detail-cover-overlay" aria-hidden="true" />
+              </>
+            ) : null}
             <div className="shop-detail-profile">
-              {shop.shopImageUrl ? <img src={shop.shopImageUrl} alt="" className="shop-detail-avatar" /> : <div className="shop-detail-avatar shop-detail-avatar-fallback" aria-hidden="true">{shop.shopName.charAt(0).toUpperCase()}</div>}
+              {shop.shopImageUrl ? (
+                <ImageWithSkeleton
+                  src={shop.shopImageUrl}
+                  alt=""
+                  className="shop-detail-avatar"
+                  loading="eager"
+                  fetchPriority="high"
+                  deliveryWidth={320}
+                  deliveryHeight={320}
+                  deliveryFit="contain"
+                  sizes="88px"
+                />
+              ) : <div className="shop-detail-avatar shop-detail-avatar-fallback" aria-hidden="true">{shop.shopName.charAt(0).toUpperCase()}</div>}
               <div className="shop-detail-identity">
                 <h1>{shop.shopName}</h1>
                 <p className="shop-detail-location">{shop.generalLocation || shop.shopAddress || 'Location not provided'}</p>

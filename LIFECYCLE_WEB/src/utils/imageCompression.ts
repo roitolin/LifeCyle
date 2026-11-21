@@ -2,6 +2,7 @@ type CompressImageOptions = {
   maxDimension?: number
   quality?: number
   skipBelowBytes?: number
+  preserveTransparency?: boolean
 }
 
 function outputName(fileName: string) {
@@ -26,14 +27,14 @@ export async function compressImageForUpload(file: File, options: CompressImageO
     const canvas = document.createElement('canvas')
     canvas.width = width
     canvas.height = height
-    const context = canvas.getContext('2d', { alpha: false })
+    const context = canvas.getContext('2d', { alpha: options.preserveTransparency === true })
     if (!context) return file
 
     context.imageSmoothingEnabled = true
     context.imageSmoothingQuality = 'high'
     context.drawImage(bitmap, 0, 0, width, height)
     const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/webp', quality))
-    if (!blob || blob.size >= file.size) return file
+    if (!blob || blob.type !== 'image/webp' || blob.size >= file.size) return file
 
     return new File([blob], outputName(file.name), {
       type: 'image/webp',

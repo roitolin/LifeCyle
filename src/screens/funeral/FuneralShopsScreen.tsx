@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Image, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, type ScrollViewInstance } from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, type ScrollViewInstance } from "react-native";
 import ContentSkeleton, { ContentReveal, SkeletonBlock } from '@/components/ContentSkeleton';
+import AnimatedRemoteImage from "@/components/AnimatedRemoteImage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -183,10 +184,13 @@ export default function FuneralShopsScreen({ navigation }: any) {
               return (
             <View key={shop.id} style={styles.shopCard}>
               {imageUrl && !imageFailed ? (
-                <Image
-                  source={{ uri: imageUrl }}
+                <AnimatedRemoteImage
+                  uri={imageUrl}
                   style={styles.shopImage}
                   resizeMode="cover"
+                  deliveryWidth={320}
+                  deliveryHeight={320}
+                  accessibilityLabel={`${shop.shopName} profile photo`}
                   onError={() => setFailedImageIds((current) => new Set(current).add(shop.id))}
                 />
               ) : (

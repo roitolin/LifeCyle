@@ -17,15 +17,19 @@ function decodeBase64(value: string) {
   return bytes.buffer;
 }
 
-async function uploadImageToSupabase(uri: string, folder: UploadFolder): Promise<string> {
+async function uploadImageToSupabase(
+  uri: string,
+  folder: UploadFolder,
+  options: { width?: number; compress?: number } = {},
+): Promise<string> {
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError) throw userError;
   if (!userData.user) throw new Error('You must be signed in to upload an image.');
 
   const manipulatedImage = await ImageManipulator.manipulateAsync(
     uri,
-    [{ resize: { width: 1200 } }],
-    { compress: 0.75, format: ImageManipulator.SaveFormat.JPEG }
+    [{ resize: { width: options.width ?? 1200 } }],
+    { compress: options.compress ?? 0.75, format: ImageManipulator.SaveFormat.JPEG }
   );
   const base64 = await FileSystem.readAsStringAsync(manipulatedImage.uri, {
     encoding: FileSystem.EncodingType.Base64,
@@ -43,7 +47,7 @@ async function uploadImageToSupabase(uri: string, folder: UploadFolder): Promise
     .from(STORAGE_BUCKET)
     .upload(objectPath, imageData, {
       contentType: 'image/jpeg',
-      cacheControl: '3600',
+      cacheControl: folder === 'shops' ? '31536000' : '3600',
       upsert: false,
     });
 
@@ -60,7 +64,7 @@ export const uploadProfilePicture = (uri: string) =>
   uploadImageToSupabase(uri, 'profiles');
 
 export const uploadShopImage = (uri: string) =>
-  uploadImageToSupabase(uri, 'shops');
+  uploadImageToSupabase(uri, 'shops', { width: 1200, compress: 0.72 });
 
 export const uploadCertificate = (uri: string) =>
   uploadImageToSupabase(uri, 'service-media');

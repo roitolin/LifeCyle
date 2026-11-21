@@ -23,6 +23,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import { LineChart, PieChart, type lineDataItem } from "react-native-gifted-charts";
 import { AppBackButton, KeyboardAwareScrollView } from "@/components";
+import AnimatedRemoteImage from "@/components/AnimatedRemoteImage";
 import { supabase } from "@/services/supabaseClient";
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import * as ImagePicker from "@/utils/permissionImagePicker";
@@ -1735,7 +1736,13 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.heroSection}>
             {coverImageUrl || shopImageUrl ? (
-              <Image source={{ uri: coverImageUrl || shopImageUrl || "" }} style={styles.heroImage} resizeMode="cover" />
+              <AnimatedRemoteImage
+                uri={coverImageUrl || shopImageUrl || ""}
+                style={styles.heroImage}
+                deliveryWidth={1080}
+                deliveryHeight={560}
+                accessibilityLabel={`${shopDisplayName} cover photo`}
+              />
             ) : null}
             <View style={styles.heroOverlay} />
 
@@ -1761,7 +1768,13 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
             <ContentReveal style={styles.centerProfilePanel}>
               <View style={styles.centerProfileAvatarWrap}>
                 {shopImageUrl ? (
-                  <Image source={{ uri: shopImageUrl }} style={styles.centerProfileAvatar} resizeMode="cover" />
+                  <AnimatedRemoteImage
+                    uri={shopImageUrl}
+                    style={styles.centerProfileAvatar}
+                    deliveryWidth={320}
+                    deliveryHeight={320}
+                    accessibilityLabel={`${shopDisplayName} profile photo`}
+                  />
                 ) : (
                   <View style={styles.centerProfileAvatarFallback}>
                     <Ionicons name="storefront-outline" size={44} color="#315f50" />
@@ -2595,7 +2608,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
                 <View style={styles.sidebarIdentity}>
                   <View style={styles.sidebarAvatar}>
                     {shopImageUrl ? (
-                      <Image source={{ uri: shopImageUrl }} style={styles.sidebarAvatarImage} resizeMode="cover" />
+                      <AnimatedRemoteImage uri={shopImageUrl} style={styles.sidebarAvatarImage} deliveryWidth={160} deliveryHeight={160} />
                     ) : (
                       <Ionicons name="storefront-outline" size={23} color="#33443e" />
                     )}
@@ -2759,7 +2772,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
                 <>
                   <View style={styles.editPhotoCard}>
                     {coverImageUrl ? (
-                      <Image source={{ uri: coverImageUrl }} style={styles.editCoverPreview} resizeMode="cover" />
+                      <AnimatedRemoteImage uri={coverImageUrl} style={styles.editCoverPreview} deliveryWidth={900} deliveryHeight={420} />
                     ) : (
                       <View style={styles.editCoverFallback}>
                         <Ionicons name="image-outline" size={30} color="#c2c9c3" />
@@ -2769,7 +2782,7 @@ export default function FuneralShopCenterScreen({ navigation }: any) {
 
                     <View style={styles.editAvatarWrap}>
                       {shopImageUrl ? (
-                        <Image source={{ uri: shopImageUrl }} style={styles.editAvatar} resizeMode="cover" />
+                        <AnimatedRemoteImage uri={shopImageUrl} style={styles.editAvatar} deliveryWidth={240} deliveryHeight={240} />
                       ) : (
                         <View style={styles.editAvatarFallback}>
                           <Ionicons name="storefront-outline" size={30} color="#22312d" />

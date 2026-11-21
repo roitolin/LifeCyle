@@ -2,7 +2,6 @@ import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Modal,
   ScrollView,
   StyleSheet,
@@ -15,6 +14,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
+import AnimatedRemoteImage from "@/components/AnimatedRemoteImage";
 import * as ImagePicker from "@/utils/permissionImagePicker";
 import { AppBackButton, KeyboardAwareScrollView } from "@/components";
 import LoadingStatus from "@/components/LoadingStatus";
@@ -430,11 +430,11 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
 
           <View style={styles.identityCard}>
             <View style={styles.identityBackdrop}>
-              {shop?.coverImageUrl ? <Image source={{ uri: shop.coverImageUrl }} style={styles.identityCover} resizeMode="cover" /> : null}
+              {shop?.coverImageUrl ? <AnimatedRemoteImage uri={shop.coverImageUrl} style={styles.identityCover} deliveryWidth={900} deliveryHeight={420} /> : null}
             </View>
             <View style={styles.identityContent}>
               <View style={styles.identityAvatar}>
-                {shop?.shopImageUrl ? <Image source={{ uri: shop.shopImageUrl }} style={styles.identityImage} resizeMode="cover" /> : <Ionicons name="storefront-outline" size={28} color="#33443e" />}
+                {shop?.shopImageUrl ? <AnimatedRemoteImage uri={shop.shopImageUrl} style={styles.identityImage} deliveryWidth={240} deliveryHeight={240} /> : <Ionicons name="storefront-outline" size={28} color="#33443e" />}
               </View>
               <View style={styles.identityCopy}>
                 <Text style={styles.identityName} numberOfLines={1}>{shop?.shopName || "My Shop"}</Text>
@@ -511,13 +511,13 @@ export default function FuneralShopSettingsScreen({ navigation }: any) {
               </View>
               <View style={styles.photoPreview}>
                 {profileDraft.cover ? (
-                  <Image source={{ uri: profileDraft.cover }} style={styles.coverPreview} resizeMode="cover" />
+                  <AnimatedRemoteImage uri={profileDraft.cover} style={styles.coverPreview} deliveryWidth={900} deliveryHeight={420} />
                 ) : (
                   <View style={[styles.coverPreview, styles.photoFallback]}><Ionicons name="image-outline" size={26} color="#8b9691" /></View>
                 )}
                 <View style={styles.logoPreview}>
                   {profileDraft.logo ? (
-                    <Image source={{ uri: profileDraft.logo }} style={styles.logoImage} resizeMode="cover" />
+                    <AnimatedRemoteImage uri={profileDraft.logo} style={styles.logoImage} deliveryWidth={240} deliveryHeight={240} />
                   ) : (
                     <Ionicons name="storefront-outline" size={28} color="#43534d" />
                   )}

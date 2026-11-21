@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  ImageBackground,
   Linking,
   RefreshControl,
   Share,
@@ -18,6 +17,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import AnimatedRemoteImage from "@/components/AnimatedRemoteImage";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
@@ -724,8 +724,6 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
     );
   }
 
-  const heroSource = heroImageUrl ? { uri: heroImageUrl } : require("../../../assets/Icon/IconTraparent.png");
-
   return (
     <SafeAreaView edges={["left", "right"]} style={styles.screen}>
       <StatusBar hidden={false} style="light" />
@@ -735,7 +733,23 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={colors.primaryDark} onRefresh={() => { setRefreshing(true); void loadShop(); }} />}
       >
-        <ImageBackground source={heroSource} style={styles.hero} imageStyle={styles.heroImage}>
+        <View style={styles.hero}>
+          {heroImageUrl ? (
+            <AnimatedRemoteImage
+              uri={heroImageUrl}
+              style={StyleSheet.absoluteFill}
+              imageStyle={styles.heroImage}
+              deliveryWidth={1080}
+              deliveryHeight={560}
+              accessibilityLabel={`${shopName} cover photo`}
+            />
+          ) : (
+            <Image
+              source={require("../../../assets/Icon/IconTraparent.png")}
+              style={styles.heroFallback}
+              resizeMode="cover"
+            />
+          )}
           <View style={styles.heroOverlay} />
           <View style={[styles.heroContent, { paddingTop: Math.max(14, insets.top + 4) }]}>
             <View style={styles.topControls}>
@@ -757,12 +771,18 @@ export default function FuneralShopProductsScreen({ navigation, route }: any) {
               </TouchableOpacity>
             </View>
           </View>
-        </ImageBackground>
+        </View>
 
         <View style={styles.profilePanel}>
           <View style={styles.profileAvatarWrap}>
             {shop?.shopImageUrl ? (
-              <Image source={{ uri: shop.shopImageUrl }} style={styles.profileAvatar} />
+              <AnimatedRemoteImage
+                uri={shop.shopImageUrl}
+                style={styles.profileAvatar}
+                deliveryWidth={320}
+                deliveryHeight={320}
+                accessibilityLabel={`${shopName} profile photo`}
+              />
             ) : (
               <View style={styles.profileAvatarFallback}>
                 <Ionicons name="storefront" size={44} color="#315f50" />
@@ -876,6 +896,7 @@ const styles = StyleSheet.create({
   retryButton: { minHeight: 44, borderRadius: radii.md, backgroundColor: colors.primaryDark, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.xl, marginTop: spacing.lg },
   retryButtonText: { color: colors.surface, fontSize: 13, fontWeight: "900" },
   hero: { height: 286, backgroundColor: "#d6e2d2", justifyContent: "flex-end" },
+  heroFallback: { ...StyleSheet.absoluteFill, width: "100%", height: "100%" },
   heroImage: { resizeMode: "cover" },
   heroOverlay: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(20, 29, 26, 0.28)" },
   heroContent: { flex: 1, paddingHorizontal: 12, paddingBottom: 18 },
